@@ -64,7 +64,7 @@ describe("HTTP API", () => {
         prompt: "Run the local test command"
       })
     });
-    expect(created.thread.id).toMatch(/^thread_/);
+    expect(created.thread.id).toMatch(/^[0-9a-f-]{36}$/);
 
     await new Promise((resolve) => setTimeout(resolve, 20));
     const detail = await json<{ items: Array<{ text: string }> }>(`/api/threads/${created.thread.id}`);

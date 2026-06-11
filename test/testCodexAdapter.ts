@@ -39,10 +39,10 @@ export class TestCodexAdapter implements CodexAdapter {
 
   async startThread(input: StartThreadInput): Promise<AdapterThread> {
     this.closed = false;
-    const id = `thread_${randomUUID()}`;
+    const id = randomUUID();
     const thread: TestThread = {
       id,
-      sessionId: `session_${randomUUID()}`,
+      sessionId: id,
       forkedFromId: null,
       preview: input.promptPreview,
       cwd: input.cwd,
@@ -105,7 +105,7 @@ export class TestCodexAdapter implements CodexAdapter {
 
   async forkThread(input: ForkThreadInput): Promise<AdapterThread> {
     const source = this.requireThread(input.sourceThreadId);
-    const id = `thread_${randomUUID()}`;
+    const id = randomUUID();
     const thread: TestThread = {
       id,
       sessionId: source.sessionId,

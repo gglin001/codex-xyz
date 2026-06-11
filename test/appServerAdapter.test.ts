@@ -6,6 +6,9 @@ import { AppServerCodexAdapter } from "../src/server/codex/appServerAdapter.js"
 
 let tempDir: string | null = null
 let adapter: AppServerCodexAdapter | null = null
+const sourceThreadId = "00000000-0000-4000-8000-000000000001"
+const debugThreadId = "00000000-0000-4000-8000-000000000002"
+const forkThreadId = "00000000-0000-4000-8000-000000000003"
 
 function createFakeCodexCommand() {
   tempDir = mkdtempSync(join(tmpdir(), "codex-xyz-app-server-"))
@@ -45,12 +48,35 @@ function handle(message) {
       reject(message.id, "thread/resume.excludeTurns requires experimentalApi capability")
       return
     }
+    if (!/^[0-9a-f-]{36}$/i.test(message.params?.threadId ?? "")) {
+      reject(message.id, "invalid session id")
+      return
+    }
     respond(message.id, {
       thread: {
-        id: message.params.threadId,
+        id: "thread_" + message.params.threadId,
         sessionId: message.params.threadId,
         forkedFromId: null,
         preview: "resumed without turns",
+        cwd: message.params.cwd,
+        model: message.params.model
+      },
+      model: message.params.model
+    })
+    return
+  }
+
+  if (message.method === "thread/fork") {
+    if (!/^[0-9a-f-]{36}$/i.test(message.params?.threadId ?? "")) {
+      reject(message.id, "invalid session id")
+      return
+    }
+    respond(message.id, {
+      thread: {
+        id: "thread_00000000-0000-4000-8000-000000000003",
+        sessionId: message.params.threadId,
+        forkedFromId: "thread_" + message.params.threadId,
+        preview: "forked without turns",
         cwd: message.params.cwd,
         model: message.params.model
       },
@@ -93,15 +119,37 @@ describe("AppServerCodexAdapter", () => {
     adapter = new AppServerCodexAdapter(command)
 
     const thread = await adapter.resumeThread({
-      threadId: "thread_1",
+      threadId: sourceThreadId,
       cwd: process.cwd(),
       model: "test-model"
     })
 
     expect(thread).toMatchObject({
-      id: "thread_1",
+      id: sourceThreadId,
       preview: "resumed without turns",
       model: "test-model"
+    })
+  })
+
+  it("normalizes app-server thread ids before callers reuse them", async () => {
+    const command = createFakeCodexCommand()
+    adapter = new AppServerCodexAdapter(command)
+
+    const source = await adapter.resumeThread({
+      threadId: sourceThreadId,
+      cwd: process.cwd(),
+      model: "test-model"
+    })
+    const fork = await adapter.forkThread({
+      sourceThreadId: source.id,
+      cwd: process.cwd(),
+      model: "test-model"
+    })
+
+    expect(fork).toMatchObject({
+      id: forkThreadId,
+      forkedFromId: sourceThreadId,
+      preview: "forked without turns"
     })
   })
 
@@ -111,7 +159,7 @@ describe("AppServerCodexAdapter", () => {
     adapter = new AppServerCodexAdapter(command, { debugLogPath })
 
     await adapter.resumeThread({
-      threadId: "thread_2",
+      threadId: debugThreadId,
       cwd: process.cwd(),
       model: "test-model"
     })
@@ -139,7 +187,7 @@ describe("AppServerCodexAdapter", () => {
           direction: "in",
           message: expect.objectContaining({
             result: expect.objectContaining({
-              thread: expect.objectContaining({ id: "thread_2" })
+              thread: expect.objectContaining({ id: `thread_${debugThreadId}` })
             })
           })
         })

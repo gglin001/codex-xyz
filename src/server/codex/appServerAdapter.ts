@@ -54,12 +54,21 @@ function inputText(text: string) {
   return [{ type: "text", text, text_elements: [] }];
 }
 
+function normalizeThreadId(value: unknown) {
+  const id = String(value);
+  const uuid = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
+  const prefixed = id.match(new RegExp(`^thread_(${uuid})$`));
+  const urn = id.match(new RegExp(`^urn:uuid:(${uuid})$`, "i"));
+  return (prefixed?.[1] ?? urn?.[1] ?? id).toLowerCase();
+}
+
 function normalizeThread(value: unknown, model?: unknown): AdapterThread {
   const thread = asRecord(value);
+  const id = normalizeThreadId(thread.id);
   return {
-    id: String(thread.id),
-    sessionId: String(thread.sessionId ?? thread.id),
-    forkedFromId: typeof thread.forkedFromId === "string" ? thread.forkedFromId : null,
+    id,
+    sessionId: normalizeThreadId(thread.sessionId ?? id),
+    forkedFromId: typeof thread.forkedFromId === "string" ? normalizeThreadId(thread.forkedFromId) : null,
     preview: String(thread.preview ?? ""),
     cwd: String(thread.cwd ?? process.cwd()),
     model: typeof thread.model === "string" ? thread.model : typeof model === "string" ? model : null
