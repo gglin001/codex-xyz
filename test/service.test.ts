@@ -208,6 +208,43 @@ describe("ControlService", () => {
     expect(service.getThreadDetail(threadId).items.some((item) => item.text.includes("Approval accepted"))).toBe(true);
   });
 
+  it("routes concurrent approvals to their own sessions", async () => {
+    const project = service.listProjects()[0];
+    const first = await service.createTask({
+      projectId: project.id,
+      prompt: "approval required for the first session"
+    });
+    const second = await service.createTask({
+      projectId: project.id,
+      prompt: "approval required for the second session"
+    });
+    await waitForEvents();
+
+    const firstThreadId = first.thread?.id;
+    const secondThreadId = second.thread?.id;
+    if (!firstThreadId || !secondThreadId) {
+      throw new Error("Expected created thread ids");
+    }
+
+    const approvals = service.listApprovals();
+    expect(approvals).toHaveLength(2);
+    const firstApproval = approvals.find((approval) => approval.threadId === firstThreadId);
+    const secondApproval = approvals.find((approval) => approval.threadId === secondThreadId);
+    if (!firstApproval || !secondApproval) {
+      throw new Error("Expected approvals for both sessions");
+    }
+
+    await service.resolveApproval(secondApproval.id, true);
+    await waitForEvents();
+
+    const firstDetail = service.getThreadDetail(firstThreadId);
+    const secondDetail = service.getThreadDetail(secondThreadId);
+    expect(firstDetail.status).toBe("waiting_approval");
+    expect(secondDetail.status).toBe("idle");
+    expect(firstDetail.items.some((item) => item.text.includes("Approval accepted"))).toBe(false);
+    expect(secondDetail.items.some((item) => item.text.includes("Approval accepted"))).toBe(true);
+  });
+
   it("continues on a new thread when the persisted runtime thread is missing", async () => {
     await service.close();
     const adapter = new VolatileCodexAdapter();

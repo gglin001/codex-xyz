@@ -32,6 +32,7 @@ export class MockCodexAdapter implements CodexAdapter {
   private handler: AdapterEventHandler = () => {};
   private readonly threads = new Map<string, MockThread>();
   private readonly running = new Map<string, RunningTurn>();
+  private readonly approvalRequests = new Map<string, string>();
 
   constructor(private readonly delayMs = 220) {}
 
@@ -127,16 +128,18 @@ export class MockCodexAdapter implements CodexAdapter {
     }
 
     if (needsApproval) {
-      steps.push(() =>
+      const adapterRequestId = `approval_${randomUUID()}`;
+      steps.push(() => {
+        this.approvalRequests.set(adapterRequestId, turnId);
         this.emit({
           type: "approval.requested",
-          adapterRequestId: `approval_${randomUUID()}`,
+          adapterRequestId,
           threadId: input.threadId,
           turnId,
           kind: "command",
           summary: "Mock command approval requested for a high-risk shell action."
-        })
-      );
+        });
+      });
       steps.push(() =>
         this.emit({
           type: "thread.status",
@@ -223,7 +226,10 @@ export class MockCodexAdapter implements CodexAdapter {
   }
 
   async resolveApproval(input: { approvalId: string; adapterRequestId: string | null; approved: boolean }) {
-    const active = [...this.running.values()].find((turn) => !turn.completed);
+    const turnId = input.adapterRequestId ? this.approvalRequests.get(input.adapterRequestId) : null;
+    const active = turnId
+      ? this.running.get(turnId)
+      : [...this.running.values()].find((turn) => !turn.completed);
     if (!active) {
       return;
     }
@@ -259,6 +265,7 @@ export class MockCodexAdapter implements CodexAdapter {
       }
     }
     this.running.clear();
+    this.approvalRequests.clear();
   }
 
   private schedule(running: RunningTurn, steps: Array<() => void>) {
@@ -287,6 +294,11 @@ export class MockCodexAdapter implements CodexAdapter {
     running.completed = true;
     const durationMs = Date.now() - running.startedAt;
     this.running.delete(running.turnId);
+    for (const [adapterRequestId, turnId] of this.approvalRequests) {
+      if (turnId === running.turnId) {
+        this.approvalRequests.delete(adapterRequestId);
+      }
+    }
     const thread = this.threads.get(running.threadId);
     if (thread?.activeTurnId === running.turnId) {
       thread.activeTurnId = null;

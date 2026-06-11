@@ -191,6 +191,7 @@ export function App() {
   const [prompt, setPrompt] = useState("");
   const [steer, setSteer] = useState("");
   const [goal, setGoalText] = useState("");
+  const [composerMode, setComposerMode] = useState<"thread" | "new">("thread");
   const [showHelp, setShowHelp] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -258,7 +259,11 @@ export function App() {
   const otherThreads = state.threads.filter(
     (thread) => thread.status !== "running" && thread.status !== "waiting_approval"
   );
-  const canSubmitPrompt = Boolean(prompt.trim()) && !busy && Boolean(selectedThread ? selectedThreadId : selectedProjectId);
+  const promptTarget = composerMode === "thread" && selectedThread ? "thread" : "new";
+  const canSubmitPrompt =
+    Boolean(prompt.trim()) &&
+    !busy &&
+    (promptTarget === "thread" ? Boolean(selectedThreadId) : Boolean(selectedProjectId));
 
   async function runAction(action: () => Promise<unknown>) {
     setBusy(true);
@@ -280,7 +285,7 @@ export function App() {
     const currentPrompt = prompt;
     setPrompt("");
 
-    if (selectedThread && selectedThreadId) {
+    if (promptTarget === "thread" && selectedThreadId) {
       void runAction(async () => {
         const turn = await startTurn(selectedThreadId, currentPrompt);
         return turn.threadId;
@@ -292,6 +297,7 @@ export function App() {
       void runAction(async () => {
         const result = await createTask({ projectId: selectedProjectId, prompt: currentPrompt });
         const thread = result.thread as { id?: string } | null;
+        setComposerMode("thread");
         return thread?.id;
       });
     }
@@ -382,18 +388,40 @@ export function App() {
 
         {showHelp ? <HelpPage /> : null}
 
+        <div className="composer-mode" role="group" aria-label="Prompt target">
+          <button
+            type="button"
+            className={promptTarget === "new" ? "active" : ""}
+            title="Create new session"
+            onClick={() => setComposerMode("new")}
+          >
+            <Plus size={15} />
+            <span>New session</span>
+          </button>
+          <button
+            type="button"
+            className={promptTarget === "thread" ? "active" : ""}
+            title="Send to selected session"
+            disabled={!selectedThreadId}
+            onClick={() => setComposerMode("thread")}
+          >
+            <Send size={15} />
+            <span>Selected</span>
+          </button>
+        </div>
+
         <form className="task-form" onSubmit={submitPrompt}>
           <textarea
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
             onKeyDown={handlePromptKeyDown}
-            placeholder={selectedThread ? "Send next turn" : "Create a task"}
+            placeholder={promptTarget === "thread" ? "Send next turn" : "Create a task"}
           />
           <button
             disabled={!canSubmitPrompt}
-            title={selectedThread ? "Start turn (Cmd+Enter)" : "Create task (Cmd+Enter)"}
+            title={promptTarget === "thread" ? "Start turn (Cmd+Enter)" : "Create task (Cmd+Enter)"}
           >
-            {selectedThread ? <Send size={16} /> : <Plus size={16} />}
+            {promptTarget === "thread" ? <Send size={16} /> : <Plus size={16} />}
           </button>
         </form>
 
@@ -409,6 +437,7 @@ export function App() {
               selected={thread.id === selectedThreadId}
               onSelect={() => {
                 setSelectedThreadId(thread.id);
+                setComposerMode("thread");
                 void getThread(thread.id).then(setDetail);
               }}
             />
@@ -424,6 +453,7 @@ export function App() {
               selected={thread.id === selectedThreadId}
               onSelect={() => {
                 setSelectedThreadId(thread.id);
+                setComposerMode("thread");
                 void getThread(thread.id).then(setDetail);
               }}
             />
