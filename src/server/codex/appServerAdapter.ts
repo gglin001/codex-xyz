@@ -269,7 +269,10 @@ export class AppServerCodexAdapter implements CodexAdapter {
         title: "codex-xyz",
         version: "0.1.0"
       },
-      capabilities: null
+      capabilities: {
+        experimentalApi: true,
+        requestAttestation: false
+      }
     };
     await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
