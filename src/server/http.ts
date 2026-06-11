@@ -119,7 +119,7 @@ async function handleApi(context: HandlerContext) {
   if (method === "POST" && parts.join("/") === "api/projects") {
     const body = await readJson(request);
     const project = service.createProject({
-      name: requireString(body, "name"),
+      name: optionalString(body, "name"),
       path: requireString(body, "path")
     });
     sendJson(response, 201, project);

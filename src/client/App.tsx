@@ -1,5 +1,6 @@
 import {
   CircleHelp,
+  FolderOpen,
   GitFork,
   Loader2,
   Play,
@@ -14,6 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   apiUrl,
   clearGoal,
+  createProject,
   createTask,
   forkThread,
   getState,
@@ -120,6 +122,51 @@ function ProjectList({
   );
 }
 
+function WorkdirField({
+  projects,
+  value,
+  matchingProject,
+  disabled,
+  onChange
+}: {
+  projects: Project[];
+  value: string;
+  matchingProject: Project | null;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  const trimmedValue = value.trim();
+
+  return (
+    <div className="workdir-panel">
+      <label className="workdir-field">
+        <span className="field-label">
+          <FolderOpen size={14} />
+          <span>Workdir</span>
+        </span>
+        <input
+          value={value}
+          list="project-workdirs"
+          onChange={(event) => onChange(event.target.value)}
+          placeholder="/path/to/repo"
+          disabled={disabled}
+          aria-label="Working directory"
+        />
+      </label>
+      <datalist id="project-workdirs">
+        {projects.map((project) => (
+          <option key={project.id} value={project.path}>
+            {project.name}
+          </option>
+        ))}
+      </datalist>
+      <span className={`workdir-state ${matchingProject ? "existing" : "new"}`}>
+        {trimmedValue.length === 0 ? "Required for new sessions" : matchingProject ? matchingProject.name : "New project"}
+      </span>
+    </div>
+  );
+}
+
 function Transcript({ detail }: { detail: ThreadDetail | null }) {
   if (!detail) {
     return <div className="empty-state">No session selected</div>;
@@ -171,6 +218,8 @@ export function App() {
   const [detail, setDetail] = useState<ThreadDetail | null>(null);
   const [prompt, setPrompt] = useState("");
   const [steer, setSteer] = useState("");
+  const [workdir, setWorkdir] = useState("");
+  const [workdirTouched, setWorkdirTouched] = useState(false);
   const [composerMode, setComposerMode] = useState<"thread" | "new">("thread");
   const [showHelp, setShowHelp] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -181,6 +230,9 @@ export function App() {
     setState(next);
     if (!selectedProjectId && next.projects[0]) {
       setSelectedProjectId(next.projects[0].id);
+      if (!workdirTouched) {
+        setWorkdir(next.projects[0].path);
+      }
     }
     const preferredThreadId = nextThreadId ?? next.threads[0]?.id ?? null;
     setSelectedThreadId(preferredThreadId);
@@ -226,10 +278,19 @@ export function App() {
     () => state.threads.find((thread) => thread.id === selectedThreadId) ?? null,
     [selectedThreadId, state.threads]
   );
+  const selectedProject = useMemo(
+    () => state.projects.find((project) => project.id === selectedProjectId) ?? null,
+    [selectedProjectId, state.projects]
+  );
+  const matchingWorkdirProject = useMemo(() => {
+    const trimmed = workdir.trim();
+    return state.projects.find((project) => project.path === trimmed) ?? null;
+  }, [state.projects, workdir]);
 
   const activeThreads = state.threads.filter((thread) => thread.status === "running");
   const otherThreads = state.threads.filter((thread) => thread.status !== "running");
   const promptTarget = composerMode === "thread" && selectedThread ? "thread" : "new";
+  const trimmedWorkdir = workdir.trim();
   const goalPromptCommand = parseGoalPromptCommand(prompt);
   const canSubmitPrompt =
     Boolean(prompt.trim()) &&
@@ -238,9 +299,33 @@ export function App() {
       ? Boolean(selectedThreadId)
       : promptTarget === "thread"
         ? Boolean(selectedThreadId)
-        : Boolean(selectedProjectId));
+        : Boolean(trimmedWorkdir));
   const canSubmitSteer =
     Boolean(selectedThreadId) && selectedThread?.status === "running" && Boolean(steer.trim()) && !busy;
+
+  useEffect(() => {
+    if (!workdirTouched && selectedProject) {
+      setWorkdir(selectedProject.path);
+    }
+  }, [selectedProject, workdirTouched]);
+
+  function selectProject(projectId: string) {
+    setSelectedProjectId(projectId);
+    const project = state.projects.find((candidate) => candidate.id === projectId);
+    if (project) {
+      setWorkdir(project.path);
+      setWorkdirTouched(false);
+    }
+  }
+
+  function updateWorkdir(value: string) {
+    setWorkdir(value);
+    setWorkdirTouched(true);
+    const project = state.projects.find((candidate) => candidate.path === value.trim());
+    if (project) {
+      setSelectedProjectId(project.id);
+    }
+  }
 
   async function runAction(action: () => Promise<unknown>) {
     setBusy(true);
@@ -295,14 +380,19 @@ export function App() {
       return;
     }
 
-    if (selectedProjectId) {
-      void runAction(async () => {
-        const result = await createTask({ projectId: selectedProjectId, prompt: currentPrompt });
-        const thread = result.thread as { id?: string } | null;
-        setComposerMode("thread");
-        return thread?.id;
-      });
-    }
+    void runAction(async () => {
+      let project = matchingWorkdirProject;
+      if (!project) {
+        project = await createProject({ path: trimmedWorkdir });
+      }
+      setSelectedProjectId(project.id);
+      setWorkdir(project.path);
+      setWorkdirTouched(false);
+      const result = await createTask({ projectId: project.id, prompt: currentPrompt });
+      const thread = result.thread as { id?: string } | null;
+      setComposerMode("thread");
+      return thread?.id;
+    });
   }
 
   function submitPrompt(event: FormEvent) {
@@ -344,7 +434,7 @@ export function App() {
           <ProjectList
             projects={state.projects}
             selectedProjectId={selectedProjectId}
-            onSelect={setSelectedProjectId}
+            onSelect={selectProject}
           />
         </section>
         <section>
@@ -401,6 +491,16 @@ export function App() {
         </div>
 
         <div className="composer-stack">
+          {promptTarget === "new" ? (
+            <WorkdirField
+              projects={state.projects}
+              value={workdir}
+              matchingProject={matchingWorkdirProject}
+              disabled={busy}
+              onChange={updateWorkdir}
+            />
+          ) : null}
+
           <form className="task-form" onSubmit={submitPrompt}>
             <textarea
               value={prompt}

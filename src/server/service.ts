@@ -1,4 +1,5 @@
-import { basename } from "node:path";
+import { statSync } from "node:fs";
+import { basename, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import {
   type ControlThread,
@@ -43,6 +44,24 @@ function goalStatusFromAdapter(goal: AdapterGoal | null): GoalStatus | null {
   return goal ? goal.status : null;
 }
 
+function normalizeWorkingDirectory(path: string) {
+  const resolved = resolve(path.trim());
+  let stat;
+  try {
+    stat = statSync(resolved);
+  } catch {
+    throw new Error(`Working directory does not exist: ${resolved}`);
+  }
+  if (!stat.isDirectory()) {
+    throw new Error(`Working directory is not a directory: ${resolved}`);
+  }
+  return resolved;
+}
+
+function projectNameFromPath(path: string, name?: string | null) {
+  return name?.trim() || basename(path) || path;
+}
+
 export class ControlService {
   constructor(
     readonly store: Store,
@@ -53,18 +72,19 @@ export class ControlService {
   }
 
   seedLocalState(input: { cwd: string; adapterName: string; cliVersion?: string | null }) {
+    const cwd = normalizeWorkingDirectory(input.cwd);
     this.store.upsertHost({
       id: "local",
       name: "Local host",
       adapter: input.adapterName,
       version: input.cliVersion ?? null
     });
-    const existing = this.store.getProjectByPath(input.cwd);
+    const existing = this.store.getProjectByPath(cwd);
     if (!existing) {
       this.store.createProject({
         id: "local",
-        name: basename(input.cwd),
-        path: input.cwd,
+        name: projectNameFromPath(cwd),
+        path: cwd,
         tags: ["local"]
       });
     }
@@ -84,13 +104,17 @@ export class ControlService {
     return this.store.listProjects();
   }
 
-  createProject(input: { name: string; path: string; tags?: string[] }) {
+  createProject(input: { name?: string | null; path: string; tags?: string[] }) {
+    const path = normalizeWorkingDirectory(input.path);
     const project = this.store.createProject({
       id: randomUUID(),
-      name: input.name,
-      path: input.path,
+      name: projectNameFromPath(path, input.name),
+      path,
       tags: input.tags ?? []
     });
+    if (!project) {
+      throw new Error(`Failed to create project for ${path}`);
+    }
     this.publish("project.upserted", null, null, { project });
     return project;
   }

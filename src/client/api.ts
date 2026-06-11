@@ -1,5 +1,6 @@
 import type {
   DashboardState,
+  Project,
   ThreadDetail,
   Turn
 } from "../server/domain.js";
@@ -34,6 +35,16 @@ export function getState() {
 
 export function getThread(threadId: string) {
   return request<ThreadDetail>(`/api/threads/${threadId}`);
+}
+
+export function createProject(input: { name?: string | null; path: string }) {
+  return request<Project>("/api/projects", {
+    method: "POST",
+    body: JSON.stringify({
+      name: input.name ?? null,
+      path: input.path
+    })
+  });
 }
 
 export function createTask(input: {

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AddressInfo } from "node:net";
@@ -69,6 +69,29 @@ describe("HTTP API", () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     const detail = await json<{ items: Array<{ text: string }> }>(`/api/threads/${created.thread.id}`);
     expect(detail.items.map((item) => item.text).join("\n")).toContain("Test run started");
+  });
+
+  it("creates a project from a working directory path", async () => {
+    const projectDir = join(tempDir, "nested-project");
+    mkdirSync(projectDir);
+
+    const project = await json<{ id: string; name: string; path: string }>("/api/projects", {
+      method: "POST",
+      body: JSON.stringify({
+        path: `${projectDir}/`
+      })
+    });
+    expect(project.name).toBe("nested-project");
+    expect(project.path).toBe(projectDir);
+
+    const duplicate = await json<{ id: string; path: string }>("/api/projects", {
+      method: "POST",
+      body: JSON.stringify({
+        path: projectDir
+      })
+    });
+    expect(duplicate.id).toBe(project.id);
+    expect(duplicate.path).toBe(projectDir);
   });
 
   it("runs high-risk prompts without approvals in yolo mode", async () => {
