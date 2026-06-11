@@ -2,6 +2,7 @@
   "name": "codex-xyz",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@11.0.3",
   "type": "module",
   "description": "Local Codex control plane prototype for managing multiple sessions.",
   "scripts": {
@@ -9,10 +10,10 @@
     "dev": "node scripts/dev.mjs",
     "dev:api": "tsx watch src/server/index.ts",
     "dev:web": "vite --host 127.0.0.1",
-    "prebuild": "npm run generate:codex",
+    "prebuild": "pnpm run generate:codex",
     "build": "tsc -p tsconfig.json && vite build",
     "preview": "tsx src/server/index.ts",
-    "pretest": "npm run generate:codex",
+    "pretest": "pnpm run generate:codex",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

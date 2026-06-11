@@ -1,11 +1,11 @@
 import { spawn } from "node:child_process";
 
 const processes = [
-  spawn("npm", ["run", "dev:api"], {
+  spawn("pnpm", ["run", "dev:api"], {
     stdio: "inherit",
     env: { ...process.env, CODEX_XYZ_ADAPTER: process.env.CODEX_XYZ_ADAPTER ?? "mock" }
   }),
-  spawn("npm", ["run", "dev:web"], {
+  spawn("pnpm", ["run", "dev:web"], {
     stdio: "inherit",
     env: process.env
   })

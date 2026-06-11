@@ -7,19 +7,19 @@
 Install dependencies:
 
 ```bash
-npm install
+pnpm install
 ```
 
 Run the local tests:
 
 ```bash
-npm test
+pnpm test
 ```
 
 Start the local mock console:
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 Open `http://127.0.0.1:5173`. The API runs on `http://127.0.0.1:8787` and stores local state in `.codex-xyz/codex-xyz.sqlite`.
@@ -27,7 +27,7 @@ Open `http://127.0.0.1:5173`. The API runs on `http://127.0.0.1:8787` and stores
 Use the real Codex app-server adapter when you want to connect to Codex instead of the deterministic mock:
 
 ```bash
-CODEX_XYZ_ADAPTER=app-server npm run dev
+CODEX_XYZ_ADAPTER=app-server pnpm run dev
 ```
 
 ## What Is Implemented
