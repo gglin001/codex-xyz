@@ -1,0 +1,38 @@
+{
+  "name": "codex-xyz",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local Codex control plane prototype for managing multiple sessions.",
+  "scripts": {
+    "generate:codex": "node scripts/generate-codex-types.mjs",
+    "dev": "node scripts/dev.mjs",
+    "dev:api": "tsx watch src/server/index.ts",
+    "dev:web": "vite --host 127.0.0.1",
+    "prebuild": "npm run generate:codex",
+    "build": "tsc -p tsconfig.json && vite build",
+    "preview": "tsx src/server/index.ts",
+    "pretest": "npm run generate:codex",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "@types/react": "^18.3.24",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^5.1.1",
+    "jsdom": "^27.3.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.0.15"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}
