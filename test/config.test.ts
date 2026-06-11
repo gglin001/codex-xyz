@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_CODEX_XYZ_ADAPTER,
   DEFAULT_CODEX_XYZ_API_URL,
   DEFAULT_CODEX_XYZ_UI_URL,
+  readAdapterName,
   readApiUrl,
   readUiUrl
 } from "../src/config.js";
@@ -42,5 +44,12 @@ describe("URL environment config", () => {
     expect(() => readApiUrl({ CODEX_XYZ_API_URL: "file:///tmp/api" })).toThrow(/http or https/);
     expect(() => readUiUrl({ CODEX_XYZ_UI_URL: "not-a-url" })).toThrow(/valid URL/);
     expect(() => readApiUrl({ PORT: "abc" })).toThrow(/TCP port/);
+  });
+
+  it("reads and validates the adapter name", () => {
+    expect(readAdapterName({})).toBe(DEFAULT_CODEX_XYZ_ADAPTER);
+    expect(readAdapterName({ CODEX_XYZ_ADAPTER: "mock" })).toBe("mock");
+    expect(readAdapterName({ CODEX_XYZ_ADAPTER: "app-server" })).toBe("app-server");
+    expect(() => readAdapterName({ CODEX_XYZ_ADAPTER: "local" })).toThrow(/app-server or mock/);
   });
 });

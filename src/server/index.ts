@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { AppServerCodexAdapter } from "./codex/appServerAdapter.js";
 import type { CodexAdapter } from "./codex/adapter.js";
 import { MockCodexAdapter } from "./codex/mockAdapter.js";
-import { readApiUrl, readUiUrl } from "../config.js";
+import { readAdapterName, readApiUrl, readUiUrl } from "../config.js";
 import { createHttpServer } from "./http.js";
 import { ControlService } from "./service.js";
 import { Store } from "./store.js";
@@ -18,7 +18,7 @@ function codexVersion() {
 }
 
 export function createServiceFromEnv() {
-  const adapterName = process.env.CODEX_XYZ_ADAPTER ?? "app-server";
+  const adapterName = readAdapterName(process.env);
   const dataDir = resolve(process.cwd(), process.env.CODEX_XYZ_DATA_DIR ?? ".codex-xyz");
   const store = Store.open(resolve(dataDir, "codex-xyz.sqlite"));
   let adapter: CodexAdapter;

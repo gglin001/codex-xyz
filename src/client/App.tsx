@@ -217,17 +217,14 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    let lastEventId = 0;
     const source = new EventSource(apiUrl("/api/events"));
     source.onmessage = () => {
       void refresh();
     };
-    source.addEventListener("item.created", (event) => {
-      lastEventId = Number((event as MessageEvent).lastEventId || lastEventId);
+    source.addEventListener("item.created", () => {
       void refresh();
     });
-    source.addEventListener("item.delta", (event) => {
-      lastEventId = Number((event as MessageEvent).lastEventId || lastEventId);
+    source.addEventListener("item.delta", () => {
       void refresh();
     });
     source.addEventListener("turn.status", () => void refresh());
