@@ -1,12 +1,17 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
+import { readApiUrl, readUiUrl } from "./src/config.js";
+
+const apiUrl = readApiUrl(process.env);
+const uiUrl = readUiUrl(process.env);
 
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 5173,
+    host: uiUrl.hostname,
+    port: uiUrl.port,
     proxy: {
-      "/api": "http://127.0.0.1:8787"
+      "/api": apiUrl.origin
     }
   },
   build: {

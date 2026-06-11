@@ -9,7 +9,7 @@
     "generate:codex": "node scripts/generate-codex-types.mjs",
     "dev": "node scripts/dev.mjs",
     "dev:api": "tsx watch src/server/index.ts",
-    "dev:web": "vite --host 127.0.0.1",
+    "dev:web": "vite",
     "prebuild": "pnpm run generate:codex",
     "build": "tsc -p tsconfig.json && vite build",
     "preview": "tsx src/server/index.ts",

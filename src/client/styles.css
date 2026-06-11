@@ -98,6 +98,7 @@ small {
 .panel-header,
 .detail-header,
 .toolbar,
+.panel-header-actions,
 .approval-actions,
 .approval-heading,
 .metric-row {
@@ -127,6 +128,16 @@ small {
   margin-top: 3px;
   color: #6b7280;
   font-size: 12px;
+}
+
+.panel-header-actions {
+  gap: 8px;
+}
+
+button.active {
+  border-color: #29758e;
+  background: #e9f7fa;
+  color: #175c72;
 }
 
 .project-list,
@@ -220,6 +231,72 @@ small {
 .task-form textarea:focus {
   border-color: #29758e;
   box-shadow: 0 0 0 3px rgba(41, 117, 142, 0.14);
+}
+
+.help-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #d9e0e8;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.help-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.help-page-header span {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.shortcut-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.shortcut-row strong {
+  display: block;
+  color: #263244;
+  font-size: 13px;
+}
+
+.shortcut-row p {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.shortcut-keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #64748b;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+kbd {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #263244;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1;
 }
 
 .error-banner {

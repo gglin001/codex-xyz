@@ -1,5 +1,6 @@
 import {
   Check,
+  CircleHelp,
   CircleStop,
   GitFork,
   Loader2,
@@ -12,8 +13,10 @@ import {
   Target,
   X
 } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import type { FormEvent, KeyboardEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  apiUrl,
   clearGoal,
   createTask,
   forkThread,
@@ -158,6 +161,28 @@ function ApprovalList({
   );
 }
 
+function HelpPage() {
+  return (
+    <section className="help-page" aria-label="Keyboard shortcuts">
+      <div className="help-page-header">
+        <h2>Help</h2>
+        <span>Keyboard shortcuts</span>
+      </div>
+      <div className="shortcut-row">
+        <div className="shortcut-keys" aria-label="Command Enter">
+          <kbd>Cmd</kbd>
+          <span>+</span>
+          <kbd>Enter</kbd>
+        </div>
+        <div>
+          <strong>Execute prompt</strong>
+          <p>Run the current prompt from the prompt input on macOS.</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function App() {
   const [state, setState] = useState<DashboardState>(initialState);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -166,6 +191,7 @@ export function App() {
   const [prompt, setPrompt] = useState("");
   const [steer, setSteer] = useState("");
   const [goal, setGoalText] = useState("");
+  const [showHelp, setShowHelp] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -192,7 +218,7 @@ export function App() {
 
   useEffect(() => {
     let lastEventId = 0;
-    const source = new EventSource("/api/events");
+    const source = new EventSource(apiUrl("/api/events"));
     source.onmessage = () => {
       void refresh();
     };
@@ -235,6 +261,7 @@ export function App() {
   const otherThreads = state.threads.filter(
     (thread) => thread.status !== "running" && thread.status !== "waiting_approval"
   );
+  const canSubmitPrompt = Boolean(prompt.trim()) && !busy && Boolean(selectedThread ? selectedThreadId : selectedProjectId);
 
   async function runAction(action: () => Promise<unknown>) {
     setBusy(true);
@@ -249,30 +276,39 @@ export function App() {
     }
   }
 
-  function submitTask(event: FormEvent) {
-    event.preventDefault();
-    if (!selectedProjectId || !prompt.trim()) {
+  function executePrompt() {
+    if (!canSubmitPrompt) {
       return;
     }
     const currentPrompt = prompt;
     setPrompt("");
-    void runAction(async () => {
-      const result = await createTask({ projectId: selectedProjectId, prompt: currentPrompt });
-      const thread = result.thread as { id?: string } | null;
-      if (thread?.id) {
-        setSelectedThreadId(thread.id);
-      }
-    });
+
+    if (selectedThread && selectedThreadId) {
+      void runAction(() => startTurn(selectedThreadId, currentPrompt));
+      return;
+    }
+
+    if (selectedProjectId) {
+      void runAction(async () => {
+        const result = await createTask({ projectId: selectedProjectId, prompt: currentPrompt });
+        const thread = result.thread as { id?: string } | null;
+        if (thread?.id) {
+          setSelectedThreadId(thread.id);
+        }
+      });
+    }
   }
 
-  function submitTurn(event: FormEvent) {
+  function submitPrompt(event: FormEvent) {
     event.preventDefault();
-    if (!selectedThreadId || !prompt.trim()) {
-      return;
+    executePrompt();
+  }
+
+  function handlePromptKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Enter" && event.metaKey && !event.nativeEvent.isComposing) {
+      event.preventDefault();
+      executePrompt();
     }
-    const currentPrompt = prompt;
-    setPrompt("");
-    void runAction(() => startTurn(selectedThreadId, currentPrompt));
   }
 
   function submitSteer(event: FormEvent) {
@@ -332,16 +368,33 @@ export function App() {
             <h1>Sessions</h1>
             <p>{state.threads.length} total</p>
           </div>
-          {busy ? <Loader2 className="spin" size={18} /> : <Play size={18} />}
+          <div className="panel-header-actions">
+            {busy ? <Loader2 className="spin" size={18} /> : <Play size={18} />}
+            <button
+              className={showHelp ? "active" : ""}
+              title={showHelp ? "Hide shortcuts" : "Show shortcuts"}
+              aria-label={showHelp ? "Hide shortcuts" : "Show shortcuts"}
+              aria-expanded={showHelp}
+              onClick={() => setShowHelp((current) => !current)}
+            >
+              <CircleHelp size={16} />
+            </button>
+          </div>
         </div>
 
-        <form className="task-form" onSubmit={selectedThread ? submitTurn : submitTask}>
+        {showHelp ? <HelpPage /> : null}
+
+        <form className="task-form" onSubmit={submitPrompt}>
           <textarea
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
+            onKeyDown={handlePromptKeyDown}
             placeholder={selectedThread ? "Send next turn" : "Create a task"}
           />
-          <button disabled={busy || !prompt.trim()} title={selectedThread ? "Start turn" : "Create task"}>
+          <button
+            disabled={!canSubmitPrompt}
+            title={selectedThread ? "Start turn (Cmd+Enter)" : "Create task (Cmd+Enter)"}
+          >
             {selectedThread ? <Send size={16} /> : <Plus size={16} />}
           </button>
         </form>

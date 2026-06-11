@@ -221,6 +221,16 @@ async function handleApi(context: HandlerContext) {
   return false;
 }
 
+function applyCorsHeaders(response: ServerResponse, requestOrigin: string | undefined, corsOrigin: string | null) {
+  if (!corsOrigin || requestOrigin !== corsOrigin) {
+    return;
+  }
+  response.setHeader("access-control-allow-origin", corsOrigin);
+  response.setHeader("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS");
+  response.setHeader("access-control-allow-headers", "content-type");
+  response.setHeader("vary", "Origin");
+}
+
 function serveStatic(response: ServerResponse, url: URL, clientDistDir: string | null) {
   if (!clientDistDir || !existsSync(clientDistDir)) {
     sendJson(response, 404, { error: "Not found" });
@@ -240,11 +250,20 @@ function serveStatic(response: ServerResponse, url: URL, clientDistDir: string |
   createReadStream(filePath).pipe(response);
 }
 
-export function createHttpServer(service: ControlService, options: { clientDistDir?: string | null } = {}) {
+export function createHttpServer(
+  service: ControlService,
+  options: { clientDistDir?: string | null; corsOrigin?: string | null } = {}
+) {
   return createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "127.0.0.1"}`);
+    applyCorsHeaders(response, request.headers.origin, options.corsOrigin ?? null);
     try {
       if (url.pathname.startsWith("/api/")) {
+        if (request.method === "OPTIONS") {
+          response.writeHead(204);
+          response.end();
+          return;
+        }
         const handled = await handleApi({ request, response, url, service });
         if (!handled) {
           sendJson(response, 404, { error: "Not found" });

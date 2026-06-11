@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { AppServerCodexAdapter } from "./codex/appServerAdapter.js";
 import type { CodexAdapter } from "./codex/adapter.js";
 import { MockCodexAdapter } from "./codex/mockAdapter.js";
+import { readApiUrl, readUiUrl } from "../config.js";
 import { createHttpServer } from "./http.js";
 import { ControlService } from "./service.js";
 import { Store } from "./store.js";
@@ -37,11 +38,12 @@ export function createServiceFromEnv() {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const service = createServiceFromEnv();
-  const port = Number(process.env.PORT ?? 8787);
+  const apiUrl = readApiUrl(process.env);
+  const uiUrl = readUiUrl(process.env);
   const clientDistDir = resolve(process.cwd(), "dist/client");
-  const server = createHttpServer(service, { clientDistDir });
-  server.listen(port, "127.0.0.1", () => {
-    console.log(`codex-xyz API listening on http://127.0.0.1:${port}`);
+  const server = createHttpServer(service, { clientDistDir, corsOrigin: uiUrl.origin });
+  server.listen(apiUrl.port, apiUrl.hostname, () => {
+    console.log(`codex-xyz API listening on ${apiUrl.origin}`);
   });
 
   async function shutdown() {

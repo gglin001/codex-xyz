@@ -1,5 +1,10 @@
 import { spawn } from "node:child_process";
 
+const webEnv = {
+  ...process.env,
+  VITE_CODEX_XYZ_API_URL: process.env.VITE_CODEX_XYZ_API_URL ?? process.env.CODEX_XYZ_API_URL ?? ""
+};
+
 const processes = [
   spawn("pnpm", ["run", "dev:api"], {
     stdio: "inherit",
@@ -7,7 +12,7 @@ const processes = [
   }),
   spawn("pnpm", ["run", "dev:web"], {
     stdio: "inherit",
-    env: process.env
+    env: webEnv
   })
 ];
 

@@ -5,8 +5,14 @@ import type {
   Turn
 } from "../server/domain.js";
 
+const apiBaseUrl = import.meta.env.VITE_CODEX_XYZ_API_URL?.trim().replace(/\/+$/, "") ?? "";
+
+export function apiUrl(path: string) {
+  return apiBaseUrl ? `${apiBaseUrl}${path}` : path;
+}
+
 async function request<T>(path: string, options: RequestInit = {}) {
-  const response = await fetch(path, {
+  const response = await fetch(apiUrl(path), {
     ...options,
     headers: {
       "content-type": "application/json",

@@ -27,3 +27,6 @@ HOME = "${PIXI_PROJECT_ROOT}/dot.home"
 XDG_CONFIG_HOME = "${PIXI_PROJECT_ROOT}/dot.home/.config"
 XDG_DATA_HOME = "${PIXI_PROJECT_ROOT}/dot.home/.data"
 XDG_CACHE_HOME = "${PIXI_PROJECT_ROOT}/dot.home/.cache"
+
+CODEX_XYZ_UI_URL = "http://127.0.0.1:1123"
+CODEX_XYZ_API_URL = "http://127.0.0.1:3211"
