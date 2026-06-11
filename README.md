@@ -1,8 +1,8 @@
 # codex-xyz
 
-`codex-xyz` is a first-version Codex control plane prototype. It provides a local web console, a Node host agent, a SQLite projection store, and an app-server adapter boundary for real Codex sessions.
+`codex-xyz` is a local Codex control-plane prototype. It provides a React web console, a Node API host, a SQLite projection store, and an app-server adapter for real Codex sessions.
 
-## Local Usage
+## Usage
 
 Install dependencies:
 
@@ -10,49 +10,24 @@ Install dependencies:
 pnpm install
 ```
 
-Run the local tests:
-
-```bash
-pnpm test
-```
-
-Start the local console with the real Codex app-server adapter:
+Start the local console:
 
 ```bash
 pnpm run dev
 ```
 
-Open `http://127.0.0.1:1123`. The API runs on `http://127.0.0.1:3211` and stores local state in `.codex-xyz/codex-xyz.sqlite`.
+Open `http://127.0.0.1:1123`. The API runs on `http://127.0.0.1:3211`, and local state defaults to `.codex-xyz/codex-xyz.sqlite`.
 
-To override the local UI or API URLs:
+## Checks
+
+Run tests:
 
 ```bash
-CODEX_XYZ_UI_URL=http://127.0.0.1:1124 CODEX_XYZ_API_URL=http://127.0.0.1:4211 pnpm run dev
+pnpm test
 ```
 
-## What Is Implemented
+Run TypeScript checks:
 
-- Local PWA-style dashboard for projects, tasks, sessions, transcript items, goals, steer, interrupt, and fork.
-- Node control server with REST APIs and server-sent events.
-- SQLite WAL projection tables for hosts, projects, threads, turns, items, events, tasks, prompt recipes, and eval runs.
-- Adapter interface backed by the JSONL stdio app-server adapter.
-- Build-time Codex protocol generation through `codex app-server generate-ts --experimental`.
-- Local test coverage for service orchestration and HTTP APIs.
-
-The app runs Codex sessions in yolo mode only: approval policy is fixed to `never`, with full-access sandbox settings applied at the app-server adapter boundary.
-
-## Environment
-
-`CODEX_XYZ_DATA_DIR` sets the SQLite data directory. It defaults to `.codex-xyz`.
-
-`CODEX_XYZ_UI_URL` sets the Vite dev server URL and the allowed browser origin for API CORS. It defaults to `http://127.0.0.1:1123`.
-
-`CODEX_XYZ_API_URL` sets the local API server URL and the Vite dev proxy target. It defaults to `http://127.0.0.1:3211`. `PORT` is still supported as a port-only fallback when `CODEX_XYZ_API_URL` is not set.
-
-`VITE_CODEX_XYZ_API_URL` sets the browser-side API base URL. `pnpm run dev` derives it from `CODEX_XYZ_API_URL` automatically. Leave it unset for relative `/api` requests.
-
-`CODEX_XYZ_CODEX_BIN` selects the Codex binary used by protocol generation and the real adapter. It defaults to `codex`.
-
-## Current Scope
-
-This is intentionally a local-first MVP. Multi-host tunnels, team auth, encrypted storage, advanced eval automation, and production RBAC are left as later slices. The code keeps their state boundaries visible in the schema so those pieces can be added without replacing the first-version control plane.
+```bash
+pnpm run typecheck
+```
