@@ -5,3 +5,6 @@ coverage/
 src/generated/
 *.log
 .DS_Store
+# pixi environments
+.pixi/*
+!.pixi/config.toml
