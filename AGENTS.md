@@ -2,9 +2,9 @@
 
 ## Project Structure & Module Organization
 
-This is a local Codex control-plane prototype with a React client and Node server. `src/client` contains the Vite UI, styles, and browser API wrapper. `src/server` contains the HTTP server, service layer, SQLite store, event bus, and domain types. `src/server/codex` is the adapter boundary for mock and real Codex app-server sessions. Environment parsing lives in `src/config.ts`.
+This is a local Codex control-plane prototype with a React client and Node server. `src/client` contains the Vite UI, styles, and browser API wrapper. `src/server` contains the HTTP server, service layer, SQLite store, event bus, and domain types. `src/server/codex` is the adapter boundary for mock and real sessions. Environment parsing lives in `src/config.ts`.
 
-Tests are in `test` and mirror server behavior with `*.test.ts` files. Utility scripts live in `scripts`; Codex protocol types are produced by `scripts/generate-codex-types.mjs`. Build output goes to `dist/client`; local runtime state defaults to `.codex-xyz`.
+Tests are in `test`; utility scripts live in `scripts`. `third_party/codex` contains upstream Codex source for protocol, runtime, or adapter reference when needed. Protocol types are produced by `scripts/generate-codex-types.mjs`. Build output goes to `dist/client`; runtime state defaults to `.codex-xyz`.
 
 ## Build, Test, and Development Commands
 
@@ -19,7 +19,7 @@ Tests are in `test` and mirror server behavior with `*.test.ts` files. Utility s
 
 ## Coding Style & Naming Conventions
 
-Use strict TypeScript with ESM imports and explicit `.js` extensions for local runtime imports. Follow the existing two-space indentation, double-quoted strings, and semicolon-free style. Prefer small pure helpers near their callers and keep cross-module contracts in `src/server/domain.ts` or adapter types. React components use PascalCase; functions, variables, and test helpers use camelCase.
+Use strict TypeScript with ESM imports and explicit `.js` extensions for local runtime imports. Follow the existing two-space indentation, double-quoted strings, and semicolon-free style. Prefer small pure helpers near callers and keep cross-module contracts in `src/server/domain.ts` or adapter types. React components use PascalCase; functions, variables, and test helpers use camelCase.
 
 ## Testing Guidelines
 
