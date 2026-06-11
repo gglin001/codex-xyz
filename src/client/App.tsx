@@ -1,5 +1,4 @@
 import {
-  Check,
   CircleHelp,
   CircleStop,
   GitFork,
@@ -8,10 +7,8 @@ import {
   Plus,
   RefreshCw,
   Send,
-  ShieldCheck,
   Square,
-  Target,
-  X
+  Target
 } from "lucide-react";
 import type { FormEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -23,13 +20,11 @@ import {
   getState,
   getThread,
   interruptTurn,
-  resolveApproval,
   setGoal,
   startTurn,
   steerTurn
 } from "./api.js";
 import type {
-  Approval,
   ControlThread,
   DashboardState,
   Project,
@@ -46,7 +41,6 @@ function initialState(): DashboardState {
     projects: [],
     tasks: [],
     threads: [],
-    approvals: [],
     recipes: []
   };
 }
@@ -129,38 +123,6 @@ function Transcript({ detail }: { detail: ThreadDetail | null }) {
   );
 }
 
-function ApprovalList({
-  approvals,
-  onResolve
-}: {
-  approvals: Approval[];
-  onResolve: (approval: Approval, approved: boolean) => void;
-}) {
-  if (approvals.length === 0) {
-    return <div className="empty-state compact">No pending approvals</div>;
-  }
-  return (
-    <div className="approval-list">
-      {approvals.map((approval) => (
-        <article className="approval-row" key={approval.id}>
-          <div>
-            <span className="approval-kind">{approval.kind}</span>
-            <p>{approval.summary}</p>
-          </div>
-          <div className="approval-actions">
-            <button title="Approve" onClick={() => onResolve(approval, true)}>
-              <Check size={16} />
-            </button>
-            <button title="Deny" onClick={() => onResolve(approval, false)}>
-              <X size={16} />
-            </button>
-          </div>
-        </article>
-      ))}
-    </div>
-  );
-}
-
 function HelpPage() {
   return (
     <section className="help-page" aria-label="Keyboard shortcuts">
@@ -229,8 +191,6 @@ export function App() {
       void refresh();
     });
     source.addEventListener("turn.status", () => void refresh());
-    source.addEventListener("approval.requested", () => void refresh());
-    source.addEventListener("approval.resolved", () => void refresh());
     source.addEventListener("thread.started", () => void refresh());
     source.addEventListener("thread.forked", () => void refresh());
     source.onerror = () => {
@@ -253,12 +213,8 @@ export function App() {
     [selectedThreadId, state.threads]
   );
 
-  const activeThreads = state.threads.filter(
-    (thread) => thread.status === "running" || thread.status === "waiting_approval"
-  );
-  const otherThreads = state.threads.filter(
-    (thread) => thread.status !== "running" && thread.status !== "waiting_approval"
-  );
+  const activeThreads = state.threads.filter((thread) => thread.status === "running");
+  const otherThreads = state.threads.filter((thread) => thread.status !== "running");
   const promptTarget = composerMode === "thread" && selectedThread ? "thread" : "new";
   const canSubmitPrompt =
     Boolean(prompt.trim()) &&
@@ -358,10 +314,6 @@ export function App() {
           <div className="metric-row">
             <span>Tasks</span>
             <strong>{state.tasks.length}</strong>
-          </div>
-          <div className="metric-row">
-            <span>Approvals</span>
-            <strong>{state.approvals.length}</strong>
           </div>
         </section>
       </aside>
@@ -527,17 +479,6 @@ export function App() {
           </form>
         </section>
 
-        <section>
-          <h2>Approvals</h2>
-          <div className="approval-heading">
-            <ShieldCheck size={16} />
-            <span>{state.approvals.length} pending</span>
-          </div>
-          <ApprovalList
-            approvals={state.approvals}
-            onResolve={(approval, approved) => void runAction(() => resolveApproval(approval, approved))}
-          />
-        </section>
       </aside>
     </main>
   );

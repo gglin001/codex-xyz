@@ -2,7 +2,6 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import {
-  type Approval,
   type ControlThread,
   type EvalRun,
   type GoalStatus,
@@ -114,21 +113,6 @@ function taskFromRow(row: Row): Task {
     status: scalarString(row.status) as TaskStatus,
     createdAt: scalarString(row.created_at),
     updatedAt: scalarString(row.updated_at)
-  };
-}
-
-function approvalFromRow(row: Row): Approval {
-  return {
-    id: scalarString(row.id),
-    adapterRequestId: nullableString(row.adapter_request_id),
-    threadId: scalarString(row.thread_id),
-    turnId: nullableString(row.turn_id),
-    kind: scalarString(row.kind) as Approval["kind"],
-    summary: scalarString(row.summary),
-    status: scalarString(row.status) as Approval["status"],
-    reviewer: nullableString(row.reviewer),
-    createdAt: scalarString(row.created_at),
-    resolvedAt: nullableString(row.resolved_at)
   };
 }
 
@@ -256,19 +240,6 @@ export class Store {
         updated_at TEXT NOT NULL
       );
 
-      CREATE TABLE IF NOT EXISTS approvals (
-        id TEXT PRIMARY KEY,
-        adapter_request_id TEXT,
-        thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
-        turn_id TEXT REFERENCES turns(id) ON DELETE SET NULL,
-        kind TEXT NOT NULL,
-        summary TEXT NOT NULL,
-        status TEXT NOT NULL,
-        reviewer TEXT,
-        created_at TEXT NOT NULL,
-        resolved_at TEXT
-      );
-
       CREATE TABLE IF NOT EXISTS prompt_recipes (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -292,7 +263,7 @@ export class Store {
       CREATE INDEX IF NOT EXISTS idx_items_thread ON items(thread_id);
       CREATE INDEX IF NOT EXISTS idx_events_thread ON events(thread_id);
       CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
-      CREATE INDEX IF NOT EXISTS idx_approvals_status ON approvals(status);
+      DROP TABLE IF EXISTS approvals;
     `);
   }
 
@@ -451,8 +422,7 @@ export class Store {
     return {
       ...thread,
       turns: this.listTurns(id),
-      items: this.listItems(id),
-      approvals: this.listApprovals({ threadId: id })
+      items: this.listItems(id)
     };
   }
 
@@ -573,67 +543,6 @@ export class Store {
       .prepare("SELECT * FROM tasks ORDER BY updated_at DESC")
       .all()
       .map((row) => taskFromRow(row as Row));
-  }
-
-  createApproval(approval: Approval) {
-    this.db
-      .prepare(
-        `
-          INSERT INTO approvals (
-            id, adapter_request_id, thread_id, turn_id, kind, summary, status, reviewer, created_at, resolved_at
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `
-      )
-      .run(
-        approval.id,
-        approval.adapterRequestId,
-        approval.threadId,
-        approval.turnId,
-        approval.kind,
-        approval.summary,
-        approval.status,
-        approval.reviewer,
-        approval.createdAt,
-        approval.resolvedAt
-      );
-    return approval;
-  }
-
-  updateApproval(id: string, updates: Partial<Pick<Approval, "status" | "reviewer" | "resolvedAt">>) {
-    const existing = this.getApproval(id);
-    if (!existing) {
-      throw new Error(`Approval ${id} does not exist`);
-    }
-    const next = { ...existing, ...updates };
-    this.db
-      .prepare("UPDATE approvals SET status = ?, reviewer = ?, resolved_at = ? WHERE id = ?")
-      .run(next.status, next.reviewer, next.resolvedAt, id);
-    return this.getApproval(id);
-  }
-
-  getApproval(id: string) {
-    const row = this.db.prepare("SELECT * FROM approvals WHERE id = ?").get(id);
-    return row ? approvalFromRow(row as Row) : null;
-  }
-
-  listApprovals(filter: { threadId?: string; status?: Approval["status"] } = {}) {
-    if (filter.threadId) {
-      return this.db
-        .prepare("SELECT * FROM approvals WHERE thread_id = ? ORDER BY created_at DESC")
-        .all(filter.threadId)
-        .map((row) => approvalFromRow(row as Row));
-    }
-    if (filter.status) {
-      return this.db
-        .prepare("SELECT * FROM approvals WHERE status = ? ORDER BY created_at DESC")
-        .all(filter.status)
-        .map((row) => approvalFromRow(row as Row));
-    }
-    return this.db
-      .prepare("SELECT * FROM approvals ORDER BY created_at DESC")
-      .all()
-      .map((row) => approvalFromRow(row as Row));
   }
 
   upsertRecipe(recipe: PromptRecipe) {

@@ -1,15 +1,12 @@
 export type RuntimeStatus =
   | "idle"
   | "running"
-  | "waiting_approval"
   | "stale"
   | "interrupted"
   | "failed"
   | "completed";
 
 export type TaskStatus = "queued" | "running" | "completed" | "failed" | "interrupted";
-
-export type ApprovalStatus = "pending" | "approved" | "denied";
 
 export type GoalStatus = "in_progress" | "complete" | "blocked" | "cleared";
 
@@ -19,7 +16,6 @@ export type ItemType =
   | "plan"
   | "command"
   | "file"
-  | "approval"
   | "system";
 
 export type Project = {
@@ -83,19 +79,6 @@ export type Task = {
   updatedAt: string;
 };
 
-export type Approval = {
-  id: string;
-  adapterRequestId: string | null;
-  threadId: string;
-  turnId: string | null;
-  kind: "command" | "file" | "permissions" | "input" | "tool";
-  summary: string;
-  status: ApprovalStatus;
-  reviewer: string | null;
-  createdAt: string;
-  resolvedAt: string | null;
-};
-
 export type PromptRecipe = {
   id: string;
   name: string;
@@ -126,14 +109,12 @@ export type XyzEvent = {
 export type ThreadDetail = ControlThread & {
   turns: Turn[];
   items: ThreadItem[];
-  approvals: Approval[];
 };
 
 export type DashboardState = {
   projects: Project[];
   tasks: Task[];
   threads: ControlThread[];
-  approvals: Approval[];
   recipes: PromptRecipe[];
 };
 

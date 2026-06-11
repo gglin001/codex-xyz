@@ -32,12 +32,14 @@ CODEX_XYZ_UI_URL=http://127.0.0.1:1124 CODEX_XYZ_API_URL=http://127.0.0.1:4211 p
 
 ## What Is Implemented
 
-- Local PWA-style dashboard for projects, tasks, sessions, transcript items, approvals, goals, steer, interrupt, and fork.
+- Local PWA-style dashboard for projects, tasks, sessions, transcript items, goals, steer, interrupt, and fork.
 - Node control server with REST APIs and server-sent events.
-- SQLite WAL projection tables for hosts, projects, threads, turns, items, events, tasks, approvals, prompt recipes, and eval runs.
+- SQLite WAL projection tables for hosts, projects, threads, turns, items, events, tasks, prompt recipes, and eval runs.
 - Adapter interface backed by the JSONL stdio app-server adapter.
 - Build-time Codex protocol generation through `codex app-server generate-ts --experimental`.
 - Local test coverage for service orchestration and HTTP APIs.
+
+The app runs Codex sessions in yolo mode only: approval policy is fixed to `never`, with full-access sandbox settings applied at the app-server adapter boundary.
 
 ## Environment
 

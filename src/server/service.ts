@@ -1,7 +1,6 @@
 import { basename } from "node:path";
 import { randomUUID } from "node:crypto";
 import {
-  type Approval,
   type ControlThread,
   type CreateTaskInput,
   type DashboardState,
@@ -77,7 +76,6 @@ export class ControlService {
       projects: this.store.listProjects(),
       tasks: this.store.listTasks(),
       threads: this.store.listThreads(),
-      approvals: this.store.listApprovals({ status: "pending" }),
       recipes: this.store.listRecipes()
     };
   }
@@ -232,27 +230,6 @@ export class ControlService {
     return thread;
   }
 
-  async resolveApproval(approvalId: string, approved: boolean, reviewer = "local") {
-    const approval = this.store.getApproval(approvalId);
-    if (!approval) {
-      throw new Error(`Approval ${approvalId} does not exist`);
-    }
-    const resolved = this.store.updateApproval(approvalId, {
-      status: approved ? "approved" : "denied",
-      reviewer,
-      resolvedAt: nowIso()
-    });
-    await this.adapter.resolveApproval({
-      approvalId,
-      adapterRequestId: approval.adapterRequestId,
-      approved
-    });
-    this.publish("approval.resolved", approval.threadId, approval.turnId, {
-      approval: resolved
-    });
-    return resolved;
-  }
-
   listThreads() {
     return this.store.listThreads();
   }
@@ -263,10 +240,6 @@ export class ControlService {
       throw new Error(`Thread ${threadId} does not exist`);
     }
     return detail;
-  }
-
-  listApprovals() {
-    return this.store.listApprovals();
   }
 
   replayEvents(afterId = 0) {
@@ -336,27 +309,6 @@ export class ControlService {
         status: event.status
       });
       this.publish("thread.status", event.threadId, null, { status: event.status });
-      return;
-    }
-
-    if (event.type === "approval.requested") {
-      const approval: Approval = {
-        id: randomUUID(),
-        adapterRequestId: event.adapterRequestId,
-        threadId: event.threadId,
-        turnId: event.turnId,
-        kind: event.kind,
-        summary: event.summary,
-        status: "pending",
-        reviewer: null,
-        createdAt: nowIso(),
-        resolvedAt: null
-      };
-      this.store.createApproval(approval);
-      if (this.store.getThread(event.threadId)) {
-        this.store.updateThread(event.threadId, { status: "waiting_approval" });
-      }
-      this.publish("approval.requested", event.threadId, event.turnId, { approval });
       return;
     }
 

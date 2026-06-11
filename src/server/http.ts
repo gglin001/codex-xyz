@@ -204,20 +204,6 @@ async function handleApi(context: HandlerContext) {
     }
   }
 
-  if (method === "GET" && parts.join("/") === "api/approvals") {
-    sendJson(response, 200, service.listApprovals());
-    return true;
-  }
-
-  if (method === "POST" && parts[0] === "api" && parts[1] === "approvals" && parts[2] && parts[3] === "resolve") {
-    const body = await readJson(request);
-    const approved = body.approved === true;
-    const reviewer = optionalString(body, "reviewer") ?? "local";
-    const approval = await service.resolveApproval(parts[2], approved, reviewer);
-    sendJson(response, 200, approval);
-    return true;
-  }
-
   return false;
 }
 

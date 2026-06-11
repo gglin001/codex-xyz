@@ -99,8 +99,6 @@ small {
 .detail-header,
 .toolbar,
 .panel-header-actions,
-.approval-actions,
-.approval-heading,
 .metric-row {
   display: flex;
   align-items: center;
@@ -142,7 +140,6 @@ button.active {
 
 .project-list,
 .session-group,
-.approval-list,
 .transcript {
   display: flex;
   flex-direction: column;
@@ -348,10 +345,6 @@ kbd {
   background: #1f9d7a;
 }
 
-.status-dot.waiting_approval {
-  background: #c27616;
-}
-
 .status-dot.stale {
   background: #64748b;
 }
@@ -436,45 +429,6 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-
-.approval-heading {
-  justify-content: flex-start;
-  gap: 8px;
-  color: #536074;
-  font-size: 13px;
-}
-
-.approval-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px;
-  border: 1px solid #ead6ba;
-  border-radius: 8px;
-  background: #fffaf2;
-}
-
-.approval-row p {
-  margin-top: 6px;
-  color: #263244;
-  font-size: 13px;
-  line-height: 1.35;
-}
-
-.approval-kind {
-  display: inline-flex;
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: #f2dfbf;
-  color: #7a4b12;
-  font-size: 11px;
-  text-transform: uppercase;
-}
-
-.approval-actions {
-  gap: 6px;
 }
 
 .empty-state {

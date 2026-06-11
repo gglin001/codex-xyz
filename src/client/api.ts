@@ -1,5 +1,4 @@
 import type {
-  Approval,
   DashboardState,
   ThreadDetail,
   Turn
@@ -88,12 +87,5 @@ export function setGoal(threadId: string, objective: string) {
 export function clearGoal(threadId: string) {
   return request(`/api/threads/${threadId}/goal`, {
     method: "DELETE"
-  });
-}
-
-export function resolveApproval(approval: Approval, approved: boolean) {
-  return request<Approval>(`/api/approvals/${approval.id}/resolve`, {
-    method: "POST",
-    body: JSON.stringify({ approved, reviewer: "local" })
   });
 }

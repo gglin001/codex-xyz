@@ -140,24 +140,6 @@ export class TestCodexAdapter implements CodexAdapter {
     this.requireThread(threadId).goal = null;
   }
 
-  async resolveApproval(input: { approvalId: string; adapterRequestId: string | null; approved: boolean }) {
-    const active = [...this.running.values()].find((turn) => !turn.completed);
-    if (!active) {
-      return;
-    }
-
-    this.emit({
-      type: "item.created",
-      threadId: active.threadId,
-      turnId: active.turnId,
-      itemId: `item_approval_${randomUUID()}`,
-      itemType: "system",
-      text: input.approved ? "Approval accepted." : "Approval denied.",
-      data: { approvalId: input.approvalId, adapterRequestId: input.adapterRequestId }
-    });
-    this.completeTurn(active, input.approved ? "completed" : "interrupted");
-  }
-
   async close() {
     this.closed = true;
     this.running.clear();
@@ -201,20 +183,7 @@ export class TestCodexAdapter implements CodexAdapter {
       delta: this.answer(input.prompt)
     });
 
-    if (this.needsApproval(input.prompt)) {
-      this.emit({
-        type: "approval.requested",
-        adapterRequestId: `approval_${randomUUID()}`,
-        threadId: input.threadId,
-        turnId,
-        kind: "command",
-        summary: "Test command approval requested for a high-risk shell action."
-      });
-      this.emit({
-        type: "thread.status",
-        threadId: input.threadId,
-        status: "waiting_approval"
-      });
+    if (this.shouldStayRunning(input.prompt)) {
       return;
     }
 
@@ -245,8 +214,8 @@ export class TestCodexAdapter implements CodexAdapter {
     });
   }
 
-  private needsApproval(prompt: string) {
-    return /approval|approve|rm\s|-rf|danger|sudo/i.test(prompt);
+  private shouldStayRunning(prompt: string) {
+    return /keep this turn open|steering/i.test(prompt);
   }
 
   private answer(prompt: string) {

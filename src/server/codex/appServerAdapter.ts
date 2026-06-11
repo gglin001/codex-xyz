@@ -30,6 +30,16 @@ type PendingRequest = {
   timeout: NodeJS.Timeout;
 };
 
+const yoloThreadOptions = {
+  approvalPolicy: "never",
+  sandbox: "danger-full-access"
+} as const;
+
+const yoloTurnOptions = {
+  approvalPolicy: "never",
+  sandboxPolicy: { type: "dangerFullAccess" }
+} as const;
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 }
@@ -102,7 +112,8 @@ export class AppServerCodexAdapter implements CodexAdapter {
         cwd: input.cwd,
         model: input.model ?? undefined,
         serviceName: "codex-xyz",
-        threadSource: "user"
+        threadSource: "user",
+        ...yoloThreadOptions
       })
     );
     return normalizeThread(result.thread, result.model);
@@ -114,7 +125,8 @@ export class AppServerCodexAdapter implements CodexAdapter {
         threadId: input.threadId,
         cwd: input.cwd,
         model: input.model ?? undefined,
-        excludeTurns: true
+        excludeTurns: true,
+        ...yoloThreadOptions
       })
     );
     return normalizeThread(result.thread, result.model);
@@ -125,7 +137,8 @@ export class AppServerCodexAdapter implements CodexAdapter {
       await this.request("turn/start", {
         threadId: input.threadId,
         input: inputText(input.prompt),
-        model: input.model ?? undefined
+        model: input.model ?? undefined,
+        ...yoloTurnOptions
       })
     );
     return normalizeTurn(result.turn);
@@ -152,7 +165,8 @@ export class AppServerCodexAdapter implements CodexAdapter {
         threadId: input.sourceThreadId,
         cwd: input.cwd,
         model: input.model ?? undefined,
-        excludeTurns: true
+        excludeTurns: true,
+        ...yoloThreadOptions
       })
     );
     return normalizeThread(result.thread, result.model);
@@ -177,19 +191,6 @@ export class AppServerCodexAdapter implements CodexAdapter {
 
   async clearGoal(threadId: string) {
     await this.request("thread/goal/clear", { threadId });
-  }
-
-  async resolveApproval(input: { approvalId: string; adapterRequestId: string | null; approved: boolean }) {
-    const id = input.adapterRequestId;
-    if (!id) {
-      return;
-    }
-    this.send({
-      id,
-      result: {
-        decision: input.approved ? "accept" : "decline"
-      }
-    });
   }
 
   async close() {
@@ -377,22 +378,30 @@ export class AppServerCodexAdapter implements CodexAdapter {
       message.method === "item/fileChange/requestApproval" ||
       message.method === "item/permissions/requestApproval"
     ) {
-      this.eventHandler({
-        type: "approval.requested",
-        adapterRequestId: String(message.id),
-        threadId: threadId ?? "unknown",
-        turnId,
-        kind:
-          message.method === "item/fileChange/requestApproval"
-            ? "file"
-            : message.method === "item/permissions/requestApproval"
-              ? "permissions"
-              : "command",
-        summary: String(params.command ?? params.reason ?? params.grantRoot ?? "Codex requested approval")
-      });
+      this.acceptYoloRequest(message, params);
       return;
     }
     this.emitRaw(message.method ?? "serverRequest", params, threadId, turnId);
+  }
+
+  private acceptYoloRequest(message: JsonRpcMessage, params: Record<string, unknown>) {
+    if (message.method === "item/permissions/requestApproval") {
+      this.send({
+        id: message.id,
+        result: {
+          permissions: asRecord(params.permissions),
+          scope: "session"
+        }
+      });
+      return;
+    }
+
+    this.send({
+      id: message.id,
+      result: {
+        decision: "accept"
+      }
+    });
   }
 
   private normalizeStatus(value: unknown) {

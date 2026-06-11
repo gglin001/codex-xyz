@@ -27,7 +27,7 @@ export type AdapterEvent =
       threadId: string;
       turnId: string | null;
       itemId: string;
-      itemType: "user" | "agent" | "plan" | "command" | "file" | "approval" | "system";
+      itemType: "user" | "agent" | "plan" | "command" | "file" | "system";
       text: string;
       data?: Record<string, unknown>;
     }
@@ -49,14 +49,6 @@ export type AdapterEvent =
       type: "thread.status";
       threadId: string;
       status: RuntimeStatus;
-    }
-  | {
-      type: "approval.requested";
-      adapterRequestId: string | null;
-      threadId: string;
-      turnId: string | null;
-      kind: "command" | "file" | "permissions" | "input" | "tool";
-      summary: string;
     }
   | {
       type: "raw";
@@ -116,6 +108,5 @@ export interface CodexAdapter {
   setGoal(input: { threadId: string; objective: string; tokenBudget?: number | null }): Promise<AdapterGoal>;
   getGoal(threadId: string): Promise<AdapterGoal | null>;
   clearGoal(threadId: string): Promise<void>;
-  resolveApproval(input: { approvalId: string; adapterRequestId: string | null; approved: boolean }): Promise<void>;
   close(): Promise<void>;
 }

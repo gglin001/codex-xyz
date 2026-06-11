@@ -71,7 +71,7 @@ describe("HTTP API", () => {
     expect(detail.items.map((item) => item.text).join("\n")).toContain("Test run started");
   });
 
-  it("resolves approvals through the API", async () => {
+  it("runs high-risk prompts without approvals in yolo mode", async () => {
     const state = await json<DashboardState>("/api/state");
     const created = await json<{ thread: { id: string } }>("/api/tasks", {
       method: "POST",
@@ -82,17 +82,7 @@ describe("HTTP API", () => {
     });
 
     await new Promise((resolve) => setTimeout(resolve, 20));
-    const withApproval = await json<DashboardState>("/api/state");
-    expect(withApproval.approvals).toHaveLength(1);
-
-    const approval = await json<{ status: string }>(`/api/approvals/${withApproval.approvals[0].id}/resolve`, {
-      method: "POST",
-      body: JSON.stringify({ approved: true })
-    });
-    expect(approval.status).toBe("approved");
-
-    await new Promise((resolve) => setTimeout(resolve, 20));
     const detail = await json<{ items: Array<{ text: string }> }>(`/api/threads/${created.thread.id}`);
-    expect(detail.items.map((item) => item.text).join("\n")).toContain("Approval accepted");
+    expect(detail.items.map((item) => item.text).join("\n")).toContain("Test run started");
   });
 });
