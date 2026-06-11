@@ -8,7 +8,7 @@ const webEnv = {
 const processes = [
   spawn("pnpm", ["run", "dev:api"], {
     stdio: "inherit",
-    env: { ...process.env, CODEX_XYZ_ADAPTER: process.env.CODEX_XYZ_ADAPTER ?? "mock" }
+    env: { ...process.env, CODEX_XYZ_ADAPTER: process.env.CODEX_XYZ_ADAPTER ?? "app-server" }
   }),
   spawn("pnpm", ["run", "dev:web"], {
     stdio: "inherit",

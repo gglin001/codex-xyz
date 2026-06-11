@@ -1,5 +1,5 @@
 export const DEFAULT_CODEX_XYZ_API_URL = "http://127.0.0.1:3211";
-export const DEFAULT_CODEX_XYZ_UI_URL = "http://127.0.0.1:5173";
+export const DEFAULT_CODEX_XYZ_UI_URL = "http://127.0.0.1:1123";
 
 type Env = Record<string, string | undefined>;
 

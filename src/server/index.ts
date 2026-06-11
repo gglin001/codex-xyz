@@ -18,7 +18,7 @@ function codexVersion() {
 }
 
 export function createServiceFromEnv() {
-  const adapterName = process.env.CODEX_XYZ_ADAPTER ?? "mock";
+  const adapterName = process.env.CODEX_XYZ_ADAPTER ?? "app-server";
   const dataDir = resolve(process.cwd(), process.env.CODEX_XYZ_DATA_DIR ?? ".codex-xyz");
   const store = Store.open(resolve(dataDir, "codex-xyz.sqlite"));
   let adapter: CodexAdapter;

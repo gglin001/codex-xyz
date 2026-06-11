@@ -16,7 +16,7 @@ Run the local tests:
 pnpm test
 ```
 
-Start the local mock console:
+Start the local console with the real Codex app-server adapter:
 
 ```bash
 pnpm run dev
@@ -30,10 +30,10 @@ To override the local UI or API URLs:
 CODEX_XYZ_UI_URL=http://127.0.0.1:1124 CODEX_XYZ_API_URL=http://127.0.0.1:4211 pnpm run dev
 ```
 
-Use the real Codex app-server adapter when you want to connect to Codex instead of the deterministic mock:
+Use the deterministic mock adapter for local testing without starting real Codex sessions:
 
 ```bash
-CODEX_XYZ_ADAPTER=app-server pnpm run dev
+CODEX_XYZ_ADAPTER=mock pnpm run dev
 ```
 
 ## What Is Implemented
@@ -47,11 +47,11 @@ CODEX_XYZ_ADAPTER=app-server pnpm run dev
 
 ## Environment
 
-`CODEX_XYZ_ADAPTER` selects `mock` or `app-server`. Tests use `mock`.
+`CODEX_XYZ_ADAPTER` selects `mock` or `app-server`. It defaults to `app-server`. Tests use `mock`.
 
 `CODEX_XYZ_DATA_DIR` sets the SQLite data directory. It defaults to `.codex-xyz`.
 
-`CODEX_XYZ_UI_URL` sets the Vite dev server URL and the allowed browser origin for API CORS. It defaults to `http://127.0.0.1:5173`.
+`CODEX_XYZ_UI_URL` sets the Vite dev server URL and the allowed browser origin for API CORS. It defaults to `http://127.0.0.1:1123`.
 
 `CODEX_XYZ_API_URL` sets the local API server URL and the Vite dev proxy target. It defaults to `http://127.0.0.1:3211`. `PORT` is still supported as a port-only fallback when `CODEX_XYZ_API_URL` is not set.
 
