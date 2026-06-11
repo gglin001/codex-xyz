@@ -1,6 +1,5 @@
 import {
   CircleHelp,
-  CircleStop,
   GitFork,
   Loader2,
   Play,
@@ -53,6 +52,26 @@ function itemTitle(item: ThreadItem) {
     return "User";
   }
   return item.type;
+}
+
+type GoalPromptCommand =
+  | { type: "set"; objective: string }
+  | { type: "clear" }
+  | { type: "usage" };
+
+function parseGoalPromptCommand(value: string): GoalPromptCommand | null {
+  const match = value.trim().match(/^\/goal(?:\s+([\s\S]*))?$/i);
+  if (!match) {
+    return null;
+  }
+  const argument = (match[1] ?? "").trim();
+  if (!argument) {
+    return { type: "usage" };
+  }
+  if (argument.toLowerCase() === "clear") {
+    return { type: "clear" };
+  }
+  return { type: "set", objective: argument };
 }
 
 function SessionRow({
@@ -152,7 +171,6 @@ export function App() {
   const [detail, setDetail] = useState<ThreadDetail | null>(null);
   const [prompt, setPrompt] = useState("");
   const [steer, setSteer] = useState("");
-  const [goal, setGoalText] = useState("");
   const [composerMode, setComposerMode] = useState<"thread" | "new">("thread");
   const [showHelp, setShowHelp] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -193,6 +211,8 @@ export function App() {
     source.addEventListener("turn.status", () => void refresh());
     source.addEventListener("thread.started", () => void refresh());
     source.addEventListener("thread.forked", () => void refresh());
+    source.addEventListener("thread.goal.updated", () => void refresh());
+    source.addEventListener("thread.goal.cleared", () => void refresh());
     source.onerror = () => {
       source.close();
       setTimeout(() => {
@@ -202,12 +222,6 @@ export function App() {
     return () => source.close();
   }, [selectedThreadId]);
 
-  useEffect(() => {
-    if (detail?.goalObjective) {
-      setGoalText(detail.goalObjective);
-    }
-  }, [detail?.goalObjective]);
-
   const selectedThread = useMemo(
     () => state.threads.find((thread) => thread.id === selectedThreadId) ?? null,
     [selectedThreadId, state.threads]
@@ -216,10 +230,17 @@ export function App() {
   const activeThreads = state.threads.filter((thread) => thread.status === "running");
   const otherThreads = state.threads.filter((thread) => thread.status !== "running");
   const promptTarget = composerMode === "thread" && selectedThread ? "thread" : "new";
+  const goalPromptCommand = parseGoalPromptCommand(prompt);
   const canSubmitPrompt =
     Boolean(prompt.trim()) &&
     !busy &&
-    (promptTarget === "thread" ? Boolean(selectedThreadId) : Boolean(selectedProjectId));
+    (goalPromptCommand
+      ? Boolean(selectedThreadId)
+      : promptTarget === "thread"
+        ? Boolean(selectedThreadId)
+        : Boolean(selectedProjectId));
+  const canSubmitSteer =
+    Boolean(selectedThreadId) && selectedThread?.status === "running" && Boolean(steer.trim()) && !busy;
 
   async function runAction(action: () => Promise<unknown>) {
     setBusy(true);
@@ -239,6 +260,31 @@ export function App() {
       return;
     }
     const currentPrompt = prompt;
+
+    const goalCommand = parseGoalPromptCommand(currentPrompt);
+    if (goalCommand) {
+      if (!selectedThreadId) {
+        setError("Select a session before using /goal.");
+        return;
+      }
+      if (goalCommand.type === "usage") {
+        setError("Use /goal <objective> or /goal clear.");
+        return;
+      }
+      const threadId = selectedThreadId;
+      setPrompt("");
+      setComposerMode("thread");
+      void runAction(async () => {
+        if (goalCommand.type === "clear") {
+          await clearGoal(threadId);
+        } else {
+          await setGoal(threadId, goalCommand.objective);
+        }
+        return threadId;
+      });
+      return;
+    }
+
     setPrompt("");
 
     if (promptTarget === "thread" && selectedThreadId) {
@@ -273,20 +319,12 @@ export function App() {
 
   function submitSteer(event: FormEvent) {
     event.preventDefault();
-    if (!selectedThreadId || !steer.trim()) {
+    if (!selectedThreadId || !canSubmitSteer) {
       return;
     }
     const currentSteer = steer;
     setSteer("");
     void runAction(() => steerTurn(selectedThreadId, currentSteer));
-  }
-
-  function submitGoal(event: FormEvent) {
-    event.preventDefault();
-    if (!selectedThreadId || !goal.trim()) {
-      return;
-    }
-    void runAction(() => setGoal(selectedThreadId, goal));
   }
 
   return (
@@ -362,20 +400,52 @@ export function App() {
           </button>
         </div>
 
-        <form className="task-form" onSubmit={submitPrompt}>
-          <textarea
-            value={prompt}
-            onChange={(event) => setPrompt(event.target.value)}
-            onKeyDown={handlePromptKeyDown}
-            placeholder={promptTarget === "thread" ? "Send next turn" : "Create a task"}
-          />
-          <button
-            disabled={!canSubmitPrompt}
-            title={promptTarget === "thread" ? "Start turn (Cmd+Enter)" : "Create task (Cmd+Enter)"}
-          >
-            {promptTarget === "thread" ? <Send size={16} /> : <Plus size={16} />}
-          </button>
-        </form>
+        <div className="composer-stack">
+          <form className="task-form" onSubmit={submitPrompt}>
+            <textarea
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+              onKeyDown={handlePromptKeyDown}
+              placeholder={promptTarget === "thread" ? "Send next turn or /goal <objective>" : "Create a task"}
+            />
+            <button
+              disabled={!canSubmitPrompt}
+              title={
+                goalPromptCommand
+                  ? "Apply goal command (Cmd+Enter)"
+                  : promptTarget === "thread"
+                    ? "Start turn (Cmd+Enter)"
+                    : "Create task (Cmd+Enter)"
+              }
+            >
+              {goalPromptCommand ? <Target size={16} /> : promptTarget === "thread" ? <Send size={16} /> : <Plus size={16} />}
+            </button>
+          </form>
+
+          {selectedThread ? (
+            <div className="thread-composer-extras">
+              {detail?.goalObjective ? (
+                <div className="goal-summary" title="Current goal">
+                  <Target size={15} />
+                  <span className="goal-objective">{detail.goalObjective}</span>
+                  {detail.goalStatus ? <span className="goal-status">{statusLabel(detail.goalStatus)}</span> : null}
+                </div>
+              ) : null}
+              <form className="steer-form" onSubmit={submitSteer}>
+                <input
+                  value={steer}
+                  onChange={(event) => setSteer(event.target.value)}
+                  placeholder="Steer active turn"
+                  disabled={!selectedThreadId || selectedThread.status !== "running" || busy}
+                  aria-label="Steer active turn"
+                />
+                <button title="Steer active turn" disabled={!canSubmitSteer}>
+                  <Send size={16} />
+                </button>
+              </form>
+            </div>
+          ) : null}
+        </div>
 
         {error ? <div className="error-banner">{error}</div> : null}
 
@@ -434,52 +504,11 @@ export function App() {
             >
               <GitFork size={16} />
             </button>
-            <button
-              title="Clear goal"
-              disabled={!selectedThreadId || !detail?.goalObjective}
-              onClick={() => selectedThreadId && void runAction(() => clearGoal(selectedThreadId))}
-            >
-              <CircleStop size={16} />
-            </button>
           </div>
         </div>
 
         <Transcript detail={detail} />
       </section>
-
-      <aside className="inspector panel">
-        <section>
-          <h2>Goal</h2>
-          <form className="inline-form" onSubmit={submitGoal}>
-            <input
-              value={goal}
-              onChange={(event) => setGoalText(event.target.value)}
-              placeholder="Objective"
-              disabled={!selectedThreadId}
-            />
-            <button title="Set goal" disabled={!selectedThreadId || !goal.trim()}>
-              <Target size={16} />
-            </button>
-          </form>
-          {detail?.goalStatus ? <span className="pill">{statusLabel(detail.goalStatus)}</span> : null}
-        </section>
-
-        <section>
-          <h2>Steer</h2>
-          <form className="inline-form" onSubmit={submitSteer}>
-            <input
-              value={steer}
-              onChange={(event) => setSteer(event.target.value)}
-              placeholder="Steer active turn"
-              disabled={!selectedThreadId || selectedThread?.status !== "running"}
-            />
-            <button title="Steer" disabled={!selectedThreadId || !steer.trim()}>
-              <Send size={16} />
-            </button>
-          </form>
-        </section>
-
-      </aside>
     </main>
   );
 }
