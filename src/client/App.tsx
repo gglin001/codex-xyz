@@ -264,8 +264,8 @@ export function App() {
     setBusy(true);
     setError(null);
     try {
-      await action();
-      await refresh();
+      const nextThreadId = await action();
+      await refresh(typeof nextThreadId === "string" ? nextThreadId : selectedThreadId);
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : "Action failed");
     } finally {
@@ -281,7 +281,10 @@ export function App() {
     setPrompt("");
 
     if (selectedThread && selectedThreadId) {
-      void runAction(() => startTurn(selectedThreadId, currentPrompt));
+      void runAction(async () => {
+        const turn = await startTurn(selectedThreadId, currentPrompt);
+        return turn.threadId;
+      });
       return;
     }
 
@@ -289,9 +292,7 @@ export function App() {
       void runAction(async () => {
         const result = await createTask({ projectId: selectedProjectId, prompt: currentPrompt });
         const thread = result.thread as { id?: string } | null;
-        if (thread?.id) {
-          setSelectedThreadId(thread.id);
-        }
+        return thread?.id;
       });
     }
   }

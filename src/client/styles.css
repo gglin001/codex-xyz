@@ -332,6 +332,10 @@ kbd {
   background: #c27616;
 }
 
+.status-dot.stale {
+  background: #64748b;
+}
+
 .status-dot.failed,
 .status-dot.interrupted {
   background: #c2413d;

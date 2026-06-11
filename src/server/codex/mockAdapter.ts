@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  AdapterThreadNotFoundError,
   type AdapterEvent,
   type AdapterEventHandler,
   type AdapterGoal,
@@ -7,6 +8,7 @@ import {
   type AdapterTurn,
   type CodexAdapter,
   type ForkThreadInput,
+  type ResumeThreadInput,
   type StartThreadInput,
   type StartTurnAdapterInput
 } from "./adapter.js";
@@ -51,6 +53,10 @@ export class MockCodexAdapter implements CodexAdapter {
     };
     this.threads.set(id, thread);
     return thread;
+  }
+
+  async resumeThread(input: ResumeThreadInput): Promise<AdapterThread> {
+    return this.requireThread(input.threadId);
   }
 
   async startTurn(input: StartTurnAdapterInput): Promise<AdapterTurn> {
@@ -311,7 +317,7 @@ export class MockCodexAdapter implements CodexAdapter {
   private requireThread(id: string) {
     const thread = this.threads.get(id);
     if (!thread) {
-      throw new Error(`Mock thread ${id} does not exist`);
+      throw new AdapterThreadNotFoundError(id, `Mock thread ${id} does not exist`);
     }
     return thread;
   }

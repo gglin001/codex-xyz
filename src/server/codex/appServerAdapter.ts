@@ -1,6 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface, type Interface } from "node:readline";
 import {
+  AdapterThreadNotFoundError,
   type AdapterEvent,
   type AdapterEventHandler,
   type AdapterGoal,
@@ -8,6 +9,7 @@ import {
   type AdapterTurn,
   type CodexAdapter,
   type ForkThreadInput,
+  type ResumeThreadInput,
   type StartThreadInput,
   type StartTurnAdapterInput
 } from "./adapter.js";
@@ -23,6 +25,9 @@ type JsonRpcMessage = {
 type PendingRequest = {
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
+  method: string;
+  params: unknown;
+  timeout: NodeJS.Timeout;
 };
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -33,7 +38,7 @@ function inputText(text: string) {
   return [{ type: "text", text, text_elements: [] }];
 }
 
-function normalizeThread(value: unknown): AdapterThread {
+function normalizeThread(value: unknown, model?: unknown): AdapterThread {
   const thread = asRecord(value);
   return {
     id: String(thread.id),
@@ -41,7 +46,7 @@ function normalizeThread(value: unknown): AdapterThread {
     forkedFromId: typeof thread.forkedFromId === "string" ? thread.forkedFromId : null,
     preview: String(thread.preview ?? ""),
     cwd: String(thread.cwd ?? process.cwd()),
-    model: typeof thread.model === "string" ? thread.model : null
+    model: typeof thread.model === "string" ? thread.model : typeof model === "string" ? model : null
   };
 }
 
@@ -60,6 +65,19 @@ function extractThreadId(params: Record<string, unknown>) {
 
 function extractTurnId(params: Record<string, unknown>) {
   return typeof params.turnId === "string" ? params.turnId : null;
+}
+
+function requestError(error: unknown, params: unknown) {
+  const payload = asRecord(error);
+  const message = typeof payload.message === "string" ? payload.message : JSON.stringify(error);
+  if (/thread not found/i.test(message)) {
+    const match = message.match(/thread not found:\s*([^\s"}]+)/i);
+    const threadId = match?.[1] ?? extractThreadId(asRecord(params));
+    if (threadId) {
+      return new AdapterThreadNotFoundError(threadId, message);
+    }
+  }
+  return new Error(message);
 }
 
 export class AppServerCodexAdapter implements CodexAdapter {
@@ -87,7 +105,19 @@ export class AppServerCodexAdapter implements CodexAdapter {
         threadSource: "user"
       })
     );
-    return normalizeThread(result.thread);
+    return normalizeThread(result.thread, result.model);
+  }
+
+  async resumeThread(input: ResumeThreadInput): Promise<AdapterThread> {
+    const result = asRecord(
+      await this.request("thread/resume", {
+        threadId: input.threadId,
+        cwd: input.cwd,
+        model: input.model ?? undefined,
+        excludeTurns: true
+      })
+    );
+    return normalizeThread(result.thread, result.model);
   }
 
   async startTurn(input: StartTurnAdapterInput): Promise<AdapterTurn> {
@@ -125,7 +155,7 @@ export class AppServerCodexAdapter implements CodexAdapter {
         excludeTurns: true
       })
     );
-    return normalizeThread(result.thread);
+    return normalizeThread(result.thread, result.model);
   }
 
   async setGoal(input: { threadId: string; objective: string; tokenBudget?: number | null }) {
@@ -164,6 +194,7 @@ export class AppServerCodexAdapter implements CodexAdapter {
 
   async close() {
     for (const pending of this.pending.values()) {
+      clearTimeout(pending.timeout);
       pending.reject(new Error("app-server adapter closed"));
     }
     this.pending.clear();
@@ -177,14 +208,20 @@ export class AppServerCodexAdapter implements CodexAdapter {
   private async request(method: string, params: unknown): Promise<unknown> {
     await this.ensureStarted();
     const id = this.nextId++;
-    this.send({ id, method, params });
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
-      setTimeout(() => {
+      const timeout = setTimeout(() => {
         if (this.pending.delete(id)) {
           reject(new Error(`app-server request timed out: ${method}`));
         }
       }, 60_000);
+      this.pending.set(id, { resolve, reject, method, params, timeout });
+      try {
+        this.send({ id, method, params });
+      } catch (error) {
+        clearTimeout(timeout);
+        this.pending.delete(id);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
     });
   }
 
@@ -193,24 +230,31 @@ export class AppServerCodexAdapter implements CodexAdapter {
       return;
     }
     if (!this.process) {
-      this.process = spawn(this.command, ["app-server", "--stdio"], {
+      const child = spawn(this.command, ["app-server", "--stdio"], {
         stdio: ["pipe", "pipe", "pipe"],
         env: process.env
       });
-      this.stdout = createInterface({ input: this.process.stdout });
+      this.process = child;
+      this.stdout = createInterface({ input: child.stdout });
       this.stdout.on("line", (line) => this.handleLine(line));
-      this.process.stderr.on("data", (chunk: Buffer) => {
+      child.stderr.on("data", (chunk: Buffer) => {
         const text = chunk.toString("utf8").trim();
         if (text) {
           this.emitRaw("app-server/stderr", { text });
         }
       });
-      this.process.on("exit", (code, signal) => {
+      child.on("exit", (code, signal) => {
         for (const pending of this.pending.values()) {
+          clearTimeout(pending.timeout);
           pending.reject(new Error(`app-server exited with code ${code ?? "null"} signal ${signal ?? "null"}`));
         }
         this.pending.clear();
-        this.initialized = false;
+        if (this.process === child) {
+          this.stdout?.close();
+          this.process = null;
+          this.stdout = null;
+          this.initialized = false;
+        }
       });
     }
     await this.initialize();
@@ -218,25 +262,32 @@ export class AppServerCodexAdapter implements CodexAdapter {
 
   private async initialize() {
     const id = this.nextId++;
-    this.send({
-      id,
-      method: "initialize",
-      params: {
-        clientInfo: {
-          name: "codex-xyz",
-          title: "codex-xyz",
-          version: "0.1.0"
-        },
-        capabilities: null
-      }
-    });
+    const params = {
+      clientInfo: {
+        name: "codex-xyz",
+        title: "codex-xyz",
+        version: "0.1.0"
+      },
+      capabilities: null
+    };
     await new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
-      setTimeout(() => {
+      const timeout = setTimeout(() => {
         if (this.pending.delete(id)) {
           reject(new Error("app-server initialize timed out"));
         }
       }, 30_000);
+      this.pending.set(id, { resolve, reject, method: "initialize", params, timeout });
+      try {
+        this.send({
+          id,
+          method: "initialize",
+          params
+        });
+      } catch (error) {
+        clearTimeout(timeout);
+        this.pending.delete(id);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
     });
     this.send({ method: "initialized" });
     this.initialized = true;
@@ -259,8 +310,9 @@ export class AppServerCodexAdapter implements CodexAdapter {
       const pending = this.pending.get(message.id);
       if (pending) {
         this.pending.delete(message.id);
+        clearTimeout(pending.timeout);
         if (message.error) {
-          pending.reject(new Error(JSON.stringify(message.error)));
+          pending.reject(requestError(message.error, pending.params));
         } else {
           pending.resolve(message.result);
         }

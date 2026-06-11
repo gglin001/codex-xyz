@@ -80,17 +80,35 @@ export type StartTurnAdapterInput = {
   model?: string | null;
 };
 
+export type ResumeThreadInput = {
+  threadId: string;
+  cwd: string;
+  model?: string | null;
+};
+
 export type ForkThreadInput = {
   sourceThreadId: string;
   cwd: string;
   model?: string | null;
 };
 
+export class AdapterThreadNotFoundError extends Error {
+  constructor(readonly threadId: string, message = `Thread not found: ${threadId}`) {
+    super(message);
+    this.name = "AdapterThreadNotFoundError";
+  }
+}
+
+export function isAdapterThreadNotFoundError(error: unknown): error is AdapterThreadNotFoundError {
+  return error instanceof AdapterThreadNotFoundError;
+}
+
 export interface CodexAdapter {
   readonly name: string;
   readonly version: string | null;
   onEvent(handler: AdapterEventHandler): void;
   startThread(input: StartThreadInput): Promise<AdapterThread>;
+  resumeThread(input: ResumeThreadInput): Promise<AdapterThread>;
   startTurn(input: StartTurnAdapterInput): Promise<AdapterTurn>;
   steerTurn(input: { threadId: string; turnId: string; prompt: string }): Promise<void>;
   interruptTurn(input: { threadId: string; turnId: string }): Promise<void>;
