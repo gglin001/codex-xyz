@@ -1,6 +1,6 @@
 # codex-xyz
 
-`codex-xyz` is a first-version Codex control plane prototype. It provides a local web console, a Node host agent, a SQLite projection store, a mock Codex adapter for deterministic local testing, and an app-server adapter boundary for real Codex sessions.
+`codex-xyz` is a first-version Codex control plane prototype. It provides a local web console, a Node host agent, a SQLite projection store, and an app-server adapter boundary for real Codex sessions.
 
 ## Local Usage
 
@@ -30,24 +30,16 @@ To override the local UI or API URLs:
 CODEX_XYZ_UI_URL=http://127.0.0.1:1124 CODEX_XYZ_API_URL=http://127.0.0.1:4211 pnpm run dev
 ```
 
-Use the deterministic mock adapter for local testing without starting real Codex sessions:
-
-```bash
-CODEX_XYZ_ADAPTER=mock pnpm run dev
-```
-
 ## What Is Implemented
 
 - Local PWA-style dashboard for projects, tasks, sessions, transcript items, approvals, goals, steer, interrupt, and fork.
 - Node control server with REST APIs and server-sent events.
 - SQLite WAL projection tables for hosts, projects, threads, turns, items, events, tasks, approvals, prompt recipes, and eval runs.
-- Adapter interface with a deterministic mock adapter and a JSONL stdio app-server adapter.
+- Adapter interface backed by the JSONL stdio app-server adapter.
 - Build-time Codex protocol generation through `codex app-server generate-ts --experimental`.
 - Local test coverage for service orchestration and HTTP APIs.
 
 ## Environment
-
-`CODEX_XYZ_ADAPTER` selects `mock` or `app-server`. It defaults to `app-server`. Tests use `mock`.
 
 `CODEX_XYZ_DATA_DIR` sets the SQLite data directory. It defaults to `.codex-xyz`.
 
@@ -56,8 +48,6 @@ CODEX_XYZ_ADAPTER=mock pnpm run dev
 `CODEX_XYZ_API_URL` sets the local API server URL and the Vite dev proxy target. It defaults to `http://127.0.0.1:3211`. `PORT` is still supported as a port-only fallback when `CODEX_XYZ_API_URL` is not set.
 
 `VITE_CODEX_XYZ_API_URL` sets the browser-side API base URL. `pnpm run dev` derives it from `CODEX_XYZ_API_URL` automatically. Leave it unset for relative `/api` requests.
-
-`CODEX_XYZ_MOCK_DELAY_MS` controls mock streaming delay. It defaults to `220`.
 
 `CODEX_XYZ_CODEX_BIN` selects the Codex binary used by protocol generation and the real adapter. It defaults to `codex`.
 

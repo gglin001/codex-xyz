@@ -1,10 +1,7 @@
 export const DEFAULT_CODEX_XYZ_API_URL = "http://127.0.0.1:3211";
 export const DEFAULT_CODEX_XYZ_UI_URL = "http://127.0.0.1:1123";
-export const DEFAULT_CODEX_XYZ_ADAPTER = "app-server";
 
 type Env = Record<string, string | undefined>;
-
-export type CodexXyzAdapterName = "app-server" | "mock";
 
 export type AppUrl = {
   origin: string;
@@ -65,12 +62,4 @@ export function readApiUrl(env: Env = process.env) {
 
 export function readUiUrl(env: Env = process.env) {
   return parseAppUrl(optionalEnv(env, "CODEX_XYZ_UI_URL") ?? DEFAULT_CODEX_XYZ_UI_URL, "CODEX_XYZ_UI_URL");
-}
-
-export function readAdapterName(env: Env = process.env): CodexXyzAdapterName {
-  const adapter = optionalEnv(env, "CODEX_XYZ_ADAPTER") ?? DEFAULT_CODEX_XYZ_ADAPTER;
-  if (adapter === "app-server" || adapter === "mock") {
-    return adapter;
-  }
-  throw new Error("CODEX_XYZ_ADAPTER must be app-server or mock.");
 }

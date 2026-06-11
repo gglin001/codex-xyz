@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This is a local Codex control-plane prototype with a React client and Node server. `src/client` contains the Vite UI, styles, and browser API wrapper. `src/server` contains the HTTP server, service layer, SQLite store, event bus, and domain types. `src/server/codex` is the adapter boundary for mock and real sessions. Environment parsing lives in `src/config.ts`.
+This is a local Codex control-plane prototype with a React client and Node server. `src/client` contains the Vite UI, styles, and browser API wrapper. `src/server` contains the HTTP server, service layer, SQLite store, event bus, and domain types. `src/server/codex` is the adapter boundary for real Codex sessions. Environment parsing lives in `src/config.ts`.
 
 Tests are in `test`; utility scripts live in `scripts`. `third_party/codex` contains upstream Codex source for protocol, runtime, or adapter reference when needed. Protocol types are produced by `scripts/generate-codex-types.mjs`. Build output goes to `dist/client`; runtime state defaults to `.codex-xyz`.
 
@@ -10,7 +10,6 @@ Tests are in `test`; utility scripts live in `scripts`. `third_party/codex` cont
 
 - `pnpm install`: install project dependencies. Use Node `>=24.0.0` and pnpm `11.0.3`.
 - `pnpm run dev`: start the local API and Vite web console. Open `http://127.0.0.1:1123`.
-- `CODEX_XYZ_ADAPTER=mock pnpm run dev`: run with the deterministic mock adapter for local testing.
 - `pnpm run dev:api`: watch and restart `src/server/index.ts` only.
 - `pnpm run dev:web`: start only the Vite client.
 - `pnpm test`: generate Codex types, then run Vitest once.
@@ -23,7 +22,7 @@ Use strict TypeScript with ESM imports and explicit `.js` extensions for local r
 
 ## Testing Guidelines
 
-Use Vitest with Node environment. Add tests under `test` using `*.test.ts`, grouped with `describe` and `it`. Prefer mock adapters and temporary directories for service or HTTP behavior. Run `pnpm test` before opening a PR, and run `pnpm run typecheck` when changing shared types, config, adapters, or APIs.
+Use Vitest with Node environment. Add tests under `test` using `*.test.ts`, grouped with `describe` and `it`. Prefer test adapters and temporary directories for service or HTTP behavior. Run `pnpm test` before opening a PR, and run `pnpm run typecheck` when changing shared types, config, adapters, or APIs.
 
 ## Commit & Pull Request Guidelines
 

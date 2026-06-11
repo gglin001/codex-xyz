@@ -14,9 +14,9 @@ import {
   type StartThreadInput,
   type StartTurnAdapterInput
 } from "../src/server/codex/adapter.js";
-import { MockCodexAdapter } from "../src/server/codex/mockAdapter.js";
 import { ControlService } from "../src/server/service.js";
 import { Store } from "../src/server/store.js";
+import { TestCodexAdapter } from "./testCodexAdapter.js";
 
 let tempDir: string;
 let service: ControlService;
@@ -141,10 +141,10 @@ class VolatileCodexAdapter implements CodexAdapter {
 
 beforeEach(() => {
   tempDir = mkdtempSync(join(tmpdir(), "codex-xyz-service-"));
-  service = new ControlService(Store.open(join(tempDir, "test.sqlite")), new MockCodexAdapter(0));
+  service = new ControlService(Store.open(join(tempDir, "test.sqlite")), new TestCodexAdapter());
   service.seedLocalState({
     cwd: tempDir,
-    adapterName: "mock",
+    adapterName: "test",
     cliVersion: "test"
   });
 });
@@ -174,7 +174,7 @@ describe("ControlService", () => {
     const detail = service.getThreadDetail(threads[0].id);
     expect(detail.turns).toHaveLength(1);
     expect(detail.turns[0].status).toBe("completed");
-    expect(detail.items.some((item) => item.type === "agent" && item.text.includes("Mock run started"))).toBe(true);
+    expect(detail.items.some((item) => item.type === "agent" && item.text.includes("Test run started"))).toBe(true);
     expect(service.listTasks()[0].status).toBe("completed");
   });
 

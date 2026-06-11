@@ -11,9 +11,9 @@ import {
   type ResumeThreadInput,
   type StartThreadInput,
   type StartTurnAdapterInput
-} from "./adapter.js";
+} from "../src/server/codex/adapter.js";
 
-type MockThread = AdapterThread & {
+type TestThread = AdapterThread & {
   goal: AdapterGoal | null;
   activeTurnId: string | null;
 };
@@ -21,34 +21,32 @@ type MockThread = AdapterThread & {
 type RunningTurn = {
   threadId: string;
   turnId: string;
-  timers: NodeJS.Timeout[];
   startedAt: number;
   completed: boolean;
 };
 
-export class MockCodexAdapter implements CodexAdapter {
-  readonly name = "mock";
-  readonly version = "local";
+export class TestCodexAdapter implements CodexAdapter {
+  readonly name = "test";
+  readonly version = "test";
   private handler: AdapterEventHandler = () => {};
-  private readonly threads = new Map<string, MockThread>();
+  private readonly threads = new Map<string, TestThread>();
   private readonly running = new Map<string, RunningTurn>();
-  private readonly approvalRequests = new Map<string, string>();
-
-  constructor(private readonly delayMs = 220) {}
+  private closed = false;
 
   onEvent(handler: AdapterEventHandler) {
     this.handler = handler;
   }
 
   async startThread(input: StartThreadInput): Promise<AdapterThread> {
+    this.closed = false;
     const id = `thread_${randomUUID()}`;
-    const thread: MockThread = {
+    const thread: TestThread = {
       id,
       sessionId: `session_${randomUUID()}`,
       forkedFromId: null,
       preview: input.promptPreview,
       cwd: input.cwd,
-      model: input.model ?? "mock-codex",
+      model: input.model ?? "test-codex",
       goal: null,
       activeTurnId: null
     };
@@ -63,95 +61,15 @@ export class MockCodexAdapter implements CodexAdapter {
   async startTurn(input: StartTurnAdapterInput): Promise<AdapterTurn> {
     const thread = this.requireThread(input.threadId);
     const turnId = `turn_${randomUUID()}`;
-    thread.activeTurnId = turnId;
     const running: RunningTurn = {
       threadId: input.threadId,
       turnId,
-      timers: [],
       startedAt: Date.now(),
       completed: false
     };
+    thread.activeTurnId = turnId;
     this.running.set(turnId, running);
-
-    const planId = `item_plan_${randomUUID()}`;
-    const answerId = `item_agent_${randomUUID()}`;
-    const needsApproval = /approval|approve|rm\s|-rf|danger|sudo/i.test(input.prompt);
-    const steps: Array<() => void> = [
-      () =>
-        this.emit({
-          type: "item.created",
-          threadId: input.threadId,
-          turnId,
-          itemId: `item_user_${randomUUID()}`,
-          itemType: "user",
-          text: input.prompt,
-          data: { source: "mock" }
-        }),
-      () =>
-        this.emit({
-          type: "thread.status",
-          threadId: input.threadId,
-          status: "running"
-        }),
-      () =>
-        this.emit({
-          type: "item.created",
-          threadId: input.threadId,
-          turnId,
-          itemId: planId,
-          itemType: "plan",
-          text: "Inspect request, stage implementation, run local verification.",
-          data: { adapter: "mock" }
-        }),
-      () =>
-        this.emit({
-          type: "item.created",
-          threadId: input.threadId,
-          turnId,
-          itemId: answerId,
-          itemType: "agent",
-          text: "",
-          data: { adapter: "mock" }
-        })
-    ];
-
-    for (const chunk of this.mockAnswer(input.prompt)) {
-      steps.push(() =>
-        this.emit({
-          type: "item.delta",
-          threadId: input.threadId,
-          turnId,
-          itemId: answerId,
-          delta: chunk
-        })
-      );
-    }
-
-    if (needsApproval) {
-      const adapterRequestId = `approval_${randomUUID()}`;
-      steps.push(() => {
-        this.approvalRequests.set(adapterRequestId, turnId);
-        this.emit({
-          type: "approval.requested",
-          adapterRequestId,
-          threadId: input.threadId,
-          turnId,
-          kind: "command",
-          summary: "Mock command approval requested for a high-risk shell action."
-        });
-      });
-      steps.push(() =>
-        this.emit({
-          type: "thread.status",
-          threadId: input.threadId,
-          status: "waiting_approval"
-        })
-      );
-    } else {
-      steps.push(() => this.completeTurn(running, "completed"));
-    }
-
-    setTimeout(() => this.schedule(running, steps), 0);
+    setTimeout(() => this.emitTurnOutput(input, turnId, running), 0);
     return { id: turnId, status: "running" };
   }
 
@@ -173,7 +91,7 @@ export class MockCodexAdapter implements CodexAdapter {
       itemId: `item_agent_${randomUUID()}`,
       itemType: "agent",
       text: `Steer received: ${input.prompt}`,
-      data: { adapter: "mock" }
+      data: { adapter: "test" }
     });
   }
 
@@ -181,9 +99,6 @@ export class MockCodexAdapter implements CodexAdapter {
     this.requireThread(input.threadId);
     const running = this.running.get(input.turnId);
     if (running) {
-      for (const timer of running.timers) {
-        clearTimeout(timer);
-      }
       this.completeTurn(running, "interrupted");
     }
   }
@@ -191,7 +106,7 @@ export class MockCodexAdapter implements CodexAdapter {
   async forkThread(input: ForkThreadInput): Promise<AdapterThread> {
     const source = this.requireThread(input.sourceThreadId);
     const id = `thread_${randomUUID()}`;
-    const thread: MockThread = {
+    const thread: TestThread = {
       id,
       sessionId: source.sessionId,
       forkedFromId: source.id,
@@ -226,65 +141,84 @@ export class MockCodexAdapter implements CodexAdapter {
   }
 
   async resolveApproval(input: { approvalId: string; adapterRequestId: string | null; approved: boolean }) {
-    const turnId = input.adapterRequestId ? this.approvalRequests.get(input.adapterRequestId) : null;
-    const active = turnId
-      ? this.running.get(turnId)
-      : [...this.running.values()].find((turn) => !turn.completed);
+    const active = [...this.running.values()].find((turn) => !turn.completed);
     if (!active) {
       return;
     }
-    if (!input.approved) {
-      this.emit({
-        type: "item.created",
-        threadId: active.threadId,
-        turnId: active.turnId,
-        itemId: `item_denied_${randomUUID()}`,
-        itemType: "system",
-        text: "Approval denied.",
-        data: { approvalId: input.approvalId, adapterRequestId: input.adapterRequestId }
-      });
-      this.completeTurn(active, "interrupted");
-      return;
-    }
+
     this.emit({
       type: "item.created",
       threadId: active.threadId,
       turnId: active.turnId,
-      itemId: `item_approved_${randomUUID()}`,
+      itemId: `item_approval_${randomUUID()}`,
       itemType: "system",
-      text: "Approval accepted.",
+      text: input.approved ? "Approval accepted." : "Approval denied.",
       data: { approvalId: input.approvalId, adapterRequestId: input.adapterRequestId }
     });
-    this.completeTurn(active, "completed");
+    this.completeTurn(active, input.approved ? "completed" : "interrupted");
   }
 
   async close() {
-    for (const running of this.running.values()) {
-      for (const timer of running.timers) {
-        clearTimeout(timer);
-      }
-    }
+    this.closed = true;
     this.running.clear();
-    this.approvalRequests.clear();
+    this.threads.clear();
   }
 
-  private schedule(running: RunningTurn, steps: Array<() => void>) {
-    if (this.delayMs <= 0) {
-      for (const step of steps) {
-        if (!running.completed) {
-          step();
-        }
-      }
+  private emitTurnOutput(input: StartTurnAdapterInput, turnId: string, running: RunningTurn) {
+    if (this.closed || running.completed) {
       return;
     }
-    steps.forEach((step, index) => {
-      const timer = setTimeout(() => {
-        if (!running.completed) {
-          step();
-        }
-      }, this.delayMs * index);
-      running.timers.push(timer);
+
+    const answerId = `item_agent_${randomUUID()}`;
+    this.emit({
+      type: "item.created",
+      threadId: input.threadId,
+      turnId,
+      itemId: `item_user_${randomUUID()}`,
+      itemType: "user",
+      text: input.prompt,
+      data: { source: "test" }
     });
+    this.emit({
+      type: "thread.status",
+      threadId: input.threadId,
+      status: "running"
+    });
+    this.emit({
+      type: "item.created",
+      threadId: input.threadId,
+      turnId,
+      itemId: answerId,
+      itemType: "agent",
+      text: "",
+      data: { adapter: "test" }
+    });
+    this.emit({
+      type: "item.delta",
+      threadId: input.threadId,
+      turnId,
+      itemId: answerId,
+      delta: this.answer(input.prompt)
+    });
+
+    if (this.needsApproval(input.prompt)) {
+      this.emit({
+        type: "approval.requested",
+        adapterRequestId: `approval_${randomUUID()}`,
+        threadId: input.threadId,
+        turnId,
+        kind: "command",
+        summary: "Test command approval requested for a high-risk shell action."
+      });
+      this.emit({
+        type: "thread.status",
+        threadId: input.threadId,
+        status: "waiting_approval"
+      });
+      return;
+    }
+
+    this.completeTurn(running, "completed");
   }
 
   private completeTurn(running: RunningTurn, status: "completed" | "interrupted" | "failed") {
@@ -292,13 +226,7 @@ export class MockCodexAdapter implements CodexAdapter {
       return;
     }
     running.completed = true;
-    const durationMs = Date.now() - running.startedAt;
     this.running.delete(running.turnId);
-    for (const [adapterRequestId, turnId] of this.approvalRequests) {
-      if (turnId === running.turnId) {
-        this.approvalRequests.delete(adapterRequestId);
-      }
-    }
     const thread = this.threads.get(running.threadId);
     if (thread?.activeTurnId === running.turnId) {
       thread.activeTurnId = null;
@@ -308,7 +236,7 @@ export class MockCodexAdapter implements CodexAdapter {
       threadId: running.threadId,
       turnId: running.turnId,
       status,
-      durationMs
+      durationMs: Date.now() - running.startedAt
     });
     this.emit({
       type: "thread.status",
@@ -317,19 +245,23 @@ export class MockCodexAdapter implements CodexAdapter {
     });
   }
 
-  private mockAnswer(prompt: string) {
+  private needsApproval(prompt: string) {
+    return /approval|approve|rm\s|-rf|danger|sudo/i.test(prompt);
+  }
+
+  private answer(prompt: string) {
     const trimmed = prompt.trim().replace(/\s+/g, " ");
     return [
-      "Mock run started. ",
+      "Test run started. ",
       "The control plane accepted the task and produced deterministic transcript output. ",
       `Prompt preview: ${trimmed.slice(0, 96)}`
-    ];
+    ].join("");
   }
 
   private requireThread(id: string) {
     const thread = this.threads.get(id);
     if (!thread) {
-      throw new AdapterThreadNotFoundError(id, `Mock thread ${id} does not exist`);
+      throw new AdapterThreadNotFoundError(id, `Test thread ${id} does not exist`);
     }
     return thread;
   }

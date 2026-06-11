@@ -3,11 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { MockCodexAdapter } from "../src/server/codex/mockAdapter.js";
 import type { DashboardState } from "../src/server/domain.js";
 import { createHttpServer } from "../src/server/http.js";
 import { ControlService } from "../src/server/service.js";
 import { Store } from "../src/server/store.js";
+import { TestCodexAdapter } from "./testCodexAdapter.js";
 
 let tempDir: string;
 let service: ControlService;
@@ -36,10 +36,10 @@ async function json<T>(path: string, init?: RequestInit) {
 
 beforeEach(async () => {
   tempDir = mkdtempSync(join(tmpdir(), "codex-xyz-http-"));
-  service = new ControlService(Store.open(join(tempDir, "test.sqlite")), new MockCodexAdapter(0));
+  service = new ControlService(Store.open(join(tempDir, "test.sqlite")), new TestCodexAdapter());
   service.seedLocalState({
     cwd: tempDir,
-    adapterName: "mock",
+    adapterName: "test",
     cliVersion: "test"
   });
   server = createHttpServer(service);
@@ -68,10 +68,10 @@ describe("HTTP API", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 20));
     const detail = await json<{ items: Array<{ text: string }> }>(`/api/threads/${created.thread.id}`);
-    expect(detail.items.map((item) => item.text).join("\n")).toContain("Mock run started");
+    expect(detail.items.map((item) => item.text).join("\n")).toContain("Test run started");
   });
 
-  it("resolves mock approvals through the API", async () => {
+  it("resolves approvals through the API", async () => {
     const state = await json<DashboardState>("/api/state");
     const created = await json<{ thread: { id: string } }>("/api/tasks", {
       method: "POST",
