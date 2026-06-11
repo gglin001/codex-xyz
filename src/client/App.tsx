@@ -97,31 +97,6 @@ function SessionRow({
   );
 }
 
-function ProjectList({
-  projects,
-  selectedProjectId,
-  onSelect
-}: {
-  projects: Project[];
-  selectedProjectId: string | null;
-  onSelect: (projectId: string) => void;
-}) {
-  return (
-    <div className="project-list">
-      {projects.map((project) => (
-        <button
-          className={`project-row ${project.id === selectedProjectId ? "selected" : ""}`}
-          key={project.id}
-          onClick={() => onSelect(project.id)}
-        >
-          <span>{project.name}</span>
-          <small>{project.path}</small>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function WorkdirField({
   projects,
   value,
@@ -213,7 +188,6 @@ function HelpPage() {
 
 export function App() {
   const [state, setState] = useState<DashboardState>(initialState);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ThreadDetail | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -228,12 +202,6 @@ export function App() {
   async function refresh(nextThreadId = selectedThreadId) {
     const next = await getState();
     setState(next);
-    if (!selectedProjectId && next.projects[0]) {
-      setSelectedProjectId(next.projects[0].id);
-      if (!workdirTouched) {
-        setWorkdir(next.projects[0].path);
-      }
-    }
     const preferredThreadId = nextThreadId ?? next.threads[0]?.id ?? null;
     setSelectedThreadId(preferredThreadId);
     if (preferredThreadId) {
@@ -278,10 +246,6 @@ export function App() {
     () => state.threads.find((thread) => thread.id === selectedThreadId) ?? null,
     [selectedThreadId, state.threads]
   );
-  const selectedProject = useMemo(
-    () => state.projects.find((project) => project.id === selectedProjectId) ?? null,
-    [selectedProjectId, state.projects]
-  );
   const matchingWorkdirProject = useMemo(() => {
     const trimmed = workdir.trim();
     return state.projects.find((project) => project.path === trimmed) ?? null;
@@ -289,6 +253,9 @@ export function App() {
 
   const activeThreads = state.threads.filter((thread) => thread.status === "running");
   const otherThreads = state.threads.filter((thread) => thread.status !== "running");
+  const queuedTaskCount = state.tasks.filter(
+    (task) => task.status === "queued" || task.status === "running"
+  ).length;
   const promptTarget = composerMode === "thread" && selectedThread ? "thread" : "new";
   const trimmedWorkdir = workdir.trim();
   const goalPromptCommand = parseGoalPromptCommand(prompt);
@@ -304,27 +271,14 @@ export function App() {
     Boolean(selectedThreadId) && selectedThread?.status === "running" && Boolean(steer.trim()) && !busy;
 
   useEffect(() => {
-    if (!workdirTouched && selectedProject) {
-      setWorkdir(selectedProject.path);
+    if (!workdirTouched && workdir.length === 0 && state.projects[0]) {
+      setWorkdir(state.projects[0].path);
     }
-  }, [selectedProject, workdirTouched]);
-
-  function selectProject(projectId: string) {
-    setSelectedProjectId(projectId);
-    const project = state.projects.find((candidate) => candidate.id === projectId);
-    if (project) {
-      setWorkdir(project.path);
-      setWorkdirTouched(false);
-    }
-  }
+  }, [state.projects, workdir, workdirTouched]);
 
   function updateWorkdir(value: string) {
     setWorkdir(value);
     setWorkdirTouched(true);
-    const project = state.projects.find((candidate) => candidate.path === value.trim());
-    if (project) {
-      setSelectedProjectId(project.id);
-    }
   }
 
   async function runAction(action: () => Promise<unknown>) {
@@ -385,7 +339,6 @@ export function App() {
       if (!project) {
         project = await createProject({ path: trimmedWorkdir });
       }
-      setSelectedProjectId(project.id);
       setWorkdir(project.path);
       setWorkdirTouched(false);
       const result = await createTask({ projectId: project.id, prompt: currentPrompt });
@@ -419,41 +372,20 @@ export function App() {
 
   return (
     <main className="workspace">
-      <aside className="sidebar panel">
-        <div className="brand-row">
-          <div>
-            <strong>codex-xyz</strong>
-            <small>Control plane</small>
-          </div>
-          <button title="Refresh" onClick={() => void refresh()}>
-            <RefreshCw size={16} />
-          </button>
-        </div>
-        <section>
-          <h2>Projects</h2>
-          <ProjectList
-            projects={state.projects}
-            selectedProjectId={selectedProjectId}
-            onSelect={selectProject}
-          />
-        </section>
-        <section>
-          <h2>Queue</h2>
-          <div className="metric-row">
-            <span>Tasks</span>
-            <strong>{state.tasks.length}</strong>
-          </div>
-        </section>
-      </aside>
-
       <section className="sessions panel">
-        <div className="panel-header">
-          <div>
+        <div className="panel-header sessions-header">
+          <div className="sessions-title">
+            <strong>codex-xyz</strong>
             <h1>Sessions</h1>
-            <p>{state.threads.length} total</p>
+            <p>
+              {state.threads.length} total, {queuedTaskCount} queued, {state.tasks.length} tasks
+            </p>
           </div>
           <div className="panel-header-actions">
             {busy ? <Loader2 className="spin" size={18} /> : <Play size={18} />}
+            <button title="Refresh" onClick={() => void refresh()}>
+              <RefreshCw size={16} />
+            </button>
             <button
               className={showHelp ? "active" : ""}
               title={showHelp ? "Hide shortcuts" : "Show shortcuts"}
