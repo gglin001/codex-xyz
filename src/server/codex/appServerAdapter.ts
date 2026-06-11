@@ -1,4 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { appendFileSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 import { createInterface, type Interface } from "node:readline";
 import {
   AdapterThreadNotFoundError,
@@ -28,6 +30,10 @@ type PendingRequest = {
   method: string;
   params: unknown;
   timeout: NodeJS.Timeout;
+};
+
+export type AppServerCodexAdapterOptions = {
+  debugLogPath?: string | null;
 };
 
 const yoloThreadOptions = {
@@ -90,6 +96,34 @@ function requestError(error: unknown, params: unknown) {
   return new Error(message);
 }
 
+class AppServerDebugLogger {
+  private disabled = false;
+
+  constructor(private readonly filePath: string) {
+    mkdirSync(dirname(filePath), { recursive: true });
+    appendFileSync(filePath, "", "utf8");
+  }
+
+  write(record: Record<string, unknown>) {
+    if (this.disabled) {
+      return;
+    }
+    try {
+      appendFileSync(
+        this.filePath,
+        `${JSON.stringify({
+          timestamp: new Date().toISOString(),
+          target: "app-server",
+          ...record
+        })}\n`,
+        "utf8"
+      );
+    } catch {
+      this.disabled = true;
+    }
+  }
+}
+
 export class AppServerCodexAdapter implements CodexAdapter {
   readonly name = "app-server";
   readonly version: string | null = null;
@@ -99,8 +133,14 @@ export class AppServerCodexAdapter implements CodexAdapter {
   private readonly pending = new Map<number | string, PendingRequest>();
   private eventHandler: AdapterEventHandler = () => {};
   private initialized = false;
+  private readonly debugLogger: AppServerDebugLogger | null;
 
-  constructor(private readonly command = process.env.CODEX_XYZ_CODEX_BIN ?? "codex") {}
+  constructor(
+    private readonly command = process.env.CODEX_XYZ_CODEX_BIN ?? "codex",
+    options: AppServerCodexAdapterOptions = {}
+  ) {
+    this.debugLogger = options.debugLogPath ? new AppServerDebugLogger(options.debugLogPath) : null;
+  }
 
   onEvent(handler: AdapterEventHandler) {
     this.eventHandler = handler;
@@ -235,16 +275,32 @@ export class AppServerCodexAdapter implements CodexAdapter {
         stdio: ["pipe", "pipe", "pipe"],
         env: process.env
       });
+      this.writeDebug({
+        event: "process.spawn",
+        command: this.command,
+        args: ["app-server", "--stdio"],
+        pid: child.pid ?? null
+      });
       this.process = child;
       this.stdout = createInterface({ input: child.stdout });
       this.stdout.on("line", (line) => this.handleLine(line));
       child.stderr.on("data", (chunk: Buffer) => {
         const text = chunk.toString("utf8").trim();
         if (text) {
+          this.writeDebug({
+            event: "stderr",
+            direction: "in",
+            text
+          });
           this.emitRaw("app-server/stderr", { text });
         }
       });
       child.on("exit", (code, signal) => {
+        this.writeDebug({
+          event: "process.exit",
+          code: code ?? null,
+          signal: signal ?? null
+        });
         for (const pending of this.pending.values()) {
           clearTimeout(pending.timeout);
           pending.reject(new Error(`app-server exited with code ${code ?? "null"} signal ${signal ?? "null"}`));
@@ -306,9 +362,21 @@ export class AppServerCodexAdapter implements CodexAdapter {
     try {
       message = JSON.parse(trimmed) as JsonRpcMessage;
     } catch {
+      this.writeDebug({
+        event: "message",
+        direction: "in",
+        parsed: false,
+        line: trimmed
+      });
       this.emitRaw("app-server/unparsed", { line: trimmed });
       return;
     }
+    this.writeDebug({
+      event: "message",
+      direction: "in",
+      parsed: true,
+      message
+    });
 
     if (message.id !== undefined && (message.result !== undefined || message.error !== undefined)) {
       const pending = this.pending.get(message.id);
@@ -447,10 +515,20 @@ export class AppServerCodexAdapter implements CodexAdapter {
     } satisfies AdapterEvent);
   }
 
+  private writeDebug(record: Record<string, unknown>) {
+    this.debugLogger?.write(record);
+  }
+
   private send(message: JsonRpcMessage) {
     if (!this.process) {
       throw new Error("app-server process is not started");
     }
+    this.writeDebug({
+      event: "message",
+      direction: "out",
+      parsed: true,
+      message
+    });
     this.process.stdin.write(`${JSON.stringify(message)}\n`);
   }
 }

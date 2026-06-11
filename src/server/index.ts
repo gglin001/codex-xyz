@@ -6,6 +6,10 @@ import { createHttpServer } from "./http.js";
 import { ControlService } from "./service.js";
 import { Store } from "./store.js";
 
+export type ServerOptions = {
+  debug?: boolean;
+};
+
 function codexVersion() {
   try {
     const bin = process.env.CODEX_XYZ_CODEX_BIN ?? "codex";
@@ -15,10 +19,18 @@ function codexVersion() {
   }
 }
 
-export function createServiceFromEnv() {
+export function parseServerArgs(argv: string[]): ServerOptions {
+  return {
+    debug: argv.includes("--debug")
+  };
+}
+
+export function createServiceFromEnv(options: ServerOptions = {}) {
   const dataDir = resolve(process.cwd(), process.env.CODEX_XYZ_DATA_DIR ?? ".codex-xyz");
   const store = Store.open(resolve(dataDir, "codex-xyz.sqlite"));
-  const adapter = new AppServerCodexAdapter();
+  const adapter = new AppServerCodexAdapter(process.env.CODEX_XYZ_CODEX_BIN ?? "codex", {
+    debugLogPath: options.debug ? resolve(dataDir, "debug.jsonl") : null
+  });
   const service = new ControlService(store, adapter);
   service.seedLocalState({
     cwd: process.cwd(),
@@ -29,7 +41,8 @@ export function createServiceFromEnv() {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const service = createServiceFromEnv();
+  const options = parseServerArgs(process.argv.slice(2));
+  const service = createServiceFromEnv(options);
   const apiUrl = readApiUrl(process.env);
   const uiUrl = readUiUrl(process.env);
   const clientDistDir = resolve(process.cwd(), "dist/client");

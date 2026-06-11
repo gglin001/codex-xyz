@@ -1,4 +1,4 @@
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -103,5 +103,47 @@ describe("AppServerCodexAdapter", () => {
       preview: "resumed without turns",
       model: "test-model"
     })
+  })
+
+  it("writes app-server protocol debug records as JSON lines", async () => {
+    const command = createFakeCodexCommand()
+    const debugLogPath = join(tempDir as string, ".codex-xyz", "debug.jsonl")
+    adapter = new AppServerCodexAdapter(command, { debugLogPath })
+
+    await adapter.resumeThread({
+      threadId: "thread_2",
+      cwd: process.cwd(),
+      model: "test-model"
+    })
+
+    const records = readFileSync(debugLogPath, "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as Record<string, unknown>)
+
+    expect(records).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          target: "app-server",
+          event: "process.spawn"
+        }),
+        expect.objectContaining({
+          direction: "out",
+          message: expect.objectContaining({ method: "initialize" })
+        }),
+        expect.objectContaining({
+          direction: "out",
+          message: expect.objectContaining({ method: "thread/resume" })
+        }),
+        expect.objectContaining({
+          direction: "in",
+          message: expect.objectContaining({
+            result: expect.objectContaining({
+              thread: expect.objectContaining({ id: "thread_2" })
+            })
+          })
+        })
+      ])
+    )
   })
 })

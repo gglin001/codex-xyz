@@ -18,6 +18,14 @@ pnpm run dev
 
 Open `http://127.0.0.1:1123`. The API runs on `http://127.0.0.1:3211`, and local state defaults to `.codex-xyz/codex-xyz.sqlite`.
 
+Start with app-server protocol debug logging:
+
+```bash
+pnpm run dev -- --debug
+```
+
+Debug records are appended as JSON Lines to `.codex-xyz/debug.jsonl`.
+
 ## Checks
 
 Run tests:

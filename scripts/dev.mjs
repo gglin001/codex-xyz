@@ -5,8 +5,13 @@ const webEnv = {
   VITE_CODEX_XYZ_API_URL: process.env.VITE_CODEX_XYZ_API_URL ?? process.env.CODEX_XYZ_API_URL ?? ""
 };
 
+const apiArgs = ["run", "dev:api"];
+if (process.argv.length > 2) {
+  apiArgs.push("--", ...process.argv.slice(2));
+}
+
 const processes = [
-  spawn("pnpm", ["run", "dev:api"], {
+  spawn("pnpm", apiArgs, {
     stdio: "inherit"
   }),
   spawn("pnpm", ["run", "dev:web"], {
