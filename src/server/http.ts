@@ -86,7 +86,6 @@ function writeSse(response: ServerResponse, event: string, data: unknown, id?: n
 async function handleApi(context: HandlerContext) {
   const { request, response, service, url } = context;
   const method = request.method ?? "GET";
-  const parts = pathParts(url);
 
   if (method === "GET" && url.pathname === "/api/health") {
     sendJson(response, 200, {
@@ -123,12 +122,15 @@ async function handleApi(context: HandlerContext) {
     return true;
   }
 
-  if (method === "GET" && parts.join("/") === "api/projects") {
+  const parts = pathParts(url);
+  const route = parts.join("/");
+
+  if (method === "GET" && route === "api/projects") {
     sendJson(response, 200, service.listProjects());
     return true;
   }
 
-  if (method === "POST" && parts.join("/") === "api/projects") {
+  if (method === "POST" && route === "api/projects") {
     const body = await readJson(request);
     const project = service.createProject({
       name: optionalString(body, "name"),
@@ -138,12 +140,12 @@ async function handleApi(context: HandlerContext) {
     return true;
   }
 
-  if (method === "GET" && parts.join("/") === "api/tasks") {
+  if (method === "GET" && route === "api/tasks") {
     sendJson(response, 200, service.listTasks());
     return true;
   }
 
-  if (method === "POST" && parts.join("/") === "api/tasks") {
+  if (method === "POST" && route === "api/tasks") {
     const body = await readJson(request);
     const result = await service.createTask({
       projectId: requireString(body, "projectId"),
@@ -156,7 +158,7 @@ async function handleApi(context: HandlerContext) {
     return true;
   }
 
-  if (method === "GET" && parts.join("/") === "api/threads") {
+  if (method === "GET" && route === "api/threads") {
     sendJson(response, 200, service.listThreads());
     return true;
   }
