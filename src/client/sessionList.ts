@@ -40,6 +40,14 @@ function needsAttention(thread: ControlThread) {
   );
 }
 
+function byUpdatedDesc(a: ControlThread, b: ControlThread) {
+  return b.updatedAt.localeCompare(a.updatedAt);
+}
+
+function orderThreads(threads: ControlThread[]) {
+  return [...threads].sort(byUpdatedDesc);
+}
+
 export function getSessionListModel(
   threads: ControlThread[],
   tasks: Task[],
@@ -51,9 +59,13 @@ export function getSessionListModel(
     : threads;
 
   return {
-    activeThreads: visibleThreads.filter((thread) => thread.status === "running"),
-    attentionThreads: visibleThreads.filter((thread) => thread.status !== "running" && needsAttention(thread)),
-    otherThreads: visibleThreads.filter((thread) => thread.status !== "running" && !needsAttention(thread)),
+    activeThreads: orderThreads(visibleThreads.filter((thread) => thread.status === "running")),
+    attentionThreads: orderThreads(
+      visibleThreads.filter((thread) => thread.status !== "running" && needsAttention(thread))
+    ),
+    otherThreads: orderThreads(
+      visibleThreads.filter((thread) => thread.status !== "running" && !needsAttention(thread))
+    ),
     queuedTaskCount: tasks.filter((task) => task.status === "queued" || task.status === "running").length,
     totalThreadCount: threads.length,
     visibleThreadCount: visibleThreads.length,

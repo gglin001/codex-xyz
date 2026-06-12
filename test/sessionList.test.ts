@@ -3,6 +3,9 @@ import { getSessionListModel } from "../src/client/sessionList.js";
 import type { ControlThread, Task } from "../src/server/domain.js";
 
 const createdAt = "2026-06-13T00:00:00.000Z";
+const early = "2026-06-13T00:01:00.000Z";
+const middle = "2026-06-13T00:02:00.000Z";
+const late = "2026-06-13T00:03:00.000Z";
 
 function thread(overrides: Partial<ControlThread> = {}): ControlThread {
   return {
@@ -119,5 +122,29 @@ describe("session list model", () => {
     expect(result.attentionThreads.map((candidate) => candidate.id)).toEqual(["visible-attention"]);
     expect(result.otherThreads.map((candidate) => candidate.id)).toEqual(["visible-history"]);
     expect(result.visibleThreadCount).toBe(2);
+  });
+
+  it("orders each group by the most recently updated session first", () => {
+    const result = getSessionListModel(
+      [
+        thread({ id: "active-old", status: "running", updatedAt: early }),
+        thread({ id: "history-old", status: "idle", updatedAt: early }),
+        thread({ id: "attention-old", status: "failed", updatedAt: early }),
+        thread({ id: "active-new", status: "running", updatedAt: late }),
+        thread({ id: "history-new", status: "idle", updatedAt: late }),
+        thread({ id: "attention-new", status: "stale", updatedAt: late }),
+        thread({ id: "active-middle", status: "running", updatedAt: middle })
+      ],
+      [],
+      ""
+    );
+
+    expect(result.activeThreads.map((candidate) => candidate.id)).toEqual([
+      "active-new",
+      "active-middle",
+      "active-old"
+    ]);
+    expect(result.attentionThreads.map((candidate) => candidate.id)).toEqual(["attention-new", "attention-old"]);
+    expect(result.otherThreads.map((candidate) => candidate.id)).toEqual(["history-new", "history-old"]);
   });
 });
