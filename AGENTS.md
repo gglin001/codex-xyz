@@ -43,6 +43,8 @@ Use Vitest with the Node environment. Add tests under `test/` using `*.test.ts`,
 
 Prefer test adapters and temporary directories for service or HTTP behavior. Run `pnpm test` before submitting changes, and run `pnpm run typecheck` when changing shared types, config, adapters, or APIs.
 
+Before starting a dev server for manual validation, resolve the expected UI/API URLs from environment variables, falling back to the defaults (`http://127.0.0.1:1123` and `http://127.0.0.1:3211`) when unset. If services already respond there, assume the user has started testing and use those hot-reloading services instead of launching another server.
+
 ## Commit & Pull Request Guidelines
 
 - Keep commit subjects short, imperative, and focused.
