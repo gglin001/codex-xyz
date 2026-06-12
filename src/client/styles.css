@@ -276,8 +276,7 @@ small {
   justify-content: flex-end;
 }
 
-.toolbar button,
-.goal-fields button {
+.toolbar button {
   gap: 7px;
   min-width: 0;
   padding: 0 11px;
@@ -304,8 +303,7 @@ button.active {
 }
 
 .composer-mode span,
-.toolbar span,
-.goal-fields button span {
+.toolbar span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -345,8 +343,7 @@ button.active {
 
 .steer-form input,
 .task-form textarea,
-.title-editor input,
-.goal-fields input {
+.title-editor input {
   min-width: 0;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -358,13 +355,11 @@ button.active {
 .steer-form input::placeholder,
 .task-form textarea::placeholder,
 .title-editor input::placeholder,
-.goal-fields input::placeholder,
 .workdir-field input::placeholder {
   color: var(--muted);
 }
 
 .steer-form input,
-.goal-fields input,
 .title-editor input {
   height: 34px;
   padding: 0 10px;
@@ -377,8 +372,7 @@ button.active {
 
 .steer-form input:focus,
 .task-form textarea:focus,
-.title-editor input:focus,
-.goal-fields input:focus {
+.title-editor input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--focus-ring);
 }
@@ -454,8 +448,10 @@ button.active {
   position: relative;
   width: 100%;
   height: auto;
+  flex-direction: column;
+  align-items: stretch;
   justify-content: flex-start;
-  gap: 10px;
+  gap: 7px;
   padding: 10px;
   text-align: left;
 }
@@ -463,6 +459,14 @@ button.active {
 .session-row.selected {
   border-color: var(--accent);
   background: var(--accent-soft);
+}
+
+.session-row-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  width: 100%;
 }
 
 .session-copy {
@@ -481,8 +485,7 @@ button.active {
 }
 
 .session-status,
-.goal-status,
-.goal-budget,
+.session-goal-budget,
 .item-chip {
   flex: 0 0 auto;
   min-width: 0;
@@ -491,6 +494,60 @@ button.active {
   font-size: 11px;
   line-height: 1.2;
   white-space: nowrap;
+}
+
+.session-goal {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  width: 100%;
+  color: var(--goal-text);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.session-goal svg {
+  flex: 0 0 auto;
+  color: var(--target-icon);
+}
+
+.session-goal-copy {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.session-goal-copy strong {
+  flex: 0 0 auto;
+  color: var(--goal-text);
+  font-size: 11px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.session-goal-copy small {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-goal.complete .session-goal-copy strong {
+  color: var(--running-text);
+}
+
+.session-goal.blocked .session-goal-copy strong {
+  color: var(--attention-text);
+}
+
+.session-goal-budget {
+  background: var(--budget-bg);
+  color: var(--budget-text);
 }
 
 .session-status.quiet,
@@ -627,62 +684,6 @@ button.active {
   width: fit-content;
   padding: 3px 7px;
   border-radius: 999px;
-}
-
-.goal-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-  padding: 11px;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  background: var(--surface-bg);
-}
-
-.goal-panel-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  color: var(--text-strong);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.goal-panel-title svg {
-  color: var(--target-icon);
-}
-
-.goal-status {
-  background: var(--goal-bg);
-  color: var(--goal-text);
-}
-
-.goal-status.complete {
-  background: var(--running-bg);
-  color: var(--running-text);
-}
-
-.goal-status.blocked {
-  background: var(--attention-bg);
-  color: var(--attention-text);
-}
-
-.goal-status.cleared {
-  background: var(--quiet-bg);
-  color: var(--quiet-text);
-}
-
-.goal-budget {
-  margin-left: auto;
-  background: var(--budget-bg);
-  color: var(--budget-text);
-}
-
-.goal-fields {
-  display: grid;
-  grid-template-columns: minmax(0, 1.8fr) minmax(96px, 0.8fr) auto auto;
-  gap: 8px;
 }
 
 .transcript {
@@ -876,14 +877,6 @@ button.active {
 
   .session-facts .wide {
     grid-column: span 2;
-  }
-
-  .goal-fields {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .goal-fields button {
-    width: 100%;
   }
 
   .item-meta {

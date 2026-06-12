@@ -19,14 +19,12 @@ import {
   Sun,
   Target,
   Terminal,
-  UserRound,
-  X
+  UserRound
 } from "lucide-react";
 import type { FormEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   apiUrl,
-  clearGoal,
   createProject,
   createTask,
   forkThread,
@@ -35,7 +33,6 @@ import {
   interruptTurn,
   renameThread,
   resumeThread,
-  setGoal,
   startTurn,
   steerTurn
 } from "./api.js";
@@ -163,11 +160,6 @@ function ItemIcon({ item }: { item: ThreadItem }) {
   return <Info size={15} />;
 }
 
-type GoalPromptCommand =
-  | { type: "set"; objective: string }
-  | { type: "clear" }
-  | { type: "usage" };
-
 type ThemeMode = "dark" | "light";
 
 const themeStorageKey = "codex-xyz-theme";
@@ -184,31 +176,8 @@ function readStoredTheme(): ThemeMode {
   }
 }
 
-function parseGoalPromptCommand(value: string): GoalPromptCommand | null {
-  const match = value.trim().match(/^\/goal(?:\s+([\s\S]*))?$/i);
-  if (!match) {
-    return null;
-  }
-  const argument = (match[1] ?? "").trim();
-  if (!argument) {
-    return { type: "usage" };
-  }
-  if (argument.toLowerCase() === "clear") {
-    return { type: "clear" };
-  }
-  return { type: "set", objective: argument };
-}
-
-function parseBudget(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return null;
-  }
-  const budget = Number(trimmed);
-  if (!Number.isInteger(budget) || budget <= 0) {
-    return undefined;
-  }
-  return budget;
+function isGoalPrompt(value: string) {
+  return /^\/goal(?:\s|$)/i.test(value.trim());
 }
 
 function SessionRow({
@@ -220,14 +189,33 @@ function SessionRow({
   selected: boolean;
   onSelect: () => void;
 }) {
+  const hasGoal = Boolean(thread.goalObjective && thread.goalStatus && thread.goalStatus !== "cleared");
+  const goalStatus = thread.goalStatus ? `Goal ${statusLabel(thread.goalStatus)}` : "Goal";
+
   return (
     <button className={`session-row ${selected ? "selected" : ""}`} onClick={onSelect} aria-pressed={selected}>
-      <span className={`status-dot ${thread.status}`} />
-      <span className="session-copy">
-        <strong>{thread.title}</strong>
-        <small>{thread.preview || thread.cwd}</small>
+      <span className="session-row-main">
+        <span className={`status-dot ${thread.status}`} />
+        <span className="session-copy">
+          <strong>{thread.title}</strong>
+          <small>{thread.preview || thread.cwd}</small>
+        </span>
+        <span className={`session-status ${statusTone(thread.status)}`}>{statusLabel(thread.status)}</span>
       </span>
-      <span className={`session-status ${statusTone(thread.status)}`}>{statusLabel(thread.status)}</span>
+      {hasGoal ? (
+        <span className={`session-goal ${thread.goalStatus ?? ""}`} title={thread.goalObjective ?? undefined}>
+          <Target size={13} />
+          <span className="session-goal-copy">
+            <strong>{goalStatus}</strong>
+            <small>{thread.goalObjective}</small>
+          </span>
+          {thread.goalTokenBudget ? (
+            <span className="session-goal-budget">
+              {formatTokens(thread.tokensUsed)} / {formatTokens(thread.goalTokenBudget)}
+            </span>
+          ) : null}
+        </span>
+      ) : null}
     </button>
   );
 }
@@ -388,8 +376,6 @@ export function App() {
   const [workdirTouched, setWorkdirTouched] = useState(false);
   const [composerMode, setComposerMode] = useState<"thread" | "new">("thread");
   const [renameTitle, setRenameTitle] = useState("");
-  const [goalDraft, setGoalDraft] = useState("");
-  const [goalBudgetDraft, setGoalBudgetDraft] = useState("");
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -506,12 +492,11 @@ export function App() {
   ).length;
   const promptTarget = composerMode === "thread" && selectedThread ? "thread" : "new";
   const trimmedWorkdir = workdir.trim();
-  const goalPromptCommand = parseGoalPromptCommand(prompt);
-  const parsedGoalBudget = parseBudget(goalBudgetDraft);
+  const goalPrompt = isGoalPrompt(prompt);
   const canSubmitPrompt =
     Boolean(prompt.trim()) &&
     !busy &&
-    (goalPromptCommand
+    (goalPrompt
       ? Boolean(selectedThreadId)
       : promptTarget === "thread"
         ? Boolean(selectedThreadId)
@@ -523,7 +508,6 @@ export function App() {
     Boolean(renameTitle.trim()) &&
     renameTitle.trim() !== selectedThread?.title &&
     !busy;
-  const canSaveGoal = Boolean(selectedThreadId) && Boolean(goalDraft.trim()) && parsedGoalBudget !== undefined && !busy;
   useEffect(() => {
     if (!workdirTouched && workdir.length === 0 && state.projects[0]) {
       setWorkdir(state.projects[0].path);
@@ -533,11 +517,6 @@ export function App() {
   useEffect(() => {
     setRenameTitle(selectedThread?.title ?? "");
   }, [selectedThread?.id, selectedThread?.title]);
-
-  useEffect(() => {
-    setGoalDraft(selectedDetail?.goalObjective ?? "");
-    setGoalBudgetDraft(selectedDetail?.goalTokenBudget ? String(selectedDetail.goalTokenBudget) : "");
-  }, [selectedDetail?.id, selectedDetail?.goalObjective, selectedDetail?.goalTokenBudget]);
 
   function updateWorkdir(value: string) {
     setWorkdir(value);
@@ -567,31 +546,18 @@ export function App() {
     }
     const currentPrompt = prompt;
 
-    const goalCommand = parseGoalPromptCommand(currentPrompt);
-    if (goalCommand) {
+    if (isGoalPrompt(currentPrompt)) {
       if (!selectedThreadId) {
         setError("Select a session before using /goal.");
-        return;
-      }
-      if (goalCommand.type === "usage") {
-        setError("Use /goal <objective> or /goal clear.");
         return;
       }
       const threadId = selectedThreadId;
       setPrompt("");
       setComposerMode("thread");
-      void runAction(
-        goalCommand.type === "clear" ? "Clearing goal" : "Saving goal",
-        async () => {
-          if (goalCommand.type === "clear") {
-            await clearGoal(threadId);
-          } else {
-            await setGoal(threadId, goalCommand.objective, null);
-          }
-          return threadId;
-        },
-        goalCommand.type === "clear" ? "Goal cleared" : "Goal saved"
-      );
+      void runAction("Starting goal turn", async () => {
+        const turn = await startTurn(threadId, currentPrompt);
+        return turn.threadId;
+      });
       return;
     }
 
@@ -660,27 +626,6 @@ export function App() {
         return threadId;
       },
       "Session renamed"
-    );
-  }
-
-  function submitGoal(event: FormEvent) {
-    event.preventDefault();
-    if (!selectedThreadId || !canSaveGoal) {
-      if (parsedGoalBudget === undefined) {
-        setError("Goal budget must be a positive integer.");
-      }
-      return;
-    }
-    const threadId = selectedThreadId;
-    const objective = goalDraft.trim();
-    const budget = parsedGoalBudget;
-    void runAction(
-      "Saving goal",
-      async () => {
-        await setGoal(threadId, objective, budget);
-        return threadId;
-      },
-      "Goal saved"
     );
   }
 
@@ -756,15 +701,9 @@ export function App() {
             />
             <button
               disabled={!canSubmitPrompt}
-              title={
-                goalPromptCommand
-                  ? "Apply goal command"
-                  : promptTarget === "thread"
-                    ? "Start turn"
-                    : "Create session"
-              }
+              title={goalPrompt ? "Start goal turn" : promptTarget === "thread" ? "Start turn" : "Create session"}
             >
-              {goalPromptCommand ? <Target size={16} /> : promptTarget === "thread" ? <Send size={16} /> : <Plus size={16} />}
+              {goalPrompt ? <Target size={16} /> : promptTarget === "thread" ? <Send size={16} /> : <Plus size={16} />}
             </button>
           </form>
 
@@ -892,62 +831,6 @@ export function App() {
         </div>
 
         {selectedDetail ? <SessionFacts thread={selectedDetail} /> : null}
-
-        {selectedThread ? (
-          <form className="goal-panel" onSubmit={submitGoal}>
-            <div className="goal-panel-title">
-              <Target size={16} />
-              <span>Goal</span>
-              {selectedDetail?.goalStatus ? (
-                <span className={`goal-status ${selectedDetail.goalStatus}`}>{statusLabel(selectedDetail.goalStatus)}</span>
-              ) : null}
-              {selectedDetail?.goalTokenBudget ? (
-                <span className="goal-budget">
-                  {formatTokens(selectedDetail.tokensUsed)} / {formatTokens(selectedDetail.goalTokenBudget)}
-                </span>
-              ) : null}
-            </div>
-            <div className="goal-fields">
-              <input
-                value={goalDraft}
-                onChange={(event) => setGoalDraft(event.target.value)}
-                placeholder="Objective"
-                disabled={busy}
-                aria-label="Goal objective"
-              />
-              <input
-                value={goalBudgetDraft}
-                onChange={(event) => setGoalBudgetDraft(event.target.value)}
-                placeholder="Budget"
-                inputMode="numeric"
-                disabled={busy}
-                aria-label="Goal token budget"
-              />
-              <button disabled={!canSaveGoal} title="Save goal">
-                <Check size={16} />
-                <span>Save</span>
-              </button>
-              <button
-                type="button"
-                title="Clear goal"
-                disabled={!selectedThreadId || !selectedDetail?.goalObjective || busy}
-                onClick={() =>
-                  selectedThreadId &&
-                  void runAction(
-                    "Clearing goal",
-                    async () => {
-                      await clearGoal(selectedThreadId);
-                      return selectedThreadId;
-                    },
-                    "Goal cleared"
-                  )
-                }
-              >
-                <X size={16} />
-              </button>
-            </div>
-          </form>
-        ) : null}
 
         <Transcript detail={selectedDetail} />
       </section>
