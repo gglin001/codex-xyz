@@ -422,7 +422,13 @@ const TranscriptItem = memo(function TranscriptItem({
   );
 });
 
-function Transcript({ detail }: { detail: ThreadDetail | null }) {
+function Transcript({
+  detail,
+  hasSelection
+}: {
+  detail: ThreadDetail | null;
+  hasSelection: boolean;
+}) {
   const [expandedItemIds, setExpandedItemIds] = useState<Set<string>>(() => new Set());
   const [windowMode, setWindowMode] = useState<TranscriptWindowMode>("recent");
 
@@ -455,7 +461,7 @@ function Transcript({ detail }: { detail: ThreadDetail | null }) {
 
   return (
     <div className="transcript" aria-label="Session transcript">
-      {!detail ? <div className="empty-state">No session selected</div> : null}
+      {!detail ? <div className="empty-state">{hasSelection ? "Loading session..." : "No session selected"}</div> : null}
       {detail?.items.length === 0 ? <div className="empty-state">No transcript items yet</div> : null}
       {showWindowControls ? (
         <div className="transcript-window-bar">
@@ -1130,7 +1136,7 @@ export function App() {
 
         {selectedDetail ? <SessionFacts thread={selectedDetail} /> : null}
 
-        <Transcript detail={selectedDetail} />
+        <Transcript detail={selectedDetail} hasSelection={Boolean(selectedThreadId)} />
       </section>
     </main>
   );
