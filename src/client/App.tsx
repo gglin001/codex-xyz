@@ -44,7 +44,7 @@ import {
   getTranscriptWindow,
   type TranscriptWindowMode
 } from "./transcriptWindow.js";
-import { choosePreferredThreadId } from "./threadSelection.js";
+import { choosePreferredThreadId, shouldSelectActionResult } from "./threadSelection.js";
 import type {
   ControlThread,
   DashboardState,
@@ -504,6 +504,7 @@ export function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeMode>(readStoredTheme);
   const selectedThreadIdRef = useRef<string | null>(null);
+  const manualSelectionSeqRef = useRef(0);
   const refreshSeqRef = useRef(0);
   const detailLoadSeqRef = useRef(0);
   const lastEventIdRef = useRef(0);
@@ -525,6 +526,11 @@ export function App() {
 
   function refreshIsCurrent(refreshSeq: number) {
     return refreshSeqRef.current === refreshSeq;
+  }
+
+  function beginManualSelection() {
+    manualSelectionSeqRef.current += 1;
+    refreshSeqRef.current += 1;
   }
 
   function beginDetailLoad() {
@@ -591,6 +597,7 @@ export function App() {
   }
 
   const selectThread = useCallback(async (threadId: string) => {
+    beginManualSelection();
     setSelectedThreadId(threadId);
     selectedThreadIdRef.current = threadId;
     setComposerMode("thread");
@@ -772,12 +779,19 @@ export function App() {
     action: () => Promise<unknown>,
     options: RunActionOptions = {}
   ) {
+    const actionSelectionSeq = manualSelectionSeqRef.current;
     setBusyAction(label);
     setError(null);
     setNotice(null);
     try {
       const nextThreadId = await action();
-      if (options.selectResult && typeof nextThreadId === "string") {
+      if (
+        shouldSelectActionResult(nextThreadId, {
+          selectResult: options.selectResult,
+          actionSelectionSeq,
+          currentSelectionSeq: manualSelectionSeqRef.current
+        })
+      ) {
         await refresh(nextThreadId);
       } else {
         await refresh();

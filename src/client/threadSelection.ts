@@ -22,3 +22,18 @@ export function choosePreferredThreadId(
   }
   return threads[0]?.id ?? null;
 }
+
+export function shouldSelectActionResult(
+  result: unknown,
+  options: {
+    selectResult?: boolean;
+    actionSelectionSeq: number;
+    currentSelectionSeq: number;
+  }
+): result is string {
+  return (
+    options.selectResult === true &&
+    typeof result === "string" &&
+    options.actionSelectionSeq === options.currentSelectionSeq
+  );
+}

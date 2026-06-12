@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { choosePreferredThreadId } from "../src/client/threadSelection.js";
+import { choosePreferredThreadId, shouldSelectActionResult } from "../src/client/threadSelection.js";
 
 const threads = [{ id: "thread-a" }, { id: "thread-b" }];
 
@@ -49,5 +49,51 @@ describe("thread selection", () => {
         preferRequestedThread: true
       })
     ).toBeNull();
+  });
+});
+
+describe("action result selection", () => {
+  it("selects string results only when selection is requested and unchanged", () => {
+    expect(
+      shouldSelectActionResult("thread-a", {
+        selectResult: true,
+        actionSelectionSeq: 1,
+        currentSelectionSeq: 1
+      })
+    ).toBe(true);
+  });
+
+  it("does not select action results after a manual selection", () => {
+    expect(
+      shouldSelectActionResult("thread-a", {
+        selectResult: true,
+        actionSelectionSeq: 1,
+        currentSelectionSeq: 2
+      })
+    ).toBe(false);
+  });
+
+  it("does not select missing, non-string, or non-requested results", () => {
+    expect(
+      shouldSelectActionResult("thread-a", {
+        selectResult: false,
+        actionSelectionSeq: 1,
+        currentSelectionSeq: 1
+      })
+    ).toBe(false);
+    expect(
+      shouldSelectActionResult(undefined, {
+        selectResult: true,
+        actionSelectionSeq: 1,
+        currentSelectionSeq: 1
+      })
+    ).toBe(false);
+    expect(
+      shouldSelectActionResult({ id: "thread-a" }, {
+        selectResult: true,
+        actionSelectionSeq: 1,
+        currentSelectionSeq: 1
+      })
+    ).toBe(false);
   });
 });
