@@ -1,6 +1,8 @@
 import {
   Bot,
   Check,
+  ChevronDown,
+  ChevronUp,
   FileText,
   FolderOpen,
   GitFork,
@@ -20,7 +22,7 @@ import {
   UserRound,
   X
 } from "lucide-react";
-import type { FormEvent, KeyboardEvent, RefObject } from "react";
+import type { FormEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   apiUrl,
@@ -133,6 +135,15 @@ function itemTitle(item: ThreadItem) {
   return "System";
 }
 
+function itemDefaultsCollapsed(item: ThreadItem) {
+  const sourceType = typeof item.data.sourceType === "string" ? item.data.sourceType : null;
+  return sourceType === "reasoning" || item.type === "command";
+}
+
+function splitOutputLines(value: string) {
+  return value.split(/\r\n|\r|\n/);
+}
+
 function ItemIcon({ item }: { item: ThreadItem }) {
   if (item.type === "agent") {
     return <Bot size={15} />;
@@ -160,6 +171,7 @@ type GoalPromptCommand =
 type ThemeMode = "dark" | "light";
 
 const themeStorageKey = "codex-xyz-theme";
+const collapsedPreviewLineCount = 5;
 
 function readStoredTheme(): ThemeMode {
   if (typeof window === "undefined") {
@@ -300,42 +312,68 @@ function SessionFacts({ thread }: { thread: ThreadDetail }) {
   );
 }
 
-function Transcript({
-  detail,
-  bottomRef
-}: {
-  detail: ThreadDetail | null;
-  bottomRef: RefObject<HTMLDivElement>;
-}) {
-  if (!detail) {
-    return <div className="empty-state">No session selected</div>;
+function Transcript({ detail }: { detail: ThreadDetail | null }) {
+  const [expandedItemIds, setExpandedItemIds] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    setExpandedItemIds(new Set());
+  }, [detail?.id]);
+
+  function toggleExpandedItem(itemId: string) {
+    setExpandedItemIds((current) => {
+      const next = new Set(current);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+      return next;
+    });
   }
-  if (detail.items.length === 0) {
-    return <div className="empty-state">No transcript items yet</div>;
-  }
+
   return (
     <div className="transcript" aria-label="Session transcript">
-      {detail.items.map((item) => {
+      {!detail ? <div className="empty-state">No session selected</div> : null}
+      {detail?.items.length === 0 ? <div className="empty-state">No transcript items yet</div> : null}
+      {detail?.items.map((item) => {
         const status = typeof item.data.status === "string" ? item.data.status : null;
         const exitCode = typeof item.data.exitCode === "number" ? item.data.exitCode : null;
+        const outputText = item.text || "Pending...";
+        const outputLines = splitOutputLines(outputText);
+        const canCollapse = itemDefaultsCollapsed(item) && outputLines.length > collapsedPreviewLineCount;
+        const expanded = expandedItemIds.has(item.id);
+        const visibleText =
+          canCollapse && !expanded ? outputLines.slice(0, collapsedPreviewLineCount).join("\n") : outputText;
+        const title = itemTitle(item);
         return (
           <article className={`transcript-item ${item.type}`} key={item.id}>
             <div className="item-meta">
               <span className="item-title">
                 <ItemIcon item={item} />
-                <span>{itemTitle(item)}</span>
+                <span>{title}</span>
               </span>
               <span className="item-meta-right">
                 {status ? <span className="item-chip">{status}</span> : null}
                 {exitCode !== null ? <span className="item-chip">exit {exitCode}</span> : null}
+                {canCollapse ? (
+                  <button
+                    type="button"
+                    className="item-expand"
+                    aria-expanded={expanded}
+                    aria-label={`${expanded ? "Collapse" : "Expand"} ${title}`}
+                    onClick={() => toggleExpandedItem(item.id)}
+                  >
+                    {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    <span>{expanded ? "Collapse" : "Expand"}</span>
+                  </button>
+                ) : null}
                 <time>{formatTime(item.createdAt)}</time>
               </span>
             </div>
-            <pre>{item.text || "Pending..."}</pre>
+            <pre>{visibleText}</pre>
           </article>
         );
       })}
-      <div ref={bottomRef} />
     </div>
   );
 }
@@ -357,7 +395,6 @@ export function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeMode>(readStoredTheme);
   const selectedThreadIdRef = useRef<string | null>(null);
-  const transcriptEndRef = useRef<HTMLDivElement | null>(null);
 
   const busy = busyAction !== null;
   const nextTheme = theme === "dark" ? "light" : "dark";
@@ -487,10 +524,6 @@ export function App() {
     renameTitle.trim() !== selectedThread?.title &&
     !busy;
   const canSaveGoal = Boolean(selectedThreadId) && Boolean(goalDraft.trim()) && parsedGoalBudget !== undefined && !busy;
-  const lastItem = selectedDetail?.items.length
-    ? selectedDetail.items[selectedDetail.items.length - 1]
-    : null;
-
   useEffect(() => {
     if (!workdirTouched && workdir.length === 0 && state.projects[0]) {
       setWorkdir(state.projects[0].path);
@@ -505,10 +538,6 @@ export function App() {
     setGoalDraft(selectedDetail?.goalObjective ?? "");
     setGoalBudgetDraft(selectedDetail?.goalTokenBudget ? String(selectedDetail.goalTokenBudget) : "");
   }, [selectedDetail?.id, selectedDetail?.goalObjective, selectedDetail?.goalTokenBudget]);
-
-  useEffect(() => {
-    transcriptEndRef.current?.scrollIntoView({ block: "end" });
-  }, [selectedDetail?.id, selectedDetail?.items.length, lastItem?.text]);
 
   function updateWorkdir(value: string) {
     setWorkdir(value);
@@ -759,34 +788,36 @@ export function App() {
         {notice ? <div className="status-banner success">{notice}</div> : null}
         {error ? <div className="status-banner error">{error}</div> : null}
 
-        <div className="session-group">
-          <h2>Active</h2>
-          {activeThreads.length === 0 ? <div className="empty-state compact">No active sessions</div> : null}
-          {activeThreads.map((thread) => (
-            <SessionRow
-              key={thread.id}
-              thread={thread}
-              selected={thread.id === selectedThreadId}
-              onSelect={() => {
-                void selectThread(thread.id);
-              }}
-            />
-          ))}
-        </div>
+        <div className="session-list" aria-label="Session list">
+          <div className="session-group">
+            <h2>Active</h2>
+            {activeThreads.length === 0 ? <div className="empty-state compact">No active sessions</div> : null}
+            {activeThreads.map((thread) => (
+              <SessionRow
+                key={thread.id}
+                thread={thread}
+                selected={thread.id === selectedThreadId}
+                onSelect={() => {
+                  void selectThread(thread.id);
+                }}
+              />
+            ))}
+          </div>
 
-        <div className="session-group">
-          <h2>History</h2>
-          {otherThreads.length === 0 ? <div className="empty-state compact">No history</div> : null}
-          {otherThreads.map((thread) => (
-            <SessionRow
-              key={thread.id}
-              thread={thread}
-              selected={thread.id === selectedThreadId}
-              onSelect={() => {
-                void selectThread(thread.id);
-              }}
-            />
-          ))}
+          <div className="session-group">
+            <h2>History</h2>
+            {otherThreads.length === 0 ? <div className="empty-state compact">No history</div> : null}
+            {otherThreads.map((thread) => (
+              <SessionRow
+                key={thread.id}
+                thread={thread}
+                selected={thread.id === selectedThreadId}
+                onSelect={() => {
+                  void selectThread(thread.id);
+                }}
+              />
+            ))}
+          </div>
         </div>
       </section>
 
@@ -918,7 +949,7 @@ export function App() {
           </form>
         ) : null}
 
-        <Transcript detail={selectedDetail} bottomRef={transcriptEndRef} />
+        <Transcript detail={selectedDetail} />
       </section>
     </main>
   );

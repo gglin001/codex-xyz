@@ -126,6 +126,7 @@
 }
 
 html {
+  height: 100%;
   min-height: 100%;
   background: var(--app-bg);
 }
@@ -133,9 +134,16 @@ html {
 body {
   margin: 0;
   min-width: 320px;
+  height: 100%;
   min-height: 100vh;
   background: var(--app-bg);
   color: var(--text);
+  overflow: hidden;
+}
+
+#root {
+  height: 100%;
+  min-height: 0;
 }
 
 button,
@@ -200,13 +208,17 @@ small {
   display: grid;
   grid-template-columns: minmax(320px, 430px) minmax(460px, 1fr);
   gap: 1px;
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
   background: var(--split-bg);
   color: var(--text);
+  overflow: hidden;
 }
 
 .panel {
   min-width: 0;
+  min-height: 0;
   background: var(--panel-bg);
 }
 
@@ -215,6 +227,7 @@ small {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-height: 0;
   padding: 18px;
   overflow: hidden;
 }
@@ -304,6 +317,18 @@ button.active {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.session-list {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 16px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
 }
 
 .task-form,
@@ -666,15 +691,26 @@ button.active {
   flex: 1 1 auto;
   flex-direction: column;
   gap: 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface-subtle-bg);
   overflow: auto;
-  padding-right: 4px;
+  overscroll-behavior: contain;
+  padding: 10px;
+  scrollbar-gutter: stable;
 }
 
 .transcript-item {
+  flex: 0 0 auto;
   border: 1px solid var(--border-soft);
   border-radius: 8px;
   background: var(--surface-bg);
   overflow: hidden;
+}
+
+.transcript > .empty-state {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .transcript-item.agent {
@@ -731,6 +767,24 @@ button.active {
   color: var(--chip-text);
 }
 
+.item-expand {
+  gap: 4px;
+  min-width: 0;
+  height: 24px;
+  padding: 0 7px;
+  border-color: var(--border-soft);
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.item-expand span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .transcript pre {
   margin: 0;
   padding: 12px;
@@ -769,18 +823,30 @@ button.active {
 }
 
 @media (max-width: 980px) {
+  body {
+    overflow: auto;
+  }
+
   .workspace {
     grid-template-columns: 1fr;
-    min-height: auto;
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
   }
 
   .sessions,
   .detail {
     min-height: auto;
+    overflow: visible;
+  }
+
+  .session-list {
+    max-height: 44vh;
   }
 
   .transcript {
     max-height: 62vh;
+    min-height: 260px;
   }
 }
 
