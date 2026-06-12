@@ -159,6 +159,30 @@ describe("client event projection", () => {
     expect(result.detail).toBe(current.detail);
   });
 
+  it("keeps projection identity for duplicate selected transcript payloads", () => {
+    const current = projection();
+    const duplicateItem = item();
+    const result = applyEventProjection(current, event("item.delta", { item: duplicateItem }));
+
+    expect(result.changed).toBe(false);
+    expect(result.handled).toBe(true);
+    expect(result.needsRefresh).toBe(false);
+    expect(result.state).toBe(current.state);
+    expect(result.detail).toBe(current.detail);
+  });
+
+  it("keeps projection identity for duplicate thread payloads", () => {
+    const current = projection();
+    const duplicateThread = thread();
+    const result = applyEventProjection(current, event("thread.token_usage", { thread: duplicateThread }));
+
+    expect(result.changed).toBe(false);
+    expect(result.handled).toBe(true);
+    expect(result.needsRefresh).toBe(false);
+    expect(result.state).toBe(current.state);
+    expect(result.detail).toBe(current.detail);
+  });
+
   it("projects turn completion into thread, task, and selected detail state", () => {
     const result = applyEventProjection(
       projection(),

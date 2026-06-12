@@ -57,12 +57,41 @@ function payloadValue<T>(event: XyzEvent, key: string) {
   return isRecord(value) ? (value as T) : null;
 }
 
-function upsertById<T extends { id: string }>(items: T[], item: T, options: { prepend?: boolean } = {}) {
+function shallowEqualValue(a: unknown, b: unknown): boolean {
+  if (a === b) {
+    return true;
+  }
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((value, index) => value === b[index]);
+  }
+  if (isRecord(a) && isRecord(b)) {
+    return shallowEqualObject(a, b);
+  }
+  return false;
+}
+
+function shallowEqualObject<T extends object>(a: T, b: T) {
+  const aEntries = Object.entries(a) as [keyof T, T[keyof T]][];
+  const bKeys = Object.keys(b);
+  if (aEntries.length !== bKeys.length) {
+    return false;
+  }
+  return aEntries.every(([key, value]) => shallowEqualValue(value, b[key]));
+}
+
+function upsertById<T extends { id: string }>(
+  items: T[],
+  item: T,
+  options: {
+    prepend?: boolean;
+    equal?: (a: T, b: T) => boolean;
+  } = {}
+) {
   const index = items.findIndex((candidate) => candidate.id === item.id);
   if (index === -1) {
     return options.prepend ? [item, ...items] : [...items, item];
   }
-  if (items[index] === item) {
+  if (items[index] === item || options.equal?.(items[index], item)) {
     return items;
   }
   const next = [...items];
@@ -113,7 +142,10 @@ function taskStatusFromRuntime(status: RuntimeStatus): Task["status"] {
 }
 
 function withThread(projection: ClientProjection, thread: ControlThread): ClientProjection {
-  const threads = upsertById(projection.state.threads, thread, { prepend: true });
+  const threads = upsertById(projection.state.threads, thread, {
+    prepend: true,
+    equal: shallowEqualObject
+  });
   const detail =
     projection.detail?.id === thread.id
       ? mergeIfChanged<ThreadDetail>(projection.detail, thread as Partial<ThreadDetail>)
@@ -152,7 +184,7 @@ function withTurn(projection: ClientProjection, turn: Turn): ClientProjection {
   if (projection.detail?.id !== turn.threadId) {
     return projection;
   }
-  const turns = upsertById(projection.detail.turns, turn);
+  const turns = upsertById(projection.detail.turns, turn, { equal: shallowEqualObject });
   if (turns === projection.detail.turns) {
     return projection;
   }
@@ -191,7 +223,7 @@ function withThreadItem(projection: ClientProjection, item: ThreadItem): ClientP
   if (projection.detail?.id !== item.threadId) {
     return projection;
   }
-  const items = upsertById(projection.detail.items, item);
+  const items = upsertById(projection.detail.items, item, { equal: shallowEqualObject });
   if (items === projection.detail.items) {
     return projection;
   }
@@ -205,7 +237,7 @@ function withThreadItem(projection: ClientProjection, item: ThreadItem): ClientP
 }
 
 function withProject(projection: ClientProjection, project: Project): ClientProjection {
-  const projects = upsertById(projection.state.projects, project);
+  const projects = upsertById(projection.state.projects, project, { equal: shallowEqualObject });
   if (projects === projection.state.projects) {
     return projection;
   }
@@ -219,7 +251,10 @@ function withProject(projection: ClientProjection, project: Project): ClientProj
 }
 
 function withTask(projection: ClientProjection, task: Task, options: { prepend?: boolean } = {}): ClientProjection {
-  const tasks = upsertById(projection.state.tasks, task, options);
+  const tasks = upsertById(projection.state.tasks, task, {
+    ...options,
+    equal: shallowEqualObject
+  });
   if (tasks === projection.state.tasks) {
     return projection;
   }
