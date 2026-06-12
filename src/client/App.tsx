@@ -23,7 +23,7 @@ import {
   UserRound
 } from "lucide-react";
 import type { FormEvent, KeyboardEvent } from "react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   apiUrl,
   createProject,
@@ -174,6 +174,8 @@ type ThemeMode = "dark" | "light";
 const themeStorageKey = "codex-xyz-theme";
 const collapsedPreviewLineCount = 2;
 
+type SelectThreadHandler = (threadId: string) => void | Promise<void>;
+
 function readStoredTheme(): ThemeMode {
   if (typeof window === "undefined") {
     return "dark";
@@ -196,7 +198,7 @@ const SessionRow = memo(function SessionRow({
 }: {
   thread: ControlThread;
   selected: boolean;
-  onSelectThread: (threadId: string) => void | Promise<void>;
+  onSelectThread: SelectThreadHandler;
 }) {
   const hasGoal = Boolean(thread.goalObjective && thread.goalStatus && thread.goalStatus !== "cleared");
   const goalStatus = thread.goalStatus ? `Goal ${statusLabel(thread.goalStatus)}` : "Goal";
@@ -232,6 +234,41 @@ const SessionRow = memo(function SessionRow({
         </span>
       ) : null}
     </button>
+  );
+});
+
+const SessionGroup = memo(function SessionGroup({
+  title,
+  threads,
+  selectedThreadId,
+  hasQuery,
+  emptyLabel,
+  emptyQueryLabel,
+  onSelectThread
+}: {
+  title: string;
+  threads: ControlThread[];
+  selectedThreadId: string | null;
+  hasQuery: boolean;
+  emptyLabel: string;
+  emptyQueryLabel: string;
+  onSelectThread: SelectThreadHandler;
+}) {
+  return (
+    <div className="session-group">
+      <h2>{title}</h2>
+      {threads.length === 0 ? (
+        <div className="empty-state compact">{hasQuery ? emptyQueryLabel : emptyLabel}</div>
+      ) : null}
+      {threads.map((thread) => (
+        <SessionRow
+          key={thread.id}
+          thread={thread}
+          selected={thread.id === selectedThreadId}
+          onSelectThread={onSelectThread}
+        />
+      ))}
+    </div>
   );
 });
 
@@ -623,14 +660,15 @@ export function App() {
     [selectedThreadId, state.threads]
   );
   const selectedDetail = detail?.id === selectedThreadId ? detail : null;
+  const deferredSessionQuery = useDeferredValue(sessionQuery);
   const matchingWorkdirProject = useMemo(() => {
     const trimmed = workdir.trim();
     return state.projects.find((project) => project.path === trimmed) ?? null;
   }, [state.projects, workdir]);
 
   const sessionList = useMemo(
-    () => getSessionListModel(state.threads, state.tasks, sessionQuery),
-    [sessionQuery, state.tasks, state.threads]
+    () => getSessionListModel(state.threads, state.tasks, deferredSessionQuery),
+    [deferredSessionQuery, state.tasks, state.threads]
   );
   const sessionCountLabel =
     sessionList.visibleThreadCount === sessionList.totalThreadCount
@@ -884,39 +922,25 @@ export function App() {
         </label>
 
         <div className="session-list" aria-label="Session list">
-          <div className="session-group">
-            <h2>Active</h2>
-            {sessionList.activeThreads.length === 0 ? (
-              <div className="empty-state compact">
-                {sessionList.hasQuery ? "No matching active sessions" : "No active sessions"}
-              </div>
-            ) : null}
-            {sessionList.activeThreads.map((thread) => (
-              <SessionRow
-                key={thread.id}
-                thread={thread}
-                selected={thread.id === selectedThreadId}
-                onSelectThread={selectThread}
-              />
-            ))}
-          </div>
+          <SessionGroup
+            title="Active"
+            threads={sessionList.activeThreads}
+            selectedThreadId={selectedThreadId}
+            hasQuery={sessionList.hasQuery}
+            emptyLabel="No active sessions"
+            emptyQueryLabel="No matching active sessions"
+            onSelectThread={selectThread}
+          />
 
-          <div className="session-group">
-            <h2>History</h2>
-            {sessionList.otherThreads.length === 0 ? (
-              <div className="empty-state compact">
-                {sessionList.hasQuery ? "No matching history" : "No history"}
-              </div>
-            ) : null}
-            {sessionList.otherThreads.map((thread) => (
-              <SessionRow
-                key={thread.id}
-                thread={thread}
-                selected={thread.id === selectedThreadId}
-                onSelectThread={selectThread}
-              />
-            ))}
-          </div>
+          <SessionGroup
+            title="History"
+            threads={sessionList.otherThreads}
+            selectedThreadId={selectedThreadId}
+            hasQuery={sessionList.hasQuery}
+            emptyLabel="No history"
+            emptyQueryLabel="No matching history"
+            onSelectThread={selectThread}
+          />
         </div>
       </section>
 
