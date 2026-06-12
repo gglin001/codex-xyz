@@ -22,7 +22,7 @@ import {
   UserRound
 } from "lucide-react";
 import type { FormEvent, KeyboardEvent } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   apiUrl,
   createProject,
@@ -36,13 +36,15 @@ import {
   startTurn,
   steerTurn
 } from "./api.js";
+import { applyEventProjectionBatch, incrementalEventNames, type ClientProjection } from "./eventProjection.js";
 import type {
   ControlThread,
   DashboardState,
   Project,
   RuntimeStatus,
   ThreadDetail,
-  ThreadItem
+  ThreadItem,
+  XyzEvent
 } from "../server/domain.js";
 
 function statusLabel(status: string) {
@@ -180,20 +182,26 @@ function isGoalPrompt(value: string) {
   return /^\/goal(?:\s|$)/i.test(value.trim());
 }
 
-function SessionRow({
+const SessionRow = memo(function SessionRow({
   thread,
   selected,
-  onSelect
+  onSelectThread
 }: {
   thread: ControlThread;
   selected: boolean;
-  onSelect: () => void;
+  onSelectThread: (threadId: string) => void | Promise<void>;
 }) {
   const hasGoal = Boolean(thread.goalObjective && thread.goalStatus && thread.goalStatus !== "cleared");
   const goalStatus = thread.goalStatus ? `Goal ${statusLabel(thread.goalStatus)}` : "Goal";
 
   return (
-    <button className={`session-row ${selected ? "selected" : ""}`} onClick={onSelect} aria-pressed={selected}>
+    <button
+      className={`session-row ${selected ? "selected" : ""}`}
+      onClick={() => {
+        void onSelectThread(thread.id);
+      }}
+      aria-pressed={selected}
+    >
       <span className="session-row-main">
         <span className={`status-dot ${thread.status}`} />
         <span className="session-copy">
@@ -218,7 +226,7 @@ function SessionRow({
       ) : null}
     </button>
   );
-}
+});
 
 function WorkdirField({
   projects,
@@ -265,40 +273,98 @@ function WorkdirField({
   );
 }
 
-function SessionFacts({ thread }: { thread: ThreadDetail }) {
+const SessionFacts = memo(
+  function SessionFacts({ thread }: { thread: ThreadDetail }) {
+    return (
+      <div className="session-facts">
+        <div>
+          <span>Status</span>
+          <strong className={`fact-status ${statusTone(thread.status)}`}>{statusLabel(thread.status)}</strong>
+        </div>
+        <div>
+          <span>Tokens</span>
+          <strong>{formatTokens(thread.tokensUsed)}</strong>
+        </div>
+        <div>
+          <span>Turns</span>
+          <strong>{thread.turns.length}</strong>
+        </div>
+        <div>
+          <span>Model</span>
+          <strong>{thread.model ?? "default"}</strong>
+        </div>
+        <div className="wide">
+          <span>Workdir</span>
+          <strong>{thread.cwd}</strong>
+        </div>
+        <div>
+          <span>Session</span>
+          <strong>{shortId(thread.sessionId)}</strong>
+        </div>
+        <div>
+          <span>Updated</span>
+          <strong>{formatDateTime(thread.updatedAt)}</strong>
+        </div>
+      </div>
+    );
+  },
+  (previous, next) =>
+    previous.thread.status === next.thread.status &&
+    previous.thread.tokensUsed === next.thread.tokensUsed &&
+    previous.thread.turns.length === next.thread.turns.length &&
+    previous.thread.model === next.thread.model &&
+    previous.thread.cwd === next.thread.cwd &&
+    previous.thread.sessionId === next.thread.sessionId &&
+    previous.thread.updatedAt === next.thread.updatedAt
+);
+
+const TranscriptItem = memo(function TranscriptItem({
+  item,
+  expanded,
+  onToggleExpanded
+}: {
+  item: ThreadItem;
+  expanded: boolean;
+  onToggleExpanded: (itemId: string) => void;
+}) {
+  const status = typeof item.data.status === "string" ? item.data.status : null;
+  const exitCode = typeof item.data.exitCode === "number" ? item.data.exitCode : null;
+  const outputText = item.text || "Pending...";
+  const outputLines = splitOutputLines(outputText);
+  const canCollapse = itemDefaultsCollapsed(item) && outputLines.length > collapsedPreviewLineCount;
+  const visibleText =
+    canCollapse && !expanded ? outputLines.slice(0, collapsedPreviewLineCount).join("\n") : outputText;
+  const title = itemTitle(item);
+
   return (
-    <div className="session-facts">
-      <div>
-        <span>Status</span>
-        <strong className={`fact-status ${statusTone(thread.status)}`}>{statusLabel(thread.status)}</strong>
+    <article className={`transcript-item ${item.type}`}>
+      <div className="item-meta">
+        <span className="item-title">
+          <ItemIcon item={item} />
+          <span>{title}</span>
+        </span>
+        <span className="item-meta-right">
+          {status ? <span className="item-chip">{status}</span> : null}
+          {exitCode !== null ? <span className="item-chip">exit {exitCode}</span> : null}
+          {canCollapse ? (
+            <button
+              type="button"
+              className="item-expand"
+              aria-expanded={expanded}
+              aria-label={`${expanded ? "Collapse" : "Expand"} ${title}`}
+              onClick={() => onToggleExpanded(item.id)}
+            >
+              {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              <span>{expanded ? "Collapse" : "Expand"}</span>
+            </button>
+          ) : null}
+          <time>{formatTime(item.createdAt)}</time>
+        </span>
       </div>
-      <div>
-        <span>Tokens</span>
-        <strong>{formatTokens(thread.tokensUsed)}</strong>
-      </div>
-      <div>
-        <span>Turns</span>
-        <strong>{thread.turns.length}</strong>
-      </div>
-      <div>
-        <span>Model</span>
-        <strong>{thread.model ?? "default"}</strong>
-      </div>
-      <div className="wide">
-        <span>Workdir</span>
-        <strong>{thread.cwd}</strong>
-      </div>
-      <div>
-        <span>Session</span>
-        <strong>{shortId(thread.sessionId)}</strong>
-      </div>
-      <div>
-        <span>Updated</span>
-        <strong>{formatDateTime(thread.updatedAt)}</strong>
-      </div>
-    </div>
+      <pre>{visibleText}</pre>
+    </article>
   );
-}
+});
 
 function Transcript({ detail }: { detail: ThreadDetail | null }) {
   const [expandedItemIds, setExpandedItemIds] = useState<Set<string>>(() => new Set());
@@ -307,7 +373,7 @@ function Transcript({ detail }: { detail: ThreadDetail | null }) {
     setExpandedItemIds(new Set());
   }, [detail?.id]);
 
-  function toggleExpandedItem(itemId: string) {
+  const toggleExpandedItem = useCallback((itemId: string) => {
     setExpandedItemIds((current) => {
       const next = new Set(current);
       if (next.has(itemId)) {
@@ -317,51 +383,20 @@ function Transcript({ detail }: { detail: ThreadDetail | null }) {
       }
       return next;
     });
-  }
+  }, []);
 
   return (
     <div className="transcript" aria-label="Session transcript">
       {!detail ? <div className="empty-state">No session selected</div> : null}
       {detail?.items.length === 0 ? <div className="empty-state">No transcript items yet</div> : null}
-      {detail?.items.map((item) => {
-        const status = typeof item.data.status === "string" ? item.data.status : null;
-        const exitCode = typeof item.data.exitCode === "number" ? item.data.exitCode : null;
-        const outputText = item.text || "Pending...";
-        const outputLines = splitOutputLines(outputText);
-        const canCollapse = itemDefaultsCollapsed(item) && outputLines.length > collapsedPreviewLineCount;
-        const expanded = expandedItemIds.has(item.id);
-        const visibleText =
-          canCollapse && !expanded ? outputLines.slice(0, collapsedPreviewLineCount).join("\n") : outputText;
-        const title = itemTitle(item);
-        return (
-          <article className={`transcript-item ${item.type}`} key={item.id}>
-            <div className="item-meta">
-              <span className="item-title">
-                <ItemIcon item={item} />
-                <span>{title}</span>
-              </span>
-              <span className="item-meta-right">
-                {status ? <span className="item-chip">{status}</span> : null}
-                {exitCode !== null ? <span className="item-chip">exit {exitCode}</span> : null}
-                {canCollapse ? (
-                  <button
-                    type="button"
-                    className="item-expand"
-                    aria-expanded={expanded}
-                    aria-label={`${expanded ? "Collapse" : "Expand"} ${title}`}
-                    onClick={() => toggleExpandedItem(item.id)}
-                  >
-                    {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                    <span>{expanded ? "Collapse" : "Expand"}</span>
-                  </button>
-                ) : null}
-                <time>{formatTime(item.createdAt)}</time>
-              </span>
-            </div>
-            <pre>{visibleText}</pre>
-          </article>
-        );
-      })}
+      {detail?.items.map((item) => (
+        <TranscriptItem
+          key={item.id}
+          item={item}
+          expanded={expandedItemIds.has(item.id)}
+          onToggleExpanded={toggleExpandedItem}
+        />
+      ))}
     </div>
   );
 }
@@ -381,6 +416,13 @@ export function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeMode>(readStoredTheme);
   const selectedThreadIdRef = useRef<string | null>(null);
+  const lastEventIdRef = useRef(0);
+  const pendingEventsRef = useRef<XyzEvent[]>([]);
+  const projectionFrameRef = useRef<number | null>(null);
+  const projectionRef = useRef<ClientProjection>({
+    state: initialState(),
+    detail: null
+  });
 
   const busy = busyAction !== null;
   const nextTheme = theme === "dark" ? "light" : "dark";
@@ -388,6 +430,10 @@ export function App() {
   async function refresh(nextThreadId = selectedThreadIdRef.current) {
     const next = await getState();
     setState(next);
+    projectionRef.current = {
+      ...projectionRef.current,
+      state: next
+    };
     const preferredThreadId =
       nextThreadId && next.threads.some((thread) => thread.id === nextThreadId)
         ? nextThreadId
@@ -395,23 +441,37 @@ export function App() {
     setSelectedThreadId(preferredThreadId);
     selectedThreadIdRef.current = preferredThreadId;
     if (preferredThreadId) {
-      setDetail(await getThread(preferredThreadId));
+      const nextDetail = await getThread(preferredThreadId);
+      projectionRef.current = {
+        state: next,
+        detail: nextDetail
+      };
+      setDetail(nextDetail);
     } else {
+      projectionRef.current = {
+        state: next,
+        detail: null
+      };
       setDetail(null);
     }
   }
 
-  async function selectThread(threadId: string) {
+  const selectThread = useCallback(async (threadId: string) => {
     setSelectedThreadId(threadId);
     selectedThreadIdRef.current = threadId;
     setComposerMode("thread");
     setError(null);
     try {
-      setDetail(await getThread(threadId));
+      const nextDetail = await getThread(threadId);
+      projectionRef.current = {
+        state: projectionRef.current.state,
+        detail: nextDetail
+      };
+      setDetail(nextDetail);
     } catch (selectError) {
       setError(selectError instanceof Error ? selectError.message : "Failed to load session");
     }
-  }
+  }, []);
 
   useEffect(() => {
     void refresh().catch((loadError: unknown) => {
@@ -431,31 +491,63 @@ export function App() {
   useEffect(() => {
     let source: EventSource | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let fallbackRefreshTimer: ReturnType<typeof setTimeout> | null = null;
     let disposed = false;
-    const refreshFromEvent = () => {
-      void refresh(selectedThreadIdRef.current);
+
+    const scheduleFallbackRefresh = () => {
+      if (fallbackRefreshTimer) {
+        return;
+      }
+      fallbackRefreshTimer = setTimeout(() => {
+        fallbackRefreshTimer = null;
+        void refresh(selectedThreadIdRef.current);
+      }, 250);
+    };
+
+    const flushProjectionEvents = () => {
+      projectionFrameRef.current = null;
+      const events = pendingEventsRef.current;
+      if (events.length === 0) {
+        return;
+      }
+      pendingEventsRef.current = [];
+      const next = applyEventProjectionBatch(projectionRef.current, events);
+      projectionRef.current = {
+        state: next.state,
+        detail: next.detail
+      };
+      setState(next.state);
+      setDetail(next.detail);
+      if (!next.handled || next.needsRefresh) {
+        scheduleFallbackRefresh();
+      }
+    };
+
+    const scheduleProjectionFlush = () => {
+      if (projectionFrameRef.current !== null) {
+        return;
+      }
+      projectionFrameRef.current = window.requestAnimationFrame(flushProjectionEvents);
+    };
+
+    const handleEvent = (rawEvent: Event) => {
+      const message = rawEvent as MessageEvent<string>;
+      try {
+        const event = JSON.parse(message.data) as XyzEvent;
+        lastEventIdRef.current = Math.max(lastEventIdRef.current, event.id);
+        pendingEventsRef.current.push(event);
+        scheduleProjectionFlush();
+      } catch {
+        scheduleFallbackRefresh();
+      }
     };
 
     function connect() {
-      source = new EventSource(apiUrl("/api/events"));
-      source.onmessage = refreshFromEvent;
-      for (const eventName of [
-        "item.created",
-        "item.updated",
-        "item.delta",
-        "turn.started",
-        "turn.status",
-        "thread.started",
-        "thread.resumed",
-        "thread.runtime_lost",
-        "thread.continued",
-        "thread.forked",
-        "thread.renamed",
-        "thread.goal.updated",
-        "thread.goal.cleared",
-        "thread.token_usage"
-      ]) {
-        source.addEventListener(eventName, refreshFromEvent);
+      const after = lastEventIdRef.current;
+      source = new EventSource(apiUrl(after > 0 ? `/api/events?after=${after}` : "/api/events"));
+      source.onmessage = handleEvent;
+      for (const eventName of incrementalEventNames) {
+        source.addEventListener(eventName, handleEvent);
       }
       source.onerror = () => {
         source?.close();
@@ -471,6 +563,14 @@ export function App() {
       if (reconnectTimer) {
         clearTimeout(reconnectTimer);
       }
+      if (fallbackRefreshTimer) {
+        clearTimeout(fallbackRefreshTimer);
+      }
+      if (projectionFrameRef.current !== null) {
+        window.cancelAnimationFrame(projectionFrameRef.current);
+        projectionFrameRef.current = null;
+      }
+      pendingEventsRef.current = [];
       source?.close();
     };
   }, []);
@@ -485,11 +585,18 @@ export function App() {
     return state.projects.find((project) => project.path === trimmed) ?? null;
   }, [state.projects, workdir]);
 
-  const activeThreads = state.threads.filter((thread) => thread.status === "running");
-  const otherThreads = state.threads.filter((thread) => thread.status !== "running");
-  const queuedTaskCount = state.tasks.filter(
-    (task) => task.status === "queued" || task.status === "running"
-  ).length;
+  const activeThreads = useMemo(
+    () => state.threads.filter((thread) => thread.status === "running"),
+    [state.threads]
+  );
+  const otherThreads = useMemo(
+    () => state.threads.filter((thread) => thread.status !== "running"),
+    [state.threads]
+  );
+  const queuedTaskCount = useMemo(
+    () => state.tasks.filter((task) => task.status === "queued" || task.status === "running").length,
+    [state.tasks]
+  );
   const promptTarget = composerMode === "thread" && selectedThread ? "thread" : "new";
   const trimmedWorkdir = workdir.trim();
   const goalPrompt = isGoalPrompt(prompt);
@@ -736,9 +843,7 @@ export function App() {
                 key={thread.id}
                 thread={thread}
                 selected={thread.id === selectedThreadId}
-                onSelect={() => {
-                  void selectThread(thread.id);
-                }}
+                onSelectThread={selectThread}
               />
             ))}
           </div>
@@ -751,9 +856,7 @@ export function App() {
                 key={thread.id}
                 thread={thread}
                 selected={thread.id === selectedThreadId}
-                onSelect={() => {
-                  void selectThread(thread.id);
-                }}
+                onSelectThread={selectThread}
               />
             ))}
           </div>
