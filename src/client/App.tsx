@@ -592,12 +592,19 @@ export function App() {
       }
       pendingEventsRef.current = [];
       const next = applyEventProjectionBatch(projectionRef.current, events);
+      const previous = projectionRef.current;
       projectionRef.current = {
         state: next.state,
         detail: next.detail
       };
-      setState(next.state);
-      setDetail(next.detail);
+      if (next.changed) {
+        if (next.state !== previous.state) {
+          setState(next.state);
+        }
+        if (next.detail !== previous.detail) {
+          setDetail(next.detail);
+        }
+      }
       if (!next.handled || next.needsRefresh) {
         scheduleFallbackRefresh();
       }

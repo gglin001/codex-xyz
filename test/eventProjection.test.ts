@@ -133,10 +133,30 @@ describe("client event projection", () => {
     const updatedItem = item({ text: "Working\nDone" });
     const result = applyEventProjection(projection(), event("item.delta", { item: updatedItem }));
 
+    expect(result.changed).toBe(true);
     expect(result.handled).toBe(true);
     expect(result.needsRefresh).toBe(false);
     expect(result.detail?.items).toHaveLength(1);
     expect(result.detail?.items[0].text).toBe("Working\nDone");
+  });
+
+  it("keeps projection identity for transcript events from non-selected sessions", () => {
+    const current = projection();
+    const backgroundItem = item({
+      id: "item-background",
+      threadId: "thread-background",
+      text: "Background update"
+    });
+    const result = applyEventProjection(
+      current,
+      event("item.delta", { item: backgroundItem }, { threadId: "thread-background" })
+    );
+
+    expect(result.changed).toBe(false);
+    expect(result.handled).toBe(true);
+    expect(result.needsRefresh).toBe(false);
+    expect(result.state).toBe(current.state);
+    expect(result.detail).toBe(current.detail);
   });
 
   it("projects turn completion into thread, task, and selected detail state", () => {
@@ -147,6 +167,7 @@ describe("client event projection", () => {
       })
     );
 
+    expect(result.changed).toBe(true);
     expect(result.handled).toBe(true);
     expect(result.needsRefresh).toBe(false);
     expect(result.state.threads[0]).toMatchObject({
@@ -176,6 +197,7 @@ describe("client event projection", () => {
       event("thread.started", { thread: newThread }, { threadId: "thread-2", turnId: null })
     );
 
+    expect(result.changed).toBe(true);
     expect(result.handled).toBe(true);
     expect(result.needsRefresh).toBe(true);
     expect(result.state.threads.map((candidate) => candidate.id)).toEqual(["thread-2", "thread-1"]);
@@ -188,10 +210,35 @@ describe("client event projection", () => {
       event("turn.status", { status: "completed" }, { id: 4 })
     ]);
 
+    expect(result.changed).toBe(true);
     expect(result.handled).toBe(true);
     expect(result.needsRefresh).toBe(false);
     expect(result.detail?.items[0].text).toBe("Working. Done.");
     expect(result.detail?.turns[0].status).toBe("completed");
     expect(result.state.threads[0].status).toBe("idle");
+  });
+
+  it("reports unchanged batches when every event is a local no-op", () => {
+    const current = projection();
+    const result = applyEventProjectionBatch(current, [
+      event(
+        "item.delta",
+        {
+          item: item({
+            id: "item-background",
+            threadId: "thread-background",
+            text: "Background update"
+          })
+        },
+        { id: 2, threadId: "thread-background" }
+      ),
+      event("turn.steered", {}, { id: 3 })
+    ]);
+
+    expect(result.changed).toBe(false);
+    expect(result.handled).toBe(true);
+    expect(result.needsRefresh).toBe(false);
+    expect(result.state).toBe(current.state);
+    expect(result.detail).toBe(current.detail);
   });
 });
