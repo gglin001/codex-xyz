@@ -44,6 +44,7 @@ import {
   getTranscriptWindow,
   type TranscriptWindowMode
 } from "./transcriptWindow.js";
+import { getCollapsedTextPreview } from "./textPreview.js";
 import { choosePreferredThreadId, shouldSelectActionResult } from "./threadSelection.js";
 import type {
   ControlThread,
@@ -145,10 +146,6 @@ function itemTitle(item: ThreadItem) {
 function itemDefaultsCollapsed(item: ThreadItem) {
   const sourceType = typeof item.data.sourceType === "string" ? item.data.sourceType : null;
   return sourceType === "reasoning" || item.type === "command";
-}
-
-function splitOutputLines(value: string) {
-  return value.split(/\r\n|\r|\n/);
 }
 
 function ItemIcon({ item }: { item: ThreadItem }) {
@@ -382,10 +379,17 @@ const TranscriptItem = memo(function TranscriptItem({
   const status = typeof item.data.status === "string" ? item.data.status : null;
   const exitCode = typeof item.data.exitCode === "number" ? item.data.exitCode : null;
   const outputText = item.text || "Pending...";
-  const outputLines = splitOutputLines(outputText);
-  const canCollapse = itemDefaultsCollapsed(item) && outputLines.length > collapsedPreviewLineCount;
-  const visibleText =
-    canCollapse && !expanded ? outputLines.slice(0, collapsedPreviewLineCount).join("\n") : outputText;
+  const textPreview = itemDefaultsCollapsed(item)
+    ? getCollapsedTextPreview(outputText, {
+        expanded,
+        lineCount: collapsedPreviewLineCount
+      })
+    : {
+        canCollapse: false,
+        visibleText: outputText
+      };
+  const canCollapse = textPreview.canCollapse;
+  const visibleText = textPreview.visibleText;
   const title = itemTitle(item);
 
   return (
