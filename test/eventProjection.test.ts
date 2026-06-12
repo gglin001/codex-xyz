@@ -171,6 +171,32 @@ describe("client event projection", () => {
     expect(result.detail).toBe(current.detail);
   });
 
+  it("updates the latest transcript item without reordering existing items", () => {
+    const firstItem = item({ id: "item-1", text: "First" });
+    const latestItem = item({ id: "item-2", text: "Latest" });
+    const current = projection();
+    const currentWithItems: ClientProjection = {
+      ...current,
+      detail: current.detail
+        ? {
+            ...current.detail,
+            items: [firstItem, latestItem]
+          }
+        : null
+    };
+    const result = applyEventProjection(
+      currentWithItems,
+      event("item.delta", { item: { ...latestItem, text: "Latest update" } })
+    );
+
+    expect(result.detail?.items.map((candidate) => candidate.id)).toEqual(["item-1", "item-2"]);
+    expect(result.detail?.items[0]).toBe(firstItem);
+    expect(result.detail?.items[1]).toMatchObject({
+      id: "item-2",
+      text: "Latest update"
+    });
+  });
+
   it("keeps projection identity for duplicate thread payloads", () => {
     const current = projection();
     const duplicateThread = thread();

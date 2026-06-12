@@ -85,9 +85,10 @@ function upsertById<T extends { id: string }>(
   options: {
     prepend?: boolean;
     equal?: (a: T, b: T) => boolean;
+    searchFromEnd?: boolean;
   } = {}
 ) {
-  const index = items.findIndex((candidate) => candidate.id === item.id);
+  const index = findIndexById(items, item.id, Boolean(options.searchFromEnd));
   if (index === -1) {
     return options.prepend ? [item, ...items] : [...items, item];
   }
@@ -97,6 +98,23 @@ function upsertById<T extends { id: string }>(
   const next = [...items];
   next[index] = item;
   return next;
+}
+
+function findIndexById<T extends { id: string }>(items: T[], itemId: string, searchFromEnd: boolean) {
+  if (searchFromEnd) {
+    for (let index = items.length - 1; index >= 0; index -= 1) {
+      if (items[index].id === itemId) {
+        return index;
+      }
+    }
+    return -1;
+  }
+  for (let index = 0; index < items.length; index += 1) {
+    if (items[index].id === itemId) {
+      return index;
+    }
+  }
+  return -1;
 }
 
 function mergeIfChanged<T extends object>(item: T, updates: Partial<T>) {
@@ -223,7 +241,10 @@ function withThreadItem(projection: ClientProjection, item: ThreadItem): ClientP
   if (projection.detail?.id !== item.threadId) {
     return projection;
   }
-  const items = upsertById(projection.detail.items, item, { equal: shallowEqualObject });
+  const items = upsertById(projection.detail.items, item, {
+    equal: shallowEqualObject,
+    searchFromEnd: true
+  });
   if (items === projection.detail.items) {
     return projection;
   }
