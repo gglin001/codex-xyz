@@ -504,6 +504,7 @@ export function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeMode>(readStoredTheme);
   const selectedThreadIdRef = useRef<string | null>(null);
+  const refreshSeqRef = useRef(0);
   const detailLoadSeqRef = useRef(0);
   const lastEventIdRef = useRef(0);
   const pendingEventsRef = useRef<XyzEvent[]>([]);
@@ -515,6 +516,16 @@ export function App() {
 
   const busy = busyAction !== null;
   const nextTheme = theme === "dark" ? "light" : "dark";
+
+  function beginRefresh() {
+    refreshSeqRef.current += 1;
+    beginDetailLoad();
+    return refreshSeqRef.current;
+  }
+
+  function refreshIsCurrent(refreshSeq: number) {
+    return refreshSeqRef.current === refreshSeq;
+  }
 
   function beginDetailLoad() {
     detailLoadSeqRef.current += 1;
@@ -538,9 +549,13 @@ export function App() {
   }
 
   async function refresh(nextThreadId?: string | null) {
+    const refreshSeq = beginRefresh();
     const requestedThreadId = nextThreadId ?? selectedThreadIdRef.current;
     const shouldPreferRequestedThread = typeof nextThreadId === "string";
     const next = await getState();
+    if (!refreshIsCurrent(refreshSeq)) {
+      return;
+    }
     setState(next);
     projectionRef.current = {
       ...projectionRef.current,
@@ -557,9 +572,11 @@ export function App() {
       const loadSeq = beginDetailLoad();
       try {
         const nextDetail = await getThread(preferredThreadId);
-        commitDetailLoad(preferredThreadId, nextDetail, loadSeq);
+        if (refreshIsCurrent(refreshSeq)) {
+          commitDetailLoad(preferredThreadId, nextDetail, loadSeq);
+        }
       } catch (detailError) {
-        if (detailLoadIsCurrent(preferredThreadId, loadSeq)) {
+        if (refreshIsCurrent(refreshSeq) && detailLoadIsCurrent(preferredThreadId, loadSeq)) {
           throw detailError;
         }
       }
