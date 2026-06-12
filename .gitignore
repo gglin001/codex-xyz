@@ -12,3 +12,5 @@ src/generated/
 
 # direnv
 .envrc
+
+prompts-*.md
