@@ -503,6 +503,8 @@ button.active {
 
 .session-row {
   position: relative;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 74px;
   width: 100%;
   height: auto;
   flex-direction: column;
@@ -759,6 +761,8 @@ button.active {
 }
 
 .transcript-item {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 160px;
   flex: 0 0 auto;
   border: 1px solid var(--border-soft);
   border-radius: 8px;
