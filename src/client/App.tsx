@@ -171,6 +171,10 @@ function ItemIcon({ item }: { item: ThreadItem }) {
 }
 
 type ThemeMode = "dark" | "light";
+type RunActionOptions = {
+  selectResult?: boolean;
+  successMessage?: string;
+};
 
 const themeStorageKey = "codex-xyz-theme";
 const collapsedPreviewLineCount = 2;
@@ -743,19 +747,23 @@ export function App() {
     setWorkdirTouched(true);
   }
 
-  async function runAction(label: string, action: () => Promise<unknown>, successMessage?: string) {
+  async function runAction(
+    label: string,
+    action: () => Promise<unknown>,
+    options: RunActionOptions = {}
+  ) {
     setBusyAction(label);
     setError(null);
     setNotice(null);
     try {
       const nextThreadId = await action();
-      if (typeof nextThreadId === "string") {
+      if (options.selectResult && typeof nextThreadId === "string") {
         await refresh(nextThreadId);
       } else {
         await refresh();
       }
-      if (successMessage) {
-        setNotice(successMessage);
+      if (options.successMessage) {
+        setNotice(options.successMessage);
       }
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : "Action failed");
@@ -796,18 +804,22 @@ export function App() {
       return;
     }
 
-    void runAction("Creating session", async () => {
-      let project = matchingWorkdirProject;
-      if (!project) {
-        project = await createProject({ path: trimmedWorkdir });
-      }
-      setWorkdir(project.path);
-      setWorkdirTouched(false);
-      const result = await createTask({ projectId: project.id, prompt: currentPrompt });
-      const thread = result.thread as { id?: string } | null;
-      setComposerMode("thread");
-      return thread?.id;
-    });
+    void runAction(
+      "Creating session",
+      async () => {
+        let project = matchingWorkdirProject;
+        if (!project) {
+          project = await createProject({ path: trimmedWorkdir });
+        }
+        setWorkdir(project.path);
+        setWorkdirTouched(false);
+        const result = await createTask({ projectId: project.id, prompt: currentPrompt });
+        const thread = result.thread as { id?: string } | null;
+        setComposerMode("thread");
+        return thread?.id;
+      },
+      { selectResult: true }
+    );
   }
 
   function submitPrompt(event: FormEvent) {
@@ -832,7 +844,6 @@ export function App() {
     setSteer("");
     void runAction("Steering turn", async () => {
       await steerTurn(threadId, currentSteer);
-      return threadId;
     });
   }
 
@@ -847,9 +858,8 @@ export function App() {
       "Renaming session",
       async () => {
         await renameThread(threadId, title);
-        return threadId;
       },
-      "Session renamed"
+      { successMessage: "Session renamed" }
     );
   }
 
@@ -1022,7 +1032,6 @@ export function App() {
                 selectedThreadId &&
                 void runAction("Interrupting turn", async () => {
                   await interruptTurn(selectedThreadId);
-                  return selectedThreadId;
                 })
               }
             >
@@ -1040,7 +1049,7 @@ export function App() {
                     const thread = await resumeThread(selectedThreadId);
                     return thread.id;
                   },
-                  "Session resumed"
+                  { successMessage: "Session resumed" }
                 )
               }
             >
@@ -1052,10 +1061,14 @@ export function App() {
               disabled={!selectedThreadId || busy}
               onClick={() =>
                 selectedThreadId &&
-                void runAction("Forking session", async () => {
-                  const thread = await forkThread(selectedThreadId);
-                  return thread.id;
-                })
+                void runAction(
+                  "Forking session",
+                  async () => {
+                    const thread = await forkThread(selectedThreadId);
+                    return thread.id;
+                  },
+                  { selectResult: true }
+                )
               }
             >
               <GitFork size={16} />
