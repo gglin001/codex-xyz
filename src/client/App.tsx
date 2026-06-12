@@ -940,6 +940,16 @@ export function App() {
           />
 
           <SessionGroup
+            title="Needs attention"
+            threads={sessionList.attentionThreads}
+            selectedThreadId={selectedThreadId}
+            hasQuery={sessionList.hasQuery}
+            emptyLabel="No attention needed"
+            emptyQueryLabel="No matching attention"
+            onSelectThread={selectThread}
+          />
+
+          <SessionGroup
             title="History"
             threads={sessionList.otherThreads}
             selectedThreadId={selectedThreadId}

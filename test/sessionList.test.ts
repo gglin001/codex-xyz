@@ -42,22 +42,31 @@ function task(overrides: Partial<Task> = {}): Task {
 }
 
 describe("session list model", () => {
-  it("groups running threads separately from history", () => {
+  it("groups running and attention threads separately from history", () => {
     const result = getSessionListModel(
       [
         thread({ id: "running", status: "running" }),
         thread({ id: "idle", status: "idle" }),
-        thread({ id: "failed", status: "failed" })
+        thread({ id: "failed", status: "failed" }),
+        thread({ id: "interrupted", status: "interrupted" }),
+        thread({ id: "stale", status: "stale" }),
+        thread({ id: "blocked-goal", status: "idle", goalStatus: "blocked", goalObjective: "Finish review" })
       ],
       [task({ status: "queued" }), task({ id: "task-2", status: "completed" })],
       ""
     );
 
     expect(result.activeThreads.map((candidate) => candidate.id)).toEqual(["running"]);
-    expect(result.otherThreads.map((candidate) => candidate.id)).toEqual(["idle", "failed"]);
+    expect(result.attentionThreads.map((candidate) => candidate.id)).toEqual([
+      "failed",
+      "interrupted",
+      "stale",
+      "blocked-goal"
+    ]);
+    expect(result.otherThreads.map((candidate) => candidate.id)).toEqual(["idle"]);
     expect(result.queuedTaskCount).toBe(1);
-    expect(result.visibleThreadCount).toBe(3);
-    expect(result.totalThreadCount).toBe(3);
+    expect(result.visibleThreadCount).toBe(6);
+    expect(result.totalThreadCount).toBe(6);
     expect(result.hasQuery).toBe(false);
   });
 
@@ -93,5 +102,22 @@ describe("session list model", () => {
     expect(result.totalThreadCount).toBe(2);
     expect(result.queuedTaskCount).toBe(2);
     expect(result.hasQuery).toBe(true);
+  });
+
+  it("keeps attention grouping after filtering", () => {
+    const result = getSessionListModel(
+      [
+        thread({ id: "visible-attention", title: "Match", status: "failed" }),
+        thread({ id: "visible-history", title: "Match", status: "idle" }),
+        thread({ id: "hidden-attention", title: "Other", status: "failed" })
+      ],
+      [],
+      "match"
+    );
+
+    expect(result.activeThreads).toEqual([]);
+    expect(result.attentionThreads.map((candidate) => candidate.id)).toEqual(["visible-attention"]);
+    expect(result.otherThreads.map((candidate) => candidate.id)).toEqual(["visible-history"]);
+    expect(result.visibleThreadCount).toBe(2);
   });
 });

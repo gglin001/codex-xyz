@@ -2,6 +2,7 @@ import type { ControlThread, Task } from "../server/domain.js";
 
 export type SessionListModel = {
   activeThreads: ControlThread[];
+  attentionThreads: ControlThread[];
   otherThreads: ControlThread[];
   queuedTaskCount: number;
   totalThreadCount: number;
@@ -30,6 +31,15 @@ function matchesThreadQuery(thread: ControlThread, query: string) {
   return fields.some((field) => field.toLowerCase().includes(query));
 }
 
+function needsAttention(thread: ControlThread) {
+  return (
+    thread.status === "failed" ||
+    thread.status === "interrupted" ||
+    thread.status === "stale" ||
+    thread.goalStatus === "blocked"
+  );
+}
+
 export function getSessionListModel(
   threads: ControlThread[],
   tasks: Task[],
@@ -42,7 +52,8 @@ export function getSessionListModel(
 
   return {
     activeThreads: visibleThreads.filter((thread) => thread.status === "running"),
-    otherThreads: visibleThreads.filter((thread) => thread.status !== "running"),
+    attentionThreads: visibleThreads.filter((thread) => thread.status !== "running" && needsAttention(thread)),
+    otherThreads: visibleThreads.filter((thread) => thread.status !== "running" && !needsAttention(thread)),
     queuedTaskCount: tasks.filter((task) => task.status === "queued" || task.status === "running").length,
     totalThreadCount: threads.length,
     visibleThreadCount: visibleThreads.length,
