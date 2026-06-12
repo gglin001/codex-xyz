@@ -37,3 +37,13 @@ export function shouldSelectActionResult(
     options.actionSelectionSeq === options.currentSelectionSeq
   );
 }
+
+export function shouldLoadThreadSelection(
+  threadId: string,
+  options: {
+    currentThreadId: string | null;
+    currentDetailThreadId: string | null;
+  }
+) {
+  return threadId !== options.currentThreadId || threadId !== options.currentDetailThreadId;
+}

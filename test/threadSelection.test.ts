@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { choosePreferredThreadId, shouldSelectActionResult } from "../src/client/threadSelection.js";
+import {
+  choosePreferredThreadId,
+  shouldLoadThreadSelection,
+  shouldSelectActionResult
+} from "../src/client/threadSelection.js";
 
 const threads = [{ id: "thread-a" }, { id: "thread-b" }];
 
@@ -95,5 +99,34 @@ describe("action result selection", () => {
         currentSelectionSeq: 1
       })
     ).toBe(false);
+  });
+});
+
+describe("thread detail selection loading", () => {
+  it("skips loading when the selected thread detail is already current", () => {
+    expect(
+      shouldLoadThreadSelection("thread-a", {
+        currentThreadId: "thread-a",
+        currentDetailThreadId: "thread-a"
+      })
+    ).toBe(false);
+  });
+
+  it("loads when selecting a different thread", () => {
+    expect(
+      shouldLoadThreadSelection("thread-b", {
+        currentThreadId: "thread-a",
+        currentDetailThreadId: "thread-a"
+      })
+    ).toBe(true);
+  });
+
+  it("loads when the current thread detail is not available yet", () => {
+    expect(
+      shouldLoadThreadSelection("thread-a", {
+        currentThreadId: "thread-a",
+        currentDetailThreadId: null
+      })
+    ).toBe(true);
   });
 });

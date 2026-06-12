@@ -45,7 +45,7 @@ import {
   type TranscriptWindowMode
 } from "./transcriptWindow.js";
 import { getCollapsedTextPreview } from "./textPreview.js";
-import { choosePreferredThreadId, shouldSelectActionResult } from "./threadSelection.js";
+import { choosePreferredThreadId, shouldLoadThreadSelection, shouldSelectActionResult } from "./threadSelection.js";
 import type {
   ControlThread,
   DashboardState,
@@ -639,10 +639,17 @@ export function App() {
 
   const selectThread = useCallback(async (threadId: string) => {
     beginManualSelection();
-    setSelectedThreadId(threadId);
-    selectedThreadIdRef.current = threadId;
+    const shouldLoadDetail = shouldLoadThreadSelection(threadId, {
+      currentThreadId: selectedThreadIdRef.current,
+      currentDetailThreadId: projectionRef.current.detail?.id ?? null
+    });
     setComposerMode("thread");
     setError(null);
+    if (!shouldLoadDetail) {
+      return;
+    }
+    setSelectedThreadId(threadId);
+    selectedThreadIdRef.current = threadId;
     clearDetailForSelection(threadId);
     const loadSeq = beginDetailLoad();
     try {
