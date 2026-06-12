@@ -441,7 +441,7 @@ const TranscriptItem = memo(function TranscriptItem({
   );
 });
 
-function Transcript({
+const Transcript = memo(function Transcript({
   detail,
   hasSelection
 }: {
@@ -515,7 +515,7 @@ function Transcript({
       ))}
     </div>
   );
-}
+});
 
 export function App() {
   const [state, setState] = useState<DashboardState>(initialState);
