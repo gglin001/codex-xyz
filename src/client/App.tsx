@@ -37,6 +37,11 @@ import {
   steerTurn
 } from "./api.js";
 import { applyEventProjectionBatch, incrementalEventNames, type ClientProjection } from "./eventProjection.js";
+import {
+  defaultTranscriptWindowThreshold,
+  getTranscriptWindow,
+  type TranscriptWindowMode
+} from "./transcriptWindow.js";
 import type {
   ControlThread,
   DashboardState,
@@ -368,9 +373,11 @@ const TranscriptItem = memo(function TranscriptItem({
 
 function Transcript({ detail }: { detail: ThreadDetail | null }) {
   const [expandedItemIds, setExpandedItemIds] = useState<Set<string>>(() => new Set());
+  const [windowMode, setWindowMode] = useState<TranscriptWindowMode>("recent");
 
   useEffect(() => {
     setExpandedItemIds(new Set());
+    setWindowMode("recent");
   }, [detail?.id]);
 
   const toggleExpandedItem = useCallback((itemId: string) => {
@@ -385,11 +392,44 @@ function Transcript({ detail }: { detail: ThreadDetail | null }) {
     });
   }, []);
 
+  const transcriptWindow = useMemo(
+    () => getTranscriptWindow(detail?.items ?? [], windowMode),
+    [detail?.items, windowMode]
+  );
+  const showWindowControls = Boolean(detail && detail.items.length > defaultTranscriptWindowThreshold);
+  const windowSummary =
+    windowMode === "recent" && transcriptWindow.isWindowed
+      ? `${transcriptWindow.visibleCount} / ${transcriptWindow.totalCount} items`
+      : `${transcriptWindow.totalCount} items`;
+
   return (
     <div className="transcript" aria-label="Session transcript">
       {!detail ? <div className="empty-state">No session selected</div> : null}
       {detail?.items.length === 0 ? <div className="empty-state">No transcript items yet</div> : null}
-      {detail?.items.map((item) => (
+      {showWindowControls ? (
+        <div className="transcript-window-bar">
+          <span>{windowSummary}</span>
+          <div className="transcript-window-mode" role="group" aria-label="Transcript range">
+            <button
+              type="button"
+              className={windowMode === "recent" ? "active" : ""}
+              aria-pressed={windowMode === "recent"}
+              onClick={() => setWindowMode("recent")}
+            >
+              Recent
+            </button>
+            <button
+              type="button"
+              className={windowMode === "all" ? "active" : ""}
+              aria-pressed={windowMode === "all"}
+              onClick={() => setWindowMode("all")}
+            >
+              All
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {transcriptWindow.items.map((item) => (
         <TranscriptItem
           key={item.id}
           item={item}

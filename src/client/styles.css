@@ -714,6 +714,47 @@ button.active {
   min-height: 0;
 }
 
+.transcript-window-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 38px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface-subtle-bg);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.transcript-window-bar > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transcript-window-mode {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+.transcript-window-mode button {
+  min-width: 0;
+  height: 26px;
+  padding: 0 9px;
+  border-color: var(--border-soft);
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1;
+}
+
 .transcript-item.agent {
   border-color: var(--agent-border);
 }
