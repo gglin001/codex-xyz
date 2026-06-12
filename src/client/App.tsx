@@ -73,29 +73,39 @@ function statusTone(status: RuntimeStatus) {
   return "quiet";
 }
 
+const timeFormatter = new Intl.DateTimeFormat(undefined, {
+  hour: "2-digit",
+  minute: "2-digit"
+});
+
+const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit"
+});
+
+const standardTokenFormatter = new Intl.NumberFormat(undefined, {
+  notation: "standard"
+});
+
+const compactTokenFormatter = new Intl.NumberFormat(undefined, {
+  notation: "compact"
+});
+
 function formatTime(value: string) {
-  return new Date(value).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit"
-  });
+  return timeFormatter.format(new Date(value));
 }
 
 function formatDateTime(value: string) {
-  return new Date(value).toLocaleString([], {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
+  return dateTimeFormatter.format(new Date(value));
 }
 
 function formatTokens(value: number | null | undefined) {
   if (!value) {
     return "0";
   }
-  return new Intl.NumberFormat(undefined, {
-    notation: value >= 100_000 ? "compact" : "standard"
-  }).format(value);
+  return (value >= 100_000 ? compactTokenFormatter : standardTokenFormatter).format(value);
 }
 
 function shortId(value: string) {
