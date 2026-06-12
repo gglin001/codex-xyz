@@ -34,6 +34,17 @@ async function json<T>(path: string, init?: RequestInit) {
   return (await response.json()) as T;
 }
 
+async function noContent(path: string, init?: RequestInit) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    ...init,
+    headers: {
+      "content-type": "application/json",
+      ...init?.headers
+    }
+  });
+  expect(response.status).toBe(204);
+}
+
 beforeEach(async () => {
   tempDir = mkdtempSync(join(tmpdir(), "codex-xyz-http-"));
   service = new ControlService(Store.open(join(tempDir, "test.sqlite")), new TestCodexAdapter());
@@ -107,5 +118,62 @@ describe("HTTP API", () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     const detail = await json<{ items: Array<{ text: string }> }>(`/api/threads/${created.thread.id}`);
     expect(detail.items.map((item) => item.text).join("\n")).toContain("Test run started");
+  });
+
+  it("controls a running session through the HTTP API", async () => {
+    const state = await json<DashboardState>("/api/state");
+    const created = await json<{ thread: { id: string } }>("/api/tasks", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: state.projects[0].id,
+        prompt: "Keep this turn open for steering"
+      })
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const renamed = await json<{ title: string }>(`/api/threads/${created.thread.id}/name`, {
+      method: "PUT",
+      body: JSON.stringify({
+        title: "HTTP controlled session"
+      })
+    });
+    expect(renamed.title).toBe("HTTP controlled session");
+
+    const goal = await json<{ tokenBudget: number | null }>(`/api/threads/${created.thread.id}/goal`, {
+      method: "PUT",
+      body: JSON.stringify({
+        objective: "Finish the control surface",
+        tokenBudget: 2048
+      })
+    });
+    expect(goal.tokenBudget).toBe(2048);
+
+    await noContent(`/api/threads/${created.thread.id}/steer`, {
+      method: "POST",
+      body: JSON.stringify({
+        prompt: "Prefer the compact path."
+      })
+    });
+
+    const interrupted = await json<{ status: string }>(`/api/threads/${created.thread.id}/interrupt`, {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    expect(interrupted.status).toBe("interrupted");
+
+    const resumed = await json<{ id: string; status: string }>(`/api/threads/${created.thread.id}/resume`, {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    expect(resumed).toMatchObject({
+      id: created.thread.id,
+      status: "idle"
+    });
+
+    const fork = await json<{ id: string; forkedFromId: string | null }>(`/api/threads/${created.thread.id}/fork`, {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    expect(fork.forkedFromId).toBe(created.thread.id);
   });
 });

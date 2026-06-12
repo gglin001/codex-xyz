@@ -21,6 +21,15 @@ export type AdapterGoal = {
   tokensUsed: number;
 };
 
+export type AdapterTokenUsage = {
+  totalTokens: number;
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+  reasoningOutputTokens: number;
+  modelContextWindow: number | null;
+};
+
 export type AdapterEvent =
   | {
       type: "item.created";
@@ -37,6 +46,16 @@ export type AdapterEvent =
       turnId: string;
       itemId: string;
       delta: string;
+      itemType?: "user" | "agent" | "plan" | "command" | "file" | "system";
+    }
+  | {
+      type: "item.updated";
+      threadId: string;
+      turnId: string | null;
+      itemId: string;
+      itemType: "user" | "agent" | "plan" | "command" | "file" | "system";
+      text: string;
+      data?: Record<string, unknown>;
     }
   | {
       type: "turn.status";
@@ -49,6 +68,23 @@ export type AdapterEvent =
       type: "thread.status";
       threadId: string;
       status: RuntimeStatus;
+    }
+  | {
+      type: "thread.goal";
+      threadId: string;
+      turnId: string | null;
+      goal: AdapterGoal | null;
+    }
+  | {
+      type: "thread.renamed";
+      threadId: string;
+      title: string | null;
+    }
+  | {
+      type: "thread.token_usage";
+      threadId: string;
+      turnId: string | null;
+      usage: AdapterTokenUsage;
     }
   | {
       type: "raw";
@@ -105,6 +141,7 @@ export interface CodexAdapter {
   steerTurn(input: { threadId: string; turnId: string; prompt: string }): Promise<void>;
   interruptTurn(input: { threadId: string; turnId: string }): Promise<void>;
   forkThread(input: ForkThreadInput): Promise<AdapterThread>;
+  renameThread(input: { threadId: string; title: string }): Promise<void>;
   setGoal(input: { threadId: string; objective: string; tokenBudget?: number | null }): Promise<AdapterGoal>;
   getGoal(threadId: string): Promise<AdapterGoal | null>;
   clearGoal(threadId: string): Promise<void>;

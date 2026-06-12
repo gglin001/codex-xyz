@@ -102,6 +102,10 @@ class VolatileCodexAdapter implements CodexAdapter {
     };
   }
 
+  async renameThread(input: { threadId: string }) {
+    this.requireThread(input.threadId);
+  }
+
   async setGoal(input: { threadId: string; objective: string; tokenBudget?: number | null }): Promise<AdapterGoal> {
     this.requireThread(input.threadId);
     return {
@@ -188,8 +192,19 @@ describe("ControlService", () => {
     if (!threadId) {
       throw new Error("Expected created thread id");
     }
-    const goal = await service.setGoal(threadId, "Finish the first-version MVP");
+    const renamed = await service.renameThread({
+      threadId,
+      title: "Steering session"
+    });
+    expect(renamed?.title).toBe("Steering session");
+
+    const goal = await service.setGoal({
+      threadId,
+      objective: "Finish the first-version MVP",
+      tokenBudget: 1200
+    });
     expect(goal.status).toBe("in_progress");
+    expect(goal.tokenBudget).toBe(1200);
 
     await service.steerTurn(threadId, "Narrow the response to local testing.");
     expect(service.getThreadDetail(threadId).items.some((item) => item.text.includes("Steer received"))).toBe(true);

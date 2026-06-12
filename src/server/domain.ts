@@ -42,6 +42,7 @@ export type ControlThread = {
   activeTurnId: string | null;
   goalObjective: string | null;
   goalStatus: GoalStatus | null;
+  goalTokenBudget: number | null;
   tokensUsed: number;
   createdAt: string;
   updatedAt: string;
@@ -130,6 +131,17 @@ export type StartTurnInput = {
   threadId: string;
   prompt: string;
   model?: string | null;
+};
+
+export type RenameThreadInput = {
+  threadId: string;
+  title: string;
+};
+
+export type SetGoalInput = {
+  threadId: string;
+  objective: string;
+  tokenBudget?: number | null;
 };
 
 export function nowIso() {

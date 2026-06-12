@@ -72,6 +72,7 @@ function threadFromRow(row: Row): ControlThread {
     activeTurnId: nullableString(row.active_turn_id),
     goalObjective: nullableString(row.goal_objective),
     goalStatus: nullableString(row.goal_status) as GoalStatus | null,
+    goalTokenBudget: typeof row.goal_token_budget === "number" ? row.goal_token_budget : null,
     tokensUsed: scalarNumber(row.tokens_used),
     createdAt: scalarString(row.created_at),
     updatedAt: scalarString(row.updated_at)
@@ -194,6 +195,7 @@ export class Store {
         active_turn_id TEXT,
         goal_objective TEXT,
         goal_status TEXT,
+        goal_token_budget INTEGER,
         tokens_used INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
@@ -265,6 +267,14 @@ export class Store {
       CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
       DROP TABLE IF EXISTS approvals;
     `);
+    this.addColumnIfMissing("threads", "goal_token_budget", "INTEGER");
+  }
+
+  private addColumnIfMissing(table: string, column: string, definition: string) {
+    const columns = this.db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name?: unknown }>;
+    if (!columns.some((row) => row.name === column)) {
+      this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    }
   }
 
   upsertHost(input: { id: string; name: string; adapter: string; version?: string | null }) {
@@ -342,9 +352,10 @@ export class Store {
         `
           INSERT INTO threads (
             id, session_id, forked_from_id, project_id, title, preview, cwd, model,
-            status, active_turn_id, goal_objective, goal_status, tokens_used, created_at, updated_at
+            status, active_turn_id, goal_objective, goal_status, goal_token_budget,
+            tokens_used, created_at, updated_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `
       )
       .run(
@@ -360,6 +371,7 @@ export class Store {
         thread.activeTurnId,
         thread.goalObjective,
         thread.goalStatus,
+        thread.goalTokenBudget,
         thread.tokensUsed,
         thread.createdAt,
         thread.updatedAt
@@ -367,7 +379,15 @@ export class Store {
     return this.getThread(thread.id);
   }
 
-  updateThread(id: string, updates: Partial<Pick<ControlThread, "status" | "activeTurnId" | "goalObjective" | "goalStatus" | "tokensUsed" | "title" | "preview">>) {
+  updateThread(
+    id: string,
+    updates: Partial<
+      Pick<
+        ControlThread,
+        "status" | "activeTurnId" | "goalObjective" | "goalStatus" | "goalTokenBudget" | "tokensUsed" | "title" | "preview"
+      >
+    >
+  ) {
     const existing = this.getThread(id);
     if (!existing) {
       throw new Error(`Thread ${id} does not exist`);
@@ -383,6 +403,7 @@ export class Store {
             active_turn_id = ?,
             goal_objective = ?,
             goal_status = ?,
+            goal_token_budget = ?,
             tokens_used = ?,
             updated_at = ?
           WHERE id = ?
@@ -395,6 +416,7 @@ export class Store {
         next.activeTurnId,
         next.goalObjective,
         next.goalStatus,
+        next.goalTokenBudget,
         next.tokensUsed,
         next.updatedAt,
         id
@@ -472,6 +494,29 @@ export class Store {
       )
       .run(item.id, item.threadId, item.turnId, item.type, item.text, JSON.stringify(item.data), item.createdAt);
     return item;
+  }
+
+  upsertItem(item: ThreadItem) {
+    this.db
+      .prepare(
+        `
+          INSERT INTO items (id, thread_id, turn_id, type, text, data_json, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            thread_id = excluded.thread_id,
+            turn_id = excluded.turn_id,
+            type = excluded.type,
+            text = excluded.text,
+            data_json = excluded.data_json
+        `
+      )
+      .run(item.id, item.threadId, item.turnId, item.type, item.text, JSON.stringify(item.data), item.createdAt);
+    return this.getItem(item.id);
+  }
+
+  getItem(id: string) {
+    const row = this.db.prepare("SELECT * FROM items WHERE id = ?").get(id);
+    return row ? itemFromRow(row as Row) : null;
   }
 
   appendItemText(id: string, delta: string) {

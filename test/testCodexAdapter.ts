@@ -120,6 +120,11 @@ export class TestCodexAdapter implements CodexAdapter {
     return thread;
   }
 
+  async renameThread(input: { threadId: string; title: string }) {
+    const thread = this.requireThread(input.threadId);
+    thread.preview = input.title;
+  }
+
   async setGoal(input: { threadId: string; objective: string; tokenBudget?: number | null }) {
     const thread = this.requireThread(input.threadId);
     const goal: AdapterGoal = {

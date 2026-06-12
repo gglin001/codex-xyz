@@ -59,6 +59,18 @@ function optionalString(body: Record<string, unknown>, key: string) {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
+function optionalPositiveInteger(body: Record<string, unknown>, key: string) {
+  const value = body[key];
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+  const number = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(number) || number <= 0) {
+    throw new Error(`${key} must be a positive integer`);
+  }
+  return number;
+}
+
 function pathParts(url: URL) {
   return url.pathname.split("/").filter(Boolean);
 }
@@ -167,6 +179,22 @@ async function handleApi(context: HandlerContext) {
       return true;
     }
 
+    if (method === "POST" && parts[3] === "resume") {
+      const thread = await service.resumeThread(threadId);
+      sendJson(response, 200, thread);
+      return true;
+    }
+
+    if (method === "PUT" && parts[3] === "name") {
+      const body = await readJson(request);
+      const thread = await service.renameThread({
+        threadId,
+        title: requireString(body, "title")
+      });
+      sendJson(response, 200, thread);
+      return true;
+    }
+
     if (method === "POST" && parts[3] === "steer") {
       const body = await readJson(request);
       await service.steerTurn(threadId, requireString(body, "prompt"));
@@ -193,7 +221,11 @@ async function handleApi(context: HandlerContext) {
       }
       if (method === "PUT") {
         const body = await readJson(request);
-        const goal = await service.setGoal(threadId, requireString(body, "objective"));
+        const goal = await service.setGoal({
+          threadId,
+          objective: requireString(body, "objective"),
+          tokenBudget: optionalPositiveInteger(body, "tokenBudget")
+        });
         sendJson(response, 200, goal);
         return true;
       }

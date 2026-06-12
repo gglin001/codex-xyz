@@ -1,5 +1,7 @@
 import type {
+  ControlThread,
   DashboardState,
+  GoalStatus,
   Project,
   ThreadDetail,
   Turn
@@ -75,28 +77,47 @@ export function steerTurn(threadId: string, prompt: string) {
 }
 
 export function interruptTurn(threadId: string) {
-  return request(`/api/threads/${threadId}/interrupt`, {
+  return request<ControlThread>(`/api/threads/${threadId}/interrupt`, {
     method: "POST",
     body: JSON.stringify({})
   });
 }
 
 export function forkThread(threadId: string) {
-  return request(`/api/threads/${threadId}/fork`, {
+  return request<ControlThread>(`/api/threads/${threadId}/fork`, {
     method: "POST",
     body: JSON.stringify({})
   });
 }
 
-export function setGoal(threadId: string, objective: string) {
-  return request(`/api/threads/${threadId}/goal`, {
+export function resumeThread(threadId: string) {
+  return request<ControlThread>(`/api/threads/${threadId}/resume`, {
+    method: "POST",
+    body: JSON.stringify({})
+  });
+}
+
+export function renameThread(threadId: string, title: string) {
+  return request<ControlThread>(`/api/threads/${threadId}/name`, {
     method: "PUT",
-    body: JSON.stringify({ objective })
+    body: JSON.stringify({ title })
+  });
+}
+
+export function setGoal(threadId: string, objective: string, tokenBudget?: number | null) {
+  return request<{
+    objective: string;
+    status: GoalStatus;
+    tokenBudget: number | null;
+    tokensUsed: number;
+  }>(`/api/threads/${threadId}/goal`, {
+    method: "PUT",
+    body: JSON.stringify({ objective, tokenBudget: tokenBudget ?? null })
   });
 }
 
 export function clearGoal(threadId: string) {
-  return request(`/api/threads/${threadId}/goal`, {
+  return request<ControlThread>(`/api/threads/${threadId}/goal`, {
     method: "DELETE"
   });
 }

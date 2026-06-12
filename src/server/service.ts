@@ -8,7 +8,9 @@ import {
   type GoalStatus,
   nowIso,
   type Project,
+  type RenameThreadInput,
   type RuntimeStatus,
+  type SetGoalInput,
   type StartTurnInput,
   type Task,
   type ThreadDetail,
@@ -151,6 +153,7 @@ export class ControlService {
       title: task.title,
       goalObjective: null,
       goalStatus: null,
+      goalTokenBudget: null,
       preview: task.title,
       tokensUsed: 0
     });
@@ -203,6 +206,16 @@ export class ControlService {
     return this.store.getThread(threadId);
   }
 
+  async resumeThread(threadId: string) {
+    const thread = this.requireThread(threadId);
+    const resumed = await this.tryResumeRuntimeThread(thread);
+    if (!resumed) {
+      this.markRuntimeThreadLost(thread);
+      throw new Error(`Thread ${thread.id} is not loaded by Codex and could not be resumed`);
+    }
+    return this.store.getThread(threadId);
+  }
+
   async forkThread(threadId: string) {
     const source = this.requireThread(threadId);
     const adapterThread = await this.withRuntimeThread(source, () =>
@@ -219,6 +232,7 @@ export class ControlService {
       forkedFromId: adapterThread.forkedFromId ?? threadId,
       goalObjective: source.goalObjective,
       goalStatus: source.goalStatus,
+      goalTokenBudget: source.goalTokenBudget,
       preview: `Fork of ${source.preview}`,
       tokensUsed: 0
     });
@@ -226,15 +240,34 @@ export class ControlService {
     return thread;
   }
 
-  async setGoal(threadId: string, objective: string, tokenBudget?: number | null) {
-    const source = this.requireThread(threadId);
-    const goal = await this.withRuntimeThread(source, () => this.adapter.setGoal({ threadId, objective, tokenBudget }));
-    const thread = this.store.updateThread(threadId, {
+  async renameThread(input: RenameThreadInput) {
+    const source = this.requireThread(input.threadId);
+    const title = input.title.trim();
+    if (!title) {
+      throw new Error("Thread title cannot be empty");
+    }
+    await this.withRuntimeThread(source, () => this.adapter.renameThread({ threadId: input.threadId, title }));
+    const thread = this.store.updateThread(input.threadId, { title });
+    this.publish("thread.renamed", input.threadId, null, { title, thread });
+    return thread;
+  }
+
+  async setGoal(input: SetGoalInput) {
+    const source = this.requireThread(input.threadId);
+    const goal = await this.withRuntimeThread(source, () =>
+      this.adapter.setGoal({
+        threadId: input.threadId,
+        objective: input.objective,
+        tokenBudget: input.tokenBudget
+      })
+    );
+    const thread = this.store.updateThread(input.threadId, {
       goalObjective: goal.objective,
       goalStatus: goalStatusFromAdapter(goal),
+      goalTokenBudget: goal.tokenBudget,
       tokensUsed: goal.tokensUsed
     });
-    this.publish("thread.goal.updated", threadId, null, { goal, thread });
+    this.publish("thread.goal.updated", input.threadId, null, { goal, thread });
     return goal;
   }
 
@@ -248,7 +281,8 @@ export class ControlService {
     await this.withRuntimeThread(source, () => this.adapter.clearGoal(threadId));
     const thread = this.store.updateThread(threadId, {
       goalObjective: null,
-      goalStatus: "cleared"
+      goalStatus: "cleared",
+      goalTokenBudget: null
     });
     this.publish("thread.goal.cleared", threadId, null, { thread });
     return thread;
@@ -276,7 +310,7 @@ export class ControlService {
   }
 
   private handleAdapterEvent(event: AdapterEvent) {
-    if (event.type === "item.created") {
+    if (event.type === "item.created" || event.type === "item.updated") {
       const item: ThreadItem = {
         id: event.itemId,
         threadId: event.threadId,
@@ -286,8 +320,8 @@ export class ControlService {
         data: event.data ?? {},
         createdAt: nowIso()
       };
-      this.store.createItem(item);
-      this.publish("item.created", event.threadId, event.turnId, { item });
+      const stored = this.store.upsertItem(item) ?? item;
+      this.publish(event.type, event.threadId, event.turnId, { item: stored });
       return;
     }
 
@@ -298,7 +332,7 @@ export class ControlService {
           id: event.itemId,
           threadId: event.threadId,
           turnId: event.turnId,
-          type: "agent",
+          type: event.itemType ?? "agent",
           text: event.delta,
           data: { synthesized: true },
           createdAt: nowIso()
@@ -336,6 +370,40 @@ export class ControlService {
       return;
     }
 
+    if (event.type === "thread.goal") {
+      const thread = this.store.updateThread(event.threadId, {
+        goalObjective: event.goal?.objective ?? null,
+        goalStatus: goalStatusFromAdapter(event.goal),
+        goalTokenBudget: event.goal?.tokenBudget ?? null,
+        tokensUsed: event.goal?.tokensUsed ?? this.store.getThread(event.threadId)?.tokensUsed ?? 0
+      });
+      this.publish(event.goal ? "thread.goal.updated" : "thread.goal.cleared", event.threadId, event.turnId, {
+        goal: event.goal,
+        thread
+      });
+      return;
+    }
+
+    if (event.type === "thread.renamed") {
+      const title = event.title?.trim();
+      if (title) {
+        const thread = this.store.updateThread(event.threadId, { title });
+        this.publish("thread.renamed", event.threadId, null, { title, thread });
+      }
+      return;
+    }
+
+    if (event.type === "thread.token_usage") {
+      const thread = this.store.updateThread(event.threadId, {
+        tokensUsed: event.usage.totalTokens
+      });
+      this.publish("thread.token_usage", event.threadId, event.turnId, {
+        usage: event.usage,
+        thread
+      });
+      return;
+    }
+
     if (event.type === "raw") {
       this.publish("adapter.raw", event.threadId ?? null, event.turnId ?? null, {
         method: event.method,
@@ -363,6 +431,7 @@ export class ControlService {
     forkedFromId?: string | null;
     goalObjective: string | null;
     goalStatus: GoalStatus | null;
+    goalTokenBudget?: number | null;
     preview?: string;
     tokensUsed: number;
   }) {
@@ -380,6 +449,7 @@ export class ControlService {
       activeTurnId: null,
       goalObjective: input.goalObjective,
       goalStatus: input.goalStatus,
+      goalTokenBudget: input.goalTokenBudget ?? null,
       tokensUsed: input.tokensUsed,
       createdAt: now,
       updatedAt: now
@@ -520,6 +590,7 @@ export class ControlService {
       forkedFromId: source.id,
       goalObjective: source.goalObjective,
       goalStatus: source.goalStatus,
+      goalTokenBudget: source.goalTokenBudget,
       preview: prompt,
       tokensUsed: source.tokensUsed
     });

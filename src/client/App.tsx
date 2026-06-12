@@ -1,17 +1,25 @@
 import {
-  CircleHelp,
+  Bot,
+  Check,
+  FileText,
   FolderOpen,
   GitFork,
+  History,
+  Info,
+  ListChecks,
   Loader2,
-  Play,
   Plus,
   RefreshCw,
+  RotateCw,
   Send,
   Square,
-  Target
+  Target,
+  Terminal,
+  UserRound,
+  X
 } from "lucide-react";
-import type { FormEvent, KeyboardEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import type { FormEvent, KeyboardEvent, RefObject } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   apiUrl,
   clearGoal,
@@ -21,6 +29,8 @@ import {
   getState,
   getThread,
   interruptTurn,
+  renameThread,
+  resumeThread,
   setGoal,
   startTurn,
   steerTurn
@@ -29,12 +39,55 @@ import type {
   ControlThread,
   DashboardState,
   Project,
+  RuntimeStatus,
   ThreadDetail,
   ThreadItem
 } from "../server/domain.js";
 
 function statusLabel(status: string) {
   return status.replace("_", " ");
+}
+
+function statusTone(status: RuntimeStatus) {
+  if (status === "running") {
+    return "running";
+  }
+  if (status === "failed" || status === "interrupted") {
+    return "attention";
+  }
+  if (status === "stale") {
+    return "stale";
+  }
+  return "quiet";
+}
+
+function formatTime(value: string) {
+  return new Date(value).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function formatTokens(value: number | null | undefined) {
+  if (!value) {
+    return "0";
+  }
+  return new Intl.NumberFormat(undefined, {
+    notation: value >= 100_000 ? "compact" : "standard"
+  }).format(value);
+}
+
+function shortId(value: string) {
+  return value.slice(0, 8);
 }
 
 function initialState(): DashboardState {
@@ -47,13 +100,54 @@ function initialState(): DashboardState {
 }
 
 function itemTitle(item: ThreadItem) {
+  const sourceType = typeof item.data.sourceType === "string" ? item.data.sourceType : null;
+  if (sourceType === "reasoning") {
+    return "Reasoning";
+  }
+  if (sourceType === "mcpToolCall") {
+    return "MCP tool";
+  }
+  if (sourceType === "dynamicToolCall") {
+    return "Tool";
+  }
+  if (sourceType === "webSearch") {
+    return "Web search";
+  }
   if (item.type === "agent") {
     return "Codex";
   }
   if (item.type === "user") {
     return "User";
   }
-  return item.type;
+  if (item.type === "plan") {
+    return "Plan";
+  }
+  if (item.type === "command") {
+    return "Command";
+  }
+  if (item.type === "file") {
+    return "Files";
+  }
+  return "System";
+}
+
+function ItemIcon({ item }: { item: ThreadItem }) {
+  if (item.type === "agent") {
+    return <Bot size={15} />;
+  }
+  if (item.type === "user") {
+    return <UserRound size={15} />;
+  }
+  if (item.type === "plan") {
+    return <ListChecks size={15} />;
+  }
+  if (item.type === "command") {
+    return <Terminal size={15} />;
+  }
+  if (item.type === "file") {
+    return <FileText size={15} />;
+  }
+  return <Info size={15} />;
 }
 
 type GoalPromptCommand =
@@ -76,6 +170,18 @@ function parseGoalPromptCommand(value: string): GoalPromptCommand | null {
   return { type: "set", objective: argument };
 }
 
+function parseBudget(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const budget = Number(trimmed);
+  if (!Number.isInteger(budget) || budget <= 0) {
+    return undefined;
+  }
+  return budget;
+}
+
 function SessionRow({
   thread,
   selected,
@@ -86,13 +192,13 @@ function SessionRow({
   onSelect: () => void;
 }) {
   return (
-    <button className={`session-row ${selected ? "selected" : ""}`} onClick={onSelect}>
+    <button className={`session-row ${selected ? "selected" : ""}`} onClick={onSelect} aria-pressed={selected}>
       <span className={`status-dot ${thread.status}`} />
       <span className="session-copy">
         <strong>{thread.title}</strong>
-        <small>{thread.cwd}</small>
+        <small>{thread.preview || thread.cwd}</small>
       </span>
-      <span className="session-status">{statusLabel(thread.status)}</span>
+      <span className={`session-status ${statusTone(thread.status)}`}>{statusLabel(thread.status)}</span>
     </button>
   );
 }
@@ -136,13 +242,54 @@ function WorkdirField({
         ))}
       </datalist>
       <span className={`workdir-state ${matchingProject ? "existing" : "new"}`}>
-        {trimmedValue.length === 0 ? "Required for new sessions" : matchingProject ? matchingProject.name : "New project"}
+        {trimmedValue.length === 0 ? "Required" : matchingProject ? matchingProject.name : "New project"}
       </span>
     </div>
   );
 }
 
-function Transcript({ detail }: { detail: ThreadDetail | null }) {
+function SessionFacts({ thread }: { thread: ThreadDetail }) {
+  return (
+    <div className="session-facts">
+      <div>
+        <span>Status</span>
+        <strong className={`fact-status ${statusTone(thread.status)}`}>{statusLabel(thread.status)}</strong>
+      </div>
+      <div>
+        <span>Tokens</span>
+        <strong>{formatTokens(thread.tokensUsed)}</strong>
+      </div>
+      <div>
+        <span>Turns</span>
+        <strong>{thread.turns.length}</strong>
+      </div>
+      <div>
+        <span>Model</span>
+        <strong>{thread.model ?? "default"}</strong>
+      </div>
+      <div className="wide">
+        <span>Workdir</span>
+        <strong>{thread.cwd}</strong>
+      </div>
+      <div>
+        <span>Session</span>
+        <strong>{shortId(thread.sessionId)}</strong>
+      </div>
+      <div>
+        <span>Updated</span>
+        <strong>{formatDateTime(thread.updatedAt)}</strong>
+      </div>
+    </div>
+  );
+}
+
+function Transcript({
+  detail,
+  bottomRef
+}: {
+  detail: ThreadDetail | null;
+  bottomRef: RefObject<HTMLDivElement>;
+}) {
   if (!detail) {
     return <div className="empty-state">No session selected</div>;
   }
@@ -150,39 +297,29 @@ function Transcript({ detail }: { detail: ThreadDetail | null }) {
     return <div className="empty-state">No transcript items yet</div>;
   }
   return (
-    <div className="transcript">
-      {detail.items.map((item) => (
-        <article className={`transcript-item ${item.type}`} key={item.id}>
-          <div className="item-meta">
-            <span>{itemTitle(item)}</span>
-            <time>{new Date(item.createdAt).toLocaleTimeString()}</time>
-          </div>
-          <pre>{item.text}</pre>
-        </article>
-      ))}
+    <div className="transcript" aria-label="Session transcript">
+      {detail.items.map((item) => {
+        const status = typeof item.data.status === "string" ? item.data.status : null;
+        const exitCode = typeof item.data.exitCode === "number" ? item.data.exitCode : null;
+        return (
+          <article className={`transcript-item ${item.type}`} key={item.id}>
+            <div className="item-meta">
+              <span className="item-title">
+                <ItemIcon item={item} />
+                <span>{itemTitle(item)}</span>
+              </span>
+              <span className="item-meta-right">
+                {status ? <span className="item-chip">{status}</span> : null}
+                {exitCode !== null ? <span className="item-chip">exit {exitCode}</span> : null}
+                <time>{formatTime(item.createdAt)}</time>
+              </span>
+            </div>
+            <pre>{item.text || "Pending..."}</pre>
+          </article>
+        );
+      })}
+      <div ref={bottomRef} />
     </div>
-  );
-}
-
-function HelpPage() {
-  return (
-    <section className="help-page" aria-label="Keyboard shortcuts">
-      <div className="help-page-header">
-        <h2>Help</h2>
-        <span>Keyboard shortcuts</span>
-      </div>
-      <div className="shortcut-row">
-        <div className="shortcut-keys" aria-label="Command Enter">
-          <kbd>Cmd</kbd>
-          <span>+</span>
-          <kbd>Enter</kbd>
-        </div>
-        <div>
-          <strong>Execute prompt</strong>
-          <p>Run the current prompt from the prompt input on macOS.</p>
-        </div>
-      </div>
-    </section>
   );
 }
 
@@ -195,19 +332,42 @@ export function App() {
   const [workdir, setWorkdir] = useState("");
   const [workdirTouched, setWorkdirTouched] = useState(false);
   const [composerMode, setComposerMode] = useState<"thread" | "new">("thread");
-  const [showHelp, setShowHelp] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [renameTitle, setRenameTitle] = useState("");
+  const [goalDraft, setGoalDraft] = useState("");
+  const [goalBudgetDraft, setGoalBudgetDraft] = useState("");
+  const [busyAction, setBusyAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const selectedThreadIdRef = useRef<string | null>(null);
+  const transcriptEndRef = useRef<HTMLDivElement | null>(null);
 
-  async function refresh(nextThreadId = selectedThreadId) {
+  const busy = busyAction !== null;
+
+  async function refresh(nextThreadId = selectedThreadIdRef.current) {
     const next = await getState();
     setState(next);
-    const preferredThreadId = nextThreadId ?? next.threads[0]?.id ?? null;
+    const preferredThreadId =
+      nextThreadId && next.threads.some((thread) => thread.id === nextThreadId)
+        ? nextThreadId
+        : next.threads[0]?.id ?? null;
     setSelectedThreadId(preferredThreadId);
+    selectedThreadIdRef.current = preferredThreadId;
     if (preferredThreadId) {
       setDetail(await getThread(preferredThreadId));
     } else {
       setDetail(null);
+    }
+  }
+
+  async function selectThread(threadId: string) {
+    setSelectedThreadId(threadId);
+    selectedThreadIdRef.current = threadId;
+    setComposerMode("thread");
+    setError(null);
+    try {
+      setDetail(await getThread(threadId));
+    } catch (selectError) {
+      setError(selectError instanceof Error ? selectError.message : "Failed to load session");
     }
   }
 
@@ -218,34 +378,57 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const source = new EventSource(apiUrl("/api/events"));
-    source.onmessage = () => {
-      void refresh();
+    let source: EventSource | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let disposed = false;
+    const refreshFromEvent = () => {
+      void refresh(selectedThreadIdRef.current);
     };
-    source.addEventListener("item.created", () => {
-      void refresh();
-    });
-    source.addEventListener("item.delta", () => {
-      void refresh();
-    });
-    source.addEventListener("turn.status", () => void refresh());
-    source.addEventListener("thread.started", () => void refresh());
-    source.addEventListener("thread.forked", () => void refresh());
-    source.addEventListener("thread.goal.updated", () => void refresh());
-    source.addEventListener("thread.goal.cleared", () => void refresh());
-    source.onerror = () => {
-      source.close();
-      setTimeout(() => {
-        void refresh();
-      }, 1200);
+
+    function connect() {
+      source = new EventSource(apiUrl("/api/events"));
+      source.onmessage = refreshFromEvent;
+      for (const eventName of [
+        "item.created",
+        "item.updated",
+        "item.delta",
+        "turn.started",
+        "turn.status",
+        "thread.started",
+        "thread.resumed",
+        "thread.runtime_lost",
+        "thread.continued",
+        "thread.forked",
+        "thread.renamed",
+        "thread.goal.updated",
+        "thread.goal.cleared",
+        "thread.token_usage"
+      ]) {
+        source.addEventListener(eventName, refreshFromEvent);
+      }
+      source.onerror = () => {
+        source?.close();
+        if (!disposed) {
+          reconnectTimer = setTimeout(connect, 1200);
+        }
+      };
+    }
+
+    connect();
+    return () => {
+      disposed = true;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+      }
+      source?.close();
     };
-    return () => source.close();
-  }, [selectedThreadId]);
+  }, []);
 
   const selectedThread = useMemo(
     () => state.threads.find((thread) => thread.id === selectedThreadId) ?? null,
     [selectedThreadId, state.threads]
   );
+  const selectedDetail = detail?.id === selectedThreadId ? detail : null;
   const matchingWorkdirProject = useMemo(() => {
     const trimmed = workdir.trim();
     return state.projects.find((project) => project.path === trimmed) ?? null;
@@ -259,6 +442,7 @@ export function App() {
   const promptTarget = composerMode === "thread" && selectedThread ? "thread" : "new";
   const trimmedWorkdir = workdir.trim();
   const goalPromptCommand = parseGoalPromptCommand(prompt);
+  const parsedGoalBudget = parseBudget(goalBudgetDraft);
   const canSubmitPrompt =
     Boolean(prompt.trim()) &&
     !busy &&
@@ -269,6 +453,15 @@ export function App() {
         : Boolean(trimmedWorkdir));
   const canSubmitSteer =
     Boolean(selectedThreadId) && selectedThread?.status === "running" && Boolean(steer.trim()) && !busy;
+  const canRename =
+    Boolean(selectedThreadId) &&
+    Boolean(renameTitle.trim()) &&
+    renameTitle.trim() !== selectedThread?.title &&
+    !busy;
+  const canSaveGoal = Boolean(selectedThreadId) && Boolean(goalDraft.trim()) && parsedGoalBudget !== undefined && !busy;
+  const lastItem = selectedDetail?.items.length
+    ? selectedDetail.items[selectedDetail.items.length - 1]
+    : null;
 
   useEffect(() => {
     if (!workdirTouched && workdir.length === 0 && state.projects[0]) {
@@ -276,21 +469,38 @@ export function App() {
     }
   }, [state.projects, workdir, workdirTouched]);
 
+  useEffect(() => {
+    setRenameTitle(selectedThread?.title ?? "");
+  }, [selectedThread?.id, selectedThread?.title]);
+
+  useEffect(() => {
+    setGoalDraft(selectedDetail?.goalObjective ?? "");
+    setGoalBudgetDraft(selectedDetail?.goalTokenBudget ? String(selectedDetail.goalTokenBudget) : "");
+  }, [selectedDetail?.id, selectedDetail?.goalObjective, selectedDetail?.goalTokenBudget]);
+
+  useEffect(() => {
+    transcriptEndRef.current?.scrollIntoView({ block: "end" });
+  }, [selectedDetail?.id, selectedDetail?.items.length, lastItem?.text]);
+
   function updateWorkdir(value: string) {
     setWorkdir(value);
     setWorkdirTouched(true);
   }
 
-  async function runAction(action: () => Promise<unknown>) {
-    setBusy(true);
+  async function runAction(label: string, action: () => Promise<unknown>, successMessage?: string) {
+    setBusyAction(label);
     setError(null);
+    setNotice(null);
     try {
       const nextThreadId = await action();
-      await refresh(typeof nextThreadId === "string" ? nextThreadId : selectedThreadId);
+      await refresh(typeof nextThreadId === "string" ? nextThreadId : selectedThreadIdRef.current);
+      if (successMessage) {
+        setNotice(successMessage);
+      }
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : "Action failed");
     } finally {
-      setBusy(false);
+      setBusyAction(null);
     }
   }
 
@@ -313,28 +523,33 @@ export function App() {
       const threadId = selectedThreadId;
       setPrompt("");
       setComposerMode("thread");
-      void runAction(async () => {
-        if (goalCommand.type === "clear") {
-          await clearGoal(threadId);
-        } else {
-          await setGoal(threadId, goalCommand.objective);
-        }
-        return threadId;
-      });
+      void runAction(
+        goalCommand.type === "clear" ? "Clearing goal" : "Saving goal",
+        async () => {
+          if (goalCommand.type === "clear") {
+            await clearGoal(threadId);
+          } else {
+            await setGoal(threadId, goalCommand.objective, null);
+          }
+          return threadId;
+        },
+        goalCommand.type === "clear" ? "Goal cleared" : "Goal saved"
+      );
       return;
     }
 
     setPrompt("");
 
     if (promptTarget === "thread" && selectedThreadId) {
-      void runAction(async () => {
-        const turn = await startTurn(selectedThreadId, currentPrompt);
+      const threadId = selectedThreadId;
+      void runAction("Starting turn", async () => {
+        const turn = await startTurn(threadId, currentPrompt);
         return turn.threadId;
       });
       return;
     }
 
-    void runAction(async () => {
+    void runAction("Creating session", async () => {
       let project = matchingWorkdirProject;
       if (!project) {
         project = await createProject({ path: trimmedWorkdir });
@@ -365,9 +580,51 @@ export function App() {
     if (!selectedThreadId || !canSubmitSteer) {
       return;
     }
+    const threadId = selectedThreadId;
     const currentSteer = steer;
     setSteer("");
-    void runAction(() => steerTurn(selectedThreadId, currentSteer));
+    void runAction("Steering turn", async () => {
+      await steerTurn(threadId, currentSteer);
+      return threadId;
+    });
+  }
+
+  function submitRename(event: FormEvent) {
+    event.preventDefault();
+    if (!selectedThreadId || !canRename) {
+      return;
+    }
+    const threadId = selectedThreadId;
+    const title = renameTitle.trim();
+    void runAction(
+      "Renaming session",
+      async () => {
+        await renameThread(threadId, title);
+        return threadId;
+      },
+      "Session renamed"
+    );
+  }
+
+  function submitGoal(event: FormEvent) {
+    event.preventDefault();
+    if (!selectedThreadId || !canSaveGoal) {
+      if (parsedGoalBudget === undefined) {
+        setError("Goal budget must be a positive integer.");
+      }
+      return;
+    }
+    const threadId = selectedThreadId;
+    const objective = goalDraft.trim();
+    const budget = parsedGoalBudget;
+    void runAction(
+      "Saving goal",
+      async () => {
+        await setGoal(threadId, objective, budget);
+        return threadId;
+      },
+      "Goal saved"
+    );
   }
 
   return (
@@ -378,33 +635,22 @@ export function App() {
             <strong>codex-xyz</strong>
             <h1>Sessions</h1>
             <p>
-              {state.threads.length} total, {queuedTaskCount} queued, {state.tasks.length} tasks
+              {state.threads.length} total, {queuedTaskCount} active tasks
             </p>
           </div>
           <div className="panel-header-actions">
-            {busy ? <Loader2 className="spin" size={18} /> : <Play size={18} />}
-            <button title="Refresh" onClick={() => void refresh()}>
+            {busy ? <Loader2 className="spin" size={18} /> : <History size={18} />}
+            <button title="Refresh" aria-label="Refresh" onClick={() => void refresh()}>
               <RefreshCw size={16} />
-            </button>
-            <button
-              className={showHelp ? "active" : ""}
-              title={showHelp ? "Hide shortcuts" : "Show shortcuts"}
-              aria-label={showHelp ? "Hide shortcuts" : "Show shortcuts"}
-              aria-expanded={showHelp}
-              onClick={() => setShowHelp((current) => !current)}
-            >
-              <CircleHelp size={16} />
             </button>
           </div>
         </div>
-
-        {showHelp ? <HelpPage /> : null}
 
         <div className="composer-mode" role="group" aria-label="Prompt target">
           <button
             type="button"
             className={promptTarget === "new" ? "active" : ""}
-            title="Create new session"
+            title="New session"
             onClick={() => setComposerMode("new")}
           >
             <Plus size={15} />
@@ -413,7 +659,7 @@ export function App() {
           <button
             type="button"
             className={promptTarget === "thread" ? "active" : ""}
-            title="Send to selected session"
+            title="Selected session"
             disabled={!selectedThreadId}
             onClick={() => setComposerMode("thread")}
           >
@@ -439,15 +685,16 @@ export function App() {
               onChange={(event) => setPrompt(event.target.value)}
               onKeyDown={handlePromptKeyDown}
               placeholder={promptTarget === "thread" ? "Send next turn or /goal <objective>" : "Create a task"}
+              disabled={busy}
             />
             <button
               disabled={!canSubmitPrompt}
               title={
                 goalPromptCommand
-                  ? "Apply goal command (Cmd+Enter)"
+                  ? "Apply goal command"
                   : promptTarget === "thread"
-                    ? "Start turn (Cmd+Enter)"
-                    : "Create task (Cmd+Enter)"
+                    ? "Start turn"
+                    : "Create session"
               }
             >
               {goalPromptCommand ? <Target size={16} /> : promptTarget === "thread" ? <Send size={16} /> : <Plus size={16} />}
@@ -455,31 +702,24 @@ export function App() {
           </form>
 
           {selectedThread ? (
-            <div className="thread-composer-extras">
-              {detail?.goalObjective ? (
-                <div className="goal-summary" title="Current goal">
-                  <Target size={15} />
-                  <span className="goal-objective">{detail.goalObjective}</span>
-                  {detail.goalStatus ? <span className="goal-status">{statusLabel(detail.goalStatus)}</span> : null}
-                </div>
-              ) : null}
-              <form className="steer-form" onSubmit={submitSteer}>
-                <input
-                  value={steer}
-                  onChange={(event) => setSteer(event.target.value)}
-                  placeholder="Steer active turn"
-                  disabled={!selectedThreadId || selectedThread.status !== "running" || busy}
-                  aria-label="Steer active turn"
-                />
-                <button title="Steer active turn" disabled={!canSubmitSteer}>
-                  <Send size={16} />
-                </button>
-              </form>
-            </div>
+            <form className="steer-form" onSubmit={submitSteer}>
+              <input
+                value={steer}
+                onChange={(event) => setSteer(event.target.value)}
+                placeholder="Steer active turn"
+                disabled={!selectedThreadId || selectedThread.status !== "running" || busy}
+                aria-label="Steer active turn"
+              />
+              <button title="Steer active turn" disabled={!canSubmitSteer}>
+                <Send size={16} />
+              </button>
+            </form>
           ) : null}
         </div>
 
-        {error ? <div className="error-banner">{error}</div> : null}
+        {busyAction ? <div className="status-banner neutral">{busyAction}...</div> : null}
+        {notice ? <div className="status-banner success">{notice}</div> : null}
+        {error ? <div className="status-banner error">{error}</div> : null}
 
         <div className="session-group">
           <h2>Active</h2>
@@ -490,9 +730,7 @@ export function App() {
               thread={thread}
               selected={thread.id === selectedThreadId}
               onSelect={() => {
-                setSelectedThreadId(thread.id);
-                setComposerMode("thread");
-                void getThread(thread.id).then(setDetail);
+                void selectThread(thread.id);
               }}
             />
           ))}
@@ -500,15 +738,14 @@ export function App() {
 
         <div className="session-group">
           <h2>History</h2>
+          {otherThreads.length === 0 ? <div className="empty-state compact">No history</div> : null}
           {otherThreads.map((thread) => (
             <SessionRow
               key={thread.id}
               thread={thread}
               selected={thread.id === selectedThreadId}
               onSelect={() => {
-                setSelectedThreadId(thread.id);
-                setComposerMode("thread");
-                void getThread(thread.id).then(setDetail);
+                void selectThread(thread.id);
               }}
             />
           ))}
@@ -516,30 +753,134 @@ export function App() {
       </section>
 
       <section className="detail panel">
-        <div className="panel-header detail-header">
-          <div>
-            <h1>{selectedThread?.title ?? "Session"}</h1>
-            <p>{selectedThread ? statusLabel(selectedThread.status) : "idle"}</p>
+        <div className="detail-header">
+          <div className="title-stack">
+            {selectedThread ? (
+              <form className="title-editor" onSubmit={submitRename}>
+                <input
+                  value={renameTitle}
+                  onChange={(event) => setRenameTitle(event.target.value)}
+                  disabled={busy}
+                  aria-label="Session title"
+                />
+                <button title="Save title" disabled={!canRename}>
+                  <Check size={16} />
+                </button>
+              </form>
+            ) : (
+              <h1>Session</h1>
+            )}
+            <p>{selectedThread ? `${statusLabel(selectedThread.status)} · ${formatDateTime(selectedThread.updatedAt)}` : "idle"}</p>
           </div>
           <div className="toolbar">
             <button
               title="Interrupt"
-              disabled={!selectedThreadId || selectedThread?.status !== "running"}
-              onClick={() => selectedThreadId && void runAction(() => interruptTurn(selectedThreadId))}
+              disabled={!selectedThreadId || selectedThread?.status !== "running" || busy}
+              onClick={() =>
+                selectedThreadId &&
+                void runAction("Interrupting turn", async () => {
+                  await interruptTurn(selectedThreadId);
+                  return selectedThreadId;
+                })
+              }
             >
               <Square size={16} />
+              <span>Interrupt</span>
+            </button>
+            <button
+              title="Resume"
+              disabled={!selectedThreadId || selectedThread?.status === "running" || busy}
+              onClick={() =>
+                selectedThreadId &&
+                void runAction(
+                  "Resuming session",
+                  async () => {
+                    const thread = await resumeThread(selectedThreadId);
+                    return thread.id;
+                  },
+                  "Session resumed"
+                )
+              }
+            >
+              <RotateCw size={16} />
+              <span>Resume</span>
             </button>
             <button
               title="Fork"
-              disabled={!selectedThreadId}
-              onClick={() => selectedThreadId && void runAction(() => forkThread(selectedThreadId))}
+              disabled={!selectedThreadId || busy}
+              onClick={() =>
+                selectedThreadId &&
+                void runAction("Forking session", async () => {
+                  const thread = await forkThread(selectedThreadId);
+                  return thread.id;
+                })
+              }
             >
               <GitFork size={16} />
+              <span>Fork</span>
             </button>
           </div>
         </div>
 
-        <Transcript detail={detail} />
+        {selectedDetail ? <SessionFacts thread={selectedDetail} /> : null}
+
+        {selectedThread ? (
+          <form className="goal-panel" onSubmit={submitGoal}>
+            <div className="goal-panel-title">
+              <Target size={16} />
+              <span>Goal</span>
+              {selectedDetail?.goalStatus ? (
+                <span className={`goal-status ${selectedDetail.goalStatus}`}>{statusLabel(selectedDetail.goalStatus)}</span>
+              ) : null}
+              {selectedDetail?.goalTokenBudget ? (
+                <span className="goal-budget">
+                  {formatTokens(selectedDetail.tokensUsed)} / {formatTokens(selectedDetail.goalTokenBudget)}
+                </span>
+              ) : null}
+            </div>
+            <div className="goal-fields">
+              <input
+                value={goalDraft}
+                onChange={(event) => setGoalDraft(event.target.value)}
+                placeholder="Objective"
+                disabled={busy}
+                aria-label="Goal objective"
+              />
+              <input
+                value={goalBudgetDraft}
+                onChange={(event) => setGoalBudgetDraft(event.target.value)}
+                placeholder="Budget"
+                inputMode="numeric"
+                disabled={busy}
+                aria-label="Goal token budget"
+              />
+              <button disabled={!canSaveGoal} title="Save goal">
+                <Check size={16} />
+                <span>Save</span>
+              </button>
+              <button
+                type="button"
+                title="Clear goal"
+                disabled={!selectedThreadId || !selectedDetail?.goalObjective || busy}
+                onClick={() =>
+                  selectedThreadId &&
+                  void runAction(
+                    "Clearing goal",
+                    async () => {
+                      await clearGoal(selectedThreadId);
+                      return selectedThreadId;
+                    },
+                    "Goal cleared"
+                  )
+                }
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </form>
+        ) : null}
+
+        <Transcript detail={selectedDetail} bottomRef={transcriptEndRef} />
       </section>
     </main>
   );
