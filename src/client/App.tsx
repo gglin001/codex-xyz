@@ -261,7 +261,10 @@ const SessionGroup = memo(function SessionGroup({
 }) {
   return (
     <div className="session-group">
-      <h2>{title}</h2>
+      <h2 className="session-group-heading">
+        <span>{title}</span>
+        <span className="session-group-count">{threads.length}</span>
+      </h2>
       {threads.length === 0 ? (
         <div className="empty-state compact">{hasQuery ? emptyQueryLabel : emptyLabel}</div>
       ) : null}
