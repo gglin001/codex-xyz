@@ -558,6 +558,17 @@ export function App() {
     return true;
   }
 
+  function clearDetailForSelection(threadId: string) {
+    if (projectionRef.current.detail?.id === threadId) {
+      return;
+    }
+    projectionRef.current = {
+      state: projectionRef.current.state,
+      detail: null
+    };
+    setDetail(null);
+  }
+
   async function refresh(nextThreadId?: string | null) {
     const refreshSeq = beginRefresh();
     const requestedThreadId = nextThreadId ?? selectedThreadIdRef.current;
@@ -579,6 +590,7 @@ export function App() {
     setSelectedThreadId(preferredThreadId);
     selectedThreadIdRef.current = preferredThreadId;
     if (preferredThreadId) {
+      clearDetailForSelection(preferredThreadId);
       const loadSeq = beginDetailLoad();
       try {
         const nextDetail = await getThread(preferredThreadId);
@@ -606,6 +618,7 @@ export function App() {
     selectedThreadIdRef.current = threadId;
     setComposerMode("thread");
     setError(null);
+    clearDetailForSelection(threadId);
     const loadSeq = beginDetailLoad();
     try {
       const nextDetail = await getThread(threadId);
