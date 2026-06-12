@@ -65,6 +65,12 @@ export type AdapterEvent =
       durationMs?: number | null;
     }
   | {
+      type: "turn.started";
+      threadId: string;
+      turnId: string;
+      prompt?: string | null;
+    }
+  | {
       type: "thread.status";
       threadId: string;
       status: RuntimeStatus;
@@ -108,6 +114,12 @@ export type StartTurnAdapterInput = {
   model?: string | null;
 };
 
+export type RunShellCommandInput = {
+  threadId: string;
+  command: string;
+  activeTurnId?: string | null;
+};
+
 export type ResumeThreadInput = {
   threadId: string;
   cwd: string;
@@ -138,6 +150,7 @@ export interface CodexAdapter {
   startThread(input: StartThreadInput): Promise<AdapterThread>;
   resumeThread(input: ResumeThreadInput): Promise<AdapterThread>;
   startTurn(input: StartTurnAdapterInput): Promise<AdapterTurn>;
+  runShellCommand(input: RunShellCommandInput): Promise<AdapterTurn>;
   steerTurn(input: { threadId: string; turnId: string; prompt: string }): Promise<void>;
   interruptTurn(input: { threadId: string; turnId: string }): Promise<void>;
   forkThread(input: ForkThreadInput): Promise<AdapterThread>;

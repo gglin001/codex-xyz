@@ -8,6 +8,7 @@ import {
   type AdapterTurn,
   type CodexAdapter,
   type ForkThreadInput,
+  type RunShellCommandInput,
   type ResumeThreadInput,
   type StartThreadInput,
   type StartTurnAdapterInput
@@ -70,6 +71,32 @@ export class TestCodexAdapter implements CodexAdapter {
     thread.activeTurnId = turnId;
     this.running.set(turnId, running);
     setTimeout(() => this.emitTurnOutput(input, turnId, running), 0);
+    return { id: turnId, status: "running" };
+  }
+
+  async runShellCommand(input: RunShellCommandInput): Promise<AdapterTurn> {
+    const thread = this.requireThread(input.threadId);
+    const turnId = input.activeTurnId ?? `turn_${randomUUID()}`;
+    const startedAt = Date.now();
+    const running: RunningTurn = {
+      threadId: input.threadId,
+      turnId,
+      startedAt,
+      completed: false
+    };
+
+    if (!input.activeTurnId) {
+      thread.activeTurnId = turnId;
+      this.running.set(turnId, running);
+      this.emit({
+        type: "turn.started",
+        threadId: input.threadId,
+        turnId,
+        prompt: `!${input.command}`
+      });
+    }
+
+    setTimeout(() => this.emitShellCommandOutput(input, turnId, running), 0);
     return { id: turnId, status: "running" };
   }
 
@@ -195,6 +222,54 @@ export class TestCodexAdapter implements CodexAdapter {
     this.completeTurn(running, "completed");
   }
 
+  private emitShellCommandOutput(input: RunShellCommandInput, turnId: string, running: RunningTurn) {
+    if (this.closed || running.completed) {
+      return;
+    }
+
+    const thread = this.requireThread(input.threadId);
+    const output = this.shellOutput(input.command, thread);
+    const itemId = `item_command_${randomUUID()}`;
+    this.emit({
+      type: "item.created",
+      threadId: input.threadId,
+      turnId,
+      itemId,
+      itemType: "command",
+      text: `$ ${input.command}\n`,
+      data: {
+        command: input.command,
+        source: "test-shell",
+        status: "running"
+      }
+    });
+    this.emit({
+      type: "item.delta",
+      threadId: input.threadId,
+      turnId,
+      itemId,
+      delta: output
+    });
+    this.emit({
+      type: "item.created",
+      threadId: input.threadId,
+      turnId,
+      itemId,
+      itemType: "command",
+      text: `$ ${input.command}\n${output}[completed, exit 0]`,
+      data: {
+        command: input.command,
+        source: "test-shell",
+        status: "completed",
+        exitCode: 0
+      }
+    });
+
+    if (!input.activeTurnId) {
+      this.completeTurn(running, "completed");
+    }
+  }
+
   private completeTurn(running: RunningTurn, status: "completed" | "interrupted" | "failed") {
     if (running.completed) {
       return;
@@ -230,6 +305,13 @@ export class TestCodexAdapter implements CodexAdapter {
       "The control plane accepted the task and produced deterministic transcript output. ",
       `Prompt preview: ${trimmed.slice(0, 96)}`
     ].join("");
+  }
+
+  private shellOutput(command: string, thread: TestThread) {
+    if (command.trim() === "pwd") {
+      return `${thread.cwd}\n`;
+    }
+    return `Shell command executed: ${command}\n`;
   }
 
   private requireThread(id: string) {

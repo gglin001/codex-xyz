@@ -10,6 +10,7 @@ import {
   type AdapterTurn,
   type CodexAdapter,
   type ForkThreadInput,
+  type RunShellCommandInput,
   type ResumeThreadInput,
   type StartThreadInput,
   type StartTurnAdapterInput
@@ -78,6 +79,13 @@ class VolatileCodexAdapter implements CodexAdapter {
     }, 0);
     this.timers.add(timer);
     return turn;
+  }
+
+  async runShellCommand(input: RunShellCommandInput): Promise<AdapterTurn> {
+    return this.startTurn({
+      threadId: input.threadId,
+      prompt: `!${input.command}`
+    });
   }
 
   async steerTurn(input: { threadId: string }) {
@@ -178,6 +186,54 @@ describe("ControlService", () => {
     expect(detail.turns[0].status).toBe("completed");
     expect(detail.items.some((item) => item.type === "agent" && item.text.includes("Test run started"))).toBe(true);
     expect(service.listTasks()[0].status).toBe("completed");
+  });
+
+  it("runs bang-prefixed prompts as shell commands instead of model turns", async () => {
+    const project = service.listProjects()[0];
+    const result = await service.createTask({
+      projectId: project.id,
+      prompt: "!pwd"
+    });
+    await waitForEvents();
+
+    const threadId = result.thread?.id;
+    if (!threadId) {
+      throw new Error("Expected created thread id");
+    }
+
+    const detail = service.getThreadDetail(threadId);
+    expect(detail.turns).toHaveLength(1);
+    expect(detail.turns[0].prompt).toBe("!pwd");
+    expect(detail.turns[0].status).toBe("completed");
+    expect(detail.items.some((item) => item.type === "command" && item.text.includes(`$ pwd\n${tempDir}`))).toBe(true);
+    expect(detail.items.some((item) => item.type === "agent" && item.text.includes("Prompt preview: !pwd"))).toBe(false);
+    expect(service.listTasks()[0].status).toBe("completed");
+  });
+
+  it("runs bang-prefixed prompts on the active turn when one is running", async () => {
+    const project = service.listProjects()[0];
+    const result = await service.createTask({
+      projectId: project.id,
+      prompt: "Keep this turn open for steering approval"
+    });
+    await waitForEvents();
+
+    const threadId = result.thread?.id;
+    const turnId = result.turn.id;
+    if (!threadId) {
+      throw new Error("Expected created thread id");
+    }
+
+    const shellTurn = await service.startTurn({
+      threadId,
+      prompt: "   !pwd"
+    });
+    await waitForEvents();
+
+    const detail = service.getThreadDetail(threadId);
+    expect(shellTurn.id).toBe(turnId);
+    expect(detail.status).toBe("running");
+    expect(detail.items.some((item) => item.type === "command" && item.turnId === turnId && item.text.includes(tempDir))).toBe(true);
   });
 
   it("supports goal, fork, and steer controls", async () => {

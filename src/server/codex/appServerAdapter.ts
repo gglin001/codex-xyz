@@ -12,6 +12,7 @@ import {
   type AdapterTurn,
   type CodexAdapter,
   type ForkThreadInput,
+  type RunShellCommandInput,
   type ResumeThreadInput,
   type StartThreadInput,
   type StartTurnAdapterInput
@@ -30,6 +31,13 @@ type PendingRequest = {
   reject: (error: Error) => void;
   method: string;
   params: unknown;
+  timeout: NodeJS.Timeout;
+};
+
+type PendingShellStart = {
+  command: string;
+  resolve: (turn: AdapterTurn) => void;
+  reject: (error: Error) => void;
   timeout: NodeJS.Timeout;
 };
 
@@ -152,11 +160,10 @@ function normalizeThreadItem(value: unknown) {
     };
   }
   if (itemType === "commandExecution") {
-    const output = typeof item.aggregatedOutput === "string" && item.aggregatedOutput ? `\n\n${item.aggregatedOutput}` : "";
     return {
       itemId: id,
       itemType: "command" as const,
-      text: `${String(item.command ?? "")}${output}`.trim(),
+      text: formatCommandExecution(item),
       data: {
         sourceType: itemType,
         command: item.command ?? null,
@@ -282,6 +289,19 @@ function requestError(error: unknown, params: unknown) {
   return new Error(message);
 }
 
+function formatCommandExecution(item: Record<string, unknown>) {
+  const command = String(item.command ?? "");
+  const status = String(item.status ?? "inProgress");
+  const output = typeof item.aggregatedOutput === "string" ? item.aggregatedOutput : "";
+  const exitCode = typeof item.exitCode === "number" ? item.exitCode : null;
+  let text = `$ ${command}\n${output}`;
+  if (status !== "inProgress") {
+    const exit = exitCode === null ? status : `${status}, exit ${exitCode}`;
+    text = `${text.endsWith("\n") ? text : `${text}\n`}[${exit}]`;
+  }
+  return text;
+}
+
 function normalizeTokenUsage(value: unknown): AdapterTokenUsage {
   const usage = asRecord(value);
   const total = asRecord(usage.total);
@@ -330,6 +350,7 @@ export class AppServerCodexAdapter implements CodexAdapter {
   private stdout: Interface | null = null;
   private nextId = 1;
   private readonly pending = new Map<number | string, PendingRequest>();
+  private readonly pendingShellStarts = new Map<string, PendingShellStart[]>();
   private eventHandler: AdapterEventHandler = () => {};
   private initialized = false;
   private readonly debugLogger: AppServerDebugLogger | null;
@@ -381,6 +402,36 @@ export class AppServerCodexAdapter implements CodexAdapter {
       })
     );
     return normalizeTurn(result.turn);
+  }
+
+  async runShellCommand(input: RunShellCommandInput): Promise<AdapterTurn> {
+    const command = input.command.trim();
+    if (!command) {
+      throw new Error("Shell command must not be empty");
+    }
+
+    if (input.activeTurnId) {
+      await this.request("thread/shellCommand", {
+        threadId: input.threadId,
+        command
+      });
+      return {
+        id: input.activeTurnId,
+        status: "running"
+      };
+    }
+
+    const turnStarted = this.waitForShellTurn(input.threadId, command);
+    try {
+      await this.request("thread/shellCommand", {
+        threadId: input.threadId,
+        command
+      });
+      return await turnStarted;
+    } catch (error) {
+      this.rejectPendingShellStart(input.threadId, error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    }
   }
 
   async steerTurn(input: { threadId: string; turnId: string; prompt: string }) {
@@ -445,11 +496,80 @@ export class AppServerCodexAdapter implements CodexAdapter {
       pending.reject(new Error("app-server adapter closed"));
     }
     this.pending.clear();
+    for (const pending of this.pendingShellStarts.values()) {
+      for (const shellStart of pending) {
+        clearTimeout(shellStart.timeout);
+        shellStart.reject(new Error("app-server adapter closed"));
+      }
+    }
+    this.pendingShellStarts.clear();
     this.stdout?.close();
     this.process?.kill("SIGTERM");
     this.process = null;
     this.stdout = null;
     this.initialized = false;
+  }
+
+  private waitForShellTurn(threadId: string, command: string) {
+    const key = normalizeThreadId(threadId);
+    return new Promise<AdapterTurn>((resolve, reject) => {
+      let entry: PendingShellStart;
+      const timeout = setTimeout(() => {
+        this.removePendingShellStart(key, entry);
+        reject(new Error("thread/shellCommand did not start a turn"));
+      }, 10_000);
+      entry = {
+        command,
+        resolve,
+        reject,
+        timeout
+      };
+      const pending = this.pendingShellStarts.get(key) ?? [];
+      pending.push(entry);
+      this.pendingShellStarts.set(key, pending);
+    });
+  }
+
+  private removePendingShellStart(threadId: string, entry: PendingShellStart) {
+    const key = normalizeThreadId(threadId);
+    const pending = this.pendingShellStarts.get(key);
+    if (!pending) {
+      return;
+    }
+    const next = pending.filter((candidate) => candidate !== entry);
+    if (next.length === 0) {
+      this.pendingShellStarts.delete(key);
+    } else {
+      this.pendingShellStarts.set(key, next);
+    }
+  }
+
+  private rejectPendingShellStart(threadId: string, error: Error) {
+    const key = normalizeThreadId(threadId);
+    const pending = this.pendingShellStarts.get(key);
+    if (!pending) {
+      return;
+    }
+    this.pendingShellStarts.delete(key);
+    for (const shellStart of pending) {
+      clearTimeout(shellStart.timeout);
+      shellStart.reject(error);
+    }
+  }
+
+  private resolvePendingShellStart(threadId: string, turn: AdapterTurn) {
+    const key = normalizeThreadId(threadId);
+    const pending = this.pendingShellStarts.get(key);
+    const shellStart = pending?.shift();
+    if (!pending || !shellStart) {
+      return null;
+    }
+    if (pending.length === 0) {
+      this.pendingShellStarts.delete(key);
+    }
+    clearTimeout(shellStart.timeout);
+    shellStart.resolve(turn);
+    return shellStart.command;
   }
 
   private async request(method: string, params: unknown): Promise<unknown> {
@@ -507,11 +627,19 @@ export class AppServerCodexAdapter implements CodexAdapter {
           code: code ?? null,
           signal: signal ?? null
         });
+        const exitError = new Error(`app-server exited with code ${code ?? "null"} signal ${signal ?? "null"}`);
         for (const pending of this.pending.values()) {
           clearTimeout(pending.timeout);
-          pending.reject(new Error(`app-server exited with code ${code ?? "null"} signal ${signal ?? "null"}`));
+          pending.reject(exitError);
         }
         this.pending.clear();
+        for (const pending of this.pendingShellStarts.values()) {
+          for (const shellStart of pending) {
+            clearTimeout(shellStart.timeout);
+            shellStart.reject(exitError);
+          }
+        }
+        this.pendingShellStarts.clear();
         if (this.process === child) {
           this.stdout?.close();
           this.process = null;
@@ -612,6 +740,21 @@ export class AppServerCodexAdapter implements CodexAdapter {
     const params = asRecord(message.params);
     const threadId = extractThreadId(params);
     const turnId = extractTurnId(params);
+
+    if (message.method === "turn/started" && threadId) {
+      const turn = normalizeTurn(asRecord(params.turn));
+      const command = this.resolvePendingShellStart(threadId, turn);
+      if (command) {
+        this.eventHandler({
+          type: "turn.started",
+          threadId,
+          turnId: turn.id,
+          prompt: `!${command}`
+        });
+      }
+      return;
+    }
+
     if (message.method === "item/agentMessage/delta" && threadId && turnId) {
       this.eventHandler({
         type: "item.delta",

@@ -64,6 +64,18 @@ function projectNameFromPath(path: string, name?: string | null) {
   return name?.trim() || basename(path) || path;
 }
 
+function parseShellCommandPrompt(prompt: string) {
+  const trimmed = prompt.trimStart();
+  if (!trimmed.startsWith("!")) {
+    return null;
+  }
+  const command = trimmed.slice(1).trim();
+  if (!command) {
+    throw new Error("Shell command must not be empty");
+  }
+  return command;
+}
+
 export class ControlService {
   constructor(
     readonly store: Store,
@@ -177,6 +189,10 @@ export class ControlService {
 
   async startTurn(input: StartTurnInput) {
     const thread = this.requireThread(input.threadId);
+    const shellCommand = parseShellCommandPrompt(input.prompt);
+    if (shellCommand) {
+      return this.startShellCommand(thread, input.prompt, shellCommand);
+    }
     const { adapterTurn, thread: runtimeThread } = await this.startRuntimeTurn(thread, input);
     return this.recordTurn(runtimeThread, input.prompt, adapterTurn);
   }
@@ -362,6 +378,18 @@ export class ControlService {
       return;
     }
 
+    if (event.type === "turn.started") {
+      const thread = this.store.getThread(event.threadId);
+      if (!thread) {
+        return;
+      }
+      this.recordTurn(thread, event.prompt ?? "", {
+        id: event.turnId,
+        status: "running"
+      });
+      return;
+    }
+
     if (event.type === "thread.status") {
       this.store.updateThread(event.threadId, {
         status: event.status
@@ -459,6 +487,16 @@ export class ControlService {
   }
 
   private recordTurn(thread: ControlThread, prompt: string, adapterTurn: AdapterTurn) {
+    const existing = this.store.getTurn(adapterTurn.id);
+    if (existing) {
+      this.store.updateThread(thread.id, {
+        status: "running",
+        activeTurnId: existing.id,
+        preview: existing.prompt || prompt || thread.preview
+      });
+      return existing;
+    }
+
     const now = nowIso();
     const turn: Turn = {
       id: adapterTurn.id,
@@ -477,6 +515,11 @@ export class ControlService {
     });
     this.publish("turn.started", thread.id, turn.id, { turn });
     return turn;
+  }
+
+  private async startShellCommand(thread: ControlThread, prompt: string, command: string) {
+    const { adapterTurn, thread: runtimeThread } = await this.startRuntimeShellCommand(thread, command);
+    return this.recordTurn(runtimeThread, prompt, adapterTurn);
   }
 
   private async startRuntimeTurn(thread: ControlThread, input: StartTurnInput) {
@@ -520,6 +563,52 @@ export class ControlService {
         threadId: continuation.id,
         prompt: input.prompt,
         model: input.model ?? continuation.model
+      })
+    };
+  }
+
+  private async startRuntimeShellCommand(thread: ControlThread, command: string) {
+    const activeTurnId = thread.activeTurnId;
+    try {
+      return {
+        thread,
+        adapterTurn: await this.adapter.runShellCommand({
+          threadId: thread.id,
+          command,
+          activeTurnId
+        })
+      };
+    } catch (error) {
+      if (!isAdapterThreadNotFoundError(error)) {
+        throw error;
+      }
+    }
+
+    const resumed = await this.tryResumeRuntimeThread(thread);
+    if (resumed) {
+      try {
+        return {
+          thread,
+          adapterTurn: await this.adapter.runShellCommand({
+            threadId: thread.id,
+            command,
+            activeTurnId
+          })
+        };
+      } catch (error) {
+        if (!isAdapterThreadNotFoundError(error)) {
+          throw error;
+        }
+      }
+    }
+
+    const continuation = await this.createContinuationThread(thread, `!${command}`, thread.model);
+    return {
+      thread: continuation,
+      adapterTurn: await this.adapter.runShellCommand({
+        threadId: continuation.id,
+        command,
+        activeTurnId: null
       })
     };
   }

@@ -206,6 +206,95 @@ function handle(message) {
     })
     return
   }
+
+  if (message.method === "thread/shellCommand") {
+    const turnId = "turn_shell_1"
+    const itemId = "item_command_1"
+    respond(message.id, {})
+    process.stdout.write(JSON.stringify({
+      method: "turn/started",
+      params: {
+        threadId: message.params.threadId,
+        turn: {
+          id: turnId,
+          items: [],
+          itemsView: "none",
+          status: "inProgress",
+          error: null,
+          startedAt: 1,
+          completedAt: null,
+          durationMs: null
+        }
+      }
+    }) + "\\n")
+    process.stdout.write(JSON.stringify({
+      method: "item/started",
+      params: {
+        threadId: message.params.threadId,
+        turnId,
+        startedAtMs: 1,
+        item: {
+          type: "commandExecution",
+          id: itemId,
+          command: message.params.command,
+          cwd: process.cwd(),
+          processId: null,
+          source: "userShell",
+          status: "inProgress",
+          commandActions: [],
+          aggregatedOutput: null,
+          exitCode: null,
+          durationMs: null
+        }
+      }
+    }) + "\\n")
+    process.stdout.write(JSON.stringify({
+      method: "item/commandExecution/outputDelta",
+      params: {
+        threadId: message.params.threadId,
+        turnId,
+        itemId,
+        delta: "fake cwd\\n"
+      }
+    }) + "\\n")
+    process.stdout.write(JSON.stringify({
+      method: "item/completed",
+      params: {
+        threadId: message.params.threadId,
+        turnId,
+        completedAtMs: 2,
+        item: {
+          type: "commandExecution",
+          id: itemId,
+          command: message.params.command,
+          cwd: process.cwd(),
+          processId: null,
+          source: "userShell",
+          status: "completed",
+          commandActions: [],
+          aggregatedOutput: "fake cwd\\n",
+          exitCode: 0,
+          durationMs: 1
+        }
+      }
+    }) + "\\n")
+    process.stdout.write(JSON.stringify({
+      method: "turn/completed",
+      params: {
+        threadId: message.params.threadId,
+        turn: {
+          id: turnId,
+          items: [],
+          itemsView: "none",
+          status: "completed",
+          error: null,
+          startedAt: 1,
+          completedAt: 2,
+          durationMs: 1
+        }
+      }
+    }) + "\\n")
+  }
 }
 
 process.stdin.setEncoding("utf8")
@@ -386,6 +475,53 @@ describe("AppServerCodexAdapter", () => {
           type: "turn.status",
           status: "completed",
           durationMs: 50
+        })
+      ])
+    )
+  })
+
+  it("runs thread shell commands through app-server and projects command output", async () => {
+    const command = createFakeCodexCommand()
+    const events: AdapterEvent[] = []
+    adapter = new AppServerCodexAdapter(command)
+    adapter.onEvent((event) => events.push(event))
+
+    const turn = await adapter.runShellCommand({
+      threadId: sourceThreadId,
+      command: "pwd"
+    })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    expect(turn).toMatchObject({
+      id: "turn_shell_1",
+      status: "running"
+    })
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "turn.started",
+          threadId: sourceThreadId,
+          turnId: "turn_shell_1",
+          prompt: "!pwd"
+        }),
+        expect.objectContaining({
+          type: "item.created",
+          threadId: sourceThreadId,
+          turnId: "turn_shell_1",
+          itemId: "item_command_1",
+          itemType: "command",
+          text: "$ pwd\n"
+        }),
+        expect.objectContaining({
+          type: "item.delta",
+          itemId: "item_command_1",
+          delta: "fake cwd\n"
+        }),
+        expect.objectContaining({
+          type: "turn.status",
+          threadId: sourceThreadId,
+          turnId: "turn_shell_1",
+          status: "completed"
         })
       ])
     )
