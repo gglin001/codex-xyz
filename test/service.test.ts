@@ -149,6 +149,137 @@ class VolatileCodexAdapter implements CodexAdapter {
   }
 }
 
+class EagerEventCodexAdapter implements CodexAdapter {
+  readonly name = "eager";
+  readonly version = "test";
+  private handler: AdapterEventHandler = () => {};
+  private readonly threads = new Map<string, AdapterThread>();
+  private nextThread = 1;
+  private nextTurn = 1;
+
+  onEvent(handler: AdapterEventHandler) {
+    this.handler = handler;
+  }
+
+  async startThread(input: StartThreadInput): Promise<AdapterThread> {
+    const id = `eager_thread_${this.nextThread++}`;
+    const thread: AdapterThread = {
+      id,
+      sessionId: id,
+      forkedFromId: null,
+      preview: input.promptPreview,
+      cwd: input.cwd,
+      model: input.model ?? "eager-model"
+    };
+    this.threads.set(id, thread);
+    return thread;
+  }
+
+  async resumeThread(input: ResumeThreadInput): Promise<AdapterThread> {
+    return this.requireThread(input.threadId);
+  }
+
+  async startTurn(input: StartTurnAdapterInput): Promise<AdapterTurn> {
+    this.requireThread(input.threadId);
+    const turn: AdapterTurn = {
+      id: `eager_turn_${this.nextTurn++}`,
+      status: "running"
+    };
+    const answerId = `eager_item_${turn.id}`;
+    this.handler({
+      type: "item.created",
+      threadId: input.threadId,
+      turnId: turn.id,
+      itemId: answerId,
+      itemType: "agent",
+      text: "",
+      data: { adapter: "eager" }
+    });
+    this.handler({
+      type: "item.delta",
+      threadId: input.threadId,
+      turnId: turn.id,
+      itemId: answerId,
+      delta: `Answered before return: ${input.prompt}`
+    });
+    this.handler({
+      type: "turn.status",
+      threadId: input.threadId,
+      turnId: turn.id,
+      status: "completed",
+      durationMs: 1
+    });
+    return turn;
+  }
+
+  async runShellCommand(input: RunShellCommandInput): Promise<AdapterTurn> {
+    return this.startTurn({
+      threadId: input.threadId,
+      prompt: `!${input.command}`,
+      model: null
+    });
+  }
+
+  async steerTurn(input: { threadId: string }) {
+    this.requireThread(input.threadId);
+  }
+
+  async interruptTurn(input: { threadId: string }) {
+    this.requireThread(input.threadId);
+  }
+
+  async forkThread(input: ForkThreadInput): Promise<AdapterThread> {
+    const source = this.requireThread(input.sourceThreadId);
+    const id = `eager_thread_${this.nextThread++}`;
+    const thread: AdapterThread = {
+      id,
+      sessionId: source.sessionId,
+      forkedFromId: source.id,
+      preview: `Fork of ${source.preview}`,
+      cwd: input.cwd,
+      model: input.model ?? source.model
+    };
+    this.threads.set(id, thread);
+    return thread;
+  }
+
+  async renameThread(input: { threadId: string; title: string }) {
+    const thread = this.requireThread(input.threadId);
+    thread.preview = input.title;
+  }
+
+  async setGoal(input: { threadId: string; objective: string; tokenBudget?: number | null }): Promise<AdapterGoal> {
+    this.requireThread(input.threadId);
+    return {
+      objective: input.objective,
+      status: "in_progress",
+      tokenBudget: input.tokenBudget ?? null,
+      tokensUsed: 0
+    };
+  }
+
+  async getGoal(threadId: string) {
+    this.requireThread(threadId);
+    return null;
+  }
+
+  async clearGoal(threadId: string) {
+    this.requireThread(threadId);
+  }
+
+  async close() {
+    this.threads.clear();
+  }
+
+  private requireThread(threadId: string) {
+    const thread = this.threads.get(threadId);
+    if (!thread) {
+      throw new AdapterThreadNotFoundError(threadId, `thread not found: ${threadId}`);
+    }
+    return thread;
+  }
+}
+
 beforeEach(() => {
   tempDir = mkdtempSync(join(tmpdir(), "codex-xyz-service-"));
   service = new ControlService(Store.open(join(tempDir, "test.sqlite")), new TestCodexAdapter());
@@ -185,6 +316,36 @@ describe("ControlService", () => {
     expect(detail.turns).toHaveLength(1);
     expect(detail.turns[0].status).toBe("completed");
     expect(detail.items.some((item) => item.type === "agent" && item.text.includes("Test run started"))).toBe(true);
+    expect(service.listTasks()[0].status).toBe("completed");
+  });
+
+  it("records items that arrive before the adapter startTurn call returns", async () => {
+    await service.close();
+    const adapter = new EagerEventCodexAdapter();
+    service = new ControlService(Store.open(join(tempDir, "eager.sqlite")), adapter);
+    service.seedLocalState({
+      cwd: tempDir,
+      adapterName: adapter.name,
+      cliVersion: adapter.version
+    });
+
+    const project = service.listProjects()[0];
+    const result = await service.createTask({
+      projectId: project.id,
+      prompt: "Prompt with eager adapter events"
+    });
+    const threadId = result.thread?.id;
+    if (!threadId) {
+      throw new Error("Expected created thread id");
+    }
+
+    const detail = service.getThreadDetail(threadId);
+    expect(result.turn.status).toBe("completed");
+    expect(detail.status).toBe("idle");
+    expect(detail.turns).toHaveLength(1);
+    expect(detail.turns[0].prompt).toBe("Prompt with eager adapter events");
+    expect(detail.turns[0].status).toBe("completed");
+    expect(detail.items.some((item) => item.text.includes("Answered before return"))).toBe(true);
     expect(service.listTasks()[0].status).toBe("completed");
   });
 

@@ -46,6 +46,10 @@ function goalStatusFromAdapter(goal: AdapterGoal | null): GoalStatus | null {
   return goal ? goal.status : null;
 }
 
+function threadStatusFromTurnStatus(status: RuntimeStatus): RuntimeStatus {
+  return status === "completed" ? "idle" : status;
+}
+
 function normalizeWorkingDirectory(path: string) {
   const resolved = resolve(path.trim());
   let stat;
@@ -327,6 +331,9 @@ export class ControlService {
 
   private handleAdapterEvent(event: AdapterEvent) {
     if (event.type === "item.created" || event.type === "item.updated") {
+      if (!this.ensureTurnForEvent(event.threadId, event.turnId)) {
+        return;
+      }
       const item: ThreadItem = {
         id: event.itemId,
         threadId: event.threadId,
@@ -344,6 +351,9 @@ export class ControlService {
     if (event.type === "item.delta") {
       let item = this.store.appendItemText(event.itemId, event.delta);
       if (!item) {
+        if (!this.ensureTurnForEvent(event.threadId, event.turnId)) {
+          return;
+        }
         item = this.store.createItem({
           id: event.itemId,
           threadId: event.threadId,
@@ -363,6 +373,9 @@ export class ControlService {
     }
 
     if (event.type === "turn.status") {
+      if (!this.ensureTurnForEvent(event.threadId, event.turnId)) {
+        return;
+      }
       const completedAt = event.status === "running" ? null : nowIso();
       this.store.updateTurn(event.turnId, {
         status: event.status,
@@ -370,7 +383,7 @@ export class ControlService {
         durationMs: event.durationMs ?? null
       });
       this.store.updateThread(event.threadId, {
-        status: event.status === "completed" ? "idle" : event.status,
+        status: threadStatusFromTurnStatus(event.status),
         activeTurnId: event.status === "running" ? event.turnId : null
       });
       this.store.updateTasksForThread(event.threadId, taskStatusFromRuntime(event.status));
@@ -452,6 +465,38 @@ export class ControlService {
     return event;
   }
 
+  private ensureTurnForEvent(threadId: string, turnId: string | null, prompt = "") {
+    const thread = this.store.getThread(threadId);
+    if (!thread) {
+      return false;
+    }
+    if (!turnId) {
+      return true;
+    }
+    const existing = this.store.getTurn(turnId);
+    if (existing) {
+      return true;
+    }
+    const now = nowIso();
+    const turn: Turn = {
+      id: turnId,
+      threadId,
+      status: "running",
+      prompt,
+      startedAt: now,
+      completedAt: null,
+      durationMs: null
+    };
+    this.store.createTurn(turn);
+    this.store.updateThread(threadId, {
+      status: "running",
+      activeTurnId: turnId,
+      preview: prompt || thread.preview
+    });
+    this.publish("turn.started", threadId, turnId, { turn });
+    return true;
+  }
+
   private createThreadProjection(input: {
     adapterThread: AdapterThread;
     projectId: string;
@@ -489,12 +534,13 @@ export class ControlService {
   private recordTurn(thread: ControlThread, prompt: string, adapterTurn: AdapterTurn) {
     const existing = this.store.getTurn(adapterTurn.id);
     if (existing) {
+      const current = !existing.prompt && prompt ? this.store.updateTurn(existing.id, { prompt }) ?? existing : existing;
       this.store.updateThread(thread.id, {
-        status: "running",
-        activeTurnId: existing.id,
-        preview: existing.prompt || prompt || thread.preview
+        status: threadStatusFromTurnStatus(current.status),
+        activeTurnId: current.status === "running" ? current.id : null,
+        preview: current.prompt || prompt || thread.preview
       });
-      return existing;
+      return current;
     }
 
     const now = nowIso();

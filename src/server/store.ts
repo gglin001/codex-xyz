@@ -460,15 +460,15 @@ export class Store {
     return this.getTurn(turn.id);
   }
 
-  updateTurn(id: string, updates: Partial<Pick<Turn, "status" | "completedAt" | "durationMs">>) {
+  updateTurn(id: string, updates: Partial<Pick<Turn, "status" | "prompt" | "completedAt" | "durationMs">>) {
     const existing = this.getTurn(id);
     if (!existing) {
       throw new Error(`Turn ${id} does not exist`);
     }
     const next = { ...existing, ...updates };
     this.db
-      .prepare("UPDATE turns SET status = ?, completed_at = ?, duration_ms = ? WHERE id = ?")
-      .run(next.status, next.completedAt, next.durationMs, id);
+      .prepare("UPDATE turns SET status = ?, prompt = ?, completed_at = ?, duration_ms = ? WHERE id = ?")
+      .run(next.status, next.prompt, next.completedAt, next.durationMs, id);
     return this.getTurn(id);
   }
 
