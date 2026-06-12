@@ -44,8 +44,18 @@ function byUpdatedDesc(a: ControlThread, b: ControlThread) {
   return b.updatedAt.localeCompare(a.updatedAt);
 }
 
-function orderThreads(threads: ControlThread[]) {
-  return [...threads].sort(byUpdatedDesc);
+function orderThreadGroup(threads: ControlThread[]) {
+  return threads.sort(byUpdatedDesc);
+}
+
+function countActiveTasks(tasks: Task[]) {
+  let count = 0;
+  for (const task of tasks) {
+    if (task.status === "queued" || task.status === "running") {
+      count += 1;
+    }
+  }
+  return count;
 }
 
 export function getSessionListModel(
@@ -54,21 +64,32 @@ export function getSessionListModel(
   query: string
 ): SessionListModel {
   const normalizedQuery = normalizeQuery(query);
-  const visibleThreads = normalizedQuery
-    ? threads.filter((thread) => matchesThreadQuery(thread, normalizedQuery))
-    : threads;
+  const activeThreads: ControlThread[] = [];
+  const attentionThreads: ControlThread[] = [];
+  const otherThreads: ControlThread[] = [];
+  let visibleThreadCount = 0;
+
+  for (const thread of threads) {
+    if (!matchesThreadQuery(thread, normalizedQuery)) {
+      continue;
+    }
+    visibleThreadCount += 1;
+    if (thread.status === "running") {
+      activeThreads.push(thread);
+    } else if (needsAttention(thread)) {
+      attentionThreads.push(thread);
+    } else {
+      otherThreads.push(thread);
+    }
+  }
 
   return {
-    activeThreads: orderThreads(visibleThreads.filter((thread) => thread.status === "running")),
-    attentionThreads: orderThreads(
-      visibleThreads.filter((thread) => thread.status !== "running" && needsAttention(thread))
-    ),
-    otherThreads: orderThreads(
-      visibleThreads.filter((thread) => thread.status !== "running" && !needsAttention(thread))
-    ),
-    queuedTaskCount: tasks.filter((task) => task.status === "queued" || task.status === "running").length,
+    activeThreads: orderThreadGroup(activeThreads),
+    attentionThreads: orderThreadGroup(attentionThreads),
+    otherThreads: orderThreadGroup(otherThreads),
+    queuedTaskCount: countActiveTasks(tasks),
     totalThreadCount: threads.length,
-    visibleThreadCount: visibleThreads.length,
+    visibleThreadCount,
     hasQuery: normalizedQuery.length > 0
   };
 }
