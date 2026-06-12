@@ -44,6 +44,7 @@ import {
   getTranscriptWindow,
   type TranscriptWindowMode
 } from "./transcriptWindow.js";
+import { choosePreferredThreadId } from "./threadSelection.js";
 import type {
   ControlThread,
   DashboardState,
@@ -496,6 +497,7 @@ export function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeMode>(readStoredTheme);
   const selectedThreadIdRef = useRef<string | null>(null);
+  const detailLoadSeqRef = useRef(0);
   const lastEventIdRef = useRef(0);
   const pendingEventsRef = useRef<XyzEvent[]>([]);
   const projectionFrameRef = useRef<number | null>(null);
@@ -507,27 +509,55 @@ export function App() {
   const busy = busyAction !== null;
   const nextTheme = theme === "dark" ? "light" : "dark";
 
-  async function refresh(nextThreadId = selectedThreadIdRef.current) {
+  function beginDetailLoad() {
+    detailLoadSeqRef.current += 1;
+    return detailLoadSeqRef.current;
+  }
+
+  function detailLoadIsCurrent(threadId: string, loadSeq: number) {
+    return detailLoadSeqRef.current === loadSeq && selectedThreadIdRef.current === threadId;
+  }
+
+  function commitDetailLoad(threadId: string, nextDetail: ThreadDetail, loadSeq: number) {
+    if (!detailLoadIsCurrent(threadId, loadSeq)) {
+      return false;
+    }
+    projectionRef.current = {
+      state: projectionRef.current.state,
+      detail: nextDetail
+    };
+    setDetail(nextDetail);
+    return true;
+  }
+
+  async function refresh(nextThreadId?: string | null) {
+    const requestedThreadId = nextThreadId ?? selectedThreadIdRef.current;
+    const shouldPreferRequestedThread = typeof nextThreadId === "string";
     const next = await getState();
     setState(next);
     projectionRef.current = {
       ...projectionRef.current,
       state: next
     };
-    const preferredThreadId =
-      nextThreadId && next.threads.some((thread) => thread.id === nextThreadId)
-        ? nextThreadId
-        : next.threads[0]?.id ?? null;
+    const preferredThreadId = choosePreferredThreadId(next.threads, {
+      currentThreadId: selectedThreadIdRef.current,
+      requestedThreadId,
+      preferRequestedThread: shouldPreferRequestedThread
+    });
     setSelectedThreadId(preferredThreadId);
     selectedThreadIdRef.current = preferredThreadId;
     if (preferredThreadId) {
-      const nextDetail = await getThread(preferredThreadId);
-      projectionRef.current = {
-        state: next,
-        detail: nextDetail
-      };
-      setDetail(nextDetail);
+      const loadSeq = beginDetailLoad();
+      try {
+        const nextDetail = await getThread(preferredThreadId);
+        commitDetailLoad(preferredThreadId, nextDetail, loadSeq);
+      } catch (detailError) {
+        if (detailLoadIsCurrent(preferredThreadId, loadSeq)) {
+          throw detailError;
+        }
+      }
     } else {
+      beginDetailLoad();
       projectionRef.current = {
         state: next,
         detail: null
@@ -541,15 +571,14 @@ export function App() {
     selectedThreadIdRef.current = threadId;
     setComposerMode("thread");
     setError(null);
+    const loadSeq = beginDetailLoad();
     try {
       const nextDetail = await getThread(threadId);
-      projectionRef.current = {
-        state: projectionRef.current.state,
-        detail: nextDetail
-      };
-      setDetail(nextDetail);
+      commitDetailLoad(threadId, nextDetail, loadSeq);
     } catch (selectError) {
-      setError(selectError instanceof Error ? selectError.message : "Failed to load session");
+      if (detailLoadIsCurrent(threadId, loadSeq)) {
+        setError(selectError instanceof Error ? selectError.message : "Failed to load session");
+      }
     }
   }, []);
 
@@ -580,7 +609,7 @@ export function App() {
       }
       fallbackRefreshTimer = setTimeout(() => {
         fallbackRefreshTimer = null;
-        void refresh(selectedThreadIdRef.current);
+        void refresh();
       }, 250);
     };
 
@@ -720,7 +749,11 @@ export function App() {
     setNotice(null);
     try {
       const nextThreadId = await action();
-      await refresh(typeof nextThreadId === "string" ? nextThreadId : selectedThreadIdRef.current);
+      if (typeof nextThreadId === "string") {
+        await refresh(nextThreadId);
+      } else {
+        await refresh();
+      }
       if (successMessage) {
         setNotice(successMessage);
       }
