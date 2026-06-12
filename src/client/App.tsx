@@ -14,6 +14,7 @@ import {
   Plus,
   RefreshCw,
   RotateCw,
+  Search,
   Send,
   Square,
   Sun,
@@ -37,6 +38,7 @@ import {
   steerTurn
 } from "./api.js";
 import { applyEventProjectionBatch, incrementalEventNames, type ClientProjection } from "./eventProjection.js";
+import { getSessionListModel } from "./sessionList.js";
 import {
   defaultTranscriptWindowThreshold,
   getTranscriptWindow,
@@ -449,6 +451,7 @@ export function App() {
   const [steer, setSteer] = useState("");
   const [workdir, setWorkdir] = useState("");
   const [workdirTouched, setWorkdirTouched] = useState(false);
+  const [sessionQuery, setSessionQuery] = useState("");
   const [composerMode, setComposerMode] = useState<"thread" | "new">("thread");
   const [renameTitle, setRenameTitle] = useState("");
   const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -625,18 +628,14 @@ export function App() {
     return state.projects.find((project) => project.path === trimmed) ?? null;
   }, [state.projects, workdir]);
 
-  const activeThreads = useMemo(
-    () => state.threads.filter((thread) => thread.status === "running"),
-    [state.threads]
+  const sessionList = useMemo(
+    () => getSessionListModel(state.threads, state.tasks, sessionQuery),
+    [sessionQuery, state.tasks, state.threads]
   );
-  const otherThreads = useMemo(
-    () => state.threads.filter((thread) => thread.status !== "running"),
-    [state.threads]
-  );
-  const queuedTaskCount = useMemo(
-    () => state.tasks.filter((task) => task.status === "queued" || task.status === "running").length,
-    [state.tasks]
-  );
+  const sessionCountLabel =
+    sessionList.visibleThreadCount === sessionList.totalThreadCount
+      ? `${sessionList.totalThreadCount} total`
+      : `${sessionList.visibleThreadCount} / ${sessionList.totalThreadCount} shown`;
   const promptTarget = composerMode === "thread" && selectedThread ? "thread" : "new";
   const trimmedWorkdir = workdir.trim();
   const goalPrompt = isGoalPrompt(prompt);
@@ -784,7 +783,7 @@ export function App() {
             <strong>codex-xyz</strong>
             <h1>Sessions</h1>
             <p>
-              {state.threads.length} total, {queuedTaskCount} active tasks
+              {sessionCountLabel}, {sessionList.queuedTaskCount} active tasks
             </p>
           </div>
           <div className="panel-header-actions">
@@ -874,11 +873,25 @@ export function App() {
         {notice ? <div className="status-banner success">{notice}</div> : null}
         {error ? <div className="status-banner error">{error}</div> : null}
 
+        <label className="session-search">
+          <Search size={14} />
+          <input
+            value={sessionQuery}
+            onChange={(event) => setSessionQuery(event.target.value)}
+            placeholder="Search sessions"
+            aria-label="Search sessions"
+          />
+        </label>
+
         <div className="session-list" aria-label="Session list">
           <div className="session-group">
             <h2>Active</h2>
-            {activeThreads.length === 0 ? <div className="empty-state compact">No active sessions</div> : null}
-            {activeThreads.map((thread) => (
+            {sessionList.activeThreads.length === 0 ? (
+              <div className="empty-state compact">
+                {sessionList.hasQuery ? "No matching active sessions" : "No active sessions"}
+              </div>
+            ) : null}
+            {sessionList.activeThreads.map((thread) => (
               <SessionRow
                 key={thread.id}
                 thread={thread}
@@ -890,8 +903,12 @@ export function App() {
 
           <div className="session-group">
             <h2>History</h2>
-            {otherThreads.length === 0 ? <div className="empty-state compact">No history</div> : null}
-            {otherThreads.map((thread) => (
+            {sessionList.otherThreads.length === 0 ? (
+              <div className="empty-state compact">
+                {sessionList.hasQuery ? "No matching history" : "No history"}
+              </div>
+            ) : null}
+            {sessionList.otherThreads.map((thread) => (
               <SessionRow
                 key={thread.id}
                 thread={thread}

@@ -343,7 +343,8 @@ button.active {
 
 .steer-form input,
 .task-form textarea,
-.title-editor input {
+.title-editor input,
+.session-search {
   min-width: 0;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -355,7 +356,8 @@ button.active {
 .steer-form input::placeholder,
 .task-form textarea::placeholder,
 .title-editor input::placeholder,
-.workdir-field input::placeholder {
+.workdir-field input::placeholder,
+.session-search input::placeholder {
   color: var(--muted);
 }
 
@@ -373,6 +375,35 @@ button.active {
 .steer-form input:focus,
 .task-form textarea:focus,
 .title-editor input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.session-search {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 10px;
+}
+
+.session-search svg {
+  color: var(--muted);
+}
+
+.session-search input {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  outline: none;
+}
+
+.session-search:focus-within {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--focus-ring);
 }
