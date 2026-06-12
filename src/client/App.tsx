@@ -171,7 +171,7 @@ type GoalPromptCommand =
 type ThemeMode = "dark" | "light";
 
 const themeStorageKey = "codex-xyz-theme";
-const collapsedPreviewLineCount = 5;
+const collapsedPreviewLineCount = 2;
 
 function readStoredTheme(): ThemeMode {
   if (typeof window === "undefined") {
