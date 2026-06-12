@@ -8,11 +8,13 @@ import {
   Info,
   ListChecks,
   Loader2,
+  Moon,
   Plus,
   RefreshCw,
   RotateCw,
   Send,
   Square,
+  Sun,
   Target,
   Terminal,
   UserRound,
@@ -154,6 +156,21 @@ type GoalPromptCommand =
   | { type: "set"; objective: string }
   | { type: "clear" }
   | { type: "usage" };
+
+type ThemeMode = "dark" | "light";
+
+const themeStorageKey = "codex-xyz-theme";
+
+function readStoredTheme(): ThemeMode {
+  if (typeof window === "undefined") {
+    return "dark";
+  }
+  try {
+    return window.localStorage.getItem(themeStorageKey) === "light" ? "light" : "dark";
+  } catch {
+    return "dark";
+  }
+}
 
 function parseGoalPromptCommand(value: string): GoalPromptCommand | null {
   const match = value.trim().match(/^\/goal(?:\s+([\s\S]*))?$/i);
@@ -338,10 +355,12 @@ export function App() {
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [theme, setTheme] = useState<ThemeMode>(readStoredTheme);
   const selectedThreadIdRef = useRef<string | null>(null);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
 
   const busy = busyAction !== null;
+  const nextTheme = theme === "dark" ? "light" : "dark";
 
   async function refresh(nextThreadId = selectedThreadIdRef.current) {
     const next = await getState();
@@ -376,6 +395,15 @@ export function App() {
       setError(loadError instanceof Error ? loadError.message : "Failed to load state");
     });
   }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try {
+      window.localStorage.setItem(themeStorageKey, theme);
+    } catch {
+      // Keep the in-memory theme even if the browser blocks persistence.
+    }
+  }, [theme]);
 
   useEffect(() => {
     let source: EventSource | null = null;
@@ -628,7 +656,7 @@ export function App() {
   }
 
   return (
-    <main className="workspace">
+    <main className="workspace" data-theme={theme}>
       <section className="sessions panel">
         <div className="panel-header sessions-header">
           <div className="sessions-title">
@@ -640,6 +668,16 @@ export function App() {
           </div>
           <div className="panel-header-actions">
             {busy ? <Loader2 className="spin" size={18} /> : <History size={18} />}
+            <button
+              type="button"
+              className="theme-toggle"
+              title={`Switch to ${nextTheme} mode`}
+              aria-label={`Switch to ${nextTheme} mode`}
+              aria-pressed={theme === "light"}
+              onClick={() => setTheme(nextTheme)}
+            >
+              {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
             <button title="Refresh" aria-label="Refresh" onClick={() => void refresh()}>
               <RefreshCw size={16} />
             </button>
