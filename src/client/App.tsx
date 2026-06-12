@@ -38,7 +38,7 @@ import {
   steerTurn
 } from "./api.js";
 import { applyEventProjectionBatch, incrementalEventNames, type ClientProjection } from "./eventProjection.js";
-import { getSessionListModel } from "./sessionList.js";
+import { getSessionListModel, selectionTouchesThreadGroup } from "./sessionList.js";
 import {
   defaultTranscriptWindowThreshold,
   getTranscriptWindow,
@@ -187,6 +187,15 @@ const themeStorageKey = "codex-xyz-theme";
 const collapsedPreviewLineCount = 2;
 
 type SelectThreadHandler = (threadId: string) => void | Promise<void>;
+type SessionGroupProps = {
+  title: string;
+  threads: ControlThread[];
+  selectedThreadId: string | null;
+  hasQuery: boolean;
+  emptyLabel: string;
+  emptyQueryLabel: string;
+  onSelectThread: SelectThreadHandler;
+};
 
 function readStoredTheme(): ThemeMode {
   if (typeof window === "undefined") {
@@ -257,15 +266,7 @@ const SessionGroup = memo(function SessionGroup({
   emptyLabel,
   emptyQueryLabel,
   onSelectThread
-}: {
-  title: string;
-  threads: ControlThread[];
-  selectedThreadId: string | null;
-  hasQuery: boolean;
-  emptyLabel: string;
-  emptyQueryLabel: string;
-  onSelectThread: SelectThreadHandler;
-}) {
+}: SessionGroupProps) {
   return (
     <div className="session-group">
       <h2 className="session-group-heading">
@@ -285,7 +286,15 @@ const SessionGroup = memo(function SessionGroup({
       ))}
     </div>
   );
-});
+}, (previous: SessionGroupProps, next: SessionGroupProps) =>
+  previous.title === next.title &&
+  previous.threads === next.threads &&
+  previous.hasQuery === next.hasQuery &&
+  previous.emptyLabel === next.emptyLabel &&
+  previous.emptyQueryLabel === next.emptyQueryLabel &&
+  previous.onSelectThread === next.onSelectThread &&
+  !selectionTouchesThreadGroup(next.threads, previous.selectedThreadId, next.selectedThreadId)
+);
 
 function WorkdirField({
   projects,

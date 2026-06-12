@@ -10,6 +10,22 @@ export type SessionListModel = {
   hasQuery: boolean;
 };
 
+export function selectionTouchesThreadGroup(
+  threads: ControlThread[],
+  previousThreadId: string | null,
+  nextThreadId: string | null
+) {
+  if (previousThreadId === nextThreadId) {
+    return false;
+  }
+  for (const thread of threads) {
+    if (thread.id === previousThreadId || thread.id === nextThreadId) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function normalizeQuery(value: string) {
   return value.trim().toLowerCase();
 }

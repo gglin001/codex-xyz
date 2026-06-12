@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getSessionListModel } from "../src/client/sessionList.js";
+import { getSessionListModel, selectionTouchesThreadGroup } from "../src/client/sessionList.js";
 import type { ControlThread, Task } from "../src/server/domain.js";
 
 const createdAt = "2026-06-13T00:00:00.000Z";
@@ -45,6 +45,16 @@ function task(overrides: Partial<Task> = {}): Task {
 }
 
 describe("session list model", () => {
+  it("detects whether a selection change touches a visible group", () => {
+    const threads = [thread({ id: "alpha" }), thread({ id: "beta" })];
+
+    expect(selectionTouchesThreadGroup(threads, "alpha", "alpha")).toBe(false);
+    expect(selectionTouchesThreadGroup(threads, null, "alpha")).toBe(true);
+    expect(selectionTouchesThreadGroup(threads, "beta", "outside")).toBe(true);
+    expect(selectionTouchesThreadGroup(threads, "outside-a", "outside-b")).toBe(false);
+    expect(selectionTouchesThreadGroup(threads, null, "outside")).toBe(false);
+  });
+
   it("groups running and attention threads separately from history", () => {
     const result = getSessionListModel(
       [
