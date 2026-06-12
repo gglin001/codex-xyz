@@ -1558,7 +1558,7 @@ packages:
   size: 3127137
   timestamp: 1769460817696
 - conda: https://conda.anaconda.org/conda-forge/osx-arm64/torchvision-0.26.0-cpu_py314_h53ca5f7_1.conda
-  sha256: 79c93a39106b37a334610d9696ce661f30bfe38ac2fb8c3f3321163a8e0fccdb
+  sha256: 79c93a39106b37a334610d9696ce661f30bfe38ac2fb8c3f3878863a8e0fccdb
   md5: 5b761bcb99efd5eca437532349594f41
   depends:
   - python
