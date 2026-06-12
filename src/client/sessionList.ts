@@ -14,21 +14,24 @@ function normalizeQuery(value: string) {
   return value.trim().toLowerCase();
 }
 
+function fieldMatchesQuery(value: string | null, query: string) {
+  return Boolean(value && value.toLowerCase().includes(query));
+}
+
 function matchesThreadQuery(thread: ControlThread, query: string) {
   if (!query) {
     return true;
   }
-  const fields = [
-    thread.title,
-    thread.preview,
-    thread.cwd,
-    thread.model ?? "",
-    thread.status,
-    thread.goalObjective ?? "",
-    thread.goalStatus ?? "",
-    thread.sessionId
-  ];
-  return fields.some((field) => field.toLowerCase().includes(query));
+  return (
+    fieldMatchesQuery(thread.title, query) ||
+    fieldMatchesQuery(thread.preview, query) ||
+    fieldMatchesQuery(thread.cwd, query) ||
+    fieldMatchesQuery(thread.model, query) ||
+    fieldMatchesQuery(thread.status, query) ||
+    fieldMatchesQuery(thread.goalObjective, query) ||
+    fieldMatchesQuery(thread.goalStatus, query) ||
+    fieldMatchesQuery(thread.sessionId, query)
+  );
 }
 
 function needsAttention(thread: ControlThread) {
