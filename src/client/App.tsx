@@ -196,6 +196,13 @@ type SessionGroupProps = {
   emptyQueryLabel: string;
   onSelectThread: SelectThreadHandler;
 };
+type WorkdirFieldProps = {
+  projects: Project[];
+  value: string;
+  matchingProject: Project | null;
+  disabled: boolean;
+  onChange: (value: string) => void;
+};
 
 function readStoredTheme(): ThemeMode {
   if (typeof window === "undefined") {
@@ -296,19 +303,13 @@ const SessionGroup = memo(function SessionGroup({
   !selectionTouchesThreadGroup(next.threads, previous.selectedThreadId, next.selectedThreadId)
 );
 
-function WorkdirField({
+const WorkdirField = memo(function WorkdirField({
   projects,
   value,
   matchingProject,
   disabled,
   onChange
-}: {
-  projects: Project[];
-  value: string;
-  matchingProject: Project | null;
-  disabled: boolean;
-  onChange: (value: string) => void;
-}) {
+}: WorkdirFieldProps) {
   const trimmedValue = value.trim();
 
   return (
@@ -339,7 +340,7 @@ function WorkdirField({
       </span>
     </div>
   );
-}
+});
 
 const SessionFacts = memo(
   function SessionFacts({ thread }: { thread: ThreadDetail }) {
@@ -818,10 +819,10 @@ export function App() {
     setRenameTitle(selectedThread?.title ?? "");
   }, [selectedThread?.id, selectedThread?.title]);
 
-  function updateWorkdir(value: string) {
+  const updateWorkdir = useCallback((value: string) => {
     setWorkdir(value);
     setWorkdirTouched(true);
-  }
+  }, []);
 
   async function runAction(
     label: string,
