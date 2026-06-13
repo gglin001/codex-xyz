@@ -43,18 +43,15 @@ export type PromptComposerProps = {
 const WorkdirField = memo(function WorkdirField({
   projects,
   value,
-  matchingProject,
   disabled,
   onChange
 }: WorkdirFieldProps) {
-  const trimmedValue = value.trim();
 
   return (
     <div className="workdir-panel">
       <label className="workdir-field">
         <span className="field-label">
           <FolderOpen size={14} />
-          <span>Workdir</span>
         </span>
         <input
           value={value}
@@ -72,9 +69,6 @@ const WorkdirField = memo(function WorkdirField({
           </option>
         ))}
       </datalist>
-      <span className={`workdir-state ${matchingProject ? "existing" : "new"}`}>
-        {trimmedValue.length === 0 ? "Required" : matchingProject ? matchingProject.name : "New project"}
-      </span>
     </div>
   );
 });
