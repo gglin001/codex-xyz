@@ -118,6 +118,7 @@ function projection(): ClientProjection {
       ...baseThread,
       turns: [turn()],
       items: [item()],
+      queuedPrompts: [],
       latestEventId: 0
     }
   };
@@ -176,6 +177,27 @@ describe("client event projection", () => {
     expect(result.needsRefresh).toBe(false);
     expect(result.state).toBe(current.state);
     expect(result.detail).toBe(current.detail);
+  });
+
+  it("updates queued prompts for the selected session", () => {
+    const result = applyEventProjection(
+      projection(),
+      event("thread.queue.updated", {
+        queuedPrompts: [
+          {
+            id: "queued-1",
+            threadId: "thread-1",
+            prompt: "Run after the active turn.",
+            createdAt
+          }
+        ]
+      })
+    );
+
+    expect(result.changed).toBe(true);
+    expect(result.handled).toBe(true);
+    expect(result.needsRefresh).toBe(false);
+    expect(result.detail?.queuedPrompts.map((prompt) => prompt.prompt)).toEqual(["Run after the active turn."]);
   });
 
   it("updates the latest transcript item without reordering existing items", () => {

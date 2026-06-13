@@ -3,6 +3,7 @@ import type {
   DashboardState,
   GoalStatus,
   Project,
+  QueuedPrompt,
   TerminalSnapshot,
   ThreadDetail,
   ThreadPage,
@@ -135,8 +136,8 @@ export function startTurn(threadId: string, prompt: string) {
   });
 }
 
-export function steerTurn(threadId: string, prompt: string) {
-  return request<void>(`/api/threads/${threadId}/steer`, {
+export function queueTurn(threadId: string, prompt: string) {
+  return request<QueuedPrompt[]>(`/api/threads/${threadId}/queue`, {
     method: "POST",
     body: JSON.stringify({ prompt })
   });

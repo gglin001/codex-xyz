@@ -22,6 +22,7 @@ import { TestCodexAdapter } from "./testCodexAdapter.js";
 
 let tempDir: string;
 let service: ControlService;
+let testAdapter: TestCodexAdapter;
 
 async function waitForEvents() {
   await new Promise((resolve) => setTimeout(resolve, 20));
@@ -302,7 +303,8 @@ class EagerEventCodexAdapter implements CodexAdapter {
 
 beforeEach(() => {
   tempDir = mkdtempSync(join(tmpdir(), "codex-xyz-service-"));
-  service = new ControlService(Store.open(join(tempDir, "test.sqlite")), new TestCodexAdapter());
+  testAdapter = new TestCodexAdapter();
+  service = new ControlService(Store.open(join(tempDir, "test.sqlite")), testAdapter);
   service.seedLocalState({
     cwd: tempDir,
     adapterName: "test",
@@ -485,6 +487,62 @@ describe("ControlService", () => {
     expect(shellTurn.id).toBe(turnId);
     expect(detail.status).toBe("running");
     expect(detail.items.some((item) => item.type === "command" && item.turnId === turnId && item.text.includes(tempDir))).toBe(true);
+  });
+
+  it("steers the active turn for default submissions while a session is running", async () => {
+    const project = service.listProjects()[0];
+    const result = await service.createTask({
+      projectId: project.id,
+      prompt: "Keep this turn open for steering approval"
+    });
+    await waitForEvents();
+
+    const threadId = result.thread?.id;
+    if (!threadId || !result.turn) {
+      throw new Error("Expected created running thread and turn");
+    }
+
+    const turn = await service.startTurn({
+      threadId,
+      prompt: "Focus the current turn on local verification."
+    });
+
+    const detail = service.getThreadDetail(threadId);
+    expect(turn.id).toBe(result.turn.id);
+    expect(detail.turns).toHaveLength(1);
+    expect(detail.items.some((item) => item.type === "agent" && item.text.includes("Steer received"))).toBe(true);
+  });
+
+  it("queues prompts and starts them after the active turn completes", async () => {
+    const project = service.listProjects()[0];
+    const result = await service.createTask({
+      projectId: project.id,
+      prompt: "Keep this turn open for steering approval"
+    });
+    await waitForEvents();
+
+    const threadId = result.thread?.id;
+    if (!threadId) {
+      throw new Error("Expected created thread id");
+    }
+
+    const firstQueue = await service.queueTurn(threadId, "Queued follow-up one.");
+    const secondQueue = await service.queueTurn(threadId, "Queued follow-up two.");
+    expect(firstQueue).toHaveLength(1);
+    expect(secondQueue).toHaveLength(2);
+    expect(service.getThreadDetail(threadId).queuedPrompts.map((queued) => queued.prompt)).toEqual([
+      "Queued follow-up one.",
+      "Queued follow-up two."
+    ]);
+
+    testAdapter.completeActiveTurn(threadId);
+    await waitForEvents();
+
+    const detail = service.getThreadDetail(threadId);
+    expect(detail.queuedPrompts).toHaveLength(0);
+    expect(detail.turns).toHaveLength(3);
+    expect(detail.items.some((item) => item.text.includes("Prompt preview: Queued follow-up one."))).toBe(true);
+    expect(detail.items.some((item) => item.text.includes("Prompt preview: Queued follow-up two."))).toBe(true);
   });
 
   it("supports goal, fork, and steer controls", async () => {

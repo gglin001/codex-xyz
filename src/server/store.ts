@@ -9,6 +9,7 @@ import {
   isSummaryEventType,
   nowIso,
   type Project,
+  type QueuedPrompt,
   type PromptRecipe,
   type RuntimeStatus,
   summaryEventTypes,
@@ -111,6 +112,15 @@ function itemFromRow(row: Row): ThreadItem {
     type: scalarString(row.type) as ItemType,
     text: scalarString(row.text),
     data: readJson<Record<string, unknown>>(row.data_json, {}),
+    createdAt: scalarString(row.created_at)
+  };
+}
+
+function queuedPromptFromRow(row: Row): QueuedPrompt {
+  return {
+    id: scalarString(row.id),
+    threadId: scalarString(row.thread_id),
+    prompt: scalarString(row.prompt),
     createdAt: scalarString(row.created_at)
   };
 }
@@ -233,6 +243,13 @@ export class Store {
         created_at TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS queued_prompts (
+        id TEXT PRIMARY KEY,
+        thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+        prompt TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         type TEXT NOT NULL,
@@ -278,6 +295,7 @@ export class Store {
       CREATE INDEX IF NOT EXISTS idx_turns_thread_started ON turns(thread_id, started_at);
       CREATE INDEX IF NOT EXISTS idx_items_thread ON items(thread_id);
       CREATE INDEX IF NOT EXISTS idx_items_thread_created ON items(thread_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_queued_prompts_thread_created ON queued_prompts(thread_id, created_at, id);
       CREATE INDEX IF NOT EXISTS idx_events_thread ON events(thread_id);
       CREATE INDEX IF NOT EXISTS idx_events_thread_id ON events(thread_id, id);
       CREATE INDEX IF NOT EXISTS idx_events_type_id ON events(type, id);
@@ -477,6 +495,7 @@ export class Store {
       ...thread,
       turns: this.listTurns(id),
       items: this.listItems(id),
+      queuedPrompts: this.listQueuedPrompts(id),
       latestEventId
     };
   }
@@ -578,6 +597,37 @@ export class Store {
       .prepare("SELECT * FROM items WHERE thread_id = ? ORDER BY created_at ASC")
       .all(threadId)
       .map((row) => itemFromRow(row as Row));
+  }
+
+  createQueuedPrompt(input: { id: string; threadId: string; prompt: string; createdAt?: string }) {
+    const queuedPrompt: QueuedPrompt = {
+      id: input.id,
+      threadId: input.threadId,
+      prompt: input.prompt,
+      createdAt: input.createdAt ?? nowIso()
+    };
+    this.db
+      .prepare("INSERT INTO queued_prompts (id, thread_id, prompt, created_at) VALUES (?, ?, ?, ?)")
+      .run(queuedPrompt.id, queuedPrompt.threadId, queuedPrompt.prompt, queuedPrompt.createdAt);
+    return queuedPrompt;
+  }
+
+  listQueuedPrompts(threadId: string) {
+    return this.db
+      .prepare("SELECT * FROM queued_prompts WHERE thread_id = ? ORDER BY created_at ASC, id ASC")
+      .all(threadId)
+      .map((row) => queuedPromptFromRow(row as Row));
+  }
+
+  peekQueuedPrompt(threadId: string) {
+    const row = this.db
+      .prepare("SELECT * FROM queued_prompts WHERE thread_id = ? ORDER BY created_at ASC, id ASC LIMIT 1")
+      .get(threadId);
+    return row ? queuedPromptFromRow(row as Row) : null;
+  }
+
+  deleteQueuedPrompt(id: string) {
+    this.db.prepare("DELETE FROM queued_prompts WHERE id = ?").run(id);
   }
 
   createTask(task: Task) {

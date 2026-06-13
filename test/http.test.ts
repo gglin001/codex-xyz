@@ -69,6 +69,7 @@ class FakeTerminalPty {
 
 let tempDir: string;
 let service: ControlService;
+let testAdapter: TestCodexAdapter;
 let baseUrl: string;
 let server: ReturnType<typeof createHttpServer>;
 let terminalPtys: FakeTerminalPty[];
@@ -104,10 +105,10 @@ async function noContent(path: string, init?: RequestInit) {
   expect(response.status).toBe(204);
 }
 
-async function waitFor(assertion: () => boolean, label: string) {
+async function waitFor(assertion: () => boolean | Promise<boolean>, label: string) {
   const deadline = Date.now() + 1_000;
   while (Date.now() < deadline) {
-    if (assertion()) {
+    if (await assertion()) {
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -150,7 +151,8 @@ beforeEach(async () => {
     command: { file: "fake-terminal", args: [] },
     ptyFactory
   });
-  service = new ControlService(Store.open(join(tempDir, "test.sqlite")), new TestCodexAdapter(), new EventBus(), terminal);
+  testAdapter = new TestCodexAdapter();
+  service = new ControlService(Store.open(join(tempDir, "test.sqlite")), testAdapter, new EventBus(), terminal);
   service.seedLocalState({
     cwd: tempDir,
     adapterName: "test",
@@ -370,6 +372,40 @@ describe("HTTP API", () => {
       body: JSON.stringify({})
     });
     expect(fork.forkedFromId).toBe(created.thread.id);
+  });
+
+  it("queues prompts through the HTTP API and drains them after the active turn", async () => {
+    const state = await json<DashboardState>("/api/state");
+    const created = await json<{ thread: { id: string } }>("/api/tasks", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: state.projects[0].id,
+        prompt: "Keep this turn open for queue mode"
+      })
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const queued = await json<Array<{ prompt: string }>>(`/api/threads/${created.thread.id}/queue`, {
+      method: "POST",
+      body: JSON.stringify({
+        prompt: "Run after the current turn."
+      })
+    });
+    expect(queued.map((prompt) => prompt.prompt)).toEqual(["Run after the current turn."]);
+
+    const detailWithQueue = await json<{ queuedPrompts: Array<{ prompt: string }> }>(`/api/threads/${created.thread.id}`);
+    expect(detailWithQueue.queuedPrompts.map((prompt) => prompt.prompt)).toEqual(["Run after the current turn."]);
+
+    testAdapter.completeActiveTurn(created.thread.id);
+    await waitFor(async () => {
+      const detail = await json<{ queuedPrompts: unknown[]; items: Array<{ text: string }> }>(
+        `/api/threads/${created.thread.id}`
+      );
+      return (
+        detail.queuedPrompts.length === 0 &&
+        detail.items.some((item) => item.text.includes("Prompt preview: Run after the current turn."))
+      );
+    }, "queued prompt to drain");
   });
 
   it("streams terminal output and input over websocket", async () => {

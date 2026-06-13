@@ -1,4 +1,4 @@
-import { FolderOpen, Plus, Route, Send, Target } from "lucide-react";
+import { FolderOpen, ListPlus, Plus, Send, Target } from "lucide-react";
 import type { FormEvent, KeyboardEvent, PointerEvent } from "react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { Project } from "../../server/domain.js";
@@ -28,8 +28,8 @@ export type PromptComposerProps = {
   promptTarget: ComposerMode;
   goalMode: boolean;
   selectedThreadId: string | null;
-  steerMode: boolean;
-  canUseSteerMode: boolean;
+  queueMode: boolean;
+  canUseQueueMode: boolean;
   canUseGoalMode: boolean;
   canSubmitPrompt: boolean;
   onModeChange: (mode: ComposerMode) => void;
@@ -37,7 +37,7 @@ export type PromptComposerProps = {
   onPromptChange: (value: string) => void;
   onPromptKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
   onPromptSubmit: (event: FormEvent) => void;
-  onSteerModeChange: (value: boolean) => void;
+  onQueueModeChange: (value: boolean) => void;
   onGoalModeChange: (value: boolean) => void;
 };
 
@@ -96,8 +96,8 @@ export const PromptComposer = memo(function PromptComposer({
   promptTarget,
   goalMode,
   selectedThreadId,
-  steerMode,
-  canUseSteerMode,
+  queueMode,
+  canUseQueueMode,
   canUseGoalMode,
   canSubmitPrompt,
   onModeChange,
@@ -105,30 +105,30 @@ export const PromptComposer = memo(function PromptComposer({
   onPromptChange,
   onPromptKeyDown,
   onPromptSubmit,
-  onSteerModeChange,
+  onQueueModeChange,
   onGoalModeChange
 }: PromptComposerProps) {
   const classes = className ? `prompt-composer ${className}` : "prompt-composer";
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const resizeStateRef = useRef<PromptResizeState | null>(null);
   const [promptHeight, setPromptHeight] = useState<number | null>(null);
-  const promptPlaceholder = steerMode
-    ? "Steer active turn"
+  const promptPlaceholder = queueMode
+    ? "Queue next turn"
     : goalMode
       ? "Describe the goal objective"
       : promptTarget === "thread"
-        ? "Send next turn"
+        ? "Send prompt"
         : "Create a task";
-  const submitTitle = steerMode
-    ? "Steer active turn"
+  const submitTitle = queueMode
+    ? "Queue next turn"
     : goalMode
       ? "Start goal mode"
       : promptTarget === "thread"
-        ? "Start turn"
+        ? "Send prompt"
         : "Create session";
-  const steerModeTitle = canUseSteerMode
-    ? "Steer the active turn"
-    : "Steer mode requires a running selected session";
+  const queueModeTitle = canUseQueueMode
+    ? "Queue prompt after the active turn"
+    : "Queue mode requires a running selected session";
   const goalModeTitle = canUseGoalMode
     ? "Use the prompt as the goal objective"
     : promptTarget === "thread"
@@ -242,18 +242,6 @@ export const PromptComposer = memo(function PromptComposer({
                 </div>
                 <div className="prompt-options">
                   <label
-                    className={`prompt-option ${steerMode ? "active" : ""} ${!canUseSteerMode || busy ? "disabled" : ""}`}
-                    title={steerModeTitle}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={steerMode}
-                      disabled={!canUseSteerMode || busy}
-                      onChange={(event) => onSteerModeChange(event.target.checked)}
-                    />
-                    <span>Steer</span>
-                  </label>
-                  <label
                     className={`prompt-option ${goalMode ? "active" : ""} ${!canUseGoalMode || busy ? "disabled" : ""}`}
                     title={goalModeTitle}
                   >
@@ -265,11 +253,23 @@ export const PromptComposer = memo(function PromptComposer({
                     />
                     <span>Goal</span>
                   </label>
+                  <label
+                    className={`prompt-option ${queueMode ? "active" : ""} ${!canUseQueueMode || busy ? "disabled" : ""}`}
+                    title={queueModeTitle}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={queueMode}
+                      disabled={!canUseQueueMode || busy}
+                      onChange={(event) => onQueueModeChange(event.target.checked)}
+                    />
+                    <span>Queue</span>
+                  </label>
                 </div>
               </div>
               <button className="prompt-submit" disabled={!canSubmitPrompt} title={submitTitle}>
-                {steerMode ? (
-                  <Route size={16} />
+                {queueMode ? (
+                  <ListPlus size={16} />
                 ) : goalMode ? (
                   <Target size={16} />
                 ) : promptTarget === "thread" ? (

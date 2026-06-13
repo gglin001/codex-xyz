@@ -68,6 +68,13 @@ export type ThreadItem = {
   createdAt: string;
 };
 
+export type QueuedPrompt = {
+  id: string;
+  threadId: string;
+  prompt: string;
+  createdAt: string;
+};
+
 export type Task = {
   id: string;
   projectId: string;
@@ -114,6 +121,7 @@ export const summaryEventTypes = [
   "turn.status",
   "turn.steered",
   "turn.interrupt.requested",
+  "thread.queue.updated",
   "thread.started",
   "thread.resumed",
   "thread.status",
@@ -133,6 +141,7 @@ export function isSummaryEventType(type: string) {
 export type ThreadDetail = ControlThread & {
   turns: Turn[];
   items: ThreadItem[];
+  queuedPrompts: QueuedPrompt[];
   latestEventId: number;
 };
 

@@ -195,6 +195,18 @@ export class TestCodexAdapter implements CodexAdapter {
     this.requireThread(threadId).goal = null;
   }
 
+  completeActiveTurn(threadId: string, status: "completed" | "interrupted" | "failed" = "completed") {
+    const thread = this.requireThread(threadId);
+    if (!thread.activeTurnId) {
+      throw new Error(`Test thread ${threadId} has no active turn`);
+    }
+    const running = this.running.get(thread.activeTurnId);
+    if (!running) {
+      throw new Error(`Test turn ${thread.activeTurnId} is not running`);
+    }
+    this.completeTurn(running, status);
+  }
+
   async close() {
     this.closed = true;
     this.running.clear();

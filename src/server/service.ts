@@ -100,6 +100,8 @@ function normalizePageOffset(value?: number | null) {
 }
 
 export class ControlService {
+  private readonly drainingQueues = new Set<string>();
+
   constructor(
     readonly store: Store,
     readonly adapter: CodexAdapter,
@@ -245,6 +247,14 @@ export class ControlService {
     if (shellCommand) {
       return this.startShellCommand(thread, input.prompt, shellCommand);
     }
+    if (thread.activeTurnId) {
+      await this.steerActiveTurn(thread, input.prompt);
+      const activeTurn = this.store.getTurn(thread.activeTurnId);
+      if (!activeTurn) {
+        throw new Error(`Active turn ${thread.activeTurnId} does not exist`);
+      }
+      return activeTurn;
+    }
     const { adapterTurn, thread: runtimeThread } = await this.startRuntimeTurn(thread, input);
     return this.recordTurn(runtimeThread, input.prompt, adapterTurn);
   }
@@ -254,14 +264,20 @@ export class ControlService {
     if (!thread.activeTurnId) {
       throw new Error("Thread has no active turn to steer");
     }
-    await this.withRuntimeThread(thread, () =>
-      this.adapter.steerTurn({
-        threadId,
-        turnId: thread.activeTurnId as string,
-        prompt
-      })
-    );
-    this.publish("turn.steered", threadId, thread.activeTurnId, { prompt });
+    await this.steerActiveTurn(thread, prompt);
+  }
+
+  async queueTurn(threadId: string, prompt: string) {
+    const thread = this.requireThread(threadId);
+    if (!thread.activeTurnId || thread.status !== "running") {
+      throw new Error("Queue mode requires a running thread");
+    }
+    const queuedPrompt = this.store.createQueuedPrompt({
+      id: randomUUID(),
+      threadId,
+      prompt
+    });
+    return this.publishQueueUpdated(threadId, { queuedPrompt });
   }
 
   async interruptTurn(threadId: string) {
@@ -483,6 +499,11 @@ export class ControlService {
       });
       this.store.updateTasksForThread(event.threadId, taskStatusFromRuntime(event.status));
       this.publish("turn.status", event.threadId, event.turnId, { status: event.status });
+      if (event.status === "completed") {
+        void this.maybeDrainQueuedPrompt(event.threadId).catch((error: unknown) => {
+          this.publishQueueFailed(event.threadId, error);
+        });
+      }
       return;
     }
 
@@ -558,6 +579,22 @@ export class ControlService {
     });
     this.events.publish(event);
     return event;
+  }
+
+  private publishQueueUpdated(threadId: string, extra: Record<string, unknown> = {}) {
+    const queuedPrompts = this.store.listQueuedPrompts(threadId);
+    this.publish("thread.queue.updated", threadId, null, {
+      queuedPrompts,
+      ...extra
+    });
+    return queuedPrompts;
+  }
+
+  private publishQueueFailed(threadId: string, error: unknown) {
+    this.publish("thread.queue.updated", threadId, null, {
+      queuedPrompts: this.store.listQueuedPrompts(threadId),
+      error: error instanceof Error ? error.message : String(error)
+    });
   }
 
   private ensureTurnForEvent(threadId: string, turnId: string | null, prompt = "") {
@@ -661,6 +698,58 @@ export class ControlService {
   private async startShellCommand(thread: ControlThread, prompt: string, command: string) {
     const { adapterTurn, thread: runtimeThread } = await this.startRuntimeShellCommand(thread, command);
     return this.recordTurn(runtimeThread, prompt, adapterTurn);
+  }
+
+  private async steerActiveTurn(thread: ControlThread, prompt: string) {
+    if (!thread.activeTurnId) {
+      throw new Error("Thread has no active turn to steer");
+    }
+    await this.withRuntimeThread(thread, () =>
+      this.adapter.steerTurn({
+        threadId: thread.id,
+        turnId: thread.activeTurnId as string,
+        prompt
+      })
+    );
+    this.publish("turn.steered", thread.id, thread.activeTurnId, { prompt });
+  }
+
+  private async maybeDrainQueuedPrompt(threadId: string) {
+    if (this.drainingQueues.has(threadId)) {
+      return;
+    }
+    const thread = this.store.getThread(threadId);
+    if (!thread || thread.activeTurnId || thread.status === "running") {
+      return;
+    }
+    const queuedPrompt = this.store.peekQueuedPrompt(threadId);
+    if (!queuedPrompt) {
+      return;
+    }
+
+    this.drainingQueues.add(threadId);
+    let started = false;
+    try {
+      await this.startTurn({
+        threadId,
+        prompt: queuedPrompt.prompt,
+        model: thread.model
+      });
+      started = true;
+      this.store.deleteQueuedPrompt(queuedPrompt.id);
+      this.publishQueueUpdated(threadId, { drainedPrompt: queuedPrompt });
+    } finally {
+      this.drainingQueues.delete(threadId);
+    }
+
+    if (started) {
+      const current = this.store.getThread(threadId);
+      if (current && !current.activeTurnId && current.status !== "running" && this.store.peekQueuedPrompt(threadId)) {
+        void this.maybeDrainQueuedPrompt(threadId).catch((error: unknown) => {
+          this.publishQueueFailed(threadId, error);
+        });
+      }
+    }
   }
 
   private async startRuntimeTurn(thread: ControlThread, input: StartTurnInput) {

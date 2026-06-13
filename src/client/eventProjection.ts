@@ -2,6 +2,7 @@ import type {
   ControlThread,
   DashboardState,
   Project,
+  QueuedPrompt,
   RuntimeStatus,
   Task,
   ThreadDetail,
@@ -31,6 +32,7 @@ export const incrementalEventNames = [
   "turn.status",
   "turn.steered",
   "turn.interrupt.requested",
+  "thread.queue.updated",
   "thread.started",
   "thread.resumed",
   "thread.status",
@@ -350,6 +352,24 @@ function withTaskFieldsByThread(
   };
 }
 
+function withQueuedPrompts(
+  projection: ClientProjection,
+  threadId: string,
+  queuedPrompts: QueuedPrompt[]
+): ClientProjection {
+  if (projection.detail?.id !== threadId) {
+    return projection;
+  }
+  const detail = mergeIfChanged<ThreadDetail>(projection.detail, { queuedPrompts });
+  if (detail === projection.detail) {
+    return projection;
+  }
+  return {
+    ...projection,
+    detail
+  };
+}
+
 function result(
   previous: ClientProjection,
   projection: ClientProjection,
@@ -454,6 +474,19 @@ export function applyEventProjection(projection: ClientProjection, event: XyzEve
         status: taskStatusFromRuntime(status),
         updatedAt: event.createdAt
       }),
+      true,
+      event
+    );
+  }
+
+  if (event.type === "thread.queue.updated") {
+    const queuedPrompts = payloadRecord(event).queuedPrompts;
+    if (!event.threadId || !Array.isArray(queuedPrompts)) {
+      return result(projection, projection, false, event);
+    }
+    return result(
+      projection,
+      withQueuedPrompts(projection, event.threadId, queuedPrompts as QueuedPrompt[]),
       true,
       event
     );

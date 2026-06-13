@@ -9,11 +9,11 @@ import {
   getThread,
   getThreadsPage,
   interruptTurn,
+  queueTurn,
   renameThread,
   resumeThread,
   setGoal,
-  startTurn,
-  steerTurn
+  startTurn
 } from "./api.js";
 import { MobileNavigation } from "./components/MobileNavigation.js";
 import { PromptComposer } from "./components/PromptComposer.js";
@@ -128,7 +128,7 @@ export function App() {
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ThreadDetail | null>(null);
   const [prompt, setPrompt] = useState("");
-  const [steerMode, setSteerMode] = useState(false);
+  const [queueMode, setQueueMode] = useState(false);
   const [goalMode, setGoalMode] = useState(false);
   const [workdir, setWorkdir] = useState("");
   const [workdirTouched, setWorkdirTouched] = useState(false);
@@ -576,7 +576,7 @@ export function App() {
     promptTarget === "new"
       ? Boolean(trimmedWorkdir)
       : Boolean(selectedThreadId) && selectedThread?.status === "idle";
-  const canUseSteerMode = promptTarget === "thread" && Boolean(selectedThreadId) && selectedThread?.status === "running";
+  const canUseQueueMode = promptTarget === "thread" && Boolean(selectedThreadId) && selectedThread?.status === "running";
   const canSubmitTurnPrompt = goalMode
     ? canUseGoalMode
     : promptTarget === "thread"
@@ -585,7 +585,7 @@ export function App() {
   const canSubmitPrompt =
     Boolean(prompt.trim()) &&
     !busy &&
-    (steerMode ? canUseSteerMode : canSubmitTurnPrompt);
+    (queueMode ? canUseQueueMode : canSubmitTurnPrompt);
   const canRename =
     Boolean(selectedThreadId) &&
     Boolean(renameTitle.trim()) &&
@@ -602,15 +602,15 @@ export function App() {
   }, [selectedThread?.id, selectedThread?.title]);
 
   useEffect(() => {
-    setSteerMode(false);
+    setQueueMode(false);
     setGoalMode(false);
   }, [selectedThreadId, promptTarget]);
 
   useEffect(() => {
-    if (!canUseSteerMode) {
-      setSteerMode(false);
+    if (!canUseQueueMode) {
+      setQueueMode(false);
     }
-  }, [canUseSteerMode]);
+  }, [canUseQueueMode]);
 
   useEffect(() => {
     if (!canUseGoalMode) {
@@ -623,8 +623,8 @@ export function App() {
     setWorkdirTouched(true);
   }, []);
 
-  const updateSteerMode = useCallback((value: boolean) => {
-    setSteerMode(value);
+  const updateQueueMode = useCallback((value: boolean) => {
+    setQueueMode(value);
     if (value) {
       setGoalMode(false);
     }
@@ -633,7 +633,7 @@ export function App() {
   const updateGoalMode = useCallback((value: boolean) => {
     setGoalMode(value);
     if (value) {
-      setSteerMode(false);
+      setQueueMode(false);
     }
   }, []);
 
@@ -678,15 +678,18 @@ export function App() {
     }
     const currentPrompt = prompt;
 
-    if (steerMode) {
-      if (!selectedThreadId || !canUseSteerMode) {
+    if (queueMode) {
+      if (!selectedThreadId || !canUseQueueMode) {
         return;
       }
       const threadId = selectedThreadId;
       setPrompt("");
-      void runAction("Steering turn", async () => {
-        await steerTurn(threadId, currentPrompt);
-      });
+      void runAction(
+        "Queueing prompt",
+        async () => {
+          await queueTurn(threadId, currentPrompt);
+        }
+      );
       return;
     }
 
@@ -824,8 +827,8 @@ export function App() {
       promptTarget={promptTarget}
       goalMode={goalMode}
       selectedThreadId={selectedThreadId}
-      steerMode={steerMode}
-      canUseSteerMode={canUseSteerMode}
+      queueMode={queueMode}
+      canUseQueueMode={canUseQueueMode}
       canUseGoalMode={canUseGoalMode}
       canSubmitPrompt={canSubmitPrompt}
       onModeChange={setComposerMode}
@@ -833,7 +836,7 @@ export function App() {
       onPromptChange={setPrompt}
       onPromptKeyDown={handlePromptKeyDown}
       onPromptSubmit={submitPrompt}
-      onSteerModeChange={updateSteerMode}
+      onQueueModeChange={updateQueueMode}
       onGoalModeChange={updateGoalMode}
     />
   ) : null;
@@ -902,8 +905,8 @@ export function App() {
           promptTarget={promptTarget}
           goalMode={goalMode}
           selectedThreadId={selectedThreadId}
-          steerMode={steerMode}
-          canUseSteerMode={canUseSteerMode}
+          queueMode={queueMode}
+          canUseQueueMode={canUseQueueMode}
           canUseGoalMode={canUseGoalMode}
           canSubmitPrompt={canSubmitPrompt}
           onModeChange={setComposerMode}
@@ -911,7 +914,7 @@ export function App() {
           onPromptChange={setPrompt}
           onPromptKeyDown={handlePromptKeyDown}
           onPromptSubmit={submitPrompt}
-          onSteerModeChange={updateSteerMode}
+          onQueueModeChange={updateQueueMode}
           onGoalModeChange={updateGoalMode}
         />
       ) : null}

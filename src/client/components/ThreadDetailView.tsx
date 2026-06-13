@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import type { ControlThread, ThreadDetail, ThreadItem } from "../../server/domain.js";
+import type { ControlThread, QueuedPrompt, ThreadDetail, ThreadItem } from "../../server/domain.js";
 import { getCollapsedTextPreview } from "../textPreview.js";
 import { getTranscriptEntries, type TranscriptProcessEntry } from "../transcriptEntries.js";
 import {
@@ -36,6 +36,7 @@ import {
 
 const processStepPreviewLineCount = 3;
 const processPreviewItemCount = 3;
+const queuedPromptPreviewCount = 3;
 
 export type ThreadDetailViewProps = {
   detail: ThreadDetail | null;
@@ -221,6 +222,52 @@ const SessionFacts = memo(
     previous.thread.goalStatus === next.thread.goalStatus &&
     previous.thread.goalTokenBudget === next.thread.goalTokenBudget
 );
+
+const QueuedPromptPanel = memo(function QueuedPromptPanel({ prompts }: { prompts: QueuedPrompt[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const promptKey = prompts.map((prompt) => prompt.id).join(":");
+  const canExpand = prompts.length > queuedPromptPreviewCount;
+  const visiblePrompts = expanded ? prompts : prompts.slice(0, queuedPromptPreviewCount);
+  const hiddenCount = Math.max(0, prompts.length - visiblePrompts.length);
+
+  useEffect(() => {
+    setExpanded(false);
+  }, [promptKey]);
+
+  if (prompts.length === 0) {
+    return null;
+  }
+
+  return (
+    <article className={`queued-prompts ${expanded ? "expanded" : "collapsed"}`}>
+      <button
+        type="button"
+        className={`queued-prompts-toggle ${canExpand ? "" : "static"}`}
+        aria-expanded={canExpand ? expanded : undefined}
+        aria-label={canExpand ? `${expanded ? "Collapse" : "Expand"} queued prompts` : undefined}
+        onClick={canExpand ? () => setExpanded((current) => !current) : undefined}
+      >
+        <span className="queued-prompts-title">
+          <ListChecks size={15} />
+          <span>Queued prompts</span>
+        </span>
+        <span className="queued-prompts-meta">
+          <span className="item-chip">{prompts.length}</span>
+          {canExpand ? (expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />) : null}
+        </span>
+      </button>
+      <div className="queued-prompts-body">
+        {visiblePrompts.map((prompt, index) => (
+          <div className="queued-prompt" key={prompt.id}>
+            <span className="queued-prompt-index">{index + 1}</span>
+            <pre>{prompt.prompt}</pre>
+          </div>
+        ))}
+        {hiddenCount > 0 ? <div className="queued-prompt-more">+{hiddenCount} more queued</div> : null}
+      </div>
+    </article>
+  );
+});
 
 const TranscriptItem = memo(function TranscriptItem({
   item,
@@ -547,6 +594,8 @@ export const ThreadDetailView = memo(function ThreadDetailView({
       </div>
 
       {detail ? <SessionFacts thread={detail} /> : null}
+
+      {detail ? <QueuedPromptPanel prompts={detail.queuedPrompts} /> : null}
 
       <Transcript detail={detail} hasSelection={Boolean(selectedThreadId)} />
 

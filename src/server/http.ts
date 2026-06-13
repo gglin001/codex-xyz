@@ -575,6 +575,13 @@ async function handleApi(context: HandlerContext) {
       return true;
     }
 
+    if (method === "POST" && parts[3] === "queue") {
+      const body = await readJson(request);
+      const queuedPrompts = await service.queueTurn(threadId, requireString(body, "prompt"));
+      sendJson(response, 201, queuedPrompts);
+      return true;
+    }
+
     if (method === "POST" && parts[3] === "interrupt") {
       const thread = await service.interruptTurn(threadId);
       sendJson(response, 200, thread);

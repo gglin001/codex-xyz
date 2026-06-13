@@ -1009,6 +1009,103 @@ button.active {
   border-radius: 999px;
 }
 
+.queued-prompts {
+  flex: 0 0 auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface-bg);
+  overflow: hidden;
+}
+
+.queued-prompts-toggle {
+  display: flex;
+  width: 100%;
+  min-height: 38px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--border-soft);
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted-strong);
+  font-size: 12px;
+  text-align: left;
+}
+
+.queued-prompts-toggle:hover:not(.static) {
+  border-color: transparent;
+  border-bottom-color: var(--border-soft);
+  background: var(--button-hover-bg);
+}
+
+.queued-prompts-toggle.static {
+  cursor: default;
+}
+
+.queued-prompts-title,
+.queued-prompts-meta {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.queued-prompts-title {
+  color: var(--text-strong);
+  font-weight: 700;
+}
+
+.queued-prompts-body {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  background: var(--surface-subtle-bg);
+}
+
+.queued-prompt {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  background: var(--surface-bg);
+}
+
+.queued-prompt-index {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--chip-bg);
+  color: var(--chip-text);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.queued-prompt pre {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  color: var(--text);
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.queued-prompt-more {
+  padding: 4px 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .transcript {
   display: flex;
   min-height: 0;
