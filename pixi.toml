@@ -22,8 +22,10 @@ pytorch = { version = ">=2.11.0,<3", build = "*cpu_generic*" }
 torchvision = ">=0.26.0,<0.27"
 openai = ">=2.41.0,<3"
 
+playwright = ">=1.60.0,<2"
+
 [activation.env]
-HOME = "${PIXI_PROJECT_ROOT}/dot.home"
-XDG_CONFIG_HOME = "${PIXI_PROJECT_ROOT}/dot.home/.config"
-XDG_DATA_HOME = "${PIXI_PROJECT_ROOT}/dot.home/.data"
-XDG_CACHE_HOME = "${PIXI_PROJECT_ROOT}/dot.home/.cache"
+# HOME = "${PIXI_PROJECT_ROOT}/dot.home"
+# XDG_CONFIG_HOME = "${PIXI_PROJECT_ROOT}/dot.home/.config"
+# XDG_DATA_HOME = "${PIXI_PROJECT_ROOT}/dot.home/.data"
+# XDG_CACHE_HOME = "${PIXI_PROJECT_ROOT}/dot.home/.cache"
