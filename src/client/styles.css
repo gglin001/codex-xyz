@@ -1034,6 +1034,10 @@ button.active {
   overflow: hidden;
 }
 
+.transcript-item.collapsed {
+  contain-intrinsic-size: auto 42px;
+}
+
 .transcript > .empty-state {
   flex: 1 1 auto;
   min-height: 0;
@@ -1229,13 +1233,34 @@ button.active {
 
 .item-meta {
   display: flex;
+  width: 100%;
+  height: auto;
+  min-height: 38px;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   padding: 8px 10px;
+  border: 0;
   border-bottom: 1px solid var(--border-soft);
+  border-radius: 0;
+  background: transparent;
   color: var(--muted-strong);
   font-size: 12px;
+  text-align: left;
+}
+
+.transcript-item.collapsed .item-meta {
+  border-bottom: 0;
+}
+
+.item-meta:hover:not(:disabled) {
+  border-color: transparent;
+  border-bottom-color: var(--border-soft);
+  background: var(--button-hover-bg);
+}
+
+.transcript-item.collapsed .item-meta:hover:not(:disabled) {
+  border-bottom-color: transparent;
 }
 
 .item-title,
@@ -1261,18 +1286,8 @@ button.active {
   color: var(--chip-text);
 }
 
-.item-expand {
-  gap: 4px;
-  min-width: 0;
-  height: 24px;
-  padding: 0 7px;
-  border-color: var(--border-soft);
-  border-radius: 6px;
-  font-size: 11px;
-  line-height: 1;
-}
-
-.item-expand span {
+.item-title span,
+.item-meta-right time {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

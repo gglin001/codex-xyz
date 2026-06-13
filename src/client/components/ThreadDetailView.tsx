@@ -28,14 +28,12 @@ import {
   formatDateTime,
   formatTime,
   formatTokens,
-  itemDefaultsCollapsed,
   itemTitle,
   shortId,
   statusLabel,
   statusTone
 } from "../uiFormat.js";
 
-const collapsedPreviewLineCount = 2;
 const processStepPreviewLineCount = 3;
 const processPreviewItemCount = 3;
 
@@ -226,32 +224,27 @@ const SessionFacts = memo(
 
 const TranscriptItem = memo(function TranscriptItem({
   item,
-  expanded,
-  onToggleExpanded
+  visible,
+  onToggleVisible
 }: {
   item: ThreadItem;
-  expanded: boolean;
-  onToggleExpanded: (itemId: string) => void;
+  visible: boolean;
+  onToggleVisible: (itemId: string) => void;
 }) {
   const status = typeof item.data.status === "string" ? item.data.status : null;
   const exitCode = typeof item.data.exitCode === "number" ? item.data.exitCode : null;
   const outputText = item.text || "Pending...";
-  const textPreview = itemDefaultsCollapsed(item)
-    ? getCollapsedTextPreview(outputText, {
-        expanded,
-        lineCount: collapsedPreviewLineCount
-      })
-    : {
-        canCollapse: false,
-        visibleText: outputText
-      };
-  const canCollapse = textPreview.canCollapse;
-  const visibleText = textPreview.visibleText;
   const title = itemTitle(item);
 
   return (
-    <article className={`transcript-item ${item.type}`}>
-      <div className="item-meta">
+    <article className={`transcript-item ${item.type} ${visible ? "expanded" : "collapsed"}`}>
+      <button
+        type="button"
+        className="item-meta"
+        aria-expanded={visible}
+        aria-label={`${visible ? "Hide" : "Show"} ${title}`}
+        onClick={() => onToggleVisible(item.id)}
+      >
         <span className="item-title">
           <ItemIcon item={item} />
           <span>{title}</span>
@@ -259,22 +252,11 @@ const TranscriptItem = memo(function TranscriptItem({
         <span className="item-meta-right">
           {status ? <span className="item-chip">{status}</span> : null}
           {exitCode !== null ? <span className="item-chip">exit {exitCode}</span> : null}
-          {canCollapse ? (
-            <button
-              type="button"
-              className="item-expand"
-              aria-expanded={expanded}
-              aria-label={`${expanded ? "Collapse" : "Expand"} ${title}`}
-              onClick={() => onToggleExpanded(item.id)}
-            >
-              {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              <span>{expanded ? "Collapse" : "Expand"}</span>
-            </button>
-          ) : null}
           <time>{formatTime(item.createdAt)}</time>
+          {visible ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </span>
-      </div>
-      <pre>{visibleText}</pre>
+      </button>
+      {visible ? <pre>{outputText}</pre> : null}
     </article>
   );
 });
@@ -404,21 +386,35 @@ const Transcript = memo(function Transcript({
   detail: ThreadDetail | null;
   hasSelection: boolean;
 }) {
-  const [expandedEntryIds, setExpandedEntryIds] = useState<Set<string>>(() => new Set());
+  const [expandedProcessEntryIds, setExpandedProcessEntryIds] = useState<Set<string>>(() => new Set());
+  const [hiddenItemIds, setHiddenItemIds] = useState<Set<string>>(() => new Set());
   const [windowMode, setWindowMode] = useState<TranscriptWindowMode>("recent");
 
   useEffect(() => {
-    setExpandedEntryIds(new Set());
+    setExpandedProcessEntryIds(new Set());
+    setHiddenItemIds(new Set());
     setWindowMode("recent");
   }, [detail?.id]);
 
-  const toggleExpandedEntry = useCallback((entryId: string) => {
-    setExpandedEntryIds((current) => {
+  const toggleExpandedProcessEntry = useCallback((entryId: string) => {
+    setExpandedProcessEntryIds((current) => {
       const next = new Set(current);
       if (next.has(entryId)) {
         next.delete(entryId);
       } else {
         next.add(entryId);
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleItemVisibility = useCallback((itemId: string) => {
+    setHiddenItemIds((current) => {
+      const next = new Set(current);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
       }
       return next;
     });
@@ -467,15 +463,15 @@ const Transcript = memo(function Transcript({
           <ProcessGroup
             key={entry.id}
             group={entry}
-            expanded={expandedEntryIds.has(entry.id)}
-            onToggleExpanded={toggleExpandedEntry}
+            expanded={expandedProcessEntryIds.has(entry.id)}
+            onToggleExpanded={toggleExpandedProcessEntry}
           />
         ) : (
           <TranscriptItem
             key={entry.id}
             item={entry.item}
-            expanded={expandedEntryIds.has(entry.item.id)}
-            onToggleExpanded={toggleExpandedEntry}
+            visible={!hiddenItemIds.has(entry.item.id)}
+            onToggleVisible={toggleItemVisibility}
           />
         )
       )}
