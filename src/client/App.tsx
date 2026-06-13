@@ -870,6 +870,7 @@ export function App() {
       prompt={prompt}
       promptTarget={promptTarget}
       goalMode={goalMode}
+      selectedThread={selectedThread}
       selectedThreadId={selectedThreadId}
       queueMode={queueMode}
       canUseQueueMode={canUseQueueMode}
@@ -882,6 +883,13 @@ export function App() {
       onPromptSubmit={submitPrompt}
       onQueueModeChange={updateQueueMode}
       onGoalModeChange={updateGoalMode}
+      onInterrupt={interruptSelectedThread}
+      onResume={resumeSelectedThread}
+      onFork={forkSelectedThread}
+      onPauseGoal={pauseSelectedGoal}
+      onResumeGoal={resumeSelectedGoal}
+      onCompleteGoal={completeSelectedGoal}
+      onClearGoal={clearSelectedGoal}
     />
   ) : null;
 
@@ -922,13 +930,6 @@ export function App() {
           onBack={() => setMobileView("sessions")}
           onRenameTitleChange={setRenameTitle}
           onRenameSubmit={submitRename}
-          onInterrupt={interruptSelectedThread}
-          onResume={resumeSelectedThread}
-          onFork={forkSelectedThread}
-          onPauseGoal={pauseSelectedGoal}
-          onResumeGoal={resumeSelectedGoal}
-          onCompleteGoal={completeSelectedGoal}
-          onClearGoal={clearSelectedGoal}
           composer={desktopComposer}
         />
       </div>
@@ -952,6 +953,7 @@ export function App() {
           prompt={prompt}
           promptTarget={promptTarget}
           goalMode={goalMode}
+          selectedThread={selectedThread}
           selectedThreadId={selectedThreadId}
           queueMode={queueMode}
           canUseQueueMode={canUseQueueMode}
@@ -964,6 +966,13 @@ export function App() {
           onPromptSubmit={submitPrompt}
           onQueueModeChange={updateQueueMode}
           onGoalModeChange={updateGoalMode}
+          onInterrupt={interruptSelectedThread}
+          onResume={resumeSelectedThread}
+          onFork={forkSelectedThread}
+          onPauseGoal={pauseSelectedGoal}
+          onResumeGoal={resumeSelectedGoal}
+          onCompleteGoal={completeSelectedGoal}
+          onClearGoal={clearSelectedGoal}
         />
       ) : null}
       <MobileNavigation

@@ -1,7 +1,8 @@
 import { FolderOpen, ListPlus, Plus, Send, Target } from "lucide-react";
 import type { FormEvent, KeyboardEvent, PointerEvent } from "react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import type { Project } from "../../server/domain.js";
+import type { ControlThread, Project } from "../../server/domain.js";
+import { PromptControlMenu } from "./PromptControlMenu.js";
 import type { ComposerMode } from "./types.js";
 import { StatusBanners } from "./StatusBanners.js";
 
@@ -39,6 +40,14 @@ export type PromptComposerProps = {
   onPromptSubmit: (event: FormEvent) => void;
   onQueueModeChange: (value: boolean) => void;
   onGoalModeChange: (value: boolean) => void;
+  selectedThread: ControlThread | null;
+  onInterrupt: () => void;
+  onResume: () => void;
+  onFork: () => void;
+  onPauseGoal: () => void;
+  onResumeGoal: () => void;
+  onCompleteGoal: () => void;
+  onClearGoal: () => void;
 };
 
 type PromptResizeState = {
@@ -100,13 +109,21 @@ export const PromptComposer = memo(function PromptComposer({
   canUseQueueMode,
   canUseGoalMode,
   canSubmitPrompt,
+  selectedThread,
   onModeChange,
   onWorkdirChange,
   onPromptChange,
   onPromptKeyDown,
   onPromptSubmit,
   onQueueModeChange,
-  onGoalModeChange
+  onGoalModeChange,
+  onInterrupt,
+  onResume,
+  onFork,
+  onPauseGoal,
+  onResumeGoal,
+  onCompleteGoal,
+  onClearGoal
 }: PromptComposerProps) {
   const classes = className ? `prompt-composer ${className}` : "prompt-composer";
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -265,6 +282,18 @@ export const PromptComposer = memo(function PromptComposer({
                     />
                     <span>Queue</span>
                   </label>
+                  <PromptControlMenu
+                    selectedThread={selectedThread}
+                    selectedThreadId={selectedThreadId}
+                    busy={busy}
+                    onInterrupt={onInterrupt}
+                    onResume={onResume}
+                    onFork={onFork}
+                    onPauseGoal={onPauseGoal}
+                    onResumeGoal={onResumeGoal}
+                    onCompleteGoal={onCompleteGoal}
+                    onClearGoal={onClearGoal}
+                  />
                 </div>
               </div>
               <button className="prompt-submit" disabled={!canSubmitPrompt} title={submitTitle}>
