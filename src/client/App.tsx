@@ -7,6 +7,7 @@ import {
   forkThread,
   getState,
   getThread,
+  getThreadsPage,
   interruptTurn,
   renameThread,
   resumeThread,
@@ -29,6 +30,10 @@ function initialState(): DashboardState {
     projects: [],
     tasks: [],
     threads: [],
+    threadTotalCount: 0,
+    threadPageSize: 50,
+    threadNextOffset: 0,
+    threadHasMore: false,
     recipes: [],
     latestEventId: 0
   };
@@ -44,6 +49,21 @@ type DetailSubscription = {
   threadId: string;
   after: number;
 };
+
+function mergeThreadsById(current: DashboardState["threads"], incoming: DashboardState["threads"]) {
+  const next = [...current];
+  const indexById = new Map(current.map((thread, index) => [thread.id, index]));
+  for (const thread of incoming) {
+    const index = indexById.get(thread.id);
+    if (index === undefined) {
+      indexById.set(thread.id, next.length);
+      next.push(thread);
+    } else {
+      next[index] = thread;
+    }
+  }
+  return next;
+}
 
 const themeStorageKey = "codex-xyz-theme";
 const terminalVisibleStorageKey = "codex-xyz-terminal-visible";
@@ -125,8 +145,10 @@ export function App() {
   const [mobileView, setMobileView] = useState<MobileView>("sessions");
   const [summaryEventsReady, setSummaryEventsReady] = useState(false);
   const [detailSubscription, setDetailSubscription] = useState<DetailSubscription | null>(null);
+  const [loadingMoreThreads, setLoadingMoreThreads] = useState(false);
   const isMobileViewport = useMediaQuery(mobileViewportQuery);
   const isMobileViewportRef = useRef(isMobileViewport);
+  const loadingMoreThreadsRef = useRef(false);
   const selectedThreadIdRef = useRef<string | null>(null);
   const manualSelectionSeqRef = useRef(0);
   const refreshSeqRef = useRef(0);
@@ -253,6 +275,43 @@ export function App() {
     } else {
       beginDetailLoad();
       clearDetail();
+    }
+  }
+
+  async function loadMoreThreads() {
+    const current = projectionRef.current.state;
+    if (!current.threadHasMore || loadingMoreThreadsRef.current) {
+      return;
+    }
+    loadingMoreThreadsRef.current = true;
+    setLoadingMoreThreads(true);
+    setError(null);
+    try {
+      const page = await getThreadsPage({
+        limit: current.threadPageSize,
+        offset: current.threadNextOffset
+      });
+      setState((previous) => {
+        const threads = mergeThreadsById(previous.threads, page.threads);
+        const nextState: DashboardState = {
+          ...previous,
+          threads,
+          threadTotalCount: page.totalCount,
+          threadPageSize: page.limit,
+          threadNextOffset: page.nextOffset,
+          threadHasMore: page.hasMore
+        };
+        projectionRef.current = {
+          ...projectionRef.current,
+          state: nextState
+        };
+        return nextState;
+      });
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Failed to load more sessions");
+    } finally {
+      loadingMoreThreadsRef.current = false;
+      setLoadingMoreThreads(false);
     }
   }
 
@@ -499,13 +558,20 @@ export function App() {
   }, [state.projects, workdir]);
 
   const sessionList = useMemo(
-    () => getSessionListModel(state.threads, state.tasks, deferredSessionQuery),
-    [deferredSessionQuery, state.tasks, state.threads]
+    () =>
+      getSessionListModel(state.threads, state.tasks, deferredSessionQuery, {
+        totalThreadCount: state.threadTotalCount,
+        hasMoreThreads: state.threadHasMore
+      }),
+    [deferredSessionQuery, state.tasks, state.threadHasMore, state.threadTotalCount, state.threads]
   );
-  const sessionCountLabel =
-    sessionList.visibleThreadCount === sessionList.totalThreadCount
-      ? `${sessionList.totalThreadCount} total`
-      : `${sessionList.visibleThreadCount} / ${sessionList.totalThreadCount} shown`;
+  const sessionCountLabel = sessionList.hasQuery
+    ? sessionList.loadedThreadCount < sessionList.totalThreadCount
+      ? `${sessionList.visibleThreadCount} / ${sessionList.loadedThreadCount} loaded shown, ${sessionList.totalThreadCount} total`
+      : `${sessionList.visibleThreadCount} / ${sessionList.totalThreadCount} shown`
+    : sessionList.loadedThreadCount < sessionList.totalThreadCount
+      ? `${sessionList.loadedThreadCount} / ${sessionList.totalThreadCount} loaded`
+      : `${sessionList.totalThreadCount} total`;
   const promptTarget = composerMode === "thread" && selectedThread ? "thread" : "new";
   const trimmedWorkdir = workdir.trim();
   const goalPrompt = isGoalPrompt(prompt);
@@ -768,9 +834,11 @@ export function App() {
           sessionQuery={sessionQuery}
           sessionList={sessionList}
           selectedThreadId={selectedThreadId}
+          loadingMoreThreads={loadingMoreThreads}
           onTerminalToggle={() => setTerminalVisible((current) => !current)}
           onThemeChange={setTheme}
           onRefresh={() => void refresh()}
+          onLoadMoreThreads={() => void loadMoreThreads()}
           onSessionQueryChange={setSessionQuery}
           onSelectThread={selectThread}
         />

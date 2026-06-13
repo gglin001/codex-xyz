@@ -374,6 +374,46 @@ button.active {
   scrollbar-gutter: stable;
 }
 
+.session-list-virtual {
+  position: relative;
+  display: block;
+}
+
+.session-virtual-spacer {
+  position: relative;
+  min-height: 100%;
+}
+
+.session-virtual-row {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: flex;
+  align-items: stretch;
+  box-sizing: border-box;
+  padding-bottom: 8px;
+  will-change: transform;
+}
+
+.session-virtual-row.heading {
+  align-items: center;
+}
+
+.session-virtual-row.heading > .session-group-heading {
+  width: 100%;
+}
+
+.session-virtual-row.empty,
+.session-virtual-row.loadMore {
+  align-items: stretch;
+}
+
+.session-virtual-row.empty > .empty-state,
+.session-virtual-row.loadMore > .session-load-more {
+  width: 100%;
+}
+
 .task-form {
   display: flex;
   flex-direction: column;
@@ -590,15 +630,28 @@ button.active {
 .session-row {
   position: relative;
   content-visibility: auto;
-  contain-intrinsic-size: auto 74px;
+  contain-intrinsic-size: auto 56px;
   width: 100%;
-  height: auto;
+  height: 56px;
+  box-sizing: border-box;
   flex-direction: column;
   align-items: stretch;
   justify-content: flex-start;
   gap: 7px;
+  overflow: hidden;
   padding: 10px;
   text-align: left;
+}
+
+.session-row.with-goal {
+  contain-intrinsic-size: auto 80px;
+  height: 80px;
+}
+
+.session-load-more {
+  width: 100%;
+  height: 40px;
+  justify-content: center;
 }
 
 .session-row.selected {

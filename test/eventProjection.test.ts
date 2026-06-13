@@ -95,11 +95,16 @@ function item(overrides: Partial<ThreadItem> = {}): ThreadItem {
 }
 
 function state(overrides: Partial<DashboardState> = {}): DashboardState {
+  const threads = overrides.threads ?? [thread()];
   return {
     projects: [project()],
     tasks: [task()],
-    threads: [thread()],
+    threads,
     recipes: [],
+    threadTotalCount: threads.length,
+    threadPageSize: 50,
+    threadNextOffset: threads.length,
+    threadHasMore: false,
     latestEventId: 0,
     ...overrides
   };
@@ -253,6 +258,26 @@ describe("client event projection", () => {
     expect(result.handled).toBe(true);
     expect(result.needsRefresh).toBe(true);
     expect(result.state.threads.map((candidate) => candidate.id)).toEqual(["thread-2", "thread-1"]);
+    expect(result.state.threadTotalCount).toBe(2);
+    expect(result.state.threadNextOffset).toBe(2);
+  });
+
+  it("does not insert unloaded sessions for ordinary thread metadata updates", () => {
+    const current = projection();
+    const backgroundThread = thread({
+      id: "thread-background",
+      sessionId: "session-background",
+      tokensUsed: 99
+    });
+    const result = applyEventProjection(
+      current,
+      event("thread.token_usage", { thread: backgroundThread }, { threadId: "thread-background", turnId: null })
+    );
+
+    expect(result.changed).toBe(false);
+    expect(result.handled).toBe(true);
+    expect(result.state).toBe(current.state);
+    expect(result.state.threads.map((candidate) => candidate.id)).toEqual(["thread-1"]);
   });
 
   it("applies queued high-frequency events as one ordered projection", () => {

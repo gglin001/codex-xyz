@@ -15,6 +15,7 @@ import {
   type Task,
   type ThreadDetail,
   type ThreadItem,
+  type ThreadPage,
   titleFromPrompt,
   type Turn
 } from "./domain.js";
@@ -81,6 +82,23 @@ function parseShellCommandPrompt(prompt: string) {
   return command;
 }
 
+const defaultThreadPageSize = 50;
+const maxThreadPageSize = 200;
+
+function normalizePageLimit(value?: number | null) {
+  if (value === undefined || value === null) {
+    return defaultThreadPageSize;
+  }
+  return Math.min(maxThreadPageSize, Math.max(1, Math.floor(value)));
+}
+
+function normalizePageOffset(value?: number | null) {
+  if (value === undefined || value === null) {
+    return 0;
+  }
+  return Math.max(0, Math.floor(value));
+}
+
 export class ControlService {
   constructor(
     readonly store: Store,
@@ -114,10 +132,20 @@ export class ControlService {
 
   dashboard(): DashboardState {
     const latestEventId = this.store.getLatestEventId();
+    const totalCount = this.store.countThreads();
+    const limit = defaultThreadPageSize;
+    const threads =
+      totalCount <= defaultThreadPageSize
+        ? this.store.listThreads()
+        : this.store.listThreads({ limit: defaultThreadPageSize, offset: 0 });
     return {
       projects: this.store.listProjects(),
       tasks: this.store.listTasks(),
-      threads: this.store.listThreads(),
+      threads,
+      threadTotalCount: totalCount,
+      threadPageSize: limit,
+      threadNextOffset: threads.length,
+      threadHasMore: threads.length < totalCount,
       recipes: this.store.listRecipes(),
       latestEventId
     };
@@ -315,6 +343,22 @@ export class ControlService {
 
   listThreads() {
     return this.store.listThreads();
+  }
+
+  listThreadPage(input: { limit?: number | null; offset?: number | null } = {}): ThreadPage {
+    const totalCount = this.store.countThreads();
+    const limit = normalizePageLimit(input.limit);
+    const offset = normalizePageOffset(input.offset);
+    const threads = this.store.listThreads({ limit, offset });
+    const nextOffset = offset + threads.length;
+    return {
+      threads,
+      totalCount,
+      offset,
+      limit,
+      nextOffset,
+      hasMore: nextOffset < totalCount
+    };
   }
 
   getThreadDetail(threadId: string): ThreadDetail {

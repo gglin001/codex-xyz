@@ -5,8 +5,10 @@ export type SessionListModel = {
   attentionThreads: ControlThread[];
   otherThreads: ControlThread[];
   queuedTaskCount: number;
+  loadedThreadCount: number;
   totalThreadCount: number;
   visibleThreadCount: number;
+  hasMoreThreads: boolean;
   hasQuery: boolean;
 };
 
@@ -80,7 +82,11 @@ function countActiveTasks(tasks: Task[]) {
 export function getSessionListModel(
   threads: ControlThread[],
   tasks: Task[],
-  query: string
+  query: string,
+  options: {
+    totalThreadCount?: number;
+    hasMoreThreads?: boolean;
+  } = {}
 ): SessionListModel {
   const normalizedQuery = normalizeQuery(query);
   const activeThreads: ControlThread[] = [];
@@ -107,8 +113,10 @@ export function getSessionListModel(
     attentionThreads: orderThreadGroup(attentionThreads),
     otherThreads: orderThreadGroup(otherThreads),
     queuedTaskCount: countActiveTasks(tasks),
-    totalThreadCount: threads.length,
+    loadedThreadCount: threads.length,
+    totalThreadCount: options.totalThreadCount ?? threads.length,
     visibleThreadCount,
+    hasMoreThreads: options.hasMoreThreads ?? false,
     hasQuery: normalizedQuery.length > 0
   };
 }

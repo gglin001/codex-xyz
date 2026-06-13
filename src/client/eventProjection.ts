@@ -159,20 +159,56 @@ function taskStatusFromRuntime(status: RuntimeStatus): Task["status"] {
   return "running";
 }
 
-function withThread(projection: ClientProjection, thread: ControlThread): ClientProjection {
+function withThread(
+  projection: ClientProjection,
+  thread: ControlThread,
+  options: {
+    insertIfMissing?: boolean;
+    countInsert?: boolean;
+  } = {}
+): ClientProjection {
+  const existingIndex = projection.state.threads.findIndex((candidate) => candidate.id === thread.id);
+  const missing = existingIndex === -1;
+  if (missing && options.insertIfMissing === false) {
+    const detail =
+      projection.detail?.id === thread.id
+        ? mergeIfChanged<ThreadDetail>(projection.detail, thread as Partial<ThreadDetail>)
+        : projection.detail;
+    return detail === projection.detail ? projection : { ...projection, detail };
+  }
   const threads = upsertById(projection.state.threads, thread, {
     prepend: true,
     equal: shallowEqualObject
   });
+  const threadTotalCount =
+    missing && options.countInsert === true ? projection.state.threadTotalCount + 1 : projection.state.threadTotalCount;
+  const threadNextOffset =
+    missing && options.countInsert === true ? projection.state.threadNextOffset + 1 : projection.state.threadNextOffset;
   const detail =
     projection.detail?.id === thread.id
       ? mergeIfChanged<ThreadDetail>(projection.detail, thread as Partial<ThreadDetail>)
       : projection.detail;
-  if (threads === projection.state.threads && detail === projection.detail) {
+  if (
+    threads === projection.state.threads &&
+    detail === projection.detail &&
+    threadTotalCount === projection.state.threadTotalCount &&
+    threadNextOffset === projection.state.threadNextOffset
+  ) {
     return projection;
   }
   return {
-    state: threads === projection.state.threads ? projection.state : { ...projection.state, threads },
+    state:
+      threads === projection.state.threads &&
+      threadTotalCount === projection.state.threadTotalCount &&
+      threadNextOffset === projection.state.threadNextOffset
+        ? projection.state
+        : {
+            ...projection.state,
+            threads,
+            threadTotalCount,
+            threadNextOffset,
+            threadHasMore: threadNextOffset < threadTotalCount
+          },
     detail
   };
 }
@@ -344,7 +380,17 @@ export function applyEventProjection(projection: ClientProjection, event: XyzEve
       "thread.token_usage"
     ].includes(event.type)
   ) {
-    return result(projection, withThread(projection, thread), true, event);
+    const isNewThreadEvent =
+      event.type === "thread.started" || event.type === "thread.continued" || event.type === "thread.forked";
+    return result(
+      projection,
+      withThread(projection, thread, {
+        insertIfMissing: isNewThreadEvent,
+        countInsert: isNewThreadEvent
+      }),
+      true,
+      event
+    );
   }
 
   if (event.type === "project.upserted") {

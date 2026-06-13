@@ -92,6 +92,18 @@ function optionalPositiveInteger(body: Record<string, unknown>, key: string) {
   return number;
 }
 
+function optionalQueryInteger(url: URL, key: string, options: { min: number }) {
+  const value = url.searchParams.get(key);
+  if (value === null || value.trim() === "") {
+    return null;
+  }
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < options.min) {
+    throw new Error(`${key} must be an integer >= ${options.min}`);
+  }
+  return number;
+}
+
 function pathParts(url: URL) {
   return url.pathname.split("/").filter(Boolean);
 }
@@ -475,6 +487,17 @@ async function handleApi(context: HandlerContext) {
   }
 
   if (method === "GET" && route === "api/threads") {
+    if (url.searchParams.has("limit") || url.searchParams.has("offset")) {
+      sendJson(
+        response,
+        200,
+        service.listThreadPage({
+          limit: optionalQueryInteger(url, "limit", { min: 1 }),
+          offset: optionalQueryInteger(url, "offset", { min: 0 })
+        })
+      );
+      return true;
+    }
     sendJson(response, 200, service.listThreads());
     return true;
   }

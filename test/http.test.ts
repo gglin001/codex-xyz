@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { AddressInfo } from "node:net";
 import WebSocket from "ws";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { DashboardState, TerminalEvent, TerminalSnapshot } from "../src/server/domain.js";
+import type { ControlThread, DashboardState, TerminalEvent, TerminalSnapshot, ThreadPage } from "../src/server/domain.js";
 import { EventBus } from "../src/server/eventBus.js";
 import { createHttpServer } from "../src/server/http.js";
 import { ControlService } from "../src/server/service.js";
@@ -115,6 +115,28 @@ async function waitFor(assertion: () => boolean, label: string) {
   throw new Error(`Timed out waiting for ${label}`);
 }
 
+function threadFixture(index: number, projectId: string): ControlThread {
+  const timestamp = new Date(Date.UTC(2026, 5, 13, 0, 0, index)).toISOString();
+  return {
+    id: `thread-${String(index).padStart(3, "0")}`,
+    sessionId: `session-${String(index).padStart(3, "0")}`,
+    forkedFromId: null,
+    projectId,
+    title: `Session ${index}`,
+    preview: `Preview ${index}`,
+    cwd: tempDir,
+    model: "test-codex",
+    status: "idle",
+    activeTurnId: null,
+    goalObjective: null,
+    goalStatus: null,
+    goalTokenBudget: null,
+    tokensUsed: 0,
+    createdAt: timestamp,
+    updatedAt: timestamp
+  };
+}
+
 beforeEach(async () => {
   tempDir = mkdtempSync(join(tmpdir(), "codex-xyz-http-"));
   terminalPtys = [];
@@ -165,6 +187,33 @@ describe("HTTP API", () => {
     expect(nextState.latestEventId).toBeGreaterThan(0);
     expect(detail.latestEventId).toBeGreaterThan(0);
     expect(detail.items.map((item) => item.text).join("\n")).toContain("Test run started");
+  });
+
+  it("paginates large thread sets while keeping small state snapshots complete", async () => {
+    const project = service.listProjects()[0];
+    for (let index = 1; index <= 55; index += 1) {
+      service.store.createThread(threadFixture(index, project.id));
+    }
+
+    const state = await json<DashboardState>("/api/state");
+    expect(state.threads).toHaveLength(50);
+    expect(state.threadTotalCount).toBe(55);
+    expect(state.threadNextOffset).toBe(50);
+    expect(state.threadHasMore).toBe(true);
+    expect(state.threads[0].id).toBe("thread-055");
+
+    const page = await json<ThreadPage>("/api/threads?limit=50&offset=50");
+    expect(page.threads).toHaveLength(5);
+    expect(page.totalCount).toBe(55);
+    expect(page.nextOffset).toBe(55);
+    expect(page.hasMore).toBe(false);
+    expect(page.threads.map((thread) => thread.id)).toEqual([
+      "thread-005",
+      "thread-004",
+      "thread-003",
+      "thread-002",
+      "thread-001"
+    ]);
   });
 
   it("allows any configured CORS origin alias", async () => {

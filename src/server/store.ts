@@ -27,6 +27,11 @@ type EventReplayOptions = {
   summaryOnly?: boolean;
 };
 
+type ThreadListOptions = {
+  limit?: number | null;
+  offset?: number | null;
+};
+
 function readJson<T>(value: unknown, fallback: T): T {
   if (typeof value !== "string" || value.length === 0) {
     return fallback;
@@ -442,9 +447,22 @@ export class Store {
     return row ? threadFromRow(row as Row) : null;
   }
 
-  listThreads() {
+  countThreads() {
+    const row = this.db.prepare("SELECT COUNT(*) AS count FROM threads").get() as Row | undefined;
+    return row ? scalarNumber(row.count) : 0;
+  }
+
+  listThreads(options: ThreadListOptions = {}) {
+    const limit = options.limit ?? null;
+    const offset = options.offset ?? null;
+    if (limit !== null) {
+      return this.db
+        .prepare("SELECT * FROM threads ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?")
+        .all(limit, offset ?? 0)
+        .map((row) => threadFromRow(row as Row));
+    }
     return this.db
-      .prepare("SELECT * FROM threads ORDER BY updated_at DESC")
+      .prepare("SELECT * FROM threads ORDER BY updated_at DESC, id DESC")
       .all()
       .map((row) => threadFromRow(row as Row));
   }

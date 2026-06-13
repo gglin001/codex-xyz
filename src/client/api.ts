@@ -5,6 +5,7 @@ import type {
   Project,
   TerminalSnapshot,
   ThreadDetail,
+  ThreadPage,
   Turn
 } from "../server/domain.js";
 
@@ -83,6 +84,14 @@ export function getState() {
 
 export function getThread(threadId: string) {
   return request<ThreadDetail>(`/api/threads/${threadId}`);
+}
+
+export function getThreadsPage(input: { limit: number; offset: number }) {
+  const params = new URLSearchParams({
+    limit: String(input.limit),
+    offset: String(input.offset)
+  });
+  return request<ThreadPage>(`/api/threads?${params.toString()}`);
 }
 
 export function createProject(input: { name?: string | null; path: string }) {

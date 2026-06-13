@@ -1,21 +1,11 @@
 import { History, Loader2, Moon, RefreshCw, Search, Sun, Target, Terminal } from "lucide-react";
-import { memo } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ControlThread } from "../../server/domain.js";
-import { selectionTouchesThreadGroup, type SessionListModel } from "../sessionList.js";
+import type { SessionListModel } from "../sessionList.js";
 import { formatTokens, statusLabel, statusTone } from "../uiFormat.js";
 import type { ThemeMode } from "./types.js";
 
 type SelectThreadHandler = (threadId: string) => void | Promise<void>;
-
-type SessionGroupProps = {
-  title: string;
-  threads: ControlThread[];
-  selectedThreadId: string | null;
-  hasQuery: boolean;
-  emptyLabel: string;
-  emptyQueryLabel: string;
-  onSelectThread: SelectThreadHandler;
-};
 
 export type SessionSidebarProps = {
   sessionCountLabel: string;
@@ -27,12 +17,142 @@ export type SessionSidebarProps = {
   sessionQuery: string;
   sessionList: SessionListModel;
   selectedThreadId: string | null;
+  loadingMoreThreads: boolean;
   onTerminalToggle: () => void;
   onThemeChange: (theme: ThemeMode) => void;
   onRefresh: () => void;
+  onLoadMoreThreads: () => void;
   onSessionQueryChange: (value: string) => void;
   onSelectThread: SelectThreadHandler;
 };
+
+type SessionListEntry =
+  | {
+      kind: "heading";
+      id: string;
+      title: string;
+      count: number;
+    }
+  | {
+      kind: "empty";
+      id: string;
+      label: string;
+    }
+  | {
+      kind: "thread";
+      id: string;
+      thread: ControlThread;
+    }
+  | {
+      kind: "loadMore";
+      id: string;
+      loading: boolean;
+    };
+
+const compactSessionRowHeight = 64;
+const goalSessionRowHeight = 88;
+const sessionHeadingHeight = 30;
+const sessionEmptyHeight = 50;
+const sessionLoadMoreHeight = 52;
+const sessionOverscanRows = 5;
+const loadMoreScrollThreshold = 320;
+
+function threadHasGoal(thread: ControlThread) {
+  return Boolean(thread.goalObjective && thread.goalStatus && thread.goalStatus !== "cleared");
+}
+
+function sessionEntryHeight(entry: SessionListEntry) {
+  if (entry.kind === "thread") {
+    return threadHasGoal(entry.thread) ? goalSessionRowHeight : compactSessionRowHeight;
+  }
+  if (entry.kind === "heading") {
+    return sessionHeadingHeight;
+  }
+  if (entry.kind === "loadMore") {
+    return sessionLoadMoreHeight;
+  }
+  return sessionEmptyHeight;
+}
+
+function buildSessionEntries(
+  sessionList: SessionListModel,
+  options: {
+    loadingMoreThreads: boolean;
+  }
+): SessionListEntry[] {
+  const entries: SessionListEntry[] = [];
+  const groups = [
+    {
+      id: "active",
+      title: "Active",
+      threads: sessionList.activeThreads,
+      emptyLabel: "No active sessions",
+      emptyQueryLabel: "No matching active sessions"
+    },
+    {
+      id: "attention",
+      title: "Needs attention",
+      threads: sessionList.attentionThreads,
+      emptyLabel: "No attention needed",
+      emptyQueryLabel: "No matching attention"
+    },
+    {
+      id: "history",
+      title: "History",
+      threads: sessionList.otherThreads,
+      emptyLabel: "No history",
+      emptyQueryLabel: "No matching history"
+    }
+  ];
+
+  for (const group of groups) {
+    entries.push({
+      kind: "heading",
+      id: `heading:${group.id}`,
+      title: group.title,
+      count: group.threads.length
+    });
+    if (group.threads.length === 0) {
+      entries.push({
+        kind: "empty",
+        id: `empty:${group.id}`,
+        label: sessionList.hasQuery ? group.emptyQueryLabel : group.emptyLabel
+      });
+      continue;
+    }
+    for (const thread of group.threads) {
+      entries.push({
+        kind: "thread",
+        id: `thread:${thread.id}`,
+        thread
+      });
+    }
+  }
+
+  if (sessionList.hasMoreThreads) {
+    entries.push({
+      kind: "loadMore",
+      id: "load-more",
+      loading: options.loadingMoreThreads
+    });
+  }
+
+  return entries;
+}
+
+function upperBound(values: number[], target: number) {
+  let low = 0;
+  let high = values.length;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (values[middle] <= target) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+  return low;
+}
 
 const SessionRow = memo(function SessionRow({
   thread,
@@ -43,12 +163,12 @@ const SessionRow = memo(function SessionRow({
   selected: boolean;
   onSelectThread: SelectThreadHandler;
 }) {
-  const hasGoal = Boolean(thread.goalObjective && thread.goalStatus && thread.goalStatus !== "cleared");
+  const hasGoal = threadHasGoal(thread);
   const goalStatus = thread.goalStatus ? `Goal ${statusLabel(thread.goalStatus)}` : "Goal";
 
   return (
     <button
-      className={`session-row ${selected ? "selected" : ""}`}
+      className={`session-row ${hasGoal ? "with-goal" : "compact"} ${selected ? "selected" : ""}`}
       onClick={() => {
         void onSelectThread(thread.id);
       }}
@@ -80,43 +200,136 @@ const SessionRow = memo(function SessionRow({
   );
 });
 
-const SessionGroup = memo(function SessionGroup({
-  title,
-  threads,
+const VirtualSessionList = memo(function VirtualSessionList({
+  sessionList,
   selectedThreadId,
-  hasQuery,
-  emptyLabel,
-  emptyQueryLabel,
+  loadingMoreThreads,
+  onLoadMoreThreads,
   onSelectThread
-}: SessionGroupProps) {
+}: {
+  sessionList: SessionListModel;
+  selectedThreadId: string | null;
+  loadingMoreThreads: boolean;
+  onLoadMoreThreads: () => void;
+  onSelectThread: SelectThreadHandler;
+}) {
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(0);
+  const entries = useMemo(
+    () => buildSessionEntries(sessionList, { loadingMoreThreads }),
+    [loadingMoreThreads, sessionList]
+  );
+  const offsets = useMemo(() => {
+    const values = [0];
+    for (const entry of entries) {
+      values.push(values[values.length - 1] + sessionEntryHeight(entry));
+    }
+    return values;
+  }, [entries]);
+  const totalHeight = offsets[offsets.length - 1] ?? 0;
+  const visibleRange = useMemo(() => {
+    const first = Math.max(0, upperBound(offsets, scrollTop) - 1 - sessionOverscanRows);
+    const last = Math.min(
+      entries.length,
+      upperBound(offsets, scrollTop + viewportHeight) + sessionOverscanRows
+    );
+    return {
+      first,
+      last: Math.max(first, last)
+    };
+  }, [entries.length, offsets, scrollTop, viewportHeight]);
+
+  const maybeLoadMore = useCallback(() => {
+    const element = listRef.current;
+    if (!element || !sessionList.hasMoreThreads || loadingMoreThreads) {
+      return;
+    }
+    const remaining = element.scrollHeight - element.scrollTop - element.clientHeight;
+    if (remaining <= loadMoreScrollThreshold) {
+      onLoadMoreThreads();
+    }
+  }, [loadingMoreThreads, onLoadMoreThreads, sessionList.hasMoreThreads]);
+
+  const handleScroll = useCallback(() => {
+    const element = listRef.current;
+    if (!element) {
+      return;
+    }
+    setScrollTop(element.scrollTop);
+    maybeLoadMore();
+  }, [maybeLoadMore]);
+
+  useEffect(() => {
+    const element = listRef.current;
+    if (!element) {
+      return;
+    }
+    const syncSize = () => {
+      setViewportHeight(element.clientHeight);
+      setScrollTop(element.scrollTop);
+    };
+    syncSize();
+    const observer = new ResizeObserver(syncSize);
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    maybeLoadMore();
+  }, [maybeLoadMore, totalHeight, viewportHeight]);
+
   return (
-    <div className="session-group">
-      <h2 className="session-group-heading">
-        <span>{title}</span>
-        <span className="session-group-count">{threads.length}</span>
-      </h2>
-      {threads.length === 0 ? (
-        <div className="empty-state compact">{hasQuery ? emptyQueryLabel : emptyLabel}</div>
-      ) : null}
-      {threads.map((thread) => (
-        <SessionRow
-          key={thread.id}
-          thread={thread}
-          selected={thread.id === selectedThreadId}
-          onSelectThread={onSelectThread}
-        />
-      ))}
+    <div
+      ref={listRef}
+      className="session-list session-list-virtual"
+      aria-label="Session list"
+      onScroll={handleScroll}
+    >
+      <div className="session-virtual-spacer" style={{ height: totalHeight }}>
+        {entries.slice(visibleRange.first, visibleRange.last).map((entry, localIndex) => {
+          const index = visibleRange.first + localIndex;
+          const top = offsets[index] ?? 0;
+          const height = sessionEntryHeight(entry);
+          return (
+            <div
+              key={entry.id}
+              className={`session-virtual-row ${entry.kind}`}
+              style={{ height, transform: `translateY(${top}px)` }}
+            >
+              {entry.kind === "heading" ? (
+                <h2 className="session-group-heading">
+                  <span>{entry.title}</span>
+                  <span className="session-group-count">{entry.count}</span>
+                </h2>
+              ) : null}
+              {entry.kind === "empty" ? <div className="empty-state compact">{entry.label}</div> : null}
+              {entry.kind === "thread" ? (
+                <SessionRow
+                  thread={entry.thread}
+                  selected={entry.thread.id === selectedThreadId}
+                  onSelectThread={onSelectThread}
+                />
+              ) : null}
+              {entry.kind === "loadMore" ? (
+                <button
+                  type="button"
+                  className="session-load-more"
+                  disabled={entry.loading}
+                  onClick={onLoadMoreThreads}
+                >
+                  {entry.loading ? "Loading more sessions..." : "Load more sessions"}
+                </button>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
-}, (previous: SessionGroupProps, next: SessionGroupProps) =>
-  previous.title === next.title &&
-  previous.threads === next.threads &&
-  previous.hasQuery === next.hasQuery &&
-  previous.emptyLabel === next.emptyLabel &&
-  previous.emptyQueryLabel === next.emptyQueryLabel &&
-  previous.onSelectThread === next.onSelectThread &&
-  !selectionTouchesThreadGroup(next.threads, previous.selectedThreadId, next.selectedThreadId)
-);
+});
 
 export const SessionSidebar = memo(function SessionSidebar({
   sessionCountLabel,
@@ -128,9 +341,11 @@ export const SessionSidebar = memo(function SessionSidebar({
   sessionQuery,
   sessionList,
   selectedThreadId,
+  loadingMoreThreads,
   onTerminalToggle,
   onThemeChange,
   onRefresh,
+  onLoadMoreThreads,
   onSessionQueryChange,
   onSelectThread
 }: SessionSidebarProps) {
@@ -182,37 +397,13 @@ export const SessionSidebar = memo(function SessionSidebar({
         />
       </label>
 
-      <div className="session-list" aria-label="Session list">
-        <SessionGroup
-          title="Active"
-          threads={sessionList.activeThreads}
-          selectedThreadId={selectedThreadId}
-          hasQuery={sessionList.hasQuery}
-          emptyLabel="No active sessions"
-          emptyQueryLabel="No matching active sessions"
-          onSelectThread={onSelectThread}
-        />
-
-        <SessionGroup
-          title="Needs attention"
-          threads={sessionList.attentionThreads}
-          selectedThreadId={selectedThreadId}
-          hasQuery={sessionList.hasQuery}
-          emptyLabel="No attention needed"
-          emptyQueryLabel="No matching attention"
-          onSelectThread={onSelectThread}
-        />
-
-        <SessionGroup
-          title="History"
-          threads={sessionList.otherThreads}
-          selectedThreadId={selectedThreadId}
-          hasQuery={sessionList.hasQuery}
-          emptyLabel="No history"
-          emptyQueryLabel="No matching history"
-          onSelectThread={onSelectThread}
-        />
-      </div>
+      <VirtualSessionList
+        sessionList={sessionList}
+        selectedThreadId={selectedThreadId}
+        loadingMoreThreads={loadingMoreThreads}
+        onLoadMoreThreads={onLoadMoreThreads}
+        onSelectThread={onSelectThread}
+      />
     </section>
   );
 });

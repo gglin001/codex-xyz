@@ -136,10 +136,23 @@ export type ThreadDetail = ControlThread & {
   latestEventId: number;
 };
 
+export type ThreadPage = {
+  threads: ControlThread[];
+  totalCount: number;
+  offset: number;
+  limit: number;
+  nextOffset: number;
+  hasMore: boolean;
+};
+
 export type DashboardState = {
   projects: Project[];
   tasks: Task[];
   threads: ControlThread[];
+  threadTotalCount: number;
+  threadPageSize: number;
+  threadNextOffset: number;
+  threadHasMore: boolean;
   recipes: PromptRecipe[];
   latestEventId: number;
 };
