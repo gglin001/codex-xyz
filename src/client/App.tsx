@@ -105,7 +105,7 @@ export function App() {
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ThreadDetail | null>(null);
   const [prompt, setPrompt] = useState("");
-  const [steer, setSteer] = useState("");
+  const [steerMode, setSteerMode] = useState(false);
   const [workdir, setWorkdir] = useState("");
   const [workdirTouched, setWorkdirTouched] = useState(false);
   const [sessionQuery, setSessionQuery] = useState("");
@@ -417,16 +417,16 @@ export function App() {
   const promptTarget = composerMode === "thread" && selectedThread ? "thread" : "new";
   const trimmedWorkdir = workdir.trim();
   const goalPrompt = isGoalPrompt(prompt);
+  const canUseSteerMode = promptTarget === "thread" && Boolean(selectedThreadId) && selectedThread?.status === "running";
+  const canSubmitTurnPrompt = goalPrompt
+    ? Boolean(selectedThreadId)
+    : promptTarget === "thread"
+      ? Boolean(selectedThreadId)
+      : Boolean(trimmedWorkdir);
   const canSubmitPrompt =
     Boolean(prompt.trim()) &&
     !busy &&
-    (goalPrompt
-      ? Boolean(selectedThreadId)
-      : promptTarget === "thread"
-        ? Boolean(selectedThreadId)
-        : Boolean(trimmedWorkdir));
-  const canSubmitSteer =
-    Boolean(selectedThreadId) && selectedThread?.status === "running" && Boolean(steer.trim()) && !busy;
+    (steerMode ? canUseSteerMode : canSubmitTurnPrompt);
   const canRename =
     Boolean(selectedThreadId) &&
     Boolean(renameTitle.trim()) &&
@@ -441,6 +441,16 @@ export function App() {
   useEffect(() => {
     setRenameTitle(selectedThread?.title ?? "");
   }, [selectedThread?.id, selectedThread?.title]);
+
+  useEffect(() => {
+    setSteerMode(false);
+  }, [selectedThreadId, promptTarget]);
+
+  useEffect(() => {
+    if (!canUseSteerMode) {
+      setSteerMode(false);
+    }
+  }, [canUseSteerMode]);
 
   const updateWorkdir = useCallback((value: string) => {
     setWorkdir(value);
@@ -487,6 +497,18 @@ export function App() {
       return;
     }
     const currentPrompt = prompt;
+
+    if (steerMode) {
+      if (!selectedThreadId || !canUseSteerMode) {
+        return;
+      }
+      const threadId = selectedThreadId;
+      setPrompt("");
+      void runAction("Steering turn", async () => {
+        await steerTurn(threadId, currentPrompt);
+      });
+      return;
+    }
 
     if (isGoalPrompt(currentPrompt)) {
       if (!selectedThreadId) {
@@ -550,19 +572,6 @@ export function App() {
       event.preventDefault();
       executePrompt();
     }
-  }
-
-  function submitSteer(event: FormEvent) {
-    event.preventDefault();
-    if (!selectedThreadId || !canSubmitSteer) {
-      return;
-    }
-    const threadId = selectedThreadId;
-    const currentSteer = steer;
-    setSteer("");
-    void runAction("Steering turn", async () => {
-      await steerTurn(threadId, currentSteer);
-    });
   }
 
   function submitRename(event: FormEvent) {
@@ -637,16 +646,15 @@ export function App() {
       goalPrompt={goalPrompt}
       selectedThread={selectedThread}
       selectedThreadId={selectedThreadId}
-      steer={steer}
+      steerMode={steerMode}
+      canUseSteerMode={canUseSteerMode}
       canSubmitPrompt={canSubmitPrompt}
-      canSubmitSteer={canSubmitSteer}
       onModeChange={setComposerMode}
       onWorkdirChange={updateWorkdir}
       onPromptChange={setPrompt}
       onPromptKeyDown={handlePromptKeyDown}
       onPromptSubmit={submitPrompt}
-      onSteerChange={setSteer}
-      onSteerSubmit={submitSteer}
+      onSteerModeChange={setSteerMode}
     />
   ) : null;
 
@@ -713,16 +721,15 @@ export function App() {
           goalPrompt={goalPrompt}
           selectedThread={selectedThread}
           selectedThreadId={selectedThreadId}
-          steer={steer}
+          steerMode={steerMode}
+          canUseSteerMode={canUseSteerMode}
           canSubmitPrompt={canSubmitPrompt}
-          canSubmitSteer={canSubmitSteer}
           onModeChange={setComposerMode}
           onWorkdirChange={updateWorkdir}
           onPromptChange={setPrompt}
           onPromptKeyDown={handlePromptKeyDown}
           onPromptSubmit={submitPrompt}
-          onSteerChange={setSteer}
-          onSteerSubmit={submitSteer}
+          onSteerModeChange={setSteerMode}
         />
       ) : null}
       <MobileNavigation

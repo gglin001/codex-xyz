@@ -334,12 +334,12 @@ button.active {
 }
 
 .detail-composer .task-form {
-  align-items: flex-end;
+  align-items: stretch;
 }
 
 .detail-composer .task-form textarea {
-  min-height: 54px;
-  max-height: 180px;
+  min-height: 76px;
+  max-height: 220px;
 }
 
 .composer-mode button {
@@ -375,19 +375,26 @@ button.active {
   scrollbar-gutter: stable;
 }
 
-.task-form,
-.steer-form {
+.task-form {
   display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.prompt-field-row {
+  display: flex;
+  min-width: 0;
   gap: 8px;
+  align-items: flex-end;
 }
 
 .task-form textarea {
+  flex: 1 1 auto;
   width: 100%;
-  min-height: 82px;
+  min-height: 104px;
   resize: vertical;
 }
 
-.steer-form input,
 .task-form textarea,
 .title-editor input,
 .session-search {
@@ -399,7 +406,6 @@ button.active {
   outline: none;
 }
 
-.steer-form input::placeholder,
 .task-form textarea::placeholder,
 .title-editor input::placeholder,
 .workdir-field input::placeholder,
@@ -407,7 +413,6 @@ button.active {
   color: var(--muted);
 }
 
-.steer-form input,
 .title-editor input {
   height: 34px;
   padding: 0 10px;
@@ -418,11 +423,47 @@ button.active {
   line-height: 1.45;
 }
 
-.steer-form input:focus,
 .task-form textarea:focus,
 .title-editor input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.prompt-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+}
+
+.prompt-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted-strong);
+  font-size: 12px;
+  line-height: 1;
+  user-select: none;
+}
+
+.prompt-option input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.prompt-option input:disabled {
+  cursor: not-allowed;
+}
+
+.prompt-option input:disabled + span {
+  color: var(--muted);
+}
+
+.prompt-option span {
+  white-space: nowrap;
 }
 
 .session-search {
@@ -1538,31 +1579,25 @@ button.active {
   }
 
   .mobile-composer .composer-mode button,
-  .mobile-composer .task-form button,
-  .mobile-composer .steer-form button {
+  .mobile-composer .task-form button {
     height: 40px;
     min-width: 40px;
   }
 
   .mobile-composer .task-form {
-    align-items: flex-end;
+    align-items: stretch;
   }
 
   .mobile-composer .task-form textarea {
-    min-height: 44px;
-    max-height: 104px;
+    min-height: 64px;
+    max-height: 128px;
     resize: none;
     font-size: 16px;
   }
 
-  .mobile-composer .steer-form input,
   .mobile-composer .workdir-field input,
   .mobile-composer .session-search input {
     font-size: 16px;
-  }
-
-  .mobile-composer .steer-form input {
-    height: 40px;
   }
 
   .terminal-dock {

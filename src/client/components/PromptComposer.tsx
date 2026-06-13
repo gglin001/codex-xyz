@@ -1,4 +1,4 @@
-import { FolderOpen, Plus, Send, Target } from "lucide-react";
+import { FolderOpen, Plus, Route, Send, Target } from "lucide-react";
 import type { FormEvent, KeyboardEvent } from "react";
 import { memo } from "react";
 import type { ControlThread, Project } from "../../server/domain.js";
@@ -29,16 +29,15 @@ export type PromptComposerProps = {
   goalPrompt: boolean;
   selectedThread: ControlThread | null;
   selectedThreadId: string | null;
-  steer: string;
+  steerMode: boolean;
+  canUseSteerMode: boolean;
   canSubmitPrompt: boolean;
-  canSubmitSteer: boolean;
   onModeChange: (mode: ComposerMode) => void;
   onWorkdirChange: (value: string) => void;
   onPromptChange: (value: string) => void;
   onPromptKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
   onPromptSubmit: (event: FormEvent) => void;
-  onSteerChange: (value: string) => void;
-  onSteerSubmit: (event: FormEvent) => void;
+  onSteerModeChange: (value: boolean) => void;
 };
 
 const WorkdirField = memo(function WorkdirField({
@@ -96,19 +95,31 @@ export const PromptComposer = memo(function PromptComposer({
   goalPrompt,
   selectedThread,
   selectedThreadId,
-  steer,
+  steerMode,
+  canUseSteerMode,
   canSubmitPrompt,
-  canSubmitSteer,
   onModeChange,
   onWorkdirChange,
   onPromptChange,
   onPromptKeyDown,
   onPromptSubmit,
-  onSteerChange,
-  onSteerSubmit
+  onSteerModeChange
 }: PromptComposerProps) {
   const classes = className ? `prompt-composer ${className}` : "prompt-composer";
-  const steerThread = selectedThread && (!compact || selectedThread.status === "running") ? selectedThread : null;
+  const showPromptOptions =
+    promptTarget === "thread" && Boolean(selectedThread) && (!compact || selectedThread?.status === "running");
+  const promptPlaceholder = steerMode
+    ? "Steer active turn"
+    : promptTarget === "thread"
+      ? "Send next turn or /goal <objective>"
+      : "Create a task";
+  const submitTitle = steerMode
+    ? "Steer active turn"
+    : goalPrompt
+      ? "Start goal turn"
+      : promptTarget === "thread"
+        ? "Start turn"
+        : "Create session";
 
   return (
     <div className={classes}>
@@ -148,35 +159,40 @@ export const PromptComposer = memo(function PromptComposer({
         ) : null}
 
         <form className="task-form" onSubmit={onPromptSubmit}>
-          <textarea
-            value={prompt}
-            onChange={(event) => onPromptChange(event.target.value)}
-            onKeyDown={onPromptKeyDown}
-            placeholder={promptTarget === "thread" ? "Send next turn or /goal <objective>" : "Create a task"}
-            disabled={busy}
-          />
-          <button
-            disabled={!canSubmitPrompt}
-            title={goalPrompt ? "Start goal turn" : promptTarget === "thread" ? "Start turn" : "Create session"}
-          >
-            {goalPrompt ? <Target size={16} /> : promptTarget === "thread" ? <Send size={16} /> : <Plus size={16} />}
-          </button>
-        </form>
-
-        {steerThread ? (
-          <form className="steer-form" onSubmit={onSteerSubmit}>
-            <input
-              value={steer}
-              onChange={(event) => onSteerChange(event.target.value)}
-              placeholder="Steer active turn"
-              disabled={!selectedThreadId || steerThread.status !== "running" || busy}
-              aria-label="Steer active turn"
+          <div className="prompt-field-row">
+            <textarea
+              value={prompt}
+              onChange={(event) => onPromptChange(event.target.value)}
+              onKeyDown={onPromptKeyDown}
+              placeholder={promptPlaceholder}
+              disabled={busy}
             />
-            <button title="Steer active turn" disabled={!canSubmitSteer}>
-              <Send size={16} />
+            <button disabled={!canSubmitPrompt} title={submitTitle}>
+              {steerMode ? (
+                <Route size={16} />
+              ) : goalPrompt ? (
+                <Target size={16} />
+              ) : promptTarget === "thread" ? (
+                <Send size={16} />
+              ) : (
+                <Plus size={16} />
+              )}
             </button>
-          </form>
-        ) : null}
+          </div>
+          {showPromptOptions ? (
+            <div className="prompt-options">
+              <label className="prompt-option">
+                <input
+                  type="checkbox"
+                  checked={steerMode}
+                  disabled={!canUseSteerMode || busy}
+                  onChange={(event) => onSteerModeChange(event.target.checked)}
+                />
+                <span>Steer mode</span>
+              </label>
+            </div>
+          ) : null}
+        </form>
       </div>
     </div>
   );
