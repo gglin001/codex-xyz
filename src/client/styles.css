@@ -337,8 +337,8 @@ button.active {
 }
 
 .detail-composer .task-form textarea {
-  min-height: 76px;
-  max-height: 220px;
+  min-height: 124px;
+  max-height: min(44vh, 420px);
 }
 
 .composer-mode button {
@@ -417,7 +417,31 @@ button.active {
 .task-form {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 8px;
+}
+
+.prompt-resize-handle {
+  display: flex;
+  height: 8px;
+  align-items: center;
+  justify-content: center;
+  margin: -2px 46px -4px 0;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.prompt-resize-handle::before {
+  content: "";
+  width: 44px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--border-strong);
+  opacity: 0.72;
+}
+
+.prompt-resize-handle:hover::before {
+  background: var(--accent);
+  opacity: 1;
 }
 
 .prompt-field-row {
@@ -430,7 +454,8 @@ button.active {
 .task-form textarea {
   flex: 1 1 auto;
   width: 100%;
-  min-height: 104px;
+  min-height: 128px;
+  max-height: min(46vh, 440px);
   resize: vertical;
 }
 
@@ -1615,7 +1640,7 @@ button.active {
   }
 
   .mobile-composer {
-    max-height: min(42dvh, 340px);
+    max-height: min(54dvh, 440px);
     padding: 8px 10px;
     border-top: 1px solid var(--border-strong);
     background: var(--panel-bg);
@@ -1644,9 +1669,9 @@ button.active {
   }
 
   .mobile-composer .task-form textarea {
-    min-height: 64px;
-    max-height: 128px;
-    resize: none;
+    min-height: 96px;
+    max-height: min(34dvh, 240px);
+    resize: vertical;
     font-size: 16px;
   }
 

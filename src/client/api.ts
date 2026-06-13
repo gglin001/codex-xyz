@@ -107,11 +107,22 @@ export function createProject(input: { name?: string | null; path: string }) {
 export function createTask(input: {
   projectId: string;
   prompt: string;
+  goalMode?: boolean | null;
   title?: string | null;
   recipeId?: string | null;
   model?: string | null;
 }) {
-  return request<{ task: unknown; thread: unknown; turn: Turn }>("/api/tasks", {
+  return request<{
+    task: unknown;
+    thread: ControlThread | null;
+    turn: Turn | null;
+    goal: {
+      objective: string;
+      status: GoalStatus;
+      tokenBudget: number | null;
+      tokensUsed: number;
+    } | null;
+  }>("/api/tasks", {
     method: "POST",
     body: JSON.stringify(input)
   });

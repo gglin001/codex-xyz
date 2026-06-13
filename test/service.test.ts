@@ -319,6 +319,30 @@ describe("ControlService", () => {
     expect(service.listTasks()[0].status).toBe("completed");
   });
 
+  it("creates a goal session without starting a normal prompt turn", async () => {
+    const project = service.listProjects()[0];
+    const result = await service.createTask({
+      projectId: project.id,
+      prompt: "Finish the first-version MVP",
+      goalMode: true
+    });
+
+    const threadId = result.thread?.id;
+    if (!threadId) {
+      throw new Error("Expected created thread id");
+    }
+
+    expect(result.turn).toBeNull();
+    expect(result.goal?.objective).toBe("Finish the first-version MVP");
+    expect(result.thread?.goalObjective).toBe("Finish the first-version MVP");
+    expect(result.thread?.goalStatus).toBe("in_progress");
+    expect(service.listTasks()[0].status).toBe("completed");
+
+    const detail = service.getThreadDetail(threadId);
+    expect(detail.turns).toHaveLength(0);
+    expect(detail.goalObjective).toBe("Finish the first-version MVP");
+  });
+
   it("keeps dashboard snapshots and summary event replay separate from transcript detail", async () => {
     const project = service.listProjects()[0];
     const result = await service.createTask({
@@ -365,6 +389,9 @@ describe("ControlService", () => {
     if (!threadId) {
       throw new Error("Expected created thread id");
     }
+    if (!result.turn) {
+      throw new Error("Expected created turn");
+    }
 
     const detail = service.getThreadDetail(threadId);
     expect(result.turn.status).toBe("completed");
@@ -407,10 +434,13 @@ describe("ControlService", () => {
     await waitForEvents();
 
     const threadId = result.thread?.id;
-    const turnId = result.turn.id;
     if (!threadId) {
       throw new Error("Expected created thread id");
     }
+    if (!result.turn) {
+      throw new Error("Expected created turn");
+    }
+    const turnId = result.turn.id;
 
     const shellTurn = await service.startTurn({
       threadId,

@@ -215,6 +215,7 @@ export type TerminalEvent = TerminalOutputEvent | TerminalStatusEvent;
 export type CreateTaskInput = {
   projectId: string;
   prompt: string;
+  goalMode?: boolean | null;
   recipeId?: string | null;
   title?: string | null;
   model?: string | null;

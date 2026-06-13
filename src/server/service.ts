@@ -209,6 +209,28 @@ export class ControlService {
     this.store.updateTask(task.id, { threadId: thread.id, status: "running" });
     this.publish("thread.started", thread.id, null, { thread });
 
+    if (input.goalMode) {
+      const goal = await this.adapter.setGoal({
+        threadId: thread.id,
+        objective: input.prompt,
+        tokenBudget: null
+      });
+      const goalThread = this.store.updateThread(thread.id, {
+        goalObjective: goal.objective,
+        goalStatus: goalStatusFromAdapter(goal),
+        goalTokenBudget: goal.tokenBudget,
+        tokensUsed: goal.tokensUsed
+      });
+      this.store.updateTask(task.id, { status: "completed" });
+      this.publish("thread.goal.updated", thread.id, null, { goal, thread: goalThread });
+      return {
+        task: this.store.getTask(task.id),
+        thread: this.store.getThread(thread.id),
+        turn: null,
+        goal
+      };
+    }
+
     const turn = await this.startTurn({
       threadId: thread.id,
       prompt: input.prompt,
@@ -220,7 +242,8 @@ export class ControlService {
     return {
       task: this.store.getTask(task.id),
       thread: this.store.getThread(turn.threadId),
-      turn
+      turn,
+      goal: null
     };
   }
 

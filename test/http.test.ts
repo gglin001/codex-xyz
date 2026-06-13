@@ -189,6 +189,32 @@ describe("HTTP API", () => {
     expect(detail.items.map((item) => item.text).join("\n")).toContain("Test run started");
   });
 
+  it("creates a goal session from a local task request", async () => {
+    const state = await json<DashboardState>("/api/state");
+    const created = await json<{
+      goal: { objective: string; status: string } | null;
+      thread: { id: string; goalObjective: string | null; goalStatus: string | null };
+      turn: unknown | null;
+    }>("/api/tasks", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: state.projects[0].id,
+        prompt: "Finish the local goal workflow",
+        goalMode: true
+      })
+    });
+
+    expect(created.turn).toBeNull();
+    expect(created.goal?.objective).toBe("Finish the local goal workflow");
+    expect(created.goal?.status).toBe("in_progress");
+    expect(created.thread.goalObjective).toBe("Finish the local goal workflow");
+    expect(created.thread.goalStatus).toBe("in_progress");
+
+    const detail = await json<{ goalObjective: string | null; turns: unknown[] }>(`/api/threads/${created.thread.id}`);
+    expect(detail.goalObjective).toBe("Finish the local goal workflow");
+    expect(detail.turns).toHaveLength(0);
+  });
+
   it("paginates large thread sets while keeping small state snapshots complete", async () => {
     const project = service.listProjects()[0];
     for (let index = 1; index <= 55; index += 1) {

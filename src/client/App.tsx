@@ -11,6 +11,7 @@ import {
   interruptTurn,
   renameThread,
   resumeThread,
+  setGoal,
   startTurn,
   steerTurn
 } from "./api.js";
@@ -122,16 +123,13 @@ function readStoredTerminalVisible() {
   }
 }
 
-function isGoalPrompt(value: string) {
-  return /^\/goal(?:\s|$)/i.test(value.trim());
-}
-
 export function App() {
   const [state, setState] = useState<DashboardState>(initialState);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ThreadDetail | null>(null);
   const [prompt, setPrompt] = useState("");
   const [steerMode, setSteerMode] = useState(false);
+  const [goalMode, setGoalMode] = useState(false);
   const [workdir, setWorkdir] = useState("");
   const [workdirTouched, setWorkdirTouched] = useState(false);
   const [sessionQuery, setSessionQuery] = useState("");
@@ -574,10 +572,13 @@ export function App() {
       : `${sessionList.totalThreadCount} total`;
   const promptTarget = composerMode === "thread" && selectedThread ? "thread" : "new";
   const trimmedWorkdir = workdir.trim();
-  const goalPrompt = isGoalPrompt(prompt);
+  const canUseGoalMode =
+    promptTarget === "new"
+      ? Boolean(trimmedWorkdir)
+      : Boolean(selectedThreadId) && selectedThread?.status === "idle";
   const canUseSteerMode = promptTarget === "thread" && Boolean(selectedThreadId) && selectedThread?.status === "running";
-  const canSubmitTurnPrompt = goalPrompt
-    ? Boolean(selectedThreadId)
+  const canSubmitTurnPrompt = goalMode
+    ? canUseGoalMode
     : promptTarget === "thread"
       ? Boolean(selectedThreadId)
       : Boolean(trimmedWorkdir);
@@ -602,6 +603,7 @@ export function App() {
 
   useEffect(() => {
     setSteerMode(false);
+    setGoalMode(false);
   }, [selectedThreadId, promptTarget]);
 
   useEffect(() => {
@@ -610,9 +612,29 @@ export function App() {
     }
   }, [canUseSteerMode]);
 
+  useEffect(() => {
+    if (!canUseGoalMode) {
+      setGoalMode(false);
+    }
+  }, [canUseGoalMode]);
+
   const updateWorkdir = useCallback((value: string) => {
     setWorkdir(value);
     setWorkdirTouched(true);
+  }, []);
+
+  const updateSteerMode = useCallback((value: boolean) => {
+    setSteerMode(value);
+    if (value) {
+      setGoalMode(false);
+    }
+  }, []);
+
+  const updateGoalMode = useCallback((value: boolean) => {
+    setGoalMode(value);
+    if (value) {
+      setSteerMode(false);
+    }
   }, []);
 
   async function runAction(
@@ -668,19 +690,18 @@ export function App() {
       return;
     }
 
-    if (isGoalPrompt(currentPrompt)) {
-      if (!selectedThreadId) {
-        setError("Select a session before using /goal.");
+    if (goalMode && promptTarget === "thread") {
+      if (!selectedThreadId || !canUseGoalMode) {
         return;
       }
       const threadId = selectedThreadId;
       setPrompt("");
       setComposerMode("thread");
       void runAction(
-        "Starting goal turn",
+        "Starting goal mode",
         async () => {
-          const turn = await startTurn(threadId, currentPrompt);
-          return turn.threadId;
+          await setGoal(threadId, currentPrompt.trim());
+          return threadId;
         },
         { mobileViewOnSuccess: "detail" }
       );
@@ -703,7 +724,7 @@ export function App() {
     }
 
     void runAction(
-      "Creating session",
+      goalMode ? "Creating goal session" : "Creating session",
       async () => {
         let project = matchingWorkdirProject;
         if (!project) {
@@ -711,8 +732,8 @@ export function App() {
         }
         setWorkdir(project.path);
         setWorkdirTouched(false);
-        const result = await createTask({ projectId: project.id, prompt: currentPrompt });
-        const thread = result.thread as { id?: string } | null;
+        const result = await createTask({ projectId: project.id, prompt: currentPrompt, goalMode });
+        const thread = result.thread;
         setComposerMode("thread");
         return thread?.id;
       },
@@ -801,18 +822,19 @@ export function App() {
       error={error}
       prompt={prompt}
       promptTarget={promptTarget}
-      goalPrompt={goalPrompt}
-      selectedThread={selectedThread}
+      goalMode={goalMode}
       selectedThreadId={selectedThreadId}
       steerMode={steerMode}
       canUseSteerMode={canUseSteerMode}
+      canUseGoalMode={canUseGoalMode}
       canSubmitPrompt={canSubmitPrompt}
       onModeChange={setComposerMode}
       onWorkdirChange={updateWorkdir}
       onPromptChange={setPrompt}
       onPromptKeyDown={handlePromptKeyDown}
       onPromptSubmit={submitPrompt}
-      onSteerModeChange={setSteerMode}
+      onSteerModeChange={updateSteerMode}
+      onGoalModeChange={updateGoalMode}
     />
   ) : null;
 
@@ -878,18 +900,19 @@ export function App() {
           error={error}
           prompt={prompt}
           promptTarget={promptTarget}
-          goalPrompt={goalPrompt}
-          selectedThread={selectedThread}
+          goalMode={goalMode}
           selectedThreadId={selectedThreadId}
           steerMode={steerMode}
           canUseSteerMode={canUseSteerMode}
+          canUseGoalMode={canUseGoalMode}
           canSubmitPrompt={canSubmitPrompt}
           onModeChange={setComposerMode}
           onWorkdirChange={updateWorkdir}
           onPromptChange={setPrompt}
           onPromptKeyDown={handlePromptKeyDown}
           onPromptSubmit={submitPrompt}
-          onSteerModeChange={setSteerMode}
+          onSteerModeChange={updateSteerMode}
+          onGoalModeChange={updateGoalMode}
         />
       ) : null}
       <MobileNavigation

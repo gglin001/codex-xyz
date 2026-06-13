@@ -80,6 +80,11 @@ function optionalString(body: Record<string, unknown>, key: string) {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
+function optionalBoolean(body: Record<string, unknown>, key: string) {
+  const value = body[key];
+  return typeof value === "boolean" ? value : null;
+}
+
 function optionalPositiveInteger(body: Record<string, unknown>, key: string) {
   const value = body[key];
   if (value === undefined || value === null || value === "") {
@@ -478,6 +483,7 @@ async function handleApi(context: HandlerContext) {
     const result = await service.createTask({
       projectId: requireString(body, "projectId"),
       prompt: requireString(body, "prompt"),
+      goalMode: optionalBoolean(body, "goalMode"),
       title: optionalString(body, "title"),
       recipeId: optionalString(body, "recipeId"),
       model: optionalString(body, "model")

@@ -1,7 +1,7 @@
 import { FolderOpen, Plus, Route, Send, Target } from "lucide-react";
-import type { FormEvent, KeyboardEvent } from "react";
-import { memo } from "react";
-import type { ControlThread, Project } from "../../server/domain.js";
+import type { FormEvent, KeyboardEvent, PointerEvent } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
+import type { Project } from "../../server/domain.js";
 import type { ComposerMode } from "./types.js";
 import { StatusBanners } from "./StatusBanners.js";
 
@@ -26,11 +26,11 @@ export type PromptComposerProps = {
   error: string | null;
   prompt: string;
   promptTarget: ComposerMode;
-  goalPrompt: boolean;
-  selectedThread: ControlThread | null;
+  goalMode: boolean;
   selectedThreadId: string | null;
   steerMode: boolean;
   canUseSteerMode: boolean;
+  canUseGoalMode: boolean;
   canSubmitPrompt: boolean;
   onModeChange: (mode: ComposerMode) => void;
   onWorkdirChange: (value: string) => void;
@@ -38,6 +38,14 @@ export type PromptComposerProps = {
   onPromptKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
   onPromptSubmit: (event: FormEvent) => void;
   onSteerModeChange: (value: boolean) => void;
+  onGoalModeChange: (value: boolean) => void;
+};
+
+type PromptResizeState = {
+  startY: number;
+  startHeight: number;
+  minHeight: number;
+  maxHeight: number;
 };
 
 const WorkdirField = memo(function WorkdirField({
@@ -86,34 +94,95 @@ export const PromptComposer = memo(function PromptComposer({
   error,
   prompt,
   promptTarget,
-  goalPrompt,
-  selectedThread,
+  goalMode,
   selectedThreadId,
   steerMode,
   canUseSteerMode,
+  canUseGoalMode,
   canSubmitPrompt,
   onModeChange,
   onWorkdirChange,
   onPromptChange,
   onPromptKeyDown,
   onPromptSubmit,
-  onSteerModeChange
+  onSteerModeChange,
+  onGoalModeChange
 }: PromptComposerProps) {
   const classes = className ? `prompt-composer ${className}` : "prompt-composer";
-  const showPromptOptions =
-    promptTarget === "thread" && Boolean(selectedThread) && (!compact || selectedThread?.status === "running");
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const resizeStateRef = useRef<PromptResizeState | null>(null);
+  const [promptHeight, setPromptHeight] = useState<number | null>(null);
   const promptPlaceholder = steerMode
     ? "Steer active turn"
-    : promptTarget === "thread"
-      ? "Send next turn or /goal <objective>"
-      : "Create a task";
+    : goalMode
+      ? "Describe the goal objective"
+      : promptTarget === "thread"
+        ? "Send next turn"
+        : "Create a task";
   const submitTitle = steerMode
     ? "Steer active turn"
-    : goalPrompt
-      ? "Start goal turn"
+    : goalMode
+      ? "Start goal mode"
       : promptTarget === "thread"
         ? "Start turn"
         : "Create session";
+  const steerModeTitle = canUseSteerMode
+    ? "Steer the active turn"
+    : "Steer mode requires a running selected session";
+  const goalModeTitle = canUseGoalMode
+    ? "Use the prompt as the goal objective"
+    : promptTarget === "thread"
+      ? "Goal mode requires an idle selected session"
+      : "Goal mode requires a working directory";
+
+  useEffect(() => {
+    const handlePointerMove = (event: globalThis.PointerEvent) => {
+      const resizeState = resizeStateRef.current;
+      if (!resizeState) {
+        return;
+      }
+      event.preventDefault();
+      const delta = resizeState.startY - event.clientY;
+      const nextHeight = Math.min(
+        resizeState.maxHeight,
+        Math.max(resizeState.minHeight, resizeState.startHeight + delta)
+      );
+      setPromptHeight(nextHeight);
+    };
+    const handlePointerUp = () => {
+      resizeStateRef.current = null;
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+    };
+  }, []);
+
+  const handlePromptResizePointerDown = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      const textarea = textareaRef.current;
+      if (!textarea || busy) {
+        return;
+      }
+      event.preventDefault();
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 720;
+      const minHeight = compact ? 96 : 124;
+      const maxHeight = Math.max(minHeight, Math.floor(viewportHeight * (compact ? 0.34 : 0.44)));
+      resizeStateRef.current = {
+        startY: event.clientY,
+        startHeight: textarea.getBoundingClientRect().height,
+        minHeight,
+        maxHeight
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+    },
+    [busy, compact]
+  );
 
   return (
     <div className={classes}>
@@ -153,18 +222,28 @@ export const PromptComposer = memo(function PromptComposer({
         ) : null}
 
         <form className="task-form" onSubmit={onPromptSubmit}>
+          <div
+            className="prompt-resize-handle"
+            role="separator"
+            aria-label="Resize prompt input"
+            aria-orientation="horizontal"
+            title="Drag up to resize prompt input"
+            onPointerDown={handlePromptResizePointerDown}
+          />
           <div className="prompt-field-row">
             <textarea
+              ref={textareaRef}
               value={prompt}
               onChange={(event) => onPromptChange(event.target.value)}
               onKeyDown={onPromptKeyDown}
               placeholder={promptPlaceholder}
               disabled={busy}
+              style={promptHeight === null ? undefined : { height: `${promptHeight}px` }}
             />
             <button disabled={!canSubmitPrompt} title={submitTitle}>
               {steerMode ? (
                 <Route size={16} />
-              ) : goalPrompt ? (
+              ) : goalMode ? (
                 <Target size={16} />
               ) : promptTarget === "thread" ? (
                 <Send size={16} />
@@ -173,19 +252,26 @@ export const PromptComposer = memo(function PromptComposer({
               )}
             </button>
           </div>
-          {showPromptOptions ? (
-            <div className="prompt-options">
-              <label className="prompt-option">
-                <input
-                  type="checkbox"
-                  checked={steerMode}
-                  disabled={!canUseSteerMode || busy}
-                  onChange={(event) => onSteerModeChange(event.target.checked)}
-                />
-                <span>Steer mode</span>
-              </label>
-            </div>
-          ) : null}
+          <div className="prompt-options">
+            <label className="prompt-option" title={steerModeTitle}>
+              <input
+                type="checkbox"
+                checked={steerMode}
+                disabled={!canUseSteerMode || busy}
+                onChange={(event) => onSteerModeChange(event.target.checked)}
+              />
+              <span>Steer mode</span>
+            </label>
+            <label className="prompt-option" title={goalModeTitle}>
+              <input
+                type="checkbox"
+                checked={goalMode}
+                disabled={!canUseGoalMode || busy}
+                onChange={(event) => onGoalModeChange(event.target.checked)}
+              />
+              <span>Goal mode</span>
+            </label>
+          </div>
         </form>
       </div>
     </div>
