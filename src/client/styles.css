@@ -146,6 +146,17 @@ body {
   min-height: 0;
 }
 
+.app-shell {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  background: var(--split-bg);
+  color: var(--text);
+  overflow: hidden;
+}
+
 button,
 input,
 textarea {
@@ -208,8 +219,7 @@ small {
   display: grid;
   grid-template-columns: minmax(320px, 430px) minmax(460px, 1fr);
   gap: 1px;
-  height: 100vh;
-  height: 100dvh;
+  height: 100%;
   min-height: 0;
   background: var(--split-bg);
   color: var(--text);
@@ -915,6 +925,160 @@ button.active {
   min-height: 42px;
 }
 
+.terminal-dock {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  height: clamp(240px, 34vh, 420px);
+  min-height: 0;
+  border-top: 1px solid var(--border-strong);
+  background: var(--detail-bg);
+  color: var(--text);
+  contain: layout paint style;
+}
+
+.terminal-dock-header,
+.terminal-dock-meta {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.terminal-dock-header {
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 42px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.terminal-dock-title,
+.terminal-dock-actions {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+}
+
+.terminal-dock-title {
+  flex: 1 1 auto;
+}
+
+.terminal-dock-title svg {
+  color: var(--accent);
+}
+
+.terminal-dock-title strong,
+.terminal-dock-title small,
+.terminal-dock-meta span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-dock-title strong {
+  flex: 0 0 auto;
+  color: var(--text-strong);
+  font-size: 13px;
+}
+
+.terminal-dock-title small {
+  color: var(--muted);
+}
+
+.terminal-status {
+  flex: 0 0 auto;
+  min-width: 0;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: var(--quiet-bg);
+  color: var(--quiet-text);
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.terminal-status.running,
+.terminal-status.connected {
+  background: var(--running-bg);
+  color: var(--running-text);
+}
+
+.terminal-status.starting,
+.terminal-status.connecting,
+.terminal-status.reconnecting {
+  background: var(--neutral-bg);
+  color: var(--neutral-text);
+}
+
+.terminal-status.failed,
+.terminal-status.offline {
+  background: var(--attention-bg);
+  color: var(--attention-text);
+}
+
+.terminal-dock-actions {
+  flex: 0 0 auto;
+}
+
+.terminal-dock-actions button {
+  gap: 6px;
+  min-width: 0;
+  padding: 0 9px;
+}
+
+.terminal-dock-actions button:last-child {
+  width: 34px;
+  padding: 0;
+}
+
+.terminal-dock-actions span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-dock-meta {
+  gap: 12px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.terminal-dock-meta span:first-child {
+  flex: 1 1 auto;
+}
+
+.terminal-error {
+  color: var(--error-text);
+}
+
+.terminal-dock-body {
+  min-width: 0;
+  min-height: 0;
+  padding: 6px 8px 8px;
+  background: #0b111a;
+  overflow: hidden;
+}
+
+:root[data-theme="light"] .terminal-dock-body,
+.workspace[data-theme="light"] ~ .terminal-dock .terminal-dock-body {
+  background: #ffffff;
+}
+
+.terminal-dock-body .xterm {
+  width: 100%;
+  height: 100%;
+}
+
+.terminal-dock-body .xterm-viewport,
+.terminal-dock-body .xterm-screen {
+  border-radius: 6px;
+}
+
 .spin {
   animation: spin 0.9s linear infinite;
 }
@@ -928,6 +1092,12 @@ button.active {
 @media (max-width: 980px) {
   body {
     overflow: auto;
+  }
+
+  .app-shell {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
   }
 
   .workspace {
@@ -951,6 +1121,10 @@ button.active {
     max-height: 62vh;
     min-height: 260px;
   }
+
+  .terminal-dock {
+    height: min(360px, 55vh);
+  }
 }
 
 @media (max-width: 640px) {
@@ -971,6 +1145,21 @@ button.active {
 
   .toolbar button {
     flex: 1 1 0;
+  }
+
+  .terminal-dock-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .terminal-dock-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .terminal-dock-actions button:last-child {
+    width: auto;
   }
 
   .session-facts {

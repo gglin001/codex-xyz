@@ -119,6 +119,41 @@ export type DashboardState = {
   recipes: PromptRecipe[];
 };
 
+export type TerminalProcessStatus = "idle" | "starting" | "running" | "exited" | "failed";
+
+export type TerminalSnapshot = {
+  status: TerminalProcessStatus;
+  command: string;
+  cwd: string;
+  pid: number | null;
+  cols: number;
+  rows: number;
+  sequence: number;
+  screen: string;
+  title: string | null;
+  startedAt: string | null;
+  updatedAt: string;
+  exitCode: number | null;
+  signal: number | string | null;
+  error: string | null;
+};
+
+export type TerminalOutputEvent = {
+  sequence: number;
+  type: "terminal.output";
+  data: string;
+  createdAt: string;
+};
+
+export type TerminalStatusEvent = {
+  sequence: number;
+  type: "terminal.status";
+  snapshot: TerminalSnapshot;
+  createdAt: string;
+};
+
+export type TerminalEvent = TerminalOutputEvent | TerminalStatusEvent;
+
 export type CreateTaskInput = {
   projectId: string;
   prompt: string;

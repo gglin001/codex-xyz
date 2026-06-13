@@ -54,6 +54,14 @@ function requireString(body: Record<string, unknown>, key: string) {
   return value.trim();
 }
 
+function requireRawString(body: Record<string, unknown>, key: string) {
+  const value = body[key];
+  if (typeof value !== "string") {
+    throw new Error(`Missing string field: ${key}`);
+  }
+  return value;
+}
+
 function optionalString(body: Record<string, unknown>, key: string) {
   const value = body[key];
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
@@ -122,8 +130,73 @@ async function handleApi(context: HandlerContext) {
     return true;
   }
 
+  if (method === "GET" && url.pathname === "/api/terminal") {
+    sendJson(response, 200, await service.terminal.snapshot());
+    return true;
+  }
+
+  if (method === "GET" && url.pathname === "/api/terminal/events") {
+    response.writeHead(200, {
+      "content-type": "text/event-stream; charset=utf-8",
+      "cache-control": "no-cache, no-transform",
+      connection: "keep-alive",
+      "x-accel-buffering": "no"
+    });
+    const after = Number(url.searchParams.get("after") ?? 0);
+    for (const event of service.terminal.replay(Number.isFinite(after) ? after : 0)) {
+      writeSse(response, event.type, event, event.sequence);
+    }
+    const unsubscribe = service.terminal.subscribe((event) => writeSse(response, event.type, event, event.sequence));
+    const heartbeat = setInterval(() => {
+      response.write(": ping\n\n");
+    }, 25_000);
+    request.on("close", () => {
+      clearInterval(heartbeat);
+      unsubscribe();
+    });
+    return true;
+  }
+
   const parts = pathParts(url);
   const route = parts.join("/");
+
+  if (method === "POST" && route === "api/terminal/start") {
+    const body = await readJson(request);
+    const snapshot = await service.terminal.start({
+      cols: optionalPositiveInteger(body, "cols"),
+      rows: optionalPositiveInteger(body, "rows")
+    });
+    sendJson(response, 200, snapshot);
+    return true;
+  }
+
+  if (method === "POST" && route === "api/terminal/input") {
+    const body = await readJson(request);
+    const data = requireRawString(body, "data");
+    if (data.length > 0) {
+      service.terminal.write(data);
+    }
+    sendNoContent(response);
+    return true;
+  }
+
+  if (method === "POST" && route === "api/terminal/resize") {
+    const body = await readJson(request);
+    sendJson(
+      response,
+      200,
+      await service.terminal.resize({
+        cols: optionalPositiveInteger(body, "cols"),
+        rows: optionalPositiveInteger(body, "rows")
+      })
+    );
+    return true;
+  }
+
+  if (method === "POST" && route === "api/terminal/terminate") {
+    sendJson(response, 200, await service.terminal.terminate());
+    return true;
+  }
 
   if (method === "GET" && route === "api/projects") {
     sendJson(response, 200, service.listProjects());

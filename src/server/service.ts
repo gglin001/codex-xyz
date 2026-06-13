@@ -28,6 +28,7 @@ import {
   type AdapterTurn,
   type CodexAdapter
 } from "./codex/adapter.js";
+import { TerminalController } from "./terminal.js";
 
 function taskStatusFromRuntime(status: RuntimeStatus): Task["status"] {
   if (status === "completed" || status === "idle") {
@@ -84,13 +85,15 @@ export class ControlService {
   constructor(
     readonly store: Store,
     readonly adapter: CodexAdapter,
-    readonly events = new EventBus()
+    readonly events = new EventBus(),
+    readonly terminal = new TerminalController()
   ) {
     this.adapter.onEvent((event) => this.handleAdapterEvent(event));
   }
 
   seedLocalState(input: { cwd: string; adapterName: string; cliVersion?: string | null }) {
     const cwd = normalizeWorkingDirectory(input.cwd);
+    this.terminal.configure({ cwd });
     this.store.upsertHost({
       id: "local",
       name: "Local host",
@@ -325,6 +328,7 @@ export class ControlService {
   }
 
   async close() {
+    await this.terminal.close();
     await this.adapter.close();
     this.store.close();
   }

@@ -3,6 +3,7 @@ import type {
   DashboardState,
   GoalStatus,
   Project,
+  TerminalSnapshot,
   ThreadDetail,
   Turn
 } from "../server/domain.js";
@@ -119,5 +120,43 @@ export function setGoal(threadId: string, objective: string, tokenBudget?: numbe
 export function clearGoal(threadId: string) {
   return request<ControlThread>(`/api/threads/${threadId}/goal`, {
     method: "DELETE"
+  });
+}
+
+export function getTerminal() {
+  return request<TerminalSnapshot>("/api/terminal");
+}
+
+export function startTerminal(input: { cols?: number | null; rows?: number | null } = {}) {
+  return request<TerminalSnapshot>("/api/terminal/start", {
+    method: "POST",
+    body: JSON.stringify({
+      cols: input.cols ?? null,
+      rows: input.rows ?? null
+    })
+  });
+}
+
+export function writeTerminalInput(data: string) {
+  return request<void>("/api/terminal/input", {
+    method: "POST",
+    body: JSON.stringify({ data })
+  });
+}
+
+export function resizeTerminal(input: { cols?: number | null; rows?: number | null }) {
+  return request<TerminalSnapshot>("/api/terminal/resize", {
+    method: "POST",
+    body: JSON.stringify({
+      cols: input.cols ?? null,
+      rows: input.rows ?? null
+    })
+  });
+}
+
+export function terminateTerminal() {
+  return request<TerminalSnapshot>("/api/terminal/terminate", {
+    method: "POST",
+    body: JSON.stringify({})
   });
 }

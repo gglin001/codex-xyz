@@ -23,7 +23,7 @@ import {
   UserRound
 } from "lucide-react";
 import type { FormEvent, KeyboardEvent } from "react";
-import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, memo, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   apiUrl,
   createProject,
@@ -45,6 +45,7 @@ import {
   type TranscriptWindowMode
 } from "./transcriptWindow.js";
 import { getCollapsedTextPreview } from "./textPreview.js";
+import { isMacTerminalToggleShortcut } from "./terminalShortcut.js";
 import { choosePreferredThreadId, shouldLoadThreadSelection, shouldSelectActionResult } from "./threadSelection.js";
 import type {
   ControlThread,
@@ -184,7 +185,11 @@ type RunActionOptions = {
 };
 
 const themeStorageKey = "codex-xyz-theme";
+const terminalVisibleStorageKey = "codex-xyz-terminal-visible";
 const collapsedPreviewLineCount = 2;
+const TerminalDock = lazy(async () => ({
+  default: (await import("./TerminalDock.js")).TerminalDock
+}));
 
 type SelectThreadHandler = (threadId: string) => void | Promise<void>;
 type SessionGroupProps = {
@@ -212,6 +217,17 @@ function readStoredTheme(): ThemeMode {
     return window.localStorage.getItem(themeStorageKey) === "light" ? "light" : "dark";
   } catch {
     return "dark";
+  }
+}
+
+function readStoredTerminalVisible() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  try {
+    return window.localStorage.getItem(terminalVisibleStorageKey) === "true";
+  } catch {
+    return false;
   }
 }
 
@@ -533,6 +549,7 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeMode>(readStoredTheme);
+  const [terminalVisible, setTerminalVisible] = useState(readStoredTerminalVisible);
   const selectedThreadIdRef = useRef<string | null>(null);
   const manualSelectionSeqRef = useRef(0);
   const refreshSeqRef = useRef(0);
@@ -677,6 +694,30 @@ export function App() {
       // Keep the in-memory theme even if the browser blocks persistence.
     }
   }, [theme]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(terminalVisibleStorageKey, terminalVisible ? "true" : "false");
+    } catch {
+      // Keep the in-memory terminal visibility even if persistence is blocked.
+    }
+  }, [terminalVisible]);
+
+  useEffect(() => {
+    const handleTerminalShortcut = (event: globalThis.KeyboardEvent) => {
+      if (!isMacTerminalToggleShortcut(event, window.navigator.platform)) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      setTerminalVisible((current) => !current);
+    };
+
+    window.addEventListener("keydown", handleTerminalShortcut, true);
+    return () => {
+      window.removeEventListener("keydown", handleTerminalShortcut, true);
+    };
+  }, []);
 
   useEffect(() => {
     let source: EventSource | null = null;
@@ -948,8 +989,9 @@ export function App() {
   }
 
   return (
-    <main className="workspace" data-theme={theme}>
-      <section className="sessions panel">
+    <main className="app-shell" data-theme={theme}>
+      <div className="workspace" data-theme={theme}>
+        <section className="sessions panel">
         <div className="panel-header sessions-header">
           <div className="sessions-title">
             <strong>codex-xyz</strong>
@@ -960,6 +1002,16 @@ export function App() {
           </div>
           <div className="panel-header-actions">
             {busy ? <Loader2 className="spin" size={18} /> : <History size={18} />}
+            <button
+              type="button"
+              className={terminalVisible ? "active" : ""}
+              title={terminalVisible ? "Hide terminal" : "Open terminal"}
+              aria-label={terminalVisible ? "Hide terminal" : "Open terminal"}
+              aria-pressed={terminalVisible}
+              onClick={() => setTerminalVisible((current) => !current)}
+            >
+              <Terminal size={16} />
+            </button>
             <button
               type="button"
               className="theme-toggle"
@@ -1164,7 +1216,13 @@ export function App() {
         {selectedDetail ? <SessionFacts thread={selectedDetail} /> : null}
 
         <Transcript detail={selectedDetail} hasSelection={Boolean(selectedThreadId)} />
-      </section>
+        </section>
+      </div>
+      <Suspense fallback={null}>
+        {terminalVisible ? (
+          <TerminalDock visible={terminalVisible} theme={theme} onClose={() => setTerminalVisible(false)} />
+        ) : null}
+      </Suspense>
     </main>
   );
 }

@@ -27,8 +27,9 @@ export function parseServerArgs(argv: string[]): ServerOptions {
 
 export function createServiceFromEnv(options: ServerOptions = {}) {
   const dataDir = resolve(process.cwd(), process.env.CODEX_XYZ_DATA_DIR ?? ".codex-xyz");
+  const codexBin = process.env.CODEX_XYZ_CODEX_BIN ?? "codex";
   const store = Store.open(resolve(dataDir, "codex-xyz.sqlite"));
-  const adapter = new AppServerCodexAdapter(process.env.CODEX_XYZ_CODEX_BIN ?? "codex", {
+  const adapter = new AppServerCodexAdapter(codexBin, {
     debugLogPath: options.debug ? resolve(dataDir, "debug.jsonl") : null
   });
   const service = new ControlService(store, adapter);
