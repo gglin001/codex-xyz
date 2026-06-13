@@ -310,6 +310,13 @@ button.active {
   gap: 8px;
 }
 
+.prompt-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
 .composer-mode button {
   width: 100%;
   min-width: 0;
@@ -1198,7 +1205,7 @@ button.active {
   }
 
   .app-shell {
-    grid-template-rows: minmax(0, 1fr) auto auto;
+    grid-template-rows: minmax(0, 1fr) auto auto auto;
     height: 100vh;
     height: 100dvh;
     min-height: 0;
@@ -1242,6 +1249,40 @@ button.active {
   .detail-header {
     align-items: center;
     flex-direction: row;
+    gap: 8px;
+  }
+
+  .detail-header .title-stack {
+    flex: 1 1 auto;
+  }
+
+  .title-editor {
+    gap: 6px;
+  }
+
+  .title-editor input {
+    height: 36px;
+    min-width: 0;
+    font-size: 16px;
+  }
+
+  .toolbar {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    gap: 6px;
+    justify-content: flex-end;
+  }
+
+  .toolbar button {
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    padding: 0;
+  }
+
+  .toolbar span {
+    display: none;
   }
 
   .mobile-back-button {
@@ -1249,6 +1290,53 @@ button.active {
     flex: 0 0 auto;
     width: 38px;
     padding: 0;
+  }
+
+  .mobile-composer {
+    max-height: min(42dvh, 340px);
+    padding: 8px 10px;
+    border-top: 1px solid var(--border-strong);
+    background: var(--panel-bg);
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  .mobile-composer .status-banner {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .mobile-composer .composer-mode {
+    gap: 6px;
+  }
+
+  .mobile-composer .composer-mode button,
+  .mobile-composer .task-form button,
+  .mobile-composer .steer-form button {
+    height: 40px;
+    min-width: 40px;
+  }
+
+  .mobile-composer .task-form {
+    align-items: flex-end;
+  }
+
+  .mobile-composer .task-form textarea {
+    min-height: 44px;
+    max-height: 104px;
+    resize: none;
+    font-size: 16px;
+  }
+
+  .mobile-composer .steer-form input,
+  .mobile-composer .workdir-field input,
+  .mobile-composer .session-search input {
+    font-size: 16px;
+  }
+
+  .mobile-composer .steer-form input {
+    height: 40px;
   }
 
   .mobile-nav {

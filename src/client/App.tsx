@@ -181,6 +181,7 @@ function ItemIcon({ item }: { item: ThreadItem }) {
 
 type ThemeMode = "dark" | "light";
 type MobileView = "sessions" | "detail";
+type ComposerMode = "thread" | "new";
 type RunActionOptions = {
   selectResult?: boolean;
   successMessage?: string;
@@ -216,6 +217,38 @@ type MobileNavigationProps = {
   view: MobileView;
   hasSelection: boolean;
   onViewChange: (view: MobileView) => void;
+};
+type PromptComposerProps = {
+  className?: string;
+  showStatus?: boolean;
+  compact?: boolean;
+  projects: Project[];
+  workdir: string;
+  matchingProject: Project | null;
+  busy: boolean;
+  busyAction: string | null;
+  notice: string | null;
+  error: string | null;
+  prompt: string;
+  promptTarget: ComposerMode;
+  goalPrompt: boolean;
+  selectedThread: ControlThread | null;
+  selectedThreadId: string | null;
+  steer: string;
+  canSubmitPrompt: boolean;
+  canSubmitSteer: boolean;
+  onModeChange: (mode: ComposerMode) => void;
+  onWorkdirChange: (value: string) => void;
+  onPromptChange: (value: string) => void;
+  onPromptKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
+  onPromptSubmit: (event: FormEvent) => void;
+  onSteerChange: (value: string) => void;
+  onSteerSubmit: (event: FormEvent) => void;
+};
+type StatusBannersProps = {
+  busyAction: string | null;
+  notice: string | null;
+  error: string | null;
 };
 
 function readMediaQuery(query: string) {
@@ -425,6 +458,118 @@ const WorkdirField = memo(function WorkdirField({
   );
 });
 
+const StatusBanners = memo(function StatusBanners({ busyAction, notice, error }: StatusBannersProps) {
+  return (
+    <>
+      {busyAction ? <div className="status-banner neutral">{busyAction}...</div> : null}
+      {notice ? <div className="status-banner success">{notice}</div> : null}
+      {error ? <div className="status-banner error">{error}</div> : null}
+    </>
+  );
+});
+
+const PromptComposer = memo(function PromptComposer({
+  className,
+  showStatus = false,
+  compact = false,
+  projects,
+  workdir,
+  matchingProject,
+  busy,
+  busyAction,
+  notice,
+  error,
+  prompt,
+  promptTarget,
+  goalPrompt,
+  selectedThread,
+  selectedThreadId,
+  steer,
+  canSubmitPrompt,
+  canSubmitSteer,
+  onModeChange,
+  onWorkdirChange,
+  onPromptChange,
+  onPromptKeyDown,
+  onPromptSubmit,
+  onSteerChange,
+  onSteerSubmit
+}: PromptComposerProps) {
+  const classes = className ? `prompt-composer ${className}` : "prompt-composer";
+  const steerThread = selectedThread && (!compact || selectedThread.status === "running") ? selectedThread : null;
+
+  return (
+    <div className={classes}>
+      {showStatus ? <StatusBanners busyAction={busyAction} notice={notice} error={error} /> : null}
+
+      <div className="composer-mode" role="group" aria-label="Prompt target">
+        <button
+          type="button"
+          className={promptTarget === "new" ? "active" : ""}
+          title="New session"
+          onClick={() => onModeChange("new")}
+        >
+          <Plus size={15} />
+          <span>New session</span>
+        </button>
+        <button
+          type="button"
+          className={promptTarget === "thread" ? "active" : ""}
+          title="Selected session"
+          disabled={!selectedThreadId}
+          onClick={() => onModeChange("thread")}
+        >
+          <Send size={15} />
+          <span>Selected</span>
+        </button>
+      </div>
+
+      <div className="composer-stack">
+        {promptTarget === "new" ? (
+          <WorkdirField
+            projects={projects}
+            value={workdir}
+            matchingProject={matchingProject}
+            disabled={busy}
+            onChange={onWorkdirChange}
+          />
+        ) : null}
+
+        <form className="task-form" onSubmit={onPromptSubmit}>
+          <textarea
+            value={prompt}
+            onChange={(event) => onPromptChange(event.target.value)}
+            onKeyDown={onPromptKeyDown}
+            placeholder={promptTarget === "thread" ? "Send next turn or /goal <objective>" : "Create a task"}
+            disabled={busy}
+          />
+          <button
+            disabled={!canSubmitPrompt}
+            title={goalPrompt ? "Start goal turn" : promptTarget === "thread" ? "Start turn" : "Create session"}
+          >
+            {goalPrompt ? <Target size={16} /> : promptTarget === "thread" ? <Send size={16} /> : <Plus size={16} />}
+          </button>
+        </form>
+
+        {steerThread ? (
+          <form className="steer-form" onSubmit={onSteerSubmit}>
+            <input
+              value={steer}
+              onChange={(event) => onSteerChange(event.target.value)}
+              placeholder="Steer active turn"
+              disabled={!selectedThreadId || steerThread.status !== "running" || busy}
+              aria-label="Steer active turn"
+            />
+            <button title="Steer active turn" disabled={!canSubmitSteer}>
+              <Send size={16} />
+            </button>
+          </form>
+        ) : null}
+      </div>
+    </div>
+  );
+});
+
 const SessionFacts = memo(
   function SessionFacts({ thread }: { thread: ThreadDetail }) {
     return (
@@ -610,7 +755,7 @@ export function App() {
   const [workdir, setWorkdir] = useState("");
   const [workdirTouched, setWorkdirTouched] = useState(false);
   const [sessionQuery, setSessionQuery] = useState("");
-  const [composerMode, setComposerMode] = useState<"thread" | "new">("thread");
+  const [composerMode, setComposerMode] = useState<ComposerMode>("thread");
   const [renameTitle, setRenameTitle] = useState("");
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1122,74 +1267,35 @@ export function App() {
             </div>
           </div>
 
-          <div className="composer-mode" role="group" aria-label="Prompt target">
-            <button
-              type="button"
-              className={promptTarget === "new" ? "active" : ""}
-              title="New session"
-              onClick={() => setComposerMode("new")}
-            >
-              <Plus size={15} />
-              <span>New session</span>
-            </button>
-            <button
-              type="button"
-              className={promptTarget === "thread" ? "active" : ""}
-              title="Selected session"
-              disabled={!selectedThreadId}
-              onClick={() => setComposerMode("thread")}
-            >
-              <Send size={15} />
-              <span>Selected</span>
-            </button>
-          </div>
+          {!isMobileViewport ? (
+            <PromptComposer
+              className="desktop-composer"
+              projects={state.projects}
+              workdir={workdir}
+              matchingProject={matchingWorkdirProject}
+              busy={busy}
+              busyAction={busyAction}
+              notice={notice}
+              error={error}
+              prompt={prompt}
+              promptTarget={promptTarget}
+              goalPrompt={goalPrompt}
+              selectedThread={selectedThread}
+              selectedThreadId={selectedThreadId}
+              steer={steer}
+              canSubmitPrompt={canSubmitPrompt}
+              canSubmitSteer={canSubmitSteer}
+              onModeChange={setComposerMode}
+              onWorkdirChange={updateWorkdir}
+              onPromptChange={setPrompt}
+              onPromptKeyDown={handlePromptKeyDown}
+              onPromptSubmit={submitPrompt}
+              onSteerChange={setSteer}
+              onSteerSubmit={submitSteer}
+            />
+          ) : null}
 
-          <div className="composer-stack">
-            {promptTarget === "new" ? (
-              <WorkdirField
-                projects={state.projects}
-                value={workdir}
-                matchingProject={matchingWorkdirProject}
-                disabled={busy}
-                onChange={updateWorkdir}
-              />
-            ) : null}
-
-            <form className="task-form" onSubmit={submitPrompt}>
-              <textarea
-                value={prompt}
-                onChange={(event) => setPrompt(event.target.value)}
-                onKeyDown={handlePromptKeyDown}
-                placeholder={promptTarget === "thread" ? "Send next turn or /goal <objective>" : "Create a task"}
-                disabled={busy}
-              />
-              <button
-                disabled={!canSubmitPrompt}
-                title={goalPrompt ? "Start goal turn" : promptTarget === "thread" ? "Start turn" : "Create session"}
-              >
-                {goalPrompt ? <Target size={16} /> : promptTarget === "thread" ? <Send size={16} /> : <Plus size={16} />}
-              </button>
-            </form>
-
-            {selectedThread ? (
-              <form className="steer-form" onSubmit={submitSteer}>
-                <input
-                  value={steer}
-                  onChange={(event) => setSteer(event.target.value)}
-                  placeholder="Steer active turn"
-                  disabled={!selectedThreadId || selectedThread.status !== "running" || busy}
-                  aria-label="Steer active turn"
-                />
-                <button title="Steer active turn" disabled={!canSubmitSteer}>
-                  <Send size={16} />
-                </button>
-              </form>
-            ) : null}
-          </div>
-
-          {busyAction ? <div className="status-banner neutral">{busyAction}...</div> : null}
-          {notice ? <div className="status-banner success">{notice}</div> : null}
-          {error ? <div className="status-banner error">{error}</div> : null}
+          {!isMobileViewport ? <StatusBanners busyAction={busyAction} notice={notice} error={error} /> : null}
 
           <label className="session-search">
             <Search size={14} />
@@ -1328,6 +1434,35 @@ export function App() {
           <TerminalDock visible={terminalVisible} theme={theme} onClose={() => setTerminalVisible(false)} />
         ) : null}
       </Suspense>
+      {isMobileViewport ? (
+        <PromptComposer
+          className="mobile-composer"
+          showStatus
+          compact
+          projects={state.projects}
+          workdir={workdir}
+          matchingProject={matchingWorkdirProject}
+          busy={busy}
+          busyAction={busyAction}
+          notice={notice}
+          error={error}
+          prompt={prompt}
+          promptTarget={promptTarget}
+          goalPrompt={goalPrompt}
+          selectedThread={selectedThread}
+          selectedThreadId={selectedThreadId}
+          steer={steer}
+          canSubmitPrompt={canSubmitPrompt}
+          canSubmitSteer={canSubmitSteer}
+          onModeChange={setComposerMode}
+          onWorkdirChange={updateWorkdir}
+          onPromptChange={setPrompt}
+          onPromptKeyDown={handlePromptKeyDown}
+          onPromptSubmit={submitPrompt}
+          onSteerChange={setSteer}
+          onSteerSubmit={submitSteer}
+        />
+      ) : null}
       <MobileNavigation
         view={mobileView}
         hasSelection={Boolean(selectedThreadId)}
