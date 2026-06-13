@@ -29,7 +29,8 @@ function initialState(): DashboardState {
     projects: [],
     tasks: [],
     threads: [],
-    recipes: []
+    recipes: [],
+    latestEventId: 0
   };
 }
 
@@ -37,6 +38,11 @@ type RunActionOptions = {
   selectResult?: boolean;
   successMessage?: string;
   mobileViewOnSuccess?: MobileView;
+};
+
+type DetailSubscription = {
+  threadId: string;
+  after: number;
 };
 
 const themeStorageKey = "codex-xyz-theme";
@@ -117,15 +123,19 @@ export function App() {
   const [theme, setTheme] = useState<ThemeMode>(readStoredTheme);
   const [terminalVisible, setTerminalVisible] = useState(readStoredTerminalVisible);
   const [mobileView, setMobileView] = useState<MobileView>("sessions");
+  const [summaryEventsReady, setSummaryEventsReady] = useState(false);
+  const [detailSubscription, setDetailSubscription] = useState<DetailSubscription | null>(null);
   const isMobileViewport = useMediaQuery(mobileViewportQuery);
   const isMobileViewportRef = useRef(isMobileViewport);
   const selectedThreadIdRef = useRef<string | null>(null);
   const manualSelectionSeqRef = useRef(0);
   const refreshSeqRef = useRef(0);
   const detailLoadSeqRef = useRef(0);
-  const lastEventIdRef = useRef(0);
+  const summaryEventIdRef = useRef(0);
+  const detailEventIdRef = useRef(0);
   const pendingEventsRef = useRef<XyzEvent[]>([]);
   const projectionFrameRef = useRef<number | null>(null);
+  const fallbackRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const projectionRef = useRef<ClientProjection>({
     state: initialState(),
     detail: null
@@ -136,7 +146,6 @@ export function App() {
 
   function beginRefresh() {
     refreshSeqRef.current += 1;
-    beginDetailLoad();
     return refreshSeqRef.current;
   }
 
@@ -151,6 +160,7 @@ export function App() {
 
   function beginDetailLoad() {
     detailLoadSeqRef.current += 1;
+    setDetailSubscription(null);
     return detailLoadSeqRef.current;
   }
 
@@ -166,6 +176,11 @@ export function App() {
       state: projectionRef.current.state,
       detail: nextDetail
     };
+    detailEventIdRef.current = nextDetail.latestEventId;
+    setDetailSubscription({
+      threadId,
+      after: nextDetail.latestEventId
+    });
     setDetail(nextDetail);
     return true;
   }
@@ -174,6 +189,7 @@ export function App() {
     if (projectionRef.current.detail?.id === threadId) {
       return;
     }
+    setDetailSubscription(null);
     projectionRef.current = {
       state: projectionRef.current.state,
       detail: null
@@ -181,7 +197,26 @@ export function App() {
     setDetail(null);
   }
 
-  async function refresh(nextThreadId?: string | null) {
+  function clearDetail() {
+    setDetailSubscription(null);
+    projectionRef.current = {
+      state: projectionRef.current.state,
+      detail: null
+    };
+    setDetail(null);
+  }
+
+  async function loadThreadDetail(threadId: string, refreshSeq?: number) {
+    clearDetailForSelection(threadId);
+    const loadSeq = beginDetailLoad();
+    const nextDetail = await getThread(threadId);
+    if (refreshSeq !== undefined && !refreshIsCurrent(refreshSeq)) {
+      return false;
+    }
+    return commitDetailLoad(threadId, nextDetail, loadSeq);
+  }
+
+  async function refresh(nextThreadId?: string | null, options: { loadDetail?: boolean } = {}) {
     const refreshSeq = beginRefresh();
     const requestedThreadId = nextThreadId ?? selectedThreadIdRef.current;
     const shouldPreferRequestedThread = typeof nextThreadId === "string";
@@ -189,7 +224,9 @@ export function App() {
     if (!refreshIsCurrent(refreshSeq)) {
       return;
     }
+    summaryEventIdRef.current = Math.max(summaryEventIdRef.current, next.latestEventId);
     setState(next);
+    setSummaryEventsReady(true);
     projectionRef.current = {
       ...projectionRef.current,
       state: next
@@ -197,30 +234,25 @@ export function App() {
     const preferredThreadId = choosePreferredThreadId(next.threads, {
       currentThreadId: selectedThreadIdRef.current,
       requestedThreadId,
-      preferRequestedThread: shouldPreferRequestedThread
+      preferRequestedThread: shouldPreferRequestedThread,
+      allowFallbackSelection: Boolean(requestedThreadId)
     });
     setSelectedThreadId(preferredThreadId);
     selectedThreadIdRef.current = preferredThreadId;
     if (preferredThreadId) {
       clearDetailForSelection(preferredThreadId);
-      const loadSeq = beginDetailLoad();
-      try {
-        const nextDetail = await getThread(preferredThreadId);
-        if (refreshIsCurrent(refreshSeq)) {
-          commitDetailLoad(preferredThreadId, nextDetail, loadSeq);
-        }
-      } catch (detailError) {
-        if (refreshIsCurrent(refreshSeq) && detailLoadIsCurrent(preferredThreadId, loadSeq)) {
-          throw detailError;
+      if (options.loadDetail) {
+        try {
+          await loadThreadDetail(preferredThreadId, refreshSeq);
+        } catch (detailError) {
+          if (refreshIsCurrent(refreshSeq) && selectedThreadIdRef.current === preferredThreadId) {
+            throw detailError;
+          }
         }
       }
     } else {
       beginDetailLoad();
-      projectionRef.current = {
-        state: next,
-        detail: null
-      };
-      setDetail(null);
+      clearDetail();
     }
   }
 
@@ -240,13 +272,10 @@ export function App() {
     }
     setSelectedThreadId(threadId);
     selectedThreadIdRef.current = threadId;
-    clearDetailForSelection(threadId);
-    const loadSeq = beginDetailLoad();
     try {
-      const nextDetail = await getThread(threadId);
-      commitDetailLoad(threadId, nextDetail, loadSeq);
+      await loadThreadDetail(threadId);
     } catch (selectError) {
-      if (detailLoadIsCurrent(threadId, loadSeq)) {
+      if (selectedThreadIdRef.current === threadId) {
         setError(selectError instanceof Error ? selectError.message : "Failed to load session");
       }
     }
@@ -301,70 +330,95 @@ export function App() {
     };
   }, []);
 
-  useEffect(() => {
-    let source: EventSource | null = null;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    let fallbackRefreshTimer: ReturnType<typeof setTimeout> | null = null;
-    let disposed = false;
+  function scheduleFallbackRefresh() {
+    if (fallbackRefreshTimerRef.current) {
+      return;
+    }
+    fallbackRefreshTimerRef.current = setTimeout(() => {
+      fallbackRefreshTimerRef.current = null;
+      void refresh();
+    }, 250);
+  }
 
-    const scheduleFallbackRefresh = () => {
-      if (fallbackRefreshTimer) {
-        return;
-      }
-      fallbackRefreshTimer = setTimeout(() => {
-        fallbackRefreshTimer = null;
-        void refresh();
-      }, 250);
+  function flushProjectionEvents() {
+    projectionFrameRef.current = null;
+    const events = pendingEventsRef.current;
+    if (events.length === 0) {
+      return;
+    }
+    pendingEventsRef.current = [];
+    const next = applyEventProjectionBatch(projectionRef.current, events);
+    const previous = projectionRef.current;
+    projectionRef.current = {
+      state: next.state,
+      detail: next.detail
     };
+    if (next.changed) {
+      if (next.state !== previous.state) {
+        setState(next.state);
+      }
+      if (next.detail !== previous.detail) {
+        setDetail(next.detail);
+      }
+    }
+    if (!next.handled || next.needsRefresh) {
+      scheduleFallbackRefresh();
+    }
+  }
 
-    const flushProjectionEvents = () => {
-      projectionFrameRef.current = null;
-      const events = pendingEventsRef.current;
-      if (events.length === 0) {
-        return;
+  function scheduleProjectionFlush() {
+    if (projectionFrameRef.current !== null) {
+      return;
+    }
+    projectionFrameRef.current = window.requestAnimationFrame(flushProjectionEvents);
+  }
+
+  function queueProjectionEvent(event: XyzEvent) {
+    pendingEventsRef.current.push(event);
+    scheduleProjectionFlush();
+  }
+
+  function parseSseEvent(rawEvent: Event) {
+    const message = rawEvent as MessageEvent<string>;
+    return JSON.parse(message.data) as XyzEvent;
+  }
+
+  useEffect(() => {
+    return () => {
+      if (fallbackRefreshTimerRef.current) {
+        clearTimeout(fallbackRefreshTimerRef.current);
+        fallbackRefreshTimerRef.current = null;
+      }
+      if (projectionFrameRef.current !== null) {
+        window.cancelAnimationFrame(projectionFrameRef.current);
+        projectionFrameRef.current = null;
       }
       pendingEventsRef.current = [];
-      const next = applyEventProjectionBatch(projectionRef.current, events);
-      const previous = projectionRef.current;
-      projectionRef.current = {
-        state: next.state,
-        detail: next.detail
-      };
-      if (next.changed) {
-        if (next.state !== previous.state) {
-          setState(next.state);
-        }
-        if (next.detail !== previous.detail) {
-          setDetail(next.detail);
-        }
-      }
-      if (!next.handled || next.needsRefresh) {
-        scheduleFallbackRefresh();
-      }
     };
+  }, []);
 
-    const scheduleProjectionFlush = () => {
-      if (projectionFrameRef.current !== null) {
-        return;
-      }
-      projectionFrameRef.current = window.requestAnimationFrame(flushProjectionEvents);
-    };
+  useEffect(() => {
+    if (!summaryEventsReady) {
+      return;
+    }
+
+    let source: EventSource | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let disposed = false;
 
     const handleEvent = (rawEvent: Event) => {
-      const message = rawEvent as MessageEvent<string>;
       try {
-        const event = JSON.parse(message.data) as XyzEvent;
-        lastEventIdRef.current = Math.max(lastEventIdRef.current, event.id);
-        pendingEventsRef.current.push(event);
-        scheduleProjectionFlush();
+        const event = parseSseEvent(rawEvent);
+        summaryEventIdRef.current = Math.max(summaryEventIdRef.current, event.id);
+        queueProjectionEvent(event);
       } catch {
         scheduleFallbackRefresh();
       }
     };
 
     function connect() {
-      const after = lastEventIdRef.current;
-      source = new EventSource(apiUrl(after > 0 ? `/api/events?after=${after}` : "/api/events"));
+      const after = summaryEventIdRef.current;
+      source = new EventSource(apiUrl(`/api/events?after=${after}`));
       source.onmessage = handleEvent;
       for (const eventName of incrementalEventNames) {
         source.addEventListener(eventName, handleEvent);
@@ -383,17 +437,55 @@ export function App() {
       if (reconnectTimer) {
         clearTimeout(reconnectTimer);
       }
-      if (fallbackRefreshTimer) {
-        clearTimeout(fallbackRefreshTimer);
-      }
-      if (projectionFrameRef.current !== null) {
-        window.cancelAnimationFrame(projectionFrameRef.current);
-        projectionFrameRef.current = null;
-      }
-      pendingEventsRef.current = [];
       source?.close();
     };
-  }, []);
+  }, [summaryEventsReady]);
+
+  useEffect(() => {
+    if (!detailSubscription) {
+      return;
+    }
+
+    const threadId = detailSubscription.threadId;
+    detailEventIdRef.current = detailSubscription.after;
+    let source: EventSource | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let disposed = false;
+
+    const handleEvent = (rawEvent: Event) => {
+      try {
+        const event = parseSseEvent(rawEvent);
+        detailEventIdRef.current = Math.max(detailEventIdRef.current, event.id);
+        queueProjectionEvent(event);
+      } catch {
+        scheduleFallbackRefresh();
+      }
+    };
+
+    function connect() {
+      const after = detailEventIdRef.current;
+      source = new EventSource(apiUrl(`/api/threads/${encodeURIComponent(threadId)}/events?after=${after}`));
+      source.onmessage = handleEvent;
+      for (const eventName of incrementalEventNames) {
+        source.addEventListener(eventName, handleEvent);
+      }
+      source.onerror = () => {
+        source?.close();
+        if (!disposed) {
+          reconnectTimer = setTimeout(connect, 1200);
+        }
+      };
+    }
+
+    connect();
+    return () => {
+      disposed = true;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+      }
+      source?.close();
+    };
+  }, [detailSubscription]);
 
   const selectedThread = useMemo(
     () => state.threads.find((thread) => thread.id === selectedThreadId) ?? null,
@@ -475,7 +567,7 @@ export function App() {
           currentSelectionSeq: manualSelectionSeqRef.current
         })
       ) {
-        await refresh(nextThreadId);
+        await refresh(nextThreadId, { loadDetail: true });
       } else {
         await refresh();
       }

@@ -6,10 +6,12 @@ import {
   type EvalRun,
   type GoalStatus,
   type ItemType,
+  isSummaryEventType,
   nowIso,
   type Project,
   type PromptRecipe,
   type RuntimeStatus,
+  summaryEventTypes,
   type Task,
   type TaskStatus,
   type ThreadDetail,
@@ -19,6 +21,11 @@ import {
 } from "./domain.js";
 
 type Row = Record<string, unknown>;
+
+type EventReplayOptions = {
+  threadId?: string | null;
+  summaryOnly?: boolean;
+};
 
 function readJson<T>(value: unknown, fallback: T): T {
   if (typeof value !== "string" || value.length === 0) {
@@ -261,10 +268,16 @@ export class Store {
       );
 
       CREATE INDEX IF NOT EXISTS idx_threads_project ON threads(project_id);
+      CREATE INDEX IF NOT EXISTS idx_threads_updated ON threads(updated_at DESC);
       CREATE INDEX IF NOT EXISTS idx_turns_thread ON turns(thread_id);
+      CREATE INDEX IF NOT EXISTS idx_turns_thread_started ON turns(thread_id, started_at);
       CREATE INDEX IF NOT EXISTS idx_items_thread ON items(thread_id);
+      CREATE INDEX IF NOT EXISTS idx_items_thread_created ON items(thread_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_events_thread ON events(thread_id);
+      CREATE INDEX IF NOT EXISTS idx_events_thread_id ON events(thread_id, id);
+      CREATE INDEX IF NOT EXISTS idx_events_type_id ON events(type, id);
       CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+      CREATE INDEX IF NOT EXISTS idx_tasks_updated ON tasks(updated_at DESC);
       DROP TABLE IF EXISTS approvals;
     `);
     this.addColumnIfMissing("threads", "goal_token_budget", "INTEGER");
@@ -437,6 +450,7 @@ export class Store {
   }
 
   getThreadDetail(id: string): ThreadDetail | null {
+    const latestEventId = this.getLatestEventIdForThread(id);
     const thread = this.getThread(id);
     if (!thread) {
       return null;
@@ -444,7 +458,8 @@ export class Store {
     return {
       ...thread,
       turns: this.listTurns(id),
-      items: this.listItems(id)
+      items: this.listItems(id),
+      latestEventId
     };
   }
 
@@ -646,10 +661,36 @@ export class Store {
     return eventFromRow(row as Row);
   }
 
-  listEvents(afterId = 0) {
+  getLatestEventId() {
+    const row = this.db.prepare("SELECT COALESCE(MAX(id), 0) AS latest_event_id FROM events").get() as Row | undefined;
+    return row ? scalarNumber(row.latest_event_id) : 0;
+  }
+
+  getLatestEventIdForThread(threadId: string) {
+    const row = this.db
+      .prepare("SELECT COALESCE(MAX(id), 0) AS latest_event_id FROM events WHERE thread_id = ?")
+      .get(threadId) as Row | undefined;
+    return row ? scalarNumber(row.latest_event_id) : 0;
+  }
+
+  listEvents(afterId = 0, options: EventReplayOptions = {}) {
+    const conditions = ["id > ?"];
+    const params: Array<string | number> = [afterId];
+
+    if (options.threadId) {
+      conditions.push("thread_id = ?");
+      params.push(options.threadId);
+    }
+
+    if (options.summaryOnly) {
+      conditions.push(`type IN (${summaryEventTypes.map(() => "?").join(", ")})`);
+      params.push(...summaryEventTypes);
+    }
+
     return this.db
-      .prepare("SELECT * FROM events WHERE id > ? ORDER BY id ASC")
-      .all(afterId)
-      .map((row) => eventFromRow(row as Row));
+      .prepare(`SELECT * FROM events WHERE ${conditions.join(" AND ")} ORDER BY id ASC`)
+      .all(...params)
+      .map((row) => eventFromRow(row as Row))
+      .filter((event) => !options.summaryOnly || isSummaryEventType(event.type));
   }
 }

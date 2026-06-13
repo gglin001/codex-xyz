@@ -100,6 +100,7 @@ function state(overrides: Partial<DashboardState> = {}): DashboardState {
     tasks: [task()],
     threads: [thread()],
     recipes: [],
+    latestEventId: 0,
     ...overrides
   };
 }
@@ -111,7 +112,8 @@ function projection(): ClientProjection {
     detail: {
       ...baseThread,
       turns: [turn()],
-      items: [item()]
+      items: [item()],
+      latestEventId: 0
     }
   };
 }

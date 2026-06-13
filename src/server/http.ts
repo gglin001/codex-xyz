@@ -4,7 +4,7 @@ import type { Duplex } from "node:stream";
 import { extname, join, normalize } from "node:path";
 import { WebSocket, WebSocketServer, type RawData } from "ws";
 import type { ControlService } from "./service.js";
-import type { TerminalEvent } from "./domain.js";
+import { isSummaryEventType, type TerminalEvent } from "./domain.js";
 
 type HandlerContext = {
   request: IncomingMessage;
@@ -357,10 +357,14 @@ async function handleApi(context: HandlerContext) {
       "x-accel-buffering": "no"
     });
     const after = Number(url.searchParams.get("after") ?? 0);
-    for (const event of service.replayEvents(Number.isFinite(after) ? after : 0)) {
+    for (const event of service.replayEvents(Number.isFinite(after) ? after : 0, { summaryOnly: true })) {
       writeSse(response, event.type, event, event.id);
     }
-    const unsubscribe = service.events.subscribe((event) => writeSse(response, event.type, event, event.id));
+    const unsubscribe = service.events.subscribe((event) => {
+      if (isSummaryEventType(event.type)) {
+        writeSse(response, event.type, event, event.id);
+      }
+    });
     const heartbeat = setInterval(() => {
       response.write(": ping\n\n");
     }, 25_000);
@@ -479,6 +483,32 @@ async function handleApi(context: HandlerContext) {
     const threadId = parts[2];
     if (method === "GET" && parts.length === 3) {
       sendJson(response, 200, service.getThreadDetail(threadId));
+      return true;
+    }
+
+    if (method === "GET" && parts[3] === "events") {
+      response.writeHead(200, {
+        "content-type": "text/event-stream; charset=utf-8",
+        "cache-control": "no-cache, no-transform",
+        connection: "keep-alive",
+        "x-accel-buffering": "no"
+      });
+      const after = Number(url.searchParams.get("after") ?? 0);
+      for (const event of service.replayEvents(Number.isFinite(after) ? after : 0, { threadId })) {
+        writeSse(response, event.type, event, event.id);
+      }
+      const unsubscribe = service.events.subscribe((event) => {
+        if (event.threadId === threadId) {
+          writeSse(response, event.type, event, event.id);
+        }
+      });
+      const heartbeat = setInterval(() => {
+        response.write(": ping\n\n");
+      }, 25_000);
+      request.on("close", () => {
+        clearInterval(heartbeat);
+        unsubscribe();
+      });
       return true;
     }
 

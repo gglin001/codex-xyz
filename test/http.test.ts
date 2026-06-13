@@ -148,6 +148,7 @@ describe("HTTP API", () => {
   it("serves dashboard state and can create a local task", async () => {
     const state = await json<DashboardState>("/api/state");
     expect(state.projects).toHaveLength(1);
+    expect(state.latestEventId).toBe(0);
 
     const created = await json<{ thread: { id: string } }>("/api/tasks", {
       method: "POST",
@@ -159,7 +160,10 @@ describe("HTTP API", () => {
     expect(created.thread.id).toMatch(/^[0-9a-f-]{36}$/);
 
     await new Promise((resolve) => setTimeout(resolve, 20));
-    const detail = await json<{ items: Array<{ text: string }> }>(`/api/threads/${created.thread.id}`);
+    const nextState = await json<DashboardState>("/api/state");
+    const detail = await json<{ items: Array<{ text: string }>; latestEventId: number }>(`/api/threads/${created.thread.id}`);
+    expect(nextState.latestEventId).toBeGreaterThan(0);
+    expect(detail.latestEventId).toBeGreaterThan(0);
     expect(detail.items.map((item) => item.text).join("\n")).toContain("Test run started");
   });
 

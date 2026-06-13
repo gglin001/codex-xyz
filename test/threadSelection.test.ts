@@ -54,6 +54,17 @@ describe("thread selection", () => {
       })
     ).toBeNull();
   });
+
+  it("can leave the selection empty instead of falling back to the first thread", () => {
+    expect(
+      choosePreferredThreadId(threads, {
+        currentThreadId: null,
+        requestedThreadId: null,
+        preferRequestedThread: false,
+        allowFallbackSelection: false
+      })
+    ).toBeNull();
+  });
 });
 
 describe("action result selection", () => {

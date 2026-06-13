@@ -113,11 +113,13 @@ export class ControlService {
   }
 
   dashboard(): DashboardState {
+    const latestEventId = this.store.getLatestEventId();
     return {
       projects: this.store.listProjects(),
       tasks: this.store.listTasks(),
       threads: this.store.listThreads(),
-      recipes: this.store.listRecipes()
+      recipes: this.store.listRecipes(),
+      latestEventId
     };
   }
 
@@ -323,8 +325,8 @@ export class ControlService {
     return detail;
   }
 
-  replayEvents(afterId = 0) {
-    return this.store.listEvents(afterId);
+  replayEvents(afterId = 0, options: { threadId?: string | null; summaryOnly?: boolean } = {}) {
+    return this.store.listEvents(afterId, options);
   }
 
   async close() {

@@ -319,6 +319,33 @@ describe("ControlService", () => {
     expect(service.listTasks()[0].status).toBe("completed");
   });
 
+  it("keeps dashboard snapshots and summary event replay separate from transcript detail", async () => {
+    const project = service.listProjects()[0];
+    const result = await service.createTask({
+      projectId: project.id,
+      prompt: "Exercise summary replay"
+    });
+    await waitForEvents();
+
+    const threadId = result.thread?.id;
+    if (!threadId) {
+      throw new Error("Expected created thread id");
+    }
+
+    const dashboard = service.dashboard();
+    const detail = service.getThreadDetail(threadId);
+    const fullReplay = service.replayEvents(0, { threadId });
+    const summaryReplay = service.replayEvents(0, { summaryOnly: true });
+
+    expect(dashboard.latestEventId).toBeGreaterThan(0);
+    expect(dashboard.threads[0]).not.toHaveProperty("items");
+    expect(detail.latestEventId).toBeGreaterThan(0);
+    expect(detail.items.some((item) => item.text.includes("Test run started"))).toBe(true);
+    expect(fullReplay.some((event) => event.type.startsWith("item."))).toBe(true);
+    expect(summaryReplay.some((event) => event.type.startsWith("item."))).toBe(false);
+    expect(summaryReplay.some((event) => event.type === "adapter.raw")).toBe(false);
+  });
+
   it("records items that arrive before the adapter startTurn call returns", async () => {
     await service.close();
     const adapter = new EagerEventCodexAdapter();

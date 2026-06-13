@@ -107,9 +107,33 @@ export type XyzEvent = {
   createdAt: string;
 };
 
+export const summaryEventTypes = [
+  "project.upserted",
+  "task.created",
+  "turn.started",
+  "turn.status",
+  "turn.steered",
+  "turn.interrupt.requested",
+  "thread.started",
+  "thread.resumed",
+  "thread.status",
+  "thread.runtime_lost",
+  "thread.continued",
+  "thread.forked",
+  "thread.renamed",
+  "thread.goal.updated",
+  "thread.goal.cleared",
+  "thread.token_usage"
+] as const;
+
+export function isSummaryEventType(type: string) {
+  return summaryEventTypes.includes(type as (typeof summaryEventTypes)[number]);
+}
+
 export type ThreadDetail = ControlThread & {
   turns: Turn[];
   items: ThreadItem[];
+  latestEventId: number;
 };
 
 export type DashboardState = {
@@ -117,6 +141,7 @@ export type DashboardState = {
   tasks: Task[];
   threads: ControlThread[];
   recipes: PromptRecipe[];
+  latestEventId: number;
 };
 
 export type TerminalProcessStatus = "idle" | "starting" | "running" | "exited" | "failed";

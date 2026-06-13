@@ -6,6 +6,7 @@ export function choosePreferredThreadId(
     currentThreadId: string | null;
     requestedThreadId: string | null;
     preferRequestedThread: boolean;
+    allowFallbackSelection?: boolean;
   }
 ) {
   const hasThread = (threadId: string | null) =>
@@ -19,6 +20,9 @@ export function choosePreferredThreadId(
   }
   if (hasThread(options.requestedThreadId)) {
     return options.requestedThreadId;
+  }
+  if (options.allowFallbackSelection === false) {
+    return null;
   }
   return threads[0]?.id ?? null;
 }
