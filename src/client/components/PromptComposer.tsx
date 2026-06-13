@@ -188,28 +188,6 @@ export const PromptComposer = memo(function PromptComposer({
     <div className={classes}>
       {showStatus ? <StatusBanners busyAction={busyAction} notice={notice} error={error} /> : null}
 
-      <div className="composer-mode" role="group" aria-label="Prompt target">
-        <button
-          type="button"
-          className={promptTarget === "new" ? "active" : ""}
-          title="New session"
-          onClick={() => onModeChange("new")}
-        >
-          <Plus size={15} />
-          <span>New session</span>
-        </button>
-        <button
-          type="button"
-          className={promptTarget === "thread" ? "active" : ""}
-          title="Selected session"
-          disabled={!selectedThreadId}
-          onClick={() => onModeChange("thread")}
-        >
-          <Send size={15} />
-          <span>Selected</span>
-        </button>
-      </div>
-
       <div className="composer-stack">
         {promptTarget === "new" ? (
           <WorkdirField
@@ -222,15 +200,15 @@ export const PromptComposer = memo(function PromptComposer({
         ) : null}
 
         <form className="task-form" onSubmit={onPromptSubmit}>
-          <div
-            className="prompt-resize-handle"
-            role="separator"
-            aria-label="Resize prompt input"
-            aria-orientation="horizontal"
-            title="Drag up to resize prompt input"
-            onPointerDown={handlePromptResizePointerDown}
-          />
-          <div className="prompt-field-row">
+          <div className="prompt-shell">
+            <div
+              className="prompt-resize-handle"
+              role="separator"
+              aria-label="Resize prompt input"
+              aria-orientation="horizontal"
+              title="Drag up to resize prompt input"
+              onPointerDown={handlePromptResizePointerDown}
+            />
             <textarea
               ref={textareaRef}
               value={prompt}
@@ -240,37 +218,69 @@ export const PromptComposer = memo(function PromptComposer({
               disabled={busy}
               style={promptHeight === null ? undefined : { height: `${promptHeight}px` }}
             />
-            <button disabled={!canSubmitPrompt} title={submitTitle}>
-              {steerMode ? (
-                <Route size={16} />
-              ) : goalMode ? (
-                <Target size={16} />
-              ) : promptTarget === "thread" ? (
-                <Send size={16} />
-              ) : (
-                <Plus size={16} />
-              )}
-            </button>
-          </div>
-          <div className="prompt-options">
-            <label className="prompt-option" title={steerModeTitle}>
-              <input
-                type="checkbox"
-                checked={steerMode}
-                disabled={!canUseSteerMode || busy}
-                onChange={(event) => onSteerModeChange(event.target.checked)}
-              />
-              <span>Steer mode</span>
-            </label>
-            <label className="prompt-option" title={goalModeTitle}>
-              <input
-                type="checkbox"
-                checked={goalMode}
-                disabled={!canUseGoalMode || busy}
-                onChange={(event) => onGoalModeChange(event.target.checked)}
-              />
-              <span>Goal mode</span>
-            </label>
+            <div className="prompt-toolbar">
+              <div className="prompt-toolbar-left">
+                <div className="composer-mode" role="group" aria-label="Prompt target">
+                  <button
+                    type="button"
+                    className={promptTarget === "new" ? "active" : ""}
+                    title="New session"
+                    onClick={() => onModeChange("new")}
+                  >
+                    <Plus size={15} />
+                    <span>New</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={promptTarget === "thread" ? "active" : ""}
+                    title="Selected session"
+                    disabled={!selectedThreadId}
+                    onClick={() => onModeChange("thread")}
+                  >
+                    <Send size={15} />
+                    <span>Sel</span>
+                  </button>
+                </div>
+                <div className="prompt-options">
+                  <label
+                    className={`prompt-option ${steerMode ? "active" : ""} ${!canUseSteerMode || busy ? "disabled" : ""}`}
+                    title={steerModeTitle}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={steerMode}
+                      disabled={!canUseSteerMode || busy}
+                      onChange={(event) => onSteerModeChange(event.target.checked)}
+                    />
+                    <span>Steer</span>
+                  </label>
+                  <label
+                    className={`prompt-option ${goalMode ? "active" : ""} ${!canUseGoalMode || busy ? "disabled" : ""}`}
+                    title={goalModeTitle}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={goalMode}
+                      disabled={!canUseGoalMode || busy}
+                      onChange={(event) => onGoalModeChange(event.target.checked)}
+                    />
+                    <span>Goal</span>
+                  </label>
+                </div>
+              </div>
+              <button className="prompt-submit" disabled={!canSubmitPrompt} title={submitTitle}>
+                {steerMode ? (
+                  <Route size={16} />
+                ) : goalMode ? (
+                  <Target size={16} />
+                ) : promptTarget === "thread" ? (
+                  <Send size={16} />
+                ) : (
+                  <Plus size={16} />
+                )}
+                <span>Run</span>
+              </button>
+            </div>
           </div>
         </form>
       </div>
