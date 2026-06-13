@@ -1204,12 +1204,37 @@ button.active {
     overflow: hidden;
   }
 
+  button {
+    min-width: 40px;
+    height: 40px;
+  }
+
+  input,
+  textarea {
+    font-size: 16px;
+  }
+
   .app-shell {
+    position: relative;
     grid-template-rows: minmax(0, 1fr) auto auto auto;
     height: 100vh;
     height: 100dvh;
     min-height: 0;
     overflow: hidden;
+  }
+
+  .app-shell[data-terminal-visible="true"]::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 8;
+    background: rgba(3, 7, 18, 0.42);
+    pointer-events: none;
+  }
+
+  .app-shell[data-terminal-visible="true"] .mobile-composer,
+  .app-shell[data-terminal-visible="true"] .mobile-nav {
+    display: none;
   }
 
   .workspace {
@@ -1244,6 +1269,40 @@ button.active {
 
   .transcript {
     flex: 1 1 auto;
+    margin: 0 -14px;
+    padding: 8px 10px;
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .transcript-item {
+    border-radius: 7px;
+  }
+
+  .session-facts {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 6px;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    padding-bottom: 2px;
+    scrollbar-gutter: stable;
+  }
+
+  .session-facts div,
+  .session-facts .wide {
+    flex: 0 0 116px;
+    padding: 8px;
+  }
+
+  .session-facts .wide {
+    flex-basis: 180px;
+  }
+
+  .session-facts strong {
+    font-size: 12px;
   }
 
   .detail-header {
@@ -1339,6 +1398,59 @@ button.active {
     height: 40px;
   }
 
+  .terminal-dock {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 9;
+    height: min(76dvh, 680px);
+    max-height: calc(100dvh - env(safe-area-inset-top));
+    border-top: 1px solid var(--border-strong);
+    border-radius: 12px 12px 0 0;
+    box-shadow: 0 -18px 48px rgba(0, 0, 0, 0.32);
+  }
+
+  .terminal-dock-header {
+    min-height: 48px;
+    padding: 7px 10px;
+  }
+
+  .terminal-dock-title small {
+    display: none;
+  }
+
+  .terminal-dock-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: min(100%, 280px);
+  }
+
+  .terminal-dock-actions button,
+  .terminal-dock-actions button:last-child {
+    width: 100%;
+    min-width: 0;
+    height: 40px;
+    padding: 0 8px;
+  }
+
+  .terminal-dock-actions button:last-child span {
+    display: none;
+  }
+
+  .terminal-dock-meta {
+    min-height: 34px;
+    padding: 0 10px;
+  }
+
+  .terminal-metrics {
+    display: none;
+  }
+
+  .terminal-dock-body {
+    padding: 6px 8px max(8px, env(safe-area-inset-bottom));
+  }
+
   .mobile-nav {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1365,5 +1477,20 @@ button.active {
     border-color: var(--accent);
     background: var(--accent-soft);
     color: var(--accent-text);
+  }
+}
+
+@media (max-width: 420px) {
+  .session-goal-budget {
+    display: none;
+  }
+
+  .sessions,
+  .detail {
+    padding: 12px;
+  }
+
+  .transcript {
+    margin: 0 -12px;
   }
 }

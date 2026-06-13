@@ -1228,7 +1228,12 @@ export function App() {
   }
 
   return (
-    <main className="app-shell" data-theme={theme} data-mobile-view={mobileView}>
+    <main
+      className="app-shell"
+      data-theme={theme}
+      data-mobile-view={mobileView}
+      data-terminal-visible={terminalVisible}
+    >
       <div className="workspace" data-theme={theme} data-mobile-view={mobileView}>
         <section className="sessions panel">
           <div className="panel-header sessions-header">
