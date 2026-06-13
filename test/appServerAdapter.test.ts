@@ -138,6 +138,12 @@ function handle(message) {
       itemId: "item_command",
       delta: "running tests"
     })
+    notify("item/agentMessage/delta", {
+      threadId,
+      turnId: "${turnId}",
+      itemId: "item_agent",
+      delta: "streamed answer"
+    })
     notify("item/fileChange/patchUpdated", {
       threadId,
       turnId: "${turnId}",
@@ -316,6 +322,21 @@ process.stdin.on("data", (chunk) => {
   return commandPath
 }
 
+function readDebugRecords(debugLogPath: string) {
+  const text = readFileSync(debugLogPath, "utf8").trim()
+  if (!text) {
+    return []
+  }
+  return text.split("\n").map((line) => JSON.parse(line) as Record<string, unknown>)
+}
+
+function debugRecordMethods(records: Array<Record<string, unknown>>) {
+  return records.flatMap((record) => {
+    const message = record.message && typeof record.message === "object" ? (record.message as Record<string, unknown>) : {}
+    return typeof message.method === "string" ? [message.method] : []
+  })
+}
+
 afterEach(async () => {
   await adapter?.close()
   adapter = null
@@ -368,7 +389,7 @@ describe("AppServerCodexAdapter", () => {
   it("writes app-server protocol debug records as JSON lines", async () => {
     const command = createFakeCodexCommand()
     const debugLogPath = join(tempDir as string, ".codex-xyz", "debug.jsonl")
-    adapter = new AppServerCodexAdapter(command, { debugLogPath })
+    adapter = new AppServerCodexAdapter(command, { debugLogPath, debugLogLevel: 2 })
 
     await adapter.resumeThread({
       threadId: debugThreadId,
@@ -376,10 +397,7 @@ describe("AppServerCodexAdapter", () => {
       model: "test-model"
     })
 
-    const records = readFileSync(debugLogPath, "utf8")
-      .trim()
-      .split("\n")
-      .map((line) => JSON.parse(line) as Record<string, unknown>)
+    const records = readDebugRecords(debugLogPath)
 
     expect(records).toEqual(
       expect.arrayContaining([
@@ -401,6 +419,75 @@ describe("AppServerCodexAdapter", () => {
             result: expect.objectContaining({
               thread: expect.objectContaining({ id: `thread_${debugThreadId}` })
             })
+          })
+        })
+      ])
+    )
+  })
+
+  it("limits level 1 logs to operational records", async () => {
+    const command = createFakeCodexCommand()
+    const debugLogPath = join(tempDir as string, ".codex-xyz", "debug.jsonl")
+    adapter = new AppServerCodexAdapter(command, { debugLogPath, debugLogLevel: 1 })
+
+    await adapter.startTurn({
+      threadId: debugThreadId,
+      prompt: "Exercise basic logging"
+    })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    const records = readDebugRecords(debugLogPath)
+
+    expect(records).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          level: 1,
+          event: "process.spawn"
+        })
+      ])
+    )
+    expect(debugRecordMethods(records)).toEqual([])
+  })
+
+  it("keeps high-volume stream deltas out of level 2 protocol logs", async () => {
+    const command = createFakeCodexCommand()
+    const debugLogPath = join(tempDir as string, ".codex-xyz", "debug.jsonl")
+    adapter = new AppServerCodexAdapter(command, { debugLogPath, debugLogLevel: 2 })
+
+    await adapter.startTurn({
+      threadId: debugThreadId,
+      prompt: "Exercise stream logging"
+    })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    const records = readDebugRecords(debugLogPath)
+    const methods = debugRecordMethods(records)
+
+    expect(methods).toContain("turn/start")
+    expect(methods).not.toContain("item/agentMessage/delta")
+    expect(records.some((record) => record.level === 3)).toBe(false)
+  })
+
+  it("writes high-volume stream deltas in level 3 protocol logs", async () => {
+    const command = createFakeCodexCommand()
+    const debugLogPath = join(tempDir as string, ".codex-xyz", "debug.jsonl")
+    adapter = new AppServerCodexAdapter(command, { debugLogPath, debugLogLevel: 3 })
+
+    await adapter.startTurn({
+      threadId: debugThreadId,
+      prompt: "Exercise verbose stream logging"
+    })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    const records = readDebugRecords(debugLogPath)
+
+    expect(records).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          level: 3,
+          direction: "in",
+          message: expect.objectContaining({
+            method: "item/agentMessage/delta"
           })
         })
       ])

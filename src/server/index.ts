@@ -7,8 +7,10 @@ import { ControlService } from "./service.js";
 import { Store } from "./store.js";
 
 export type ServerOptions = {
-  debug?: boolean;
+  verbosity?: number;
 };
+
+const maxVerbosity = 3;
 
 function codexVersion() {
   try {
@@ -20,8 +22,15 @@ function codexVersion() {
 }
 
 export function parseServerArgs(argv: string[]): ServerOptions {
+  const verbosity = argv.reduce((total, arg) => {
+    if (!/^-v+$/.test(arg)) {
+      return total;
+    }
+    return total + arg.length - 1;
+  }, 0);
+
   return {
-    debug: argv.includes("--debug")
+    verbosity: Math.min(maxVerbosity, verbosity)
   };
 }
 
@@ -29,8 +38,10 @@ export function createServiceFromEnv(options: ServerOptions = {}) {
   const dataDir = resolve(process.cwd(), process.env.CODEX_XYZ_DATA_DIR ?? ".codex-xyz");
   const codexBin = process.env.CODEX_XYZ_CODEX_BIN ?? "codex";
   const store = Store.open(resolve(dataDir, "codex-xyz.sqlite"));
+  const verbosity = Math.min(maxVerbosity, Math.max(0, Math.floor(options.verbosity ?? 0)));
   const adapter = new AppServerCodexAdapter(codexBin, {
-    debugLogPath: options.debug ? resolve(dataDir, "debug.jsonl") : null
+    debugLogPath: verbosity > 0 ? resolve(dataDir, "debug.jsonl") : null,
+    debugLogLevel: verbosity
   });
   const service = new ControlService(store, adapter);
   service.seedLocalState({

@@ -18,13 +18,15 @@ pnpm run dev
 
 Open `http://127.0.0.1:1123`. The API runs on `http://127.0.0.1:3211`, and local state defaults to `.codex-xyz/codex-xyz.sqlite`.
 
-Start with app-server protocol debug logging:
+Start with app-server protocol logging:
 
 ```bash
-pnpm run dev -- --debug
+pnpm run dev -- -v
+pnpm run dev -- -vv
+pnpm run dev -- -vvv
 ```
 
-Debug records are appended as JSON Lines to `.codex-xyz/debug.jsonl`.
+Log records are appended as JSON Lines to `.codex-xyz/debug.jsonl`. `-v` records process lifecycle, stderr, and malformed input. `-vv` adds app-server protocol messages except high-volume stream deltas. `-vvv` includes stream deltas such as `item/agentMessage/delta`.
 
 ## Checks
 

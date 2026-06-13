@@ -43,7 +43,10 @@ type PendingShellStart = {
 
 export type AppServerCodexAdapterOptions = {
   debugLogPath?: string | null;
+  debugLogLevel?: number | null;
 };
+
+type AppServerDebugLogLevel = 0 | 1 | 2 | 3;
 
 const yoloThreadOptions = {
   approvalPolicy: "never",
@@ -55,8 +58,42 @@ const yoloTurnOptions = {
   sandboxPolicy: { type: "dangerFullAccess" }
 } as const;
 
+const highVolumeDebugMethods = new Set([
+  "command/exec/outputDelta",
+  "item/agentMessage/delta",
+  "item/commandExecution/outputDelta",
+  "item/fileChange/outputDelta",
+  "item/plan/delta",
+  "item/reasoning/summaryTextDelta",
+  "item/reasoning/textDelta",
+  "process/outputDelta",
+  "thread/realtime/outputAudio/delta",
+  "thread/realtime/transcript/delta"
+]);
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
+function clampDebugLogLevel(value: unknown): AppServerDebugLogLevel {
+  const level = typeof value === "number" && Number.isFinite(value) ? Math.floor(value) : 0;
+  return Math.min(3, Math.max(0, level)) as AppServerDebugLogLevel;
+}
+
+function debugMessageMethod(record: Record<string, unknown>) {
+  const message = asRecord(record.message);
+  return typeof message.method === "string" ? message.method : null;
+}
+
+function debugRecordLevel(record: Record<string, unknown>): AppServerDebugLogLevel {
+  if (record.event === "message") {
+    if (record.parsed === false) {
+      return 1;
+    }
+    const method = debugMessageMethod(record);
+    return method && highVolumeDebugMethods.has(method) ? 3 : 2;
+  }
+  return 1;
 }
 
 function inputText(text: string) {
@@ -318,7 +355,10 @@ function normalizeTokenUsage(value: unknown): AdapterTokenUsage {
 class AppServerDebugLogger {
   private disabled = false;
 
-  constructor(private readonly filePath: string) {
+  constructor(
+    private readonly filePath: string,
+    private readonly level: AppServerDebugLogLevel
+  ) {
     mkdirSync(dirname(filePath), { recursive: true });
     appendFileSync(filePath, "", "utf8");
   }
@@ -327,11 +367,16 @@ class AppServerDebugLogger {
     if (this.disabled) {
       return;
     }
+    const level = debugRecordLevel(record);
+    if (level > this.level) {
+      return;
+    }
     try {
       appendFileSync(
         this.filePath,
         `${JSON.stringify({
           timestamp: new Date().toISOString(),
+          level,
           target: "app-server",
           ...record
         })}\n`,
@@ -359,7 +404,9 @@ export class AppServerCodexAdapter implements CodexAdapter {
     private readonly command = process.env.CODEX_XYZ_CODEX_BIN ?? "codex",
     options: AppServerCodexAdapterOptions = {}
   ) {
-    this.debugLogger = options.debugLogPath ? new AppServerDebugLogger(options.debugLogPath) : null;
+    const debugLogLevel = clampDebugLogLevel(options.debugLogLevel ?? 1);
+    this.debugLogger =
+      options.debugLogPath && debugLogLevel > 0 ? new AppServerDebugLogger(options.debugLogPath, debugLogLevel) : null;
   }
 
   onEvent(handler: AdapterEventHandler) {
