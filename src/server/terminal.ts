@@ -2,6 +2,7 @@ import { Buffer } from "node:buffer";
 import { chmodSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
+import { performance } from "node:perf_hooks";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import HeadlessModule from "@xterm/headless";
 import * as pty from "node-pty";
@@ -18,6 +19,10 @@ type PtyFactory = (file: string, args: string[], options: IPtyForkOptions) => IP
 type TerminalSubscriber = (event: TerminalEvent) => void;
 type HeadlessTerminalConstructor = typeof import("@xterm/headless").Terminal;
 type HeadlessTerminalInstance = InstanceType<HeadlessTerminalConstructor>;
+type TerminalSnapshotOptions = {
+  includeScreen?: boolean;
+  scrollback?: number;
+};
 
 const HeadlessTerminal = (HeadlessModule as unknown as { Terminal: HeadlessTerminalConstructor }).Terminal;
 const require = createRequire(import.meta.url);
@@ -107,9 +112,25 @@ export class TerminalController {
   private error: string | null = null;
   private sequence = 0;
   private replayBytes = 0;
-  private pendingOutput = "";
+  private pendingOutputChunks: string[] = [];
+  private pendingOutputBytes = 0;
   private outputTimer: ReturnType<typeof setTimeout> | null = null;
   private modelWriteChain: Promise<void> = Promise.resolve();
+  private modelPendingWrites = 0;
+  private ptyOutputChunks = 0;
+  private ptyOutputBytes = 0;
+  private outputFlushes = 0;
+  private outputEventBytes = 0;
+  private inputWrites = 0;
+  private inputBytes = 0;
+  private modelWrites = 0;
+  private modelWriteBytes = 0;
+  private modelWriteMs = 0;
+  private outputPauseCount = 0;
+  private outputResumeCount = 0;
+  private outputPaused = false;
+  private processOutputPaused = false;
+  private readonly outputPauseTokens = new Set<symbol>();
   private readonly replayEvents: TerminalEvent[] = [];
   private readonly subscribers = new Set<TerminalSubscriber>();
   private model = createHeadlessTerminal(defaultCols, defaultRows, 2_000);
@@ -134,10 +155,10 @@ export class TerminalController {
     }
   }
 
-  async snapshot(): Promise<TerminalSnapshot> {
+  async snapshot(options: TerminalSnapshotOptions = {}): Promise<TerminalSnapshot> {
     this.flushPendingOutput();
     await this.modelWriteChain;
-    return this.currentSnapshot();
+    return this.currentSnapshot(options);
   }
 
   async start(input: { cols?: number | null; rows?: number | null } = {}) {
@@ -180,6 +201,7 @@ export class TerminalController {
         child.onData((data) => this.handleOutput(data)),
         child.onExit((exit) => this.handleExit(exit))
       ];
+      this.updateOutputFlowControl();
       this.publishStatus();
       return this.snapshot();
     } catch (error) {
@@ -198,6 +220,8 @@ export class TerminalController {
     if (!this.process || this.status !== "running") {
       throw new Error("Terminal is not running");
     }
+    this.inputWrites += 1;
+    this.inputBytes += Buffer.byteLength(data, "utf8");
     this.process.write(data);
   }
 
@@ -208,15 +232,15 @@ export class TerminalController {
       this.updatedAt = nowIso();
       this.publishStatus();
     }
-    return this.snapshot();
+    return this.currentSnapshot({ includeScreen: false });
   }
 
   async terminate() {
     if (!this.process) {
-      return this.snapshot();
+      return this.currentSnapshot({ includeScreen: false });
     }
     this.process.kill();
-    return this.snapshot();
+    return this.currentSnapshot({ includeScreen: false });
   }
 
   replay(afterSequence = 0) {
@@ -230,6 +254,16 @@ export class TerminalController {
     };
   }
 
+  pauseOutput(token: symbol) {
+    this.outputPauseTokens.add(token);
+    this.updateOutputFlowControl();
+  }
+
+  resumeOutput(token: symbol) {
+    this.outputPauseTokens.delete(token);
+    this.updateOutputFlowControl();
+  }
+
   async close() {
     if (this.outputTimer) {
       clearTimeout(this.outputTimer);
@@ -239,6 +273,7 @@ export class TerminalController {
     this.disposeProcessListeners();
     const child = this.process;
     this.process = null;
+    this.processOutputPaused = false;
     if (child) {
       child.kill();
     }
@@ -249,9 +284,12 @@ export class TerminalController {
 
   private handleOutput(data: string) {
     this.title = this.process?.process || this.title;
-    this.enqueueModelWrite(data);
-    this.pendingOutput += data;
-    if (Buffer.byteLength(this.pendingOutput, "utf8") >= maxPendingOutputBytes) {
+    const bytes = Buffer.byteLength(data, "utf8");
+    this.ptyOutputChunks += 1;
+    this.ptyOutputBytes += bytes;
+    this.pendingOutputChunks.push(data);
+    this.pendingOutputBytes += bytes;
+    if (this.pendingOutputBytes >= maxPendingOutputBytes) {
       this.flushPendingOutput();
       return;
     }
@@ -264,6 +302,7 @@ export class TerminalController {
     this.flushPendingOutput();
     this.disposeProcessListeners();
     this.process = null;
+    this.processOutputPaused = false;
     this.status = exit.exitCode === 0 ? "exited" : "failed";
     this.exitCode = exit.exitCode;
     this.signal = exit.signal ?? null;
@@ -288,16 +327,35 @@ export class TerminalController {
     this.model.terminal.dispose();
     this.model = createHeadlessTerminal(this.cols, this.rows, this.scrollback);
     this.modelWriteChain = Promise.resolve();
+    this.modelPendingWrites = 0;
   }
 
-  private enqueueModelWrite(data: string) {
+  private enqueueModelWrite(data: string, bytes: number) {
+    this.modelPendingWrites += 1;
+    const write = () =>
+      new Promise<void>((resolve) => {
+        const startedAt = performance.now();
+        let settled = false;
+        const finish = () => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          this.modelPendingWrites = Math.max(0, this.modelPendingWrites - 1);
+          this.modelWrites += 1;
+          this.modelWriteBytes += bytes;
+          this.modelWriteMs += performance.now() - startedAt;
+          resolve();
+        };
+        try {
+          this.model.terminal.write(data, finish);
+        } catch {
+          finish();
+        }
+      });
     this.modelWriteChain = this.modelWriteChain
-      .then(
-        () =>
-          new Promise<void>((resolve) => {
-            this.model.terminal.write(data, resolve);
-          })
-      )
+      .catch(() => {})
+      .then(write)
       .catch(() => {});
   }
 
@@ -306,11 +364,16 @@ export class TerminalController {
       clearTimeout(this.outputTimer);
       this.outputTimer = null;
     }
-    const data = this.pendingOutput;
-    if (!data) {
+    if (this.pendingOutputChunks.length === 0) {
       return;
     }
-    this.pendingOutput = "";
+    const data = this.pendingOutputChunks.length === 1 ? this.pendingOutputChunks[0] : this.pendingOutputChunks.join("");
+    const bytes = this.pendingOutputBytes;
+    this.pendingOutputChunks = [];
+    this.pendingOutputBytes = 0;
+    this.enqueueModelWrite(data, bytes);
+    this.outputFlushes += 1;
+    this.outputEventBytes += bytes;
     this.updatedAt = nowIso();
     this.publish({
       sequence: this.nextSequence(),
@@ -344,6 +407,26 @@ export class TerminalController {
     }
   }
 
+  private updateOutputFlowControl() {
+    const shouldPause = this.outputPauseTokens.size > 0;
+    this.outputPaused = shouldPause;
+    if (!this.process || this.processOutputPaused === shouldPause) {
+      return;
+    }
+    const processWithFlowControl = this.process as IPty & {
+      pause?: () => void;
+      resume?: () => void;
+    };
+    if (shouldPause) {
+      processWithFlowControl.pause?.();
+      this.outputPauseCount += 1;
+    } else {
+      processWithFlowControl.resume?.();
+      this.outputResumeCount += 1;
+    }
+    this.processOutputPaused = shouldPause;
+  }
+
   private eventSize(event: TerminalEvent) {
     if (event.type === "terminal.output") {
       return Buffer.byteLength(event.data, "utf8");
@@ -356,7 +439,7 @@ export class TerminalController {
     return this.sequence;
   }
 
-  private currentSnapshot(options: { includeScreen?: boolean } = {}): TerminalSnapshot {
+  private currentSnapshot(options: TerminalSnapshotOptions = {}): TerminalSnapshot {
     const includeScreen = options.includeScreen ?? true;
     return {
       status: this.status,
@@ -366,13 +449,31 @@ export class TerminalController {
       cols: this.cols,
       rows: this.rows,
       sequence: this.sequence,
-      screen: includeScreen ? this.model.serialize.serialize({ scrollback: 500 }) : "",
+      screen: includeScreen ? this.model.serialize.serialize({ scrollback: options.scrollback ?? 200 }) : "",
       title: this.title,
       startedAt: this.startedAt,
       updatedAt: this.updatedAt,
       exitCode: this.exitCode,
       signal: this.signal,
-      error: this.error
+      error: this.error,
+      stats: {
+        ptyOutputChunks: this.ptyOutputChunks,
+        ptyOutputBytes: this.ptyOutputBytes,
+        outputFlushes: this.outputFlushes,
+        outputEventBytes: this.outputEventBytes,
+        inputWrites: this.inputWrites,
+        inputBytes: this.inputBytes,
+        modelWrites: this.modelWrites,
+        modelWriteBytes: this.modelWriteBytes,
+        modelWriteMs: this.modelWriteMs,
+        modelPendingWrites: this.modelPendingWrites,
+        pendingOutputBytes: this.pendingOutputBytes,
+        replayEvents: this.replayEvents.length,
+        replayBytes: this.replayBytes,
+        outputPaused: this.outputPaused,
+        outputPauseCount: this.outputPauseCount,
+        outputResumeCount: this.outputResumeCount
+      }
     };
   }
 

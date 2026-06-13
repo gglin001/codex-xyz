@@ -11,7 +11,10 @@ export default defineConfig({
     host: uiUrl.hostname,
     port: uiUrl.port,
     proxy: {
-      "/api": apiUrl.origin
+      "/api": {
+        target: apiUrl.origin,
+        ws: true
+      }
     }
   },
   build: {

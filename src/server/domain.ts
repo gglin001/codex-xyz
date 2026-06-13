@@ -121,6 +121,25 @@ export type DashboardState = {
 
 export type TerminalProcessStatus = "idle" | "starting" | "running" | "exited" | "failed";
 
+export type TerminalStats = {
+  ptyOutputChunks: number;
+  ptyOutputBytes: number;
+  outputFlushes: number;
+  outputEventBytes: number;
+  inputWrites: number;
+  inputBytes: number;
+  modelWrites: number;
+  modelWriteBytes: number;
+  modelWriteMs: number;
+  modelPendingWrites: number;
+  pendingOutputBytes: number;
+  replayEvents: number;
+  replayBytes: number;
+  outputPaused: boolean;
+  outputPauseCount: number;
+  outputResumeCount: number;
+};
+
 export type TerminalSnapshot = {
   status: TerminalProcessStatus;
   command: string;
@@ -136,6 +155,7 @@ export type TerminalSnapshot = {
   exitCode: number | null;
   signal: number | string | null;
   error: string | null;
+  stats: TerminalStats;
 };
 
 export type TerminalOutputEvent = {

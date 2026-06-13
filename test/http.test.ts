@@ -1,18 +1,77 @@
+import { EventEmitter } from "node:events";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AddressInfo } from "node:net";
+import WebSocket from "ws";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { DashboardState } from "../src/server/domain.js";
+import type { DashboardState, TerminalEvent, TerminalSnapshot } from "../src/server/domain.js";
+import { EventBus } from "../src/server/eventBus.js";
 import { createHttpServer } from "../src/server/http.js";
 import { ControlService } from "../src/server/service.js";
 import { Store } from "../src/server/store.js";
+import { TerminalController, type PtyFactory } from "../src/server/terminal.js";
 import { TestCodexAdapter } from "./testCodexAdapter.js";
+
+class FakeTerminalPty {
+  readonly pid = 2525;
+  process = "fake-terminal";
+  handleFlowControl = false;
+  readonly emitter = new EventEmitter();
+  writes: string[] = [];
+  killed = false;
+  cols: number;
+  rows: number;
+
+  constructor(cols: number, rows: number) {
+    this.cols = cols;
+    this.rows = rows;
+  }
+
+  onData(listener: (data: string) => void) {
+    this.emitter.on("data", listener);
+    return {
+      dispose: () => this.emitter.off("data", listener)
+    };
+  }
+
+  onExit(listener: (exit: { exitCode: number; signal?: number }) => void) {
+    this.emitter.on("exit", listener);
+    return {
+      dispose: () => this.emitter.off("exit", listener)
+    };
+  }
+
+  resize(cols: number, rows: number) {
+    this.cols = cols;
+    this.rows = rows;
+  }
+
+  clear() {}
+
+  write(data: string | Buffer) {
+    this.writes.push(data.toString());
+  }
+
+  kill() {
+    this.killed = true;
+    this.emitter.emit("exit", { exitCode: 0 });
+  }
+
+  pause() {}
+
+  resume() {}
+
+  emitData(data: string) {
+    this.emitter.emit("data", data);
+  }
+}
 
 let tempDir: string;
 let service: ControlService;
 let baseUrl: string;
 let server: ReturnType<typeof createHttpServer>;
+let terminalPtys: FakeTerminalPty[];
 
 async function listen() {
   await new Promise<void>((resolve) => {
@@ -45,9 +104,31 @@ async function noContent(path: string, init?: RequestInit) {
   expect(response.status).toBe(204);
 }
 
+async function waitFor(assertion: () => boolean, label: string) {
+  const deadline = Date.now() + 1_000;
+  while (Date.now() < deadline) {
+    if (assertion()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(`Timed out waiting for ${label}`);
+}
+
 beforeEach(async () => {
   tempDir = mkdtempSync(join(tmpdir(), "codex-xyz-http-"));
-  service = new ControlService(Store.open(join(tempDir, "test.sqlite")), new TestCodexAdapter());
+  terminalPtys = [];
+  const ptyFactory: PtyFactory = (_file, _args, options) => {
+    const fake = new FakeTerminalPty(options.cols ?? 80, options.rows ?? 24);
+    terminalPtys.push(fake);
+    return fake;
+  };
+  const terminal = new TerminalController({
+    cwd: tempDir,
+    command: { file: "fake-terminal", args: [] },
+    ptyFactory
+  });
+  service = new ControlService(Store.open(join(tempDir, "test.sqlite")), new TestCodexAdapter(), new EventBus(), terminal);
   service.seedLocalState({
     cwd: tempDir,
     adapterName: "test",
@@ -175,5 +256,39 @@ describe("HTTP API", () => {
       body: JSON.stringify({})
     });
     expect(fork.forkedFromId).toBe(created.thread.id);
+  });
+
+  it("streams terminal output and input over websocket", async () => {
+    const started = await json<TerminalSnapshot>("/api/terminal/start", {
+      method: "POST",
+      body: JSON.stringify({
+        cols: 80,
+        rows: 24
+      })
+    });
+    const socket = new WebSocket(`${baseUrl.replace(/^http/, "ws")}/api/terminal/ws?after=${started.sequence}`);
+    const events: TerminalEvent[] = [];
+    socket.on("message", (data) => {
+      events.push(JSON.parse(data.toString()) as TerminalEvent);
+    });
+    await new Promise<void>((resolve, reject) => {
+      socket.once("open", resolve);
+      socket.once("error", reject);
+    });
+
+    terminalPtys[0].emitData("hello over ws\r\n");
+    await waitFor(
+      () => events.some((event) => event.type === "terminal.output" && event.data.includes("hello over ws")),
+      "terminal websocket output"
+    );
+
+    socket.send(JSON.stringify({ type: "terminal.input", data: "abc" }));
+    await waitFor(() => terminalPtys[0].writes.includes("abc"), "terminal websocket input");
+
+    socket.send(JSON.stringify({ type: "terminal.resize", cols: 120, rows: 40 }));
+    await waitFor(() => terminalPtys[0].cols === 120 && terminalPtys[0].rows === 40, "terminal websocket resize");
+
+    socket.close();
+    await new Promise<void>((resolve) => socket.once("close", () => resolve()));
   });
 });

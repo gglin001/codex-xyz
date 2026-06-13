@@ -1052,7 +1052,13 @@ button.active {
   flex: 1 1 auto;
 }
 
+.terminal-metrics {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
 .terminal-error {
+  flex: 0 1 auto;
   color: var(--error-text);
 }
 

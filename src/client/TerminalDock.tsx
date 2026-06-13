@@ -1,10 +1,12 @@
 import { FitAddon } from "@xterm/addon-fit";
+import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal as XTerm } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { Play, RotateCw, Square, Terminal as TerminalIcon, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   apiUrl,
+  apiWebSocketUrl,
   resizeTerminal,
   startTerminal,
   terminateTerminal,
@@ -19,10 +21,39 @@ type TerminalDockProps = {
 };
 
 type ConnectionStatus = "idle" | "connecting" | "connected" | "reconnecting" | "offline";
+type TerminalTransport = "idle" | "ws" | "sse";
+type TerminalRenderer = "canvas" | "webgl";
+
+type TerminalClientMetrics = {
+  transport: TerminalTransport;
+  renderer: TerminalRenderer;
+  outputEvents: number;
+  outputChars: number;
+  outputFrames: number;
+  outputWriteMs: number;
+  inputFrames: number;
+  inputChars: number;
+  websocketBuffered: number;
+  reconnects: number;
+};
 
 const reconnectDelayMs = 1_200;
 const inputFlushMs = 8;
 const resizeFlushMs = 100;
+const metricsCommitMs = 500;
+
+const initialTerminalClientMetrics: TerminalClientMetrics = {
+  transport: "idle",
+  renderer: "canvas",
+  outputEvents: 0,
+  outputChars: 0,
+  outputFrames: 0,
+  outputWriteMs: 0,
+  inputFrames: 0,
+  inputChars: 0,
+  websocketBuffered: 0,
+  reconnects: 0
+};
 
 function terminalTheme(mode: "dark" | "light") {
   if (mode === "light") {
@@ -67,6 +98,48 @@ function statusLabel(snapshot: TerminalSnapshot | null, connection: ConnectionSt
   return snapshot.status;
 }
 
+function formatCompactNumber(value: number) {
+  if (value >= 1024 * 1024) {
+    return `${(value / 1024 / 1024).toFixed(1)}m`;
+  }
+  if (value >= 1024) {
+    return `${(value / 1024).toFixed(1)}k`;
+  }
+  return String(Math.round(value));
+}
+
+function formatMs(value: number) {
+  if (!Number.isFinite(value) || value <= 0) {
+    return "0ms";
+  }
+  return `${value.toFixed(value >= 10 ? 0 : 1)}ms`;
+}
+
+function terminalMetricsLabel(metrics: TerminalClientMetrics, snapshot: TerminalSnapshot | null) {
+  const averageWriteMs = metrics.outputFrames > 0 ? metrics.outputWriteMs / metrics.outputFrames : 0;
+  const serverQueue = snapshot?.stats.modelPendingWrites ?? 0;
+  return `${metrics.transport} | ${metrics.renderer} | rx ${formatCompactNumber(metrics.outputChars)} | write ${formatMs(averageWriteMs)} | q ${serverQueue}`;
+}
+
+function terminalMetricsTitle(metrics: TerminalClientMetrics, snapshot: TerminalSnapshot | null) {
+  const stats = snapshot?.stats;
+  const averageWriteMs = metrics.outputFrames > 0 ? metrics.outputWriteMs / metrics.outputFrames : 0;
+  return [
+    `transport: ${metrics.transport}`,
+    `renderer: ${metrics.renderer}`,
+    `client output events: ${metrics.outputEvents}`,
+    `client output chars: ${metrics.outputChars}`,
+    `client xterm writes: ${metrics.outputFrames}`,
+    `client average write: ${formatMs(averageWriteMs)}`,
+    `client input frames: ${metrics.inputFrames}`,
+    `client websocket buffered: ${metrics.websocketBuffered}`,
+    `server pty chunks: ${stats?.ptyOutputChunks ?? 0}`,
+    `server output flushes: ${stats?.outputFlushes ?? 0}`,
+    `server model pending writes: ${stats?.modelPendingWrites ?? 0}`,
+    `server output paused: ${stats?.outputPaused ? "yes" : "no"}`
+  ].join("\n");
+}
+
 export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<XTerm | null>(null);
@@ -76,9 +149,12 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
   const [snapshot, setSnapshot] = useState<TerminalSnapshot | null>(null);
   const [connection, setConnection] = useState<ConnectionStatus>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [metrics, setMetrics] = useState<TerminalClientMetrics>(initialTerminalClientMetrics);
   const themeOptions = useMemo(() => terminalTheme(theme), [theme]);
   const canStop = snapshot?.status === "running" || snapshot?.status === "starting";
   const label = statusLabel(snapshot, connection);
+  const metricsLabel = terminalMetricsLabel(metrics, snapshot);
+  const metricsTitle = terminalMetricsTitle(metrics, snapshot);
 
   useEffect(() => {
     const terminal = terminalRef.current;
@@ -94,15 +170,19 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
 
     let disposed = false;
     let source: EventSource | null = null;
+    let socket: WebSocket | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    let metricsTimer: ReturnType<typeof setInterval> | null = null;
     let outputFrame: number | null = null;
-    let pendingOutput = "";
+    let pendingOutputChunks: string[] = [];
+    let pendingOutputChars = 0;
     let outputWriteInProgress = false;
     let inputTimer: ReturnType<typeof setTimeout> | null = null;
     let inputBuffer = "";
     let inputChain: Promise<void> = Promise.resolve();
     let lastSequence = 0;
+    let clientMetrics: TerminalClientMetrics = { ...initialTerminalClientMetrics };
 
     const terminal = new XTerm({
       cursorBlink: true,
@@ -119,20 +199,52 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
     terminal.open(containerRef.current);
+    let webglAddon: WebglAddon | null = null;
+    try {
+      webglAddon = new WebglAddon();
+      webglAddon.onContextLoss(() => {
+        webglAddon?.dispose();
+        webglAddon = null;
+        clientMetrics.renderer = "canvas";
+        commitMetrics();
+      });
+      terminal.loadAddon(webglAddon);
+      clientMetrics.renderer = "webgl";
+    } catch {
+      webglAddon?.dispose();
+      webglAddon = null;
+      clientMetrics.renderer = "canvas";
+    }
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
+    commitMetrics();
+
+    function commitMetrics() {
+      if (!disposed) {
+        setMetrics({ ...clientMetrics });
+      }
+    }
+
+    metricsTimer = setInterval(commitMetrics, metricsCommitMs);
 
     function writeOutputNow() {
       outputFrame = null;
-      if (outputWriteInProgress || pendingOutput.length === 0) {
+      if (outputWriteInProgress || pendingOutputChunks.length === 0) {
         return;
       }
-      const data = pendingOutput;
-      pendingOutput = "";
+      const chunks = pendingOutputChunks;
+      const chars = pendingOutputChars;
+      const data = chunks.length === 1 ? chunks[0] : chunks.join("");
+      pendingOutputChunks = [];
+      pendingOutputChars = 0;
       outputWriteInProgress = true;
+      const startedAt = performance.now();
       terminal.write(data, () => {
         outputWriteInProgress = false;
-        if (pendingOutput.length > 0 && !disposed) {
+        clientMetrics.outputFrames += 1;
+        clientMetrics.outputWriteMs += performance.now() - startedAt;
+        clientMetrics.outputChars += chars;
+        if (pendingOutputChunks.length > 0 && !disposed) {
           scheduleOutputWrite();
         }
       });
@@ -146,11 +258,13 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
     }
 
     function queueOutput(data: string) {
-      pendingOutput += data;
+      clientMetrics.outputEvents += 1;
+      pendingOutputChunks.push(data);
+      pendingOutputChars += data.length;
       scheduleOutputWrite();
     }
 
-    function flushInput() {
+    function flushHttpInput() {
       if (inputTimer) {
         clearTimeout(inputTimer);
         inputTimer = null;
@@ -169,17 +283,50 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
         });
     }
 
-    inputFlushRef.current = flushInput;
+    inputFlushRef.current = flushHttpInput;
 
-    function queueInput(data: string) {
+    function queueHttpInput(data: string) {
       inputBuffer += data;
       if (inputBuffer.length >= 4096) {
-        flushInput();
+        flushHttpInput();
         return;
       }
       if (!inputTimer) {
-        inputTimer = setTimeout(flushInput, inputFlushMs);
+        inputTimer = setTimeout(flushHttpInput, inputFlushMs);
       }
+    }
+
+    function sendSocketMessage(message: Record<string, unknown>) {
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        return false;
+      }
+      socket.send(JSON.stringify(message));
+      clientMetrics.websocketBuffered = socket.bufferedAmount;
+      return true;
+    }
+
+    function flushBufferedInputOverSocket() {
+      if (!inputBuffer) {
+        return;
+      }
+      if (inputTimer) {
+        clearTimeout(inputTimer);
+        inputTimer = null;
+      }
+      const data = inputBuffer;
+      inputBuffer = "";
+      if (!sendSocketMessage({ type: "terminal.input", data })) {
+        queueHttpInput(data);
+      }
+    }
+
+    function queueInput(data: string) {
+      clientMetrics.inputFrames += 1;
+      clientMetrics.inputChars += data.length;
+      if (sendSocketMessage({ type: "terminal.input", data })) {
+        return;
+      }
+      queueHttpInput(data);
     }
 
     function terminalSize() {
@@ -198,6 +345,9 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
         resizeTimer = null;
         try {
           const size = terminalSize();
+          if (sendSocketMessage({ type: "terminal.resize", ...size })) {
+            return;
+          }
           void resizeTerminal(size)
             .then((nextSnapshot) => {
               if (!disposed) {
@@ -224,10 +374,9 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
       });
     }
 
-    function handleTerminalEvent(rawEvent: Event) {
-      const message = rawEvent as MessageEvent<string>;
+    function handleTerminalMessage(data: string) {
       try {
-        const event = JSON.parse(message.data) as TerminalEvent;
+        const event = JSON.parse(data) as TerminalEvent;
         lastSequence = Math.max(lastSequence, event.sequence);
         if (event.type === "terminal.output") {
           queueOutput(event.data);
@@ -239,20 +388,36 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
       }
     }
 
-    function connect(afterSequence: number) {
+    function handleTerminalEvent(rawEvent: Event) {
+      const message = rawEvent as MessageEvent<string>;
+      handleTerminalMessage(message.data);
+    }
+
+    function scheduleReconnect() {
+      if (disposed) {
+        return;
+      }
+      clientMetrics.reconnects += 1;
+      setConnection("offline");
+      reconnectTimer = setTimeout(() => connect(lastSequence), reconnectDelayMs);
+    }
+
+    function closeTransports() {
       source?.close();
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-        reconnectTimer = null;
-      }
-      if (!disposed) {
-        setConnection(afterSequence > 0 ? "reconnecting" : "connecting");
-      }
+      source = null;
+      socket?.close();
+      socket = null;
+    }
+
+    function connectSse(afterSequence: number) {
+      source?.close();
       source = new EventSource(apiUrl(`/api/terminal/events?after=${afterSequence}`));
       source.addEventListener("terminal.output", handleTerminalEvent);
       source.addEventListener("terminal.status", handleTerminalEvent);
       source.onopen = () => {
         if (!disposed) {
+          clientMetrics.transport = "sse";
+          commitMetrics();
           setConnection("connected");
           setError(null);
         }
@@ -260,11 +425,64 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
       source.onerror = () => {
         source?.close();
         source = null;
-        if (!disposed) {
-          setConnection("offline");
-          reconnectTimer = setTimeout(() => connect(lastSequence), reconnectDelayMs);
-        }
+        scheduleReconnect();
       };
+    }
+
+    function connectWebSocket(afterSequence: number) {
+      const nextSocket = new WebSocket(apiWebSocketUrl(`/api/terminal/ws?after=${afterSequence}`));
+      let opened = false;
+      socket = nextSocket;
+      clientMetrics.transport = "ws";
+      commitMetrics();
+      nextSocket.onopen = () => {
+        if (disposed || socket !== nextSocket) {
+          return;
+        }
+        opened = true;
+        setConnection("connected");
+        setError(null);
+        flushBufferedInputOverSocket();
+      };
+      nextSocket.onmessage = (message) => {
+        if (typeof message.data === "string") {
+          handleTerminalMessage(message.data);
+        }
+        clientMetrics.websocketBuffered = nextSocket.bufferedAmount;
+      };
+      nextSocket.onerror = () => {
+        nextSocket.close();
+      };
+      nextSocket.onclose = () => {
+        if (socket !== nextSocket) {
+          return;
+        }
+        socket = null;
+        if (disposed) {
+          return;
+        }
+        if (!opened) {
+          connectSse(afterSequence);
+          return;
+        }
+        scheduleReconnect();
+      };
+    }
+
+    function connect(afterSequence: number) {
+      closeTransports();
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+      if (!disposed) {
+        setConnection(afterSequence > 0 ? "reconnecting" : "connecting");
+      }
+      if ("WebSocket" in window) {
+        connectWebSocket(afterSequence);
+        return;
+      }
+      connectSse(afterSequence);
     }
 
     async function startOrAttach() {
@@ -304,7 +522,7 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
       disposed = true;
       startSessionRef.current = null;
       inputFlushRef.current = null;
-      flushInput();
+      flushHttpInput();
       if (reconnectTimer) {
         clearTimeout(reconnectTimer);
       }
@@ -314,13 +532,17 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
       if (inputTimer) {
         clearTimeout(inputTimer);
       }
+      if (metricsTimer) {
+        clearInterval(metricsTimer);
+      }
       if (outputFrame !== null) {
         window.cancelAnimationFrame(outputFrame);
       }
-      source?.close();
+      closeTransports();
       resizeObserver.disconnect();
       dataDisposable.dispose();
       binaryDisposable.dispose();
+      webglAddon?.dispose();
       fitAddon.dispose();
       terminal.dispose();
       if (terminalRef.current === terminal) {
@@ -379,6 +601,7 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
       <div className="terminal-dock-meta">
         <span>{snapshot?.cwd ?? ""}</span>
         {snapshot?.pid ? <span>pid {snapshot.pid}</span> : null}
+        <span className="terminal-metrics" title={metricsTitle}>{metricsLabel}</span>
         {error ? <span className="terminal-error">{error}</span> : null}
       </div>
       <div className="terminal-dock-body" ref={containerRef} />

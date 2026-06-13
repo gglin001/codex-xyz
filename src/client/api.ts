@@ -14,6 +14,12 @@ export function apiUrl(path: string) {
   return apiBaseUrl ? `${apiBaseUrl}${path}` : path;
 }
 
+export function apiWebSocketUrl(path: string) {
+  const url = new URL(apiUrl(path), window.location.href);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  return url.toString();
+}
+
 async function request<T>(path: string, options: RequestInit = {}) {
   const response = await fetch(apiUrl(path), {
     ...options,
