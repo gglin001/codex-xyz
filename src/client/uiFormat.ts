@@ -74,6 +74,9 @@ export function itemTitle(item: ThreadItem) {
     return "Codex";
   }
   if (item.type === "user") {
+    if (item.data.steer === true) {
+      return "Steer";
+    }
     return "User";
   }
   if (item.type === "plan") {

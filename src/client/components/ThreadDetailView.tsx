@@ -1,4 +1,5 @@
 import {
+  Activity,
   ArrowLeft,
   Bot,
   Check,
@@ -17,6 +18,7 @@ import type { FormEvent, ReactNode } from "react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import type { ControlThread, ThreadDetail, ThreadItem } from "../../server/domain.js";
 import { getCollapsedTextPreview } from "../textPreview.js";
+import { getTranscriptEntries, type TranscriptProcessEntry } from "../transcriptEntries.js";
 import {
   defaultTranscriptWindowThreshold,
   getTranscriptWindow,
@@ -34,6 +36,8 @@ import {
 } from "../uiFormat.js";
 
 const collapsedPreviewLineCount = 2;
+const processStepPreviewLineCount = 3;
+const processPreviewItemCount = 3;
 
 export type ThreadDetailViewProps = {
   detail: ThreadDetail | null;
@@ -70,18 +74,120 @@ function ItemIcon({ item }: { item: ThreadItem }) {
   return <Info size={15} />;
 }
 
+function readableStatus(value: string) {
+  return value.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/_/g, " ").toLowerCase();
+}
+
+function firstTextLine(value: string) {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean) ?? "";
+}
+
+function itemCommandLabel(item: ThreadItem) {
+  const command = typeof item.data.command === "string" ? item.data.command.trim() : "";
+  if (command) {
+    return `$ ${command}`;
+  }
+  return firstTextLine(item.text);
+}
+
+function processItemPreview(item: ThreadItem) {
+  if (item.type === "command") {
+    return itemCommandLabel(item) || "Command";
+  }
+
+  const firstLine = firstTextLine(item.text);
+  if (!firstLine) {
+    return itemTitle(item);
+  }
+  const title = itemTitle(item);
+  if (title === firstLine || firstLine.toLowerCase().startsWith(`${title.toLowerCase()}:`)) {
+    return firstLine;
+  }
+  return `${title}: ${firstLine}`;
+}
+
+function processGroupStatus(items: ThreadItem[]) {
+  let sawCompleted = false;
+  for (const item of items) {
+    const status = typeof item.data.status === "string" ? item.data.status : null;
+    const exitCode = typeof item.data.exitCode === "number" ? item.data.exitCode : null;
+
+    if (status === "inProgress" || status === "running") {
+      return "running";
+    }
+    if (status === "failed" || status === "declined" || (exitCode !== null && exitCode !== 0)) {
+      return "failed";
+    }
+    sawCompleted = sawCompleted || status === "completed" || exitCode === 0;
+  }
+  return sawCompleted ? "completed" : null;
+}
+
+function summarizeProcessGroup(items: ThreadItem[]) {
+  const titles = Array.from(new Set(items.map((item) => itemTitle(item))));
+  const title = titles.length === 1 ? titles[0] : "Process";
+  const detail =
+    titles.length <= 3 ? titles.join(", ") : `${titles.slice(0, 2).join(", ")} + ${titles.length - 2} more`;
+  const previewItems = items
+    .map(processItemPreview)
+    .filter(Boolean)
+    .slice(0, processPreviewItemCount);
+  const extraCount = Math.max(0, items.length - previewItems.length);
+  const preview = `${previewItems.join(" · ")}${extraCount > 0 ? ` · +${extraCount} more` : ""}`;
+
+  return {
+    title,
+    detail,
+    preview,
+    status: processGroupStatus(items),
+    count: `${items.length} ${items.length === 1 ? "item" : "items"}`
+  };
+}
+
+function goalTone(status: string) {
+  if (status === "blocked") {
+    return "attention";
+  }
+  if (status === "in_progress") {
+    return "running";
+  }
+  return "quiet";
+}
+
 const SessionFacts = memo(
   function SessionFacts({ thread }: { thread: ThreadDetail }) {
+    const visibleGoalStatus = thread.goalStatus && thread.goalStatus !== "cleared" ? thread.goalStatus : null;
+    const visibleGoalObjective = visibleGoalStatus ? thread.goalObjective : null;
+
     return (
       <div className="session-facts">
         <div>
           <span>Status</span>
           <strong className={`fact-status ${statusTone(thread.status)}`}>{statusLabel(thread.status)}</strong>
         </div>
+        {visibleGoalObjective && visibleGoalStatus ? (
+          <div className="wide">
+            <span>Goal</span>
+            <strong className={`fact-status ${goalTone(visibleGoalStatus)}`} title={visibleGoalObjective}>
+              {statusLabel(visibleGoalStatus)}: {visibleGoalObjective}
+            </strong>
+          </div>
+        ) : null}
         <div>
           <span>Tokens</span>
           <strong>{formatTokens(thread.tokensUsed)}</strong>
         </div>
+        {thread.goalTokenBudget ? (
+          <div>
+            <span>Budget</span>
+            <strong>
+              {formatTokens(thread.tokensUsed)} / {formatTokens(thread.goalTokenBudget)}
+            </strong>
+          </div>
+        ) : null}
         <div>
           <span>Turns</span>
           <strong>{thread.turns.length}</strong>
@@ -112,7 +218,10 @@ const SessionFacts = memo(
     previous.thread.model === next.thread.model &&
     previous.thread.cwd === next.thread.cwd &&
     previous.thread.sessionId === next.thread.sessionId &&
-    previous.thread.updatedAt === next.thread.updatedAt
+    previous.thread.updatedAt === next.thread.updatedAt &&
+    previous.thread.goalObjective === next.thread.goalObjective &&
+    previous.thread.goalStatus === next.thread.goalStatus &&
+    previous.thread.goalTokenBudget === next.thread.goalTokenBudget
 );
 
 const TranscriptItem = memo(function TranscriptItem({
@@ -170,6 +279,124 @@ const TranscriptItem = memo(function TranscriptItem({
   );
 });
 
+const ProcessStep = memo(function ProcessStep({
+  item,
+  expanded,
+  onToggleExpanded
+}: {
+  item: ThreadItem;
+  expanded: boolean;
+  onToggleExpanded: (itemId: string) => void;
+}) {
+  const status = typeof item.data.status === "string" ? item.data.status : null;
+  const exitCode = typeof item.data.exitCode === "number" ? item.data.exitCode : null;
+  const outputText = item.text || "Pending...";
+  const textPreview = getCollapsedTextPreview(outputText, {
+    expanded,
+    lineCount: processStepPreviewLineCount
+  });
+  const visibleText = textPreview.visibleText;
+  const canCollapse = textPreview.canCollapse;
+  const title = itemTitle(item);
+
+  return (
+    <div className={`process-step ${item.type}`}>
+      <button
+        type="button"
+        className={`process-step-toggle ${canCollapse ? "" : "static"}`}
+        aria-expanded={canCollapse ? expanded : undefined}
+        aria-label={canCollapse ? `${expanded ? "Collapse" : "Expand"} ${title}` : undefined}
+        onClick={canCollapse ? () => onToggleExpanded(item.id) : undefined}
+      >
+        <span className="process-step-title">
+          <ItemIcon item={item} />
+          <span>{title}</span>
+        </span>
+        <span className="process-step-right">
+          {status ? <span className="item-chip">{readableStatus(status)}</span> : null}
+          {exitCode !== null ? <span className="item-chip">exit {exitCode}</span> : null}
+          <time>{formatTime(item.createdAt)}</time>
+          {canCollapse ? (expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />) : null}
+        </span>
+      </button>
+      <pre>{visibleText}</pre>
+    </div>
+  );
+});
+
+const ProcessGroup = memo(function ProcessGroup({
+  group,
+  expanded,
+  onToggleExpanded
+}: {
+  group: TranscriptProcessEntry;
+  expanded: boolean;
+  onToggleExpanded: (entryId: string) => void;
+}) {
+  const summary = summarizeProcessGroup(group.items);
+  const [expandedStepIds, setExpandedStepIds] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    setExpandedStepIds(new Set());
+  }, [group.id]);
+
+  useEffect(() => {
+    if (!expanded) {
+      setExpandedStepIds(new Set());
+    }
+  }, [expanded]);
+
+  const toggleExpandedStep = useCallback((itemId: string) => {
+    setExpandedStepIds((current) => {
+      const next = new Set(current);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+      return next;
+    });
+  }, []);
+
+  return (
+    <article className={`process-group ${expanded ? "expanded" : "collapsed"}`}>
+      <button
+        type="button"
+        className="process-group-toggle"
+        aria-expanded={expanded}
+        aria-label={`${expanded ? "Collapse" : "Expand"} ${summary.title}`}
+        onClick={() => onToggleExpanded(group.id)}
+      >
+        <span className="process-group-main">
+          <span className="process-group-title">
+            <Activity size={15} />
+            <span>{summary.title}</span>
+          </span>
+          <span className="process-group-preview">{summary.preview || summary.detail}</span>
+        </span>
+        <span className="process-group-meta">
+          <span className="item-chip">{summary.count}</span>
+          {summary.status ? <span className="item-chip">{readableStatus(summary.status)}</span> : null}
+          <time>{formatTime(group.updatedAt)}</time>
+          {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </span>
+      </button>
+      {expanded ? (
+        <div className="process-group-body">
+          {group.items.map((item) => (
+            <ProcessStep
+              key={item.id}
+              item={item}
+              expanded={expandedStepIds.has(item.id)}
+              onToggleExpanded={toggleExpandedStep}
+            />
+          ))}
+        </div>
+      ) : null}
+    </article>
+  );
+});
+
 const Transcript = memo(function Transcript({
   detail,
   hasSelection
@@ -177,21 +404,21 @@ const Transcript = memo(function Transcript({
   detail: ThreadDetail | null;
   hasSelection: boolean;
 }) {
-  const [expandedItemIds, setExpandedItemIds] = useState<Set<string>>(() => new Set());
+  const [expandedEntryIds, setExpandedEntryIds] = useState<Set<string>>(() => new Set());
   const [windowMode, setWindowMode] = useState<TranscriptWindowMode>("recent");
 
   useEffect(() => {
-    setExpandedItemIds(new Set());
+    setExpandedEntryIds(new Set());
     setWindowMode("recent");
   }, [detail?.id]);
 
-  const toggleExpandedItem = useCallback((itemId: string) => {
-    setExpandedItemIds((current) => {
+  const toggleExpandedEntry = useCallback((entryId: string) => {
+    setExpandedEntryIds((current) => {
       const next = new Set(current);
-      if (next.has(itemId)) {
-        next.delete(itemId);
+      if (next.has(entryId)) {
+        next.delete(entryId);
       } else {
-        next.add(itemId);
+        next.add(entryId);
       }
       return next;
     });
@@ -206,6 +433,7 @@ const Transcript = memo(function Transcript({
     windowMode === "recent" && transcriptWindow.isWindowed
       ? `${transcriptWindow.visibleCount} / ${transcriptWindow.totalCount} items`
       : `${transcriptWindow.totalCount} items`;
+  const transcriptEntries = useMemo(() => getTranscriptEntries(transcriptWindow.items), [transcriptWindow.items]);
 
   return (
     <div className="transcript" aria-label="Session transcript">
@@ -234,14 +462,23 @@ const Transcript = memo(function Transcript({
           </div>
         </div>
       ) : null}
-      {transcriptWindow.items.map((item) => (
-        <TranscriptItem
-          key={item.id}
-          item={item}
-          expanded={expandedItemIds.has(item.id)}
-          onToggleExpanded={toggleExpandedItem}
-        />
-      ))}
+      {transcriptEntries.map((entry) =>
+        entry.kind === "process" ? (
+          <ProcessGroup
+            key={entry.id}
+            group={entry}
+            expanded={expandedEntryIds.has(entry.id)}
+            onToggleExpanded={toggleExpandedEntry}
+          />
+        ) : (
+          <TranscriptItem
+            key={entry.id}
+            item={entry.item}
+            expanded={expandedEntryIds.has(entry.item.id)}
+            onToggleExpanded={toggleExpandedEntry}
+          />
+        )
+      )}
     </div>
   );
 });

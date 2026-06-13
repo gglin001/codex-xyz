@@ -912,6 +912,133 @@ button.active {
   border-color: var(--file-border);
 }
 
+.process-group {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 72px;
+  flex: 0 0 auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface-bg);
+  overflow: hidden;
+}
+
+.process-group.expanded {
+  contain-intrinsic-size: auto 260px;
+}
+
+.process-group-toggle {
+  display: flex;
+  width: 100%;
+  height: auto;
+  min-height: 52px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.process-group-toggle:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--button-hover-bg);
+}
+
+.process-group-main {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.process-group-title,
+.process-group-meta,
+.process-step-title,
+.process-step-right {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 6px;
+}
+
+.process-group-title {
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.process-group-title svg {
+  color: var(--accent);
+}
+
+.process-group-preview {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.process-group-meta {
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.process-group-body {
+  border-top: 1px solid var(--border-soft);
+}
+
+.process-step + .process-step {
+  border-top: 1px solid var(--border-soft);
+}
+
+.process-step-toggle {
+  display: flex;
+  width: 100%;
+  height: auto;
+  min-height: 38px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 0;
+  background: var(--surface-subtle-bg);
+  color: var(--muted-strong);
+  font-size: 12px;
+  text-align: left;
+}
+
+.process-step-toggle:hover:not(.static) {
+  border-color: transparent;
+  background: var(--button-hover-bg);
+}
+
+.process-step-toggle.static {
+  cursor: default;
+}
+
+.process-step-title {
+  color: var(--text-strong);
+  font-weight: 700;
+}
+
+.process-step-right {
+  flex: 0 1 auto;
+  justify-content: flex-end;
+}
+
+.process-step pre {
+  padding: 10px 12px;
+}
+
 .item-meta {
   display: flex;
   align-items: center;
@@ -1232,6 +1359,18 @@ button.active {
   }
 
   .item-meta-right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .process-group-toggle,
+  .process-step-toggle {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .process-group-meta,
+  .process-step-right {
     width: 100%;
     justify-content: flex-start;
   }
