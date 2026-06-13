@@ -171,7 +171,7 @@ export function renameThread(threadId: string, title: string) {
   });
 }
 
-export function setGoal(threadId: string, objective: string, tokenBudget?: number | null) {
+export function startGoal(threadId: string, objective: string, tokenBudget?: number | null) {
   return request<{
     goal: {
       objective: string;

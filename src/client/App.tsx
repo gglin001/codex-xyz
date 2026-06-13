@@ -12,7 +12,7 @@ import {
   queueTurn,
   renameThread,
   resumeThread,
-  setGoal,
+  startGoal,
   startTurn
 } from "./api.js";
 import { MobileNavigation } from "./components/MobileNavigation.js";
@@ -703,7 +703,7 @@ export function App() {
       void runAction(
         "Starting goal mode",
         async () => {
-          const result = await setGoal(threadId, currentPrompt.trim());
+          const result = await startGoal(threadId, currentPrompt.trim());
           return result.turn.threadId;
         },
         { mobileViewOnSuccess: "detail" }
