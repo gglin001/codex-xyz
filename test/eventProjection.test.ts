@@ -264,6 +264,25 @@ describe("client event projection", () => {
     });
   });
 
+  it("clears the active turn when runtime thread status becomes idle", () => {
+    const result = applyEventProjection(
+      projection(),
+      event("thread.status", {
+        status: "idle"
+      })
+    );
+
+    expect(result.changed).toBe(true);
+    expect(result.state.threads[0]).toMatchObject({
+      status: "idle",
+      activeTurnId: null
+    });
+    expect(result.detail).toMatchObject({
+      status: "idle",
+      activeTurnId: null
+    });
+  });
+
   it("upserts new threads and keeps the low-frequency relationship refresh signal", () => {
     const newThread = thread({
       id: "thread-2",

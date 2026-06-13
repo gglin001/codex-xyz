@@ -93,6 +93,19 @@ function optionalBoolean(body: Record<string, unknown>, key: string) {
   return typeof value === "boolean" ? value : null;
 }
 
+function requireStringArray(body: Record<string, unknown>, key: string) {
+  const value = body[key];
+  if (!Array.isArray(value)) {
+    throw new Error(`Missing string array field: ${key}`);
+  }
+  return value.map((item) => {
+    if (typeof item !== "string" || item.trim().length === 0) {
+      throw new Error(`${key} must contain only non-empty strings`);
+    }
+    return item.trim();
+  });
+}
+
 function optionalPositiveInteger(body: Record<string, unknown>, key: string) {
   const value = body[key];
   if (value === undefined || value === null || value === "") {
@@ -513,6 +526,12 @@ async function handleApi(context: HandlerContext) {
       return true;
     }
     sendJson(response, 200, service.listThreads());
+    return true;
+  }
+
+  if (method === "POST" && route === "api/threads/runtime-sync") {
+    const body = await readJson(request);
+    sendJson(response, 200, await service.syncRuntimeThreads(requireStringArray(body, "threadIds")));
     return true;
   }
 

@@ -5,7 +5,14 @@ import { join } from "node:path";
 import { AddressInfo } from "node:net";
 import WebSocket from "ws";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { ControlThread, DashboardState, TerminalEvent, TerminalSnapshot, ThreadPage } from "../src/server/domain.js";
+import type {
+  ControlThread,
+  DashboardState,
+  RuntimeSyncResult,
+  TerminalEvent,
+  TerminalSnapshot,
+  ThreadPage
+} from "../src/server/domain.js";
 import { EventBus } from "../src/server/eventBus.js";
 import { createHttpServer } from "../src/server/http.js";
 import { ControlService } from "../src/server/service.js";
@@ -435,6 +442,42 @@ describe("HTTP API", () => {
         detail.items.some((item) => item.text.includes("Prompt preview: Run after the current turn."))
       );
     }, "queued prompt to drain");
+  });
+
+  it("syncs loaded session runtime status through the HTTP API", async () => {
+    const state = await json<DashboardState>("/api/state");
+    const created = await json<{ thread: { id: string }; turn: { id: string } }>("/api/tasks", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: state.projects[0].id,
+        prompt: "Keep this turn open for runtime sync"
+      })
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    testAdapter.dropActiveTurn(created.thread.id);
+
+    const sync = await json<RuntimeSyncResult>("/api/threads/runtime-sync", {
+      method: "POST",
+      body: JSON.stringify({
+        threadIds: [created.thread.id]
+      })
+    });
+    expect(sync).toMatchObject({
+      checkedThreadCount: 1,
+      updatedThreadCount: 1,
+      warningCount: 1,
+      errorCount: 0
+    });
+
+    const detail = await json<{ status: string; activeTurnId: string | null; turns: Array<{ id: string; status: string }> }>(
+      `/api/threads/${created.thread.id}`
+    );
+    expect(detail).toMatchObject({
+      status: "idle",
+      activeTurnId: null
+    });
+    expect(detail.turns.find((turn) => turn.id === created.turn.id)?.status).toBe("interrupted");
   });
 
   it("streams terminal output and input over websocket", async () => {

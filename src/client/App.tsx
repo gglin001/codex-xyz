@@ -15,7 +15,8 @@ import {
   resumeThread,
   setGoalStatus,
   startGoal,
-  startTurn
+  startTurn,
+  syncThreadRuntime
 } from "./api.js";
 import { MobileNavigation } from "./components/MobileNavigation.js";
 import { PromptComposer } from "./components/PromptComposer.js";
@@ -26,7 +27,7 @@ import { applyEventProjectionBatch, incrementalEventNames, type ClientProjection
 import { getSessionListModel } from "./sessionList.js";
 import { isMacTerminalToggleShortcut } from "./terminalShortcut.js";
 import { choosePreferredThreadId, shouldLoadThreadSelection, shouldSelectActionResult } from "./threadSelection.js";
-import type { DashboardState, ThreadDetail, XyzEvent } from "../server/domain.js";
+import type { DashboardState, RuntimeSyncIssue, RuntimeSyncResult, ThreadDetail, XyzEvent } from "../server/domain.js";
 
 function initialState(): DashboardState {
   return {
@@ -51,6 +52,12 @@ type RunActionOptions = {
 type DetailSubscription = {
   threadId: string;
   after: number;
+};
+
+type RuntimeSyncSummary = {
+  tone: "warning" | "error";
+  label: string;
+  title: string;
 };
 
 function mergeThreadsById(current: DashboardState["threads"], incoming: DashboardState["threads"]) {
@@ -146,6 +153,7 @@ export function App() {
   const [summaryEventsReady, setSummaryEventsReady] = useState(false);
   const [detailSubscription, setDetailSubscription] = useState<DetailSubscription | null>(null);
   const [loadingMoreThreads, setLoadingMoreThreads] = useState(false);
+  const [runtimeSyncResult, setRuntimeSyncResult] = useState<RuntimeSyncResult | null>(null);
   const isMobileViewport = useMediaQuery(mobileViewportQuery);
   const isMobileViewportRef = useRef(isMobileViewport);
   const loadingMoreThreadsRef = useRef(false);
@@ -275,6 +283,22 @@ export function App() {
     } else {
       beginDetailLoad();
       clearDetail();
+    }
+  }
+
+  async function refreshWithRuntimeSync() {
+    setBusyAction("Checking sessions");
+    setError(null);
+    setNotice(null);
+    try {
+      const threadIds = projectionRef.current.state.threads.map((thread) => thread.id);
+      const result = await syncThreadRuntime(threadIds);
+      setRuntimeSyncResult(result);
+      await refresh(undefined, { loadDetail: Boolean(selectedThreadIdRef.current) });
+    } catch (syncError) {
+      setError(syncError instanceof Error ? syncError.message : "Failed to refresh sessions");
+    } finally {
+      setBusyAction(null);
     }
   }
 
@@ -557,13 +581,31 @@ export function App() {
     return state.projects.find((project) => project.path === trimmed) ?? null;
   }, [state.projects, workdir]);
 
+  const runtimeIssuesByThreadId = useMemo(() => {
+    const issuesByThreadId = new Map<string, RuntimeSyncIssue>();
+    for (const issue of runtimeSyncResult?.issues ?? []) {
+      const current = issuesByThreadId.get(issue.threadId);
+      if (!current || (current.severity === "warning" && issue.severity === "error")) {
+        issuesByThreadId.set(issue.threadId, issue);
+      }
+    }
+    return issuesByThreadId;
+  }, [runtimeSyncResult]);
   const sessionList = useMemo(
     () =>
       getSessionListModel(state.threads, state.tasks, deferredSessionQuery, {
         totalThreadCount: state.threadTotalCount,
-        hasMoreThreads: state.threadHasMore
+        hasMoreThreads: state.threadHasMore,
+        runtimeIssuesByThreadId
       }),
-    [deferredSessionQuery, state.tasks, state.threadHasMore, state.threadTotalCount, state.threads]
+    [
+      deferredSessionQuery,
+      runtimeIssuesByThreadId,
+      state.tasks,
+      state.threadHasMore,
+      state.threadTotalCount,
+      state.threads
+    ]
   );
   const sessionCountLabel = sessionList.hasQuery
     ? sessionList.loadedThreadCount < sessionList.totalThreadCount
@@ -572,6 +614,25 @@ export function App() {
     : sessionList.loadedThreadCount < sessionList.totalThreadCount
       ? `${sessionList.loadedThreadCount} / ${sessionList.totalThreadCount} loaded`
       : `${sessionList.totalThreadCount} total`;
+  const runtimeSyncSummary = useMemo<RuntimeSyncSummary | null>(() => {
+    if (!runtimeSyncResult || (runtimeSyncResult.warningCount === 0 && runtimeSyncResult.errorCount === 0)) {
+      return null;
+    }
+    const tone = runtimeSyncResult.errorCount > 0 ? "error" : "warning";
+    const issueLabel =
+      runtimeSyncResult.errorCount > 0
+        ? `${runtimeSyncResult.errorCount} runtime error${runtimeSyncResult.errorCount === 1 ? "" : "s"}`
+        : `${runtimeSyncResult.warningCount} runtime warning${runtimeSyncResult.warningCount === 1 ? "" : "s"}`;
+    const details = runtimeSyncResult.issues
+      .slice(0, 4)
+      .map((issue) => `${issue.title}: ${issue.message}`)
+      .join("\n");
+    return {
+      tone,
+      label: issueLabel,
+      title: details || issueLabel
+    };
+  }, [runtimeSyncResult]);
   const promptTarget = composerMode === "thread" && selectedThread ? "thread" : "new";
   const trimmedWorkdir = workdir.trim();
   const canUseGoalMode =
@@ -910,11 +971,13 @@ export function App() {
           terminalVisible={terminalVisible}
           sessionQuery={sessionQuery}
           sessionList={sessionList}
+          runtimeSyncSummary={runtimeSyncSummary}
+          runtimeIssuesByThreadId={runtimeIssuesByThreadId}
           selectedThreadId={selectedThreadId}
           loadingMoreThreads={loadingMoreThreads}
           onTerminalToggle={() => setTerminalVisible((current) => !current)}
           onThemeChange={setTheme}
-          onRefresh={() => void refresh()}
+          onRefresh={() => void refreshWithRuntimeSync()}
           onLoadMoreThreads={() => void loadMoreThreads()}
           onSessionQueryChange={setSessionQuery}
           onSelectThread={selectThread}

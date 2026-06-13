@@ -122,6 +122,27 @@ export type XyzEvent = {
   createdAt: string;
 };
 
+export type RuntimeSyncSeverity = "warning" | "error";
+
+export type RuntimeSyncIssue = {
+  threadId: string;
+  title: string;
+  localStatus: RuntimeStatus;
+  runtimeStatus: RuntimeStatus | null;
+  severity: RuntimeSyncSeverity;
+  message: string;
+};
+
+export type RuntimeSyncResult = {
+  checkedThreadCount: number;
+  skippedThreadCount: number;
+  updatedThreadCount: number;
+  warningCount: number;
+  errorCount: number;
+  issues: RuntimeSyncIssue[];
+  latestEventId: number;
+};
+
 export const summaryEventTypes = [
   "project.upserted",
   "task.created",

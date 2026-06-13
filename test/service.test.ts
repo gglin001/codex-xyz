@@ -53,7 +53,8 @@ class VolatileCodexAdapter implements CodexAdapter {
       forkedFromId: null,
       preview: input.promptPreview,
       cwd: input.cwd,
-      model: input.model ?? "volatile-model"
+      model: input.model ?? "volatile-model",
+      status: "idle"
     };
     this.threads.set(id, thread);
     return thread;
@@ -190,7 +191,8 @@ class EagerEventCodexAdapter implements CodexAdapter {
       forkedFromId: null,
       preview: input.promptPreview,
       cwd: input.cwd,
-      model: input.model ?? "eager-model"
+      model: input.model ?? "eager-model",
+      status: "idle"
     };
     this.threads.set(id, thread);
     return thread;
@@ -258,7 +260,8 @@ class EagerEventCodexAdapter implements CodexAdapter {
       forkedFromId: source.id,
       preview: `Fork of ${source.preview}`,
       cwd: input.cwd,
-      model: input.model ?? source.model
+      model: input.model ?? source.model,
+      status: "idle"
     };
     this.threads.set(id, thread);
     return thread;
@@ -531,6 +534,67 @@ describe("ControlService", () => {
     expect(turn.id).toBe(result.turn.id);
     expect(detail.turns).toHaveLength(1);
     expect(detail.items.some((item) => item.type === "agent" && item.text.includes("Steer received"))).toBe(true);
+  });
+
+  it("syncs a stale local active turn back to the runtime idle state", async () => {
+    const project = service.listProjects()[0];
+    const result = await service.createTask({
+      projectId: project.id,
+      prompt: "Keep this turn open for steering approval"
+    });
+    await waitForEvents();
+
+    const threadId = result.thread?.id;
+    if (!threadId || !result.turn) {
+      throw new Error("Expected created running thread and turn");
+    }
+
+    testAdapter.dropActiveTurn(threadId);
+    const sync = await service.syncRuntimeThreads([threadId]);
+    const detail = service.getThreadDetail(threadId);
+
+    expect(sync).toMatchObject({
+      checkedThreadCount: 1,
+      updatedThreadCount: 1,
+      warningCount: 1,
+      errorCount: 0
+    });
+    expect(detail).toMatchObject({
+      status: "idle",
+      activeTurnId: null
+    });
+    expect(detail.turns[0]).toMatchObject({
+      id: result.turn.id,
+      status: "interrupted"
+    });
+    expect(service.listTasks()[0].status).toBe("interrupted");
+  });
+
+  it("starts a new turn when default submission finds no runtime active turn", async () => {
+    const project = service.listProjects()[0];
+    const result = await service.createTask({
+      projectId: project.id,
+      prompt: "Keep this turn open for steering approval"
+    });
+    await waitForEvents();
+
+    const threadId = result.thread?.id;
+    if (!threadId || !result.turn) {
+      throw new Error("Expected created running thread and turn");
+    }
+
+    testAdapter.dropActiveTurn(threadId);
+    const nextTurn = await service.startTurn({
+      threadId,
+      prompt: "Start after runtime drift."
+    });
+    await waitForEvents();
+
+    const detail = service.getThreadDetail(threadId);
+    expect(nextTurn.id).not.toBe(result.turn.id);
+    expect(detail.turns.map((turn) => turn.status)).toEqual(["interrupted", "completed"]);
+    expect(detail.status).toBe("idle");
+    expect(detail.items.some((item) => item.text.includes("Prompt preview: Start after runtime drift."))).toBe(true);
   });
 
   it("queues prompts and starts them after the active turn completes", async () => {

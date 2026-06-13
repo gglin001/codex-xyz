@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getSessionListModel, selectionTouchesThreadGroup } from "../src/client/sessionList.js";
-import type { ControlThread, Task } from "../src/server/domain.js";
+import type { ControlThread, RuntimeSyncIssue, Task } from "../src/server/domain.js";
 
 const createdAt = "2026-06-13T00:00:00.000Z";
 const early = "2026-06-13T00:01:00.000Z";
@@ -44,6 +44,18 @@ function task(overrides: Partial<Task> = {}): Task {
   };
 }
 
+function runtimeIssue(overrides: Partial<RuntimeSyncIssue> = {}): RuntimeSyncIssue {
+  return {
+    threadId: "thread-1",
+    title: "Implement search",
+    localStatus: "idle",
+    runtimeStatus: "stale",
+    severity: "error",
+    message: "Session is not loaded by Codex and could not be resumed.",
+    ...overrides
+  };
+}
+
 describe("session list model", () => {
   it("detects whether a selection change touches a visible group", () => {
     const threads = [thread({ id: "alpha" }), thread({ id: "beta" })];
@@ -81,6 +93,30 @@ describe("session list model", () => {
     expect(result.visibleThreadCount).toBe(6);
     expect(result.totalThreadCount).toBe(6);
     expect(result.hasQuery).toBe(false);
+  });
+
+  it("groups runtime sync issues with attention sessions", () => {
+    const issues = new Map([
+      ["idle-drift", runtimeIssue({ threadId: "idle-drift", localStatus: "idle", severity: "warning", runtimeStatus: "idle" })],
+      ["running-drift", runtimeIssue({ threadId: "running-drift", localStatus: "running", runtimeStatus: "running" })]
+    ]);
+    const result = getSessionListModel(
+      [
+        thread({ id: "running", status: "running" }),
+        thread({ id: "idle-drift", status: "idle", activeTurnId: null }),
+        thread({ id: "running-drift", status: "running" }),
+        thread({ id: "idle", status: "idle", activeTurnId: null })
+      ],
+      [],
+      "",
+      {
+        runtimeIssuesByThreadId: issues
+      }
+    );
+
+    expect(result.activeThreads.map((candidate) => candidate.id)).toEqual(["running"]);
+    expect(result.attentionThreads.map((candidate) => candidate.id)).toEqual(["idle-drift", "running-drift"]);
+    expect(result.otherThreads.map((candidate) => candidate.id)).toEqual(["idle"]);
   });
 
   it("filters sessions by title, preview, cwd, status, model, goal, and session id", () => {

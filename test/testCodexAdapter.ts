@@ -49,6 +49,7 @@ export class TestCodexAdapter implements CodexAdapter {
       preview: input.promptPreview,
       cwd: input.cwd,
       model: input.model ?? "test-codex",
+      status: "idle",
       goal: null,
       activeTurnId: null
     };
@@ -70,6 +71,7 @@ export class TestCodexAdapter implements CodexAdapter {
       completed: false
     };
     thread.activeTurnId = turnId;
+    thread.status = "running";
     this.running.set(turnId, running);
     setTimeout(() => this.emitTurnOutput(input, turnId, running), 0);
     return { id: turnId, status: "running" };
@@ -88,6 +90,7 @@ export class TestCodexAdapter implements CodexAdapter {
 
     if (!input.activeTurnId) {
       thread.activeTurnId = turnId;
+      thread.status = "running";
       this.running.set(turnId, running);
       this.emit({
         type: "turn.started",
@@ -102,7 +105,10 @@ export class TestCodexAdapter implements CodexAdapter {
   }
 
   async steerTurn(input: { threadId: string; turnId: string; prompt: string }) {
-    this.requireThread(input.threadId);
+    const thread = this.requireThread(input.threadId);
+    if (thread.activeTurnId !== input.turnId || !this.running.has(input.turnId)) {
+      throw new Error("no active turn to steer");
+    }
     this.emit({
       type: "item.created",
       threadId: input.threadId,
@@ -141,6 +147,7 @@ export class TestCodexAdapter implements CodexAdapter {
       preview: `Fork of ${source.preview}`,
       cwd: input.cwd,
       model: input.model ?? source.model,
+      status: "idle",
       goal: source.goal,
       activeTurnId: null
     };
@@ -189,6 +196,7 @@ export class TestCodexAdapter implements CodexAdapter {
       completed: false
     };
     thread.activeTurnId = turnId;
+    thread.status = "running";
     this.running.set(turnId, running);
     setTimeout(() => this.emitGoalTurnOutput(input, turnId, running), 0);
     return {
@@ -218,6 +226,15 @@ export class TestCodexAdapter implements CodexAdapter {
       throw new Error(`Test turn ${thread.activeTurnId} is not running`);
     }
     this.completeTurn(running, status);
+  }
+
+  dropActiveTurn(threadId: string, status: "idle" | "failed" | "stale" = "idle") {
+    const thread = this.requireThread(threadId);
+    if (thread.activeTurnId) {
+      this.running.delete(thread.activeTurnId);
+    }
+    thread.activeTurnId = null;
+    thread.status = status;
   }
 
   async close() {
@@ -361,6 +378,7 @@ export class TestCodexAdapter implements CodexAdapter {
     const thread = this.threads.get(running.threadId);
     if (thread?.activeTurnId === running.turnId) {
       thread.activeTurnId = null;
+      thread.status = status === "failed" ? "failed" : "idle";
     }
     this.emit({
       type: "turn.status",

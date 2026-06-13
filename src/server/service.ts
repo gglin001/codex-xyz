@@ -9,6 +9,8 @@ import {
   nowIso,
   type Project,
   type RenameThreadInput,
+  type RuntimeSyncIssue,
+  type RuntimeSyncResult,
   type RuntimeStatus,
   type SetGoalInput,
   type SetGoalStatusInput,
@@ -51,6 +53,18 @@ function goalStatusFromAdapter(goal: AdapterGoal | null): GoalStatus | null {
 
 function threadStatusFromTurnStatus(status: RuntimeStatus): RuntimeStatus {
   return status === "completed" ? "idle" : status;
+}
+
+function normalizeThreadRuntimeStatus(status: RuntimeStatus): RuntimeStatus {
+  return status === "completed" ? "idle" : status;
+}
+
+function isRuntimeCheckCandidate(thread: ControlThread) {
+  return thread.status === "idle" || thread.status === "running" || Boolean(thread.activeTurnId);
+}
+
+function isNoActiveTurnError(error: unknown) {
+  return error instanceof Error && /no active turn/i.test(error.message);
 }
 
 function normalizeWorkingDirectory(path: string) {
@@ -249,7 +263,16 @@ export class ControlService {
       return this.startShellCommand(thread, input.prompt, shellCommand);
     }
     if (thread.activeTurnId) {
-      await this.steerActiveTurn(thread, input.prompt);
+      try {
+        await this.steerActiveTurn(thread, input.prompt);
+      } catch (error) {
+        if (!isNoActiveTurnError(error)) {
+          throw error;
+        }
+        const current = this.clearLostActiveTurn(thread);
+        const { adapterTurn, thread: runtimeThread } = await this.startRuntimeTurn(current, input);
+        return this.recordTurn(runtimeThread, input.prompt, adapterTurn);
+      }
       const activeTurn = this.store.getTurn(thread.activeTurnId);
       if (!activeTurn) {
         throw new Error(`Active turn ${thread.activeTurnId} does not exist`);
@@ -265,7 +288,14 @@ export class ControlService {
     if (!thread.activeTurnId) {
       throw new Error("Thread has no active turn to steer");
     }
-    await this.steerActiveTurn(thread, prompt);
+    try {
+      await this.steerActiveTurn(thread, prompt);
+    } catch (error) {
+      if (isNoActiveTurnError(error)) {
+        this.clearLostActiveTurn(thread);
+      }
+      throw error;
+    }
   }
 
   async queueTurn(threadId: string, prompt: string) {
@@ -286,8 +316,16 @@ export class ControlService {
     if (!thread.activeTurnId) {
       return thread;
     }
-    await this.withRuntimeThread(thread, () => this.adapter.interruptTurn({ threadId, turnId: thread.activeTurnId as string }));
-    this.publish("turn.interrupt.requested", threadId, thread.activeTurnId, {});
+    const activeTurnId = await this.withRuntimeThread(thread, async (runtimeThread) => {
+      if (!runtimeThread.activeTurnId) {
+        return null;
+      }
+      await this.adapter.interruptTurn({ threadId: runtimeThread.id, turnId: runtimeThread.activeTurnId });
+      return runtimeThread.activeTurnId;
+    });
+    if (activeTurnId) {
+      this.publish("turn.interrupt.requested", threadId, activeTurnId, {});
+    }
     return this.store.getThread(threadId);
   }
 
@@ -303,9 +341,9 @@ export class ControlService {
 
   async forkThread(threadId: string) {
     const source = this.requireThread(threadId);
-    const adapterThread = await this.withRuntimeThread(source, () =>
+    const adapterThread = await this.withRuntimeThread(source, (runtimeThread) =>
       this.adapter.forkThread({
-        sourceThreadId: threadId,
+        sourceThreadId: runtimeThread.id,
         cwd: source.cwd,
         model: source.model
       })
@@ -331,7 +369,7 @@ export class ControlService {
     if (!title) {
       throw new Error("Thread title cannot be empty");
     }
-    await this.withRuntimeThread(source, () => this.adapter.renameThread({ threadId: input.threadId, title }));
+    await this.withRuntimeThread(source, (runtimeThread) => this.adapter.renameThread({ threadId: runtimeThread.id, title }));
     const thread = this.store.updateThread(input.threadId, { title });
     this.publish("thread.renamed", input.threadId, null, { title, thread });
     return thread;
@@ -339,9 +377,9 @@ export class ControlService {
 
   async setGoal(input: SetGoalInput) {
     const source = this.requireThread(input.threadId);
-    const goal = await this.withRuntimeThread(source, () =>
+    const goal = await this.withRuntimeThread(source, (runtimeThread) =>
       this.adapter.setGoal({
-        threadId: input.threadId,
+        threadId: runtimeThread.id,
         objective: input.objective,
         tokenBudget: input.tokenBudget
       })
@@ -358,9 +396,9 @@ export class ControlService {
 
   async setGoalStatus(input: SetGoalStatusInput) {
     const source = this.requireThread(input.threadId);
-    const goal = await this.withRuntimeThread(source, () =>
+    const goal = await this.withRuntimeThread(source, (runtimeThread) =>
       this.adapter.setGoalStatus({
-        threadId: input.threadId,
+        threadId: runtimeThread.id,
         status: input.status
       })
     );
@@ -379,9 +417,9 @@ export class ControlService {
     if (source.activeTurnId || source.status !== "idle") {
       throw new Error("Goal mode requires an idle thread");
     }
-    const { goal, turn: adapterTurn } = await this.withRuntimeThread(source, () =>
+    const { goal, turn: adapterTurn } = await this.withRuntimeThread(source, (runtimeThread) =>
       this.adapter.startGoal({
-        threadId: input.threadId,
+        threadId: runtimeThread.id,
         objective: input.objective,
         tokenBudget: input.tokenBudget
       })
@@ -406,12 +444,12 @@ export class ControlService {
 
   async getGoal(threadId: string) {
     const source = this.requireThread(threadId);
-    return this.withRuntimeThread(source, () => this.adapter.getGoal(threadId));
+    return this.withRuntimeThread(source, (runtimeThread) => this.adapter.getGoal(runtimeThread.id));
   }
 
   async clearGoal(threadId: string) {
     const source = this.requireThread(threadId);
-    await this.withRuntimeThread(source, () => this.adapter.clearGoal(threadId));
+    await this.withRuntimeThread(source, (runtimeThread) => this.adapter.clearGoal(runtimeThread.id));
     const thread = this.store.updateThread(threadId, {
       goalObjective: null,
       goalStatus: "cleared",
@@ -438,6 +476,73 @@ export class ControlService {
       limit,
       nextOffset,
       hasMore: nextOffset < totalCount
+    };
+  }
+
+  async syncRuntimeThreads(threadIds: string[]): Promise<RuntimeSyncResult> {
+    const uniqueThreadIds = [...new Set(threadIds)];
+    const issues: RuntimeSyncIssue[] = [];
+    let checkedThreadCount = 0;
+    let skippedThreadCount = 0;
+    let updatedThreadCount = 0;
+
+    for (const threadId of uniqueThreadIds) {
+      const thread = this.store.getThread(threadId);
+      if (!thread) {
+        continue;
+      }
+      if (!isRuntimeCheckCandidate(thread)) {
+        skippedThreadCount += 1;
+        continue;
+      }
+
+      checkedThreadCount += 1;
+      try {
+        const adapterThread = await this.adapter.resumeThread({
+          threadId: thread.id,
+          cwd: thread.cwd,
+          model: thread.model
+        });
+        const result = this.applyRuntimeThreadSnapshot(thread, adapterThread);
+        if (result.updated) {
+          updatedThreadCount += 1;
+        }
+        issues.push(...result.issues);
+      } catch (error) {
+        if (isAdapterThreadNotFoundError(error)) {
+          this.markRuntimeThreadLost(thread);
+          updatedThreadCount += 1;
+          issues.push({
+            threadId: thread.id,
+            title: thread.title,
+            localStatus: thread.status,
+            runtimeStatus: "stale",
+            severity: "error",
+            message: "Session is not loaded by Codex and could not be resumed."
+          });
+          continue;
+        }
+        issues.push({
+          threadId: thread.id,
+          title: thread.title,
+          localStatus: thread.status,
+          runtimeStatus: null,
+          severity: "error",
+          message: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+
+    const warningCount = issues.filter((issue) => issue.severity === "warning").length;
+    const errorCount = issues.filter((issue) => issue.severity === "error").length;
+    return {
+      checkedThreadCount,
+      skippedThreadCount,
+      updatedThreadCount,
+      warningCount,
+      errorCount,
+      issues,
+      latestEventId: this.store.getLatestEventId()
     };
   }
 
@@ -539,8 +644,14 @@ export class ControlService {
     }
 
     if (event.type === "thread.status") {
-      this.store.updateThread(event.threadId, {
+      const updates: Partial<Pick<ControlThread, "status" | "activeTurnId">> = {
         status: event.status
+      };
+      if (event.status !== "running") {
+        updates.activeTurnId = null;
+      }
+      this.store.updateThread(event.threadId, {
+        ...updates
       });
       this.publish("thread.status", event.threadId, null, { status: event.status });
       return;
@@ -660,6 +771,7 @@ export class ControlService {
     tokensUsed: number;
   }) {
     const now = nowIso();
+    const status = normalizeThreadRuntimeStatus(input.adapterThread.status);
     const thread: ControlThread = {
       id: input.adapterThread.id,
       sessionId: input.adapterThread.sessionId,
@@ -669,8 +781,8 @@ export class ControlService {
       preview: input.adapterThread.preview || input.preview || input.title,
       cwd: input.adapterThread.cwd,
       model: input.adapterThread.model,
-      status: "idle",
-      activeTurnId: null,
+      status,
+      activeTurnId: status === "running" ? (input.adapterThread.activeTurnId ?? null) : null,
       goalObjective: input.goalObjective,
       goalStatus: input.goalStatus,
       goalTokenBudget: input.goalTokenBudget ?? null,
@@ -723,14 +835,18 @@ export class ControlService {
     if (!thread.activeTurnId) {
       throw new Error("Thread has no active turn to steer");
     }
-    await this.withRuntimeThread(thread, () =>
-      this.adapter.steerTurn({
-        threadId: thread.id,
-        turnId: thread.activeTurnId as string,
+    const activeTurnId = await this.withRuntimeThread(thread, async (runtimeThread) => {
+      if (!runtimeThread.activeTurnId) {
+        throw new Error("Thread has no active turn to steer");
+      }
+      await this.adapter.steerTurn({
+        threadId: runtimeThread.id,
+        turnId: runtimeThread.activeTurnId,
         prompt
-      })
-    );
-    this.publish("turn.steered", thread.id, thread.activeTurnId, { prompt });
+      });
+      return runtimeThread.activeTurnId;
+    });
+    this.publish("turn.steered", thread.id, activeTurnId, { prompt });
   }
 
   private async maybeDrainQueuedPrompt(threadId: string) {
@@ -862,9 +978,9 @@ export class ControlService {
     };
   }
 
-  private async withRuntimeThread<T>(thread: ControlThread, action: () => Promise<T>) {
+  private async withRuntimeThread<T>(thread: ControlThread, action: (thread: ControlThread) => Promise<T>) {
     try {
-      return await action();
+      return await action(thread);
     } catch (error) {
       if (!isAdapterThreadNotFoundError(error)) {
         throw error;
@@ -876,9 +992,10 @@ export class ControlService {
       this.markRuntimeThreadLost(thread);
       throw new Error(`Thread ${thread.id} is not loaded by Codex and could not be resumed`);
     }
+    const resumedThread = this.store.getThread(thread.id) ?? thread;
 
     try {
-      return await action();
+      return await action(resumedThread);
     } catch (error) {
       if (isAdapterThreadNotFoundError(error)) {
         this.markRuntimeThreadLost(thread);
@@ -894,16 +1011,7 @@ export class ControlService {
         cwd: thread.cwd,
         model: thread.model
       });
-      const updates: Partial<Pick<ControlThread, "status" | "activeTurnId" | "preview">> = {
-        status: thread.activeTurnId ? thread.status : "idle",
-        preview: adapterThread.preview || thread.preview
-      };
-      if (!thread.activeTurnId) {
-        updates.activeTurnId = null;
-      }
-      this.store.updateThread(thread.id, {
-        ...updates
-      });
+      this.applyRuntimeThreadSnapshot(thread, adapterThread);
       this.publish("thread.resumed", thread.id, null, { thread: this.store.getThread(thread.id) });
       return true;
     } catch (error) {
@@ -912,6 +1020,88 @@ export class ControlService {
       }
       throw error;
     }
+  }
+
+  private applyRuntimeThreadSnapshot(thread: ControlThread, adapterThread: AdapterThread) {
+    const runtimeStatus = normalizeThreadRuntimeStatus(adapterThread.status);
+    const nextActiveTurnId =
+      runtimeStatus === "running" ? (adapterThread.activeTurnId ?? thread.activeTurnId ?? null) : null;
+    const updates: Partial<Pick<ControlThread, "status" | "activeTurnId" | "preview">> = {
+      status: runtimeStatus,
+      activeTurnId: nextActiveTurnId,
+      preview: adapterThread.preview || thread.preview
+    };
+    const changed =
+      thread.status !== updates.status ||
+      thread.activeTurnId !== updates.activeTurnId ||
+      thread.preview !== updates.preview;
+    const issues: RuntimeSyncIssue[] = [];
+
+    if (runtimeStatus !== "running" && thread.activeTurnId) {
+      const activeTurn = this.store.getTurn(thread.activeTurnId);
+      if (activeTurn?.status === "running") {
+        this.store.updateTurn(activeTurn.id, {
+          status: "interrupted",
+          completedAt: nowIso(),
+          durationMs: null
+        });
+      }
+    }
+
+    if (runtimeStatus === "running" && !nextActiveTurnId) {
+      issues.push({
+        threadId: thread.id,
+        title: thread.title,
+        localStatus: thread.status,
+        runtimeStatus,
+        severity: "error",
+        message: "Codex reports the session is active, but no active turn id is available for controls."
+      });
+    } else if (thread.status !== runtimeStatus || thread.activeTurnId !== nextActiveTurnId) {
+      issues.push({
+        threadId: thread.id,
+        title: thread.title,
+        localStatus: thread.status,
+        runtimeStatus,
+        severity: runtimeStatus === "stale" || runtimeStatus === "failed" ? "error" : "warning",
+        message: `Session state was aligned from ${thread.status} to ${runtimeStatus}.`
+      });
+    }
+
+    const updated = changed ? this.store.updateThread(thread.id, updates) : thread;
+    if (changed) {
+      this.store.updateTasksForThread(
+        thread.id,
+        runtimeStatus !== "running" && thread.activeTurnId ? "interrupted" : taskStatusFromRuntime(runtimeStatus)
+      );
+      this.publish("thread.status", thread.id, null, { status: runtimeStatus, thread: updated });
+    }
+
+    return {
+      thread: updated,
+      updated: changed,
+      issues
+    };
+  }
+
+  private clearLostActiveTurn(thread: ControlThread) {
+    if (thread.activeTurnId) {
+      const activeTurn = this.store.getTurn(thread.activeTurnId);
+      if (activeTurn?.status === "running") {
+        this.store.updateTurn(activeTurn.id, {
+          status: "interrupted",
+          completedAt: nowIso(),
+          durationMs: null
+        });
+      }
+      this.store.updateTasksForThread(thread.id, "interrupted");
+    }
+    const updated = this.store.updateThread(thread.id, {
+      status: "idle",
+      activeTurnId: null
+    });
+    this.publish("thread.status", thread.id, null, { status: "idle", thread: updated });
+    return updated ?? this.requireThread(thread.id);
   }
 
   private async createContinuationThread(source: ControlThread, prompt: string, model: string | null) {

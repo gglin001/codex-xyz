@@ -7,6 +7,8 @@ export type AdapterThread = {
   preview: string;
   cwd: string;
   model: string | null;
+  status: RuntimeStatus;
+  activeTurnId?: string | null;
 };
 
 export type AdapterTurn = {

@@ -17,6 +17,7 @@ import {
   type StartThreadInput,
   type StartTurnAdapterInput
 } from "./adapter.js";
+import type { RuntimeStatus } from "../domain.js";
 
 type JsonRpcMessage = {
   id?: number | string;
@@ -281,16 +282,54 @@ function normalizeThreadId(value: unknown) {
   return (prefixed?.[1] ?? urn?.[1] ?? id).toLowerCase();
 }
 
+function normalizeRuntimeStatus(value: unknown): RuntimeStatus {
+  const status = asRecord(value);
+  if (status.type === "active") {
+    return "running";
+  }
+  if (status.type === "idle") {
+    return "idle";
+  }
+  if (status.type === "systemError") {
+    return "failed";
+  }
+  if (status.type === "notLoaded") {
+    return "stale";
+  }
+  const text = typeof value === "string" ? value : typeof status.status === "string" ? status.status : "";
+  if (
+    text === "idle" ||
+    text === "running" ||
+    text === "stale" ||
+    text === "interrupted" ||
+    text === "failed" ||
+    text === "completed"
+  ) {
+    return text;
+  }
+  return "idle";
+}
+
+function normalizeOptionalTurnId(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
 function normalizeThread(value: unknown, model?: unknown): AdapterThread {
   const thread = asRecord(value);
   const id = normalizeThreadId(thread.id);
+  const status = asRecord(thread.status);
   return {
     id,
     sessionId: normalizeThreadId(thread.sessionId ?? id),
     forkedFromId: typeof thread.forkedFromId === "string" ? normalizeThreadId(thread.forkedFromId) : null,
     preview: String(thread.preview ?? ""),
     cwd: String(thread.cwd ?? process.cwd()),
-    model: typeof thread.model === "string" ? thread.model : typeof model === "string" ? model : null
+    model: typeof thread.model === "string" ? thread.model : typeof model === "string" ? model : null,
+    status: normalizeRuntimeStatus(thread.status),
+    activeTurnId:
+      normalizeOptionalTurnId(thread.activeTurnId) ??
+      normalizeOptionalTurnId(status.activeTurnId) ??
+      normalizeOptionalTurnId(status.turnId)
   };
 }
 
@@ -1020,20 +1059,7 @@ export class AppServerCodexAdapter implements CodexAdapter {
   }
 
   private normalizeStatus(value: unknown) {
-    const status = asRecord(value);
-    if (status.type === "active") {
-      return "running";
-    }
-    if (status.type === "idle") {
-      return "idle";
-    }
-    if (status.type === "systemError") {
-      return "failed";
-    }
-    if (status.type === "notLoaded") {
-      return "stale";
-    }
-    return "idle";
+    return normalizeRuntimeStatus(value);
   }
 
   private normalizeGoal(value: unknown): AdapterGoal {

@@ -497,12 +497,16 @@ export function applyEventProjection(projection: ClientProjection, event: XyzEve
     if (!event.threadId || !status) {
       return result(projection, projection, false, event);
     }
+    const updates: Partial<ControlThread> = {
+      status,
+      updatedAt: event.createdAt
+    };
+    if (status !== "running") {
+      updates.activeTurnId = null;
+    }
     return result(
       projection,
-      withThreadFields(projection, event.threadId, {
-        status,
-        updatedAt: event.createdAt
-      }),
+      withThreadFields(projection, event.threadId, updates),
       true,
       event
     );

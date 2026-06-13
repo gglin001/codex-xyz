@@ -4,6 +4,7 @@ import type {
   GoalStatus,
   Project,
   QueuedPrompt,
+  RuntimeSyncResult,
   TerminalSnapshot,
   ThreadDetail,
   ThreadPage,
@@ -93,6 +94,13 @@ export function getThreadsPage(input: { limit: number; offset: number }) {
     offset: String(input.offset)
   });
   return request<ThreadPage>(`/api/threads?${params.toString()}`);
+}
+
+export function syncThreadRuntime(threadIds: string[]) {
+  return request<RuntimeSyncResult>("/api/threads/runtime-sync", {
+    method: "POST",
+    body: JSON.stringify({ threadIds })
+  });
 }
 
 export function createProject(input: { name?: string | null; path: string }) {

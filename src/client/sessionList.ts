@@ -1,4 +1,4 @@
-import type { ControlThread, Task } from "../server/domain.js";
+import type { ControlThread, RuntimeSyncIssue, Task } from "../server/domain.js";
 
 export type SessionListModel = {
   activeThreads: ControlThread[];
@@ -36,7 +36,7 @@ function fieldMatchesQuery(value: string | null, query: string) {
   return Boolean(value && value.toLowerCase().includes(query));
 }
 
-function matchesThreadQuery(thread: ControlThread, query: string) {
+function matchesThreadQuery(thread: ControlThread, query: string, runtimeIssue: RuntimeSyncIssue | null) {
   if (!query) {
     return true;
   }
@@ -48,12 +48,16 @@ function matchesThreadQuery(thread: ControlThread, query: string) {
     fieldMatchesQuery(thread.status, query) ||
     fieldMatchesQuery(thread.goalObjective, query) ||
     fieldMatchesQuery(thread.goalStatus, query) ||
-    fieldMatchesQuery(thread.sessionId, query)
+    fieldMatchesQuery(thread.sessionId, query) ||
+    fieldMatchesQuery(runtimeIssue?.severity ?? null, query) ||
+    fieldMatchesQuery(runtimeIssue?.runtimeStatus ?? null, query) ||
+    fieldMatchesQuery(runtimeIssue?.message ?? null, query)
   );
 }
 
-function needsAttention(thread: ControlThread) {
+function needsAttention(thread: ControlThread, runtimeIssue: RuntimeSyncIssue | null) {
   return (
+    Boolean(runtimeIssue) ||
     thread.status === "failed" ||
     thread.status === "interrupted" ||
     thread.status === "stale" ||
@@ -86,6 +90,7 @@ export function getSessionListModel(
   options: {
     totalThreadCount?: number;
     hasMoreThreads?: boolean;
+    runtimeIssuesByThreadId?: ReadonlyMap<string, RuntimeSyncIssue>;
   } = {}
 ): SessionListModel {
   const normalizedQuery = normalizeQuery(query);
@@ -95,14 +100,15 @@ export function getSessionListModel(
   let visibleThreadCount = 0;
 
   for (const thread of threads) {
-    if (!matchesThreadQuery(thread, normalizedQuery)) {
+    const runtimeIssue = options.runtimeIssuesByThreadId?.get(thread.id) ?? null;
+    if (!matchesThreadQuery(thread, normalizedQuery, runtimeIssue)) {
       continue;
     }
     visibleThreadCount += 1;
-    if (thread.status === "running") {
-      activeThreads.push(thread);
-    } else if (needsAttention(thread)) {
+    if (needsAttention(thread, runtimeIssue)) {
       attentionThreads.push(thread);
+    } else if (thread.status === "running") {
+      activeThreads.push(thread);
     } else {
       otherThreads.push(thread);
     }
