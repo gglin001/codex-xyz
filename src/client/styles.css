@@ -286,6 +286,11 @@ small {
   justify-content: flex-end;
 }
 
+.mobile-back-button,
+.mobile-nav {
+  display: none;
+}
+
 .toolbar button {
   gap: 7px;
   min-width: 0;
@@ -1184,5 +1189,93 @@ button.active {
   .item-meta-right {
     width: 100%;
     justify-content: flex-start;
+  }
+}
+
+@media (max-width: 720px) {
+  body {
+    overflow: hidden;
+  }
+
+  .app-shell {
+    grid-template-rows: minmax(0, 1fr) auto auto;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .workspace {
+    grid-template-columns: 1fr;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .sessions,
+  .detail {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .workspace[data-mobile-view="sessions"] .detail,
+  .workspace[data-mobile-view="detail"] .sessions {
+    display: none;
+  }
+
+  .session-list,
+  .transcript {
+    max-height: none;
+    min-height: 0;
+  }
+
+  .session-list {
+    flex: 1 1 auto;
+    padding-right: 0;
+  }
+
+  .transcript {
+    flex: 1 1 auto;
+  }
+
+  .detail-header {
+    align-items: center;
+    flex-direction: row;
+  }
+
+  .mobile-back-button {
+    display: inline-flex;
+    flex: 0 0 auto;
+    width: 38px;
+    padding: 0;
+  }
+
+  .mobile-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    min-height: calc(58px + env(safe-area-inset-bottom));
+    padding: 7px 10px max(7px, env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border-strong);
+    background: var(--panel-bg);
+  }
+
+  .mobile-nav button {
+    height: 44px;
+    min-width: 0;
+    flex-direction: column;
+    gap: 3px;
+    border-color: transparent;
+    background: transparent;
+    color: var(--muted-strong);
+    font-size: 11px;
+    line-height: 1;
+  }
+
+  .mobile-nav button.active {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent-text);
   }
 }

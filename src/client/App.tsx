@@ -1,4 +1,5 @@
 import {
+  ArrowLeft,
   Bot,
   Check,
   ChevronDown,
@@ -179,14 +180,17 @@ function ItemIcon({ item }: { item: ThreadItem }) {
 }
 
 type ThemeMode = "dark" | "light";
+type MobileView = "sessions" | "detail";
 type RunActionOptions = {
   selectResult?: boolean;
   successMessage?: string;
+  mobileViewOnSuccess?: MobileView;
 };
 
 const themeStorageKey = "codex-xyz-theme";
 const terminalVisibleStorageKey = "codex-xyz-terminal-visible";
 const collapsedPreviewLineCount = 2;
+const mobileViewportQuery = "(max-width: 720px)";
 const TerminalDock = lazy(async () => ({
   default: (await import("./TerminalDock.js")).TerminalDock
 }));
@@ -208,6 +212,39 @@ type WorkdirFieldProps = {
   disabled: boolean;
   onChange: (value: string) => void;
 };
+type MobileNavigationProps = {
+  view: MobileView;
+  hasSelection: boolean;
+  onViewChange: (view: MobileView) => void;
+};
+
+function readMediaQuery(query: string) {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  return window.matchMedia(query).matches;
+}
+
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(() => readMediaQuery(query));
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const media = window.matchMedia(query);
+    const syncMatches = () => setMatches(media.matches);
+
+    syncMatches();
+    media.addEventListener("change", syncMatches);
+    return () => {
+      media.removeEventListener("change", syncMatches);
+    };
+  }, [query]);
+
+  return matches;
+}
 
 function readStoredTheme(): ThemeMode {
   if (typeof window === "undefined") {
@@ -318,6 +355,36 @@ const SessionGroup = memo(function SessionGroup({
   previous.onSelectThread === next.onSelectThread &&
   !selectionTouchesThreadGroup(next.threads, previous.selectedThreadId, next.selectedThreadId)
 );
+
+const MobileNavigation = memo(function MobileNavigation({
+  view,
+  hasSelection,
+  onViewChange
+}: MobileNavigationProps) {
+  return (
+    <nav className="mobile-nav" aria-label="Mobile views">
+      <button
+        type="button"
+        className={view === "sessions" ? "active" : ""}
+        aria-pressed={view === "sessions"}
+        onClick={() => onViewChange("sessions")}
+      >
+        <History size={16} />
+        <span>Sessions</span>
+      </button>
+      <button
+        type="button"
+        className={view === "detail" ? "active" : ""}
+        aria-pressed={view === "detail"}
+        disabled={!hasSelection}
+        onClick={() => onViewChange("detail")}
+      >
+        <Bot size={16} />
+        <span>Session</span>
+      </button>
+    </nav>
+  );
+});
 
 const WorkdirField = memo(function WorkdirField({
   projects,
@@ -550,6 +617,9 @@ export function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeMode>(readStoredTheme);
   const [terminalVisible, setTerminalVisible] = useState(readStoredTerminalVisible);
+  const [mobileView, setMobileView] = useState<MobileView>("sessions");
+  const isMobileViewport = useMediaQuery(mobileViewportQuery);
+  const isMobileViewportRef = useRef(isMobileViewport);
   const selectedThreadIdRef = useRef<string | null>(null);
   const manualSelectionSeqRef = useRef(0);
   const refreshSeqRef = useRef(0);
@@ -663,6 +733,9 @@ export function App() {
     });
     setComposerMode("thread");
     setError(null);
+    if (isMobileViewportRef.current) {
+      setMobileView("detail");
+    }
     if (!shouldLoadDetail) {
       return;
     }
@@ -694,6 +767,16 @@ export function App() {
       // Keep the in-memory theme even if the browser blocks persistence.
     }
   }, [theme]);
+
+  useEffect(() => {
+    isMobileViewportRef.current = isMobileViewport;
+  }, [isMobileViewport]);
+
+  useEffect(() => {
+    if (!selectedThreadId && mobileView === "detail") {
+      setMobileView("sessions");
+    }
+  }, [mobileView, selectedThreadId]);
 
   useEffect(() => {
     try {
@@ -890,6 +973,9 @@ export function App() {
       if (options.successMessage) {
         setNotice(options.successMessage);
       }
+      if (options.mobileViewOnSuccess && isMobileViewportRef.current) {
+        setMobileView(options.mobileViewOnSuccess);
+      }
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : "Action failed");
     } finally {
@@ -911,10 +997,14 @@ export function App() {
       const threadId = selectedThreadId;
       setPrompt("");
       setComposerMode("thread");
-      void runAction("Starting goal turn", async () => {
-        const turn = await startTurn(threadId, currentPrompt);
-        return turn.threadId;
-      });
+      void runAction(
+        "Starting goal turn",
+        async () => {
+          const turn = await startTurn(threadId, currentPrompt);
+          return turn.threadId;
+        },
+        { mobileViewOnSuccess: "detail" }
+      );
       return;
     }
 
@@ -922,10 +1012,14 @@ export function App() {
 
     if (promptTarget === "thread" && selectedThreadId) {
       const threadId = selectedThreadId;
-      void runAction("Starting turn", async () => {
-        const turn = await startTurn(threadId, currentPrompt);
-        return turn.threadId;
-      });
+      void runAction(
+        "Starting turn",
+        async () => {
+          const turn = await startTurn(threadId, currentPrompt);
+          return turn.threadId;
+        },
+        { mobileViewOnSuccess: "detail" }
+      );
       return;
     }
 
@@ -943,7 +1037,7 @@ export function App() {
         setComposerMode("thread");
         return thread?.id;
       },
-      { selectResult: true }
+      { selectResult: true, mobileViewOnSuccess: "detail" }
     );
   }
 
@@ -989,233 +1083,244 @@ export function App() {
   }
 
   return (
-    <main className="app-shell" data-theme={theme}>
-      <div className="workspace" data-theme={theme}>
+    <main className="app-shell" data-theme={theme} data-mobile-view={mobileView}>
+      <div className="workspace" data-theme={theme} data-mobile-view={mobileView}>
         <section className="sessions panel">
-        <div className="panel-header sessions-header">
-          <div className="sessions-title">
-            <strong>codex-xyz</strong>
-            <h1>Sessions</h1>
-            <p>
-              {sessionCountLabel}, {sessionList.queuedTaskCount} active tasks
-            </p>
+          <div className="panel-header sessions-header">
+            <div className="sessions-title">
+              <strong>codex-xyz</strong>
+              <h1>Sessions</h1>
+              <p>
+                {sessionCountLabel}, {sessionList.queuedTaskCount} active tasks
+              </p>
+            </div>
+            <div className="panel-header-actions">
+              {busy ? <Loader2 className="spin" size={18} /> : <History size={18} />}
+              <button
+                type="button"
+                className={terminalVisible ? "active" : ""}
+                title={terminalVisible ? "Hide terminal" : "Open terminal"}
+                aria-label={terminalVisible ? "Hide terminal" : "Open terminal"}
+                aria-pressed={terminalVisible}
+                onClick={() => setTerminalVisible((current) => !current)}
+              >
+                <Terminal size={16} />
+              </button>
+              <button
+                type="button"
+                className="theme-toggle"
+                title={`Switch to ${nextTheme} mode`}
+                aria-label={`Switch to ${nextTheme} mode`}
+                aria-pressed={theme === "light"}
+                onClick={() => setTheme(nextTheme)}
+              >
+                {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+              </button>
+              <button title="Refresh" aria-label="Refresh" onClick={() => void refresh()}>
+                <RefreshCw size={16} />
+              </button>
+            </div>
           </div>
-          <div className="panel-header-actions">
-            {busy ? <Loader2 className="spin" size={18} /> : <History size={18} />}
+
+          <div className="composer-mode" role="group" aria-label="Prompt target">
             <button
               type="button"
-              className={terminalVisible ? "active" : ""}
-              title={terminalVisible ? "Hide terminal" : "Open terminal"}
-              aria-label={terminalVisible ? "Hide terminal" : "Open terminal"}
-              aria-pressed={terminalVisible}
-              onClick={() => setTerminalVisible((current) => !current)}
+              className={promptTarget === "new" ? "active" : ""}
+              title="New session"
+              onClick={() => setComposerMode("new")}
             >
-              <Terminal size={16} />
+              <Plus size={15} />
+              <span>New session</span>
             </button>
             <button
               type="button"
-              className="theme-toggle"
-              title={`Switch to ${nextTheme} mode`}
-              aria-label={`Switch to ${nextTheme} mode`}
-              aria-pressed={theme === "light"}
-              onClick={() => setTheme(nextTheme)}
+              className={promptTarget === "thread" ? "active" : ""}
+              title="Selected session"
+              disabled={!selectedThreadId}
+              onClick={() => setComposerMode("thread")}
             >
-              {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-            </button>
-            <button title="Refresh" aria-label="Refresh" onClick={() => void refresh()}>
-              <RefreshCw size={16} />
+              <Send size={15} />
+              <span>Selected</span>
             </button>
           </div>
-        </div>
 
-        <div className="composer-mode" role="group" aria-label="Prompt target">
-          <button
-            type="button"
-            className={promptTarget === "new" ? "active" : ""}
-            title="New session"
-            onClick={() => setComposerMode("new")}
-          >
-            <Plus size={15} />
-            <span>New session</span>
-          </button>
-          <button
-            type="button"
-            className={promptTarget === "thread" ? "active" : ""}
-            title="Selected session"
-            disabled={!selectedThreadId}
-            onClick={() => setComposerMode("thread")}
-          >
-            <Send size={15} />
-            <span>Selected</span>
-          </button>
-        </div>
-
-        <div className="composer-stack">
-          {promptTarget === "new" ? (
-            <WorkdirField
-              projects={state.projects}
-              value={workdir}
-              matchingProject={matchingWorkdirProject}
-              disabled={busy}
-              onChange={updateWorkdir}
-            />
-          ) : null}
-
-          <form className="task-form" onSubmit={submitPrompt}>
-            <textarea
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              onKeyDown={handlePromptKeyDown}
-              placeholder={promptTarget === "thread" ? "Send next turn or /goal <objective>" : "Create a task"}
-              disabled={busy}
-            />
-            <button
-              disabled={!canSubmitPrompt}
-              title={goalPrompt ? "Start goal turn" : promptTarget === "thread" ? "Start turn" : "Create session"}
-            >
-              {goalPrompt ? <Target size={16} /> : promptTarget === "thread" ? <Send size={16} /> : <Plus size={16} />}
-            </button>
-          </form>
-
-          {selectedThread ? (
-            <form className="steer-form" onSubmit={submitSteer}>
-              <input
-                value={steer}
-                onChange={(event) => setSteer(event.target.value)}
-                placeholder="Steer active turn"
-                disabled={!selectedThreadId || selectedThread.status !== "running" || busy}
-                aria-label="Steer active turn"
+          <div className="composer-stack">
+            {promptTarget === "new" ? (
+              <WorkdirField
+                projects={state.projects}
+                value={workdir}
+                matchingProject={matchingWorkdirProject}
+                disabled={busy}
+                onChange={updateWorkdir}
               />
-              <button title="Steer active turn" disabled={!canSubmitSteer}>
-                <Send size={16} />
+            ) : null}
+
+            <form className="task-form" onSubmit={submitPrompt}>
+              <textarea
+                value={prompt}
+                onChange={(event) => setPrompt(event.target.value)}
+                onKeyDown={handlePromptKeyDown}
+                placeholder={promptTarget === "thread" ? "Send next turn or /goal <objective>" : "Create a task"}
+                disabled={busy}
+              />
+              <button
+                disabled={!canSubmitPrompt}
+                title={goalPrompt ? "Start goal turn" : promptTarget === "thread" ? "Start turn" : "Create session"}
+              >
+                {goalPrompt ? <Target size={16} /> : promptTarget === "thread" ? <Send size={16} /> : <Plus size={16} />}
               </button>
             </form>
-          ) : null}
-        </div>
 
-        {busyAction ? <div className="status-banner neutral">{busyAction}...</div> : null}
-        {notice ? <div className="status-banner success">{notice}</div> : null}
-        {error ? <div className="status-banner error">{error}</div> : null}
-
-        <label className="session-search">
-          <Search size={14} />
-          <input
-            value={sessionQuery}
-            onChange={(event) => setSessionQuery(event.target.value)}
-            placeholder="Search sessions"
-            aria-label="Search sessions"
-          />
-        </label>
-
-        <div className="session-list" aria-label="Session list">
-          <SessionGroup
-            title="Active"
-            threads={sessionList.activeThreads}
-            selectedThreadId={selectedThreadId}
-            hasQuery={sessionList.hasQuery}
-            emptyLabel="No active sessions"
-            emptyQueryLabel="No matching active sessions"
-            onSelectThread={selectThread}
-          />
-
-          <SessionGroup
-            title="Needs attention"
-            threads={sessionList.attentionThreads}
-            selectedThreadId={selectedThreadId}
-            hasQuery={sessionList.hasQuery}
-            emptyLabel="No attention needed"
-            emptyQueryLabel="No matching attention"
-            onSelectThread={selectThread}
-          />
-
-          <SessionGroup
-            title="History"
-            threads={sessionList.otherThreads}
-            selectedThreadId={selectedThreadId}
-            hasQuery={sessionList.hasQuery}
-            emptyLabel="No history"
-            emptyQueryLabel="No matching history"
-            onSelectThread={selectThread}
-          />
-        </div>
-      </section>
-
-      <section className="detail panel">
-        <div className="detail-header">
-          <div className="title-stack">
             {selectedThread ? (
-              <form className="title-editor" onSubmit={submitRename}>
+              <form className="steer-form" onSubmit={submitSteer}>
                 <input
-                  value={renameTitle}
-                  onChange={(event) => setRenameTitle(event.target.value)}
-                  disabled={busy}
-                  aria-label="Session title"
+                  value={steer}
+                  onChange={(event) => setSteer(event.target.value)}
+                  placeholder="Steer active turn"
+                  disabled={!selectedThreadId || selectedThread.status !== "running" || busy}
+                  aria-label="Steer active turn"
                 />
-                <button title="Save title" disabled={!canRename}>
-                  <Check size={16} />
+                <button title="Steer active turn" disabled={!canSubmitSteer}>
+                  <Send size={16} />
                 </button>
               </form>
-            ) : (
-              <h1>Session</h1>
-            )}
-            <p>{selectedThread ? `${statusLabel(selectedThread.status)} · ${formatDateTime(selectedThread.updatedAt)}` : "idle"}</p>
+            ) : null}
           </div>
-          <div className="toolbar">
-            <button
-              title="Interrupt"
-              disabled={!selectedThreadId || selectedThread?.status !== "running" || busy}
-              onClick={() =>
-                selectedThreadId &&
-                void runAction("Interrupting turn", async () => {
-                  await interruptTurn(selectedThreadId);
-                })
-              }
-            >
-              <Square size={16} />
-              <span>Interrupt</span>
-            </button>
-            <button
-              title="Resume"
-              disabled={!selectedThreadId || selectedThread?.status === "running" || busy}
-              onClick={() =>
-                selectedThreadId &&
-                void runAction(
-                  "Resuming session",
-                  async () => {
-                    const thread = await resumeThread(selectedThreadId);
-                    return thread.id;
-                  },
-                  { successMessage: "Session resumed" }
-                )
-              }
-            >
-              <RotateCw size={16} />
-              <span>Resume</span>
-            </button>
-            <button
-              title="Fork"
-              disabled={!selectedThreadId || busy}
-              onClick={() =>
-                selectedThreadId &&
-                void runAction(
-                  "Forking session",
-                  async () => {
-                    const thread = await forkThread(selectedThreadId);
-                    return thread.id;
-                  },
-                  { selectResult: true }
-                )
-              }
-            >
-              <GitFork size={16} />
-              <span>Fork</span>
-            </button>
+
+          {busyAction ? <div className="status-banner neutral">{busyAction}...</div> : null}
+          {notice ? <div className="status-banner success">{notice}</div> : null}
+          {error ? <div className="status-banner error">{error}</div> : null}
+
+          <label className="session-search">
+            <Search size={14} />
+            <input
+              value={sessionQuery}
+              onChange={(event) => setSessionQuery(event.target.value)}
+              placeholder="Search sessions"
+              aria-label="Search sessions"
+            />
+          </label>
+
+          <div className="session-list" aria-label="Session list">
+            <SessionGroup
+              title="Active"
+              threads={sessionList.activeThreads}
+              selectedThreadId={selectedThreadId}
+              hasQuery={sessionList.hasQuery}
+              emptyLabel="No active sessions"
+              emptyQueryLabel="No matching active sessions"
+              onSelectThread={selectThread}
+            />
+
+            <SessionGroup
+              title="Needs attention"
+              threads={sessionList.attentionThreads}
+              selectedThreadId={selectedThreadId}
+              hasQuery={sessionList.hasQuery}
+              emptyLabel="No attention needed"
+              emptyQueryLabel="No matching attention"
+              onSelectThread={selectThread}
+            />
+
+            <SessionGroup
+              title="History"
+              threads={sessionList.otherThreads}
+              selectedThreadId={selectedThreadId}
+              hasQuery={sessionList.hasQuery}
+              emptyLabel="No history"
+              emptyQueryLabel="No matching history"
+              onSelectThread={selectThread}
+            />
           </div>
-        </div>
+        </section>
 
-        {selectedDetail ? <SessionFacts thread={selectedDetail} /> : null}
+        <section className="detail panel">
+          <div className="detail-header">
+            <button
+              type="button"
+              className="mobile-back-button"
+              title="Back to sessions"
+              aria-label="Back to sessions"
+              onClick={() => setMobileView("sessions")}
+            >
+              <ArrowLeft size={18} />
+            </button>
+            <div className="title-stack">
+              {selectedThread ? (
+                <form className="title-editor" onSubmit={submitRename}>
+                  <input
+                    value={renameTitle}
+                    onChange={(event) => setRenameTitle(event.target.value)}
+                    disabled={busy}
+                    aria-label="Session title"
+                  />
+                  <button title="Save title" disabled={!canRename}>
+                    <Check size={16} />
+                  </button>
+                </form>
+              ) : (
+                <h1>Session</h1>
+              )}
+              <p>
+                {selectedThread ? `${statusLabel(selectedThread.status)} · ${formatDateTime(selectedThread.updatedAt)}` : "idle"}
+              </p>
+            </div>
+            <div className="toolbar">
+              <button
+                title="Interrupt"
+                disabled={!selectedThreadId || selectedThread?.status !== "running" || busy}
+                onClick={() =>
+                  selectedThreadId &&
+                  void runAction("Interrupting turn", async () => {
+                    await interruptTurn(selectedThreadId);
+                  })
+                }
+              >
+                <Square size={16} />
+                <span>Interrupt</span>
+              </button>
+              <button
+                title="Resume"
+                disabled={!selectedThreadId || selectedThread?.status === "running" || busy}
+                onClick={() =>
+                  selectedThreadId &&
+                  void runAction(
+                    "Resuming session",
+                    async () => {
+                      const thread = await resumeThread(selectedThreadId);
+                      return thread.id;
+                    },
+                    { successMessage: "Session resumed", mobileViewOnSuccess: "detail" }
+                  )
+                }
+              >
+                <RotateCw size={16} />
+                <span>Resume</span>
+              </button>
+              <button
+                title="Fork"
+                disabled={!selectedThreadId || busy}
+                onClick={() =>
+                  selectedThreadId &&
+                  void runAction(
+                    "Forking session",
+                    async () => {
+                      const thread = await forkThread(selectedThreadId);
+                      return thread.id;
+                    },
+                    { selectResult: true, mobileViewOnSuccess: "detail" }
+                  )
+                }
+              >
+                <GitFork size={16} />
+                <span>Fork</span>
+              </button>
+            </div>
+          </div>
 
-        <Transcript detail={selectedDetail} hasSelection={Boolean(selectedThreadId)} />
+          {selectedDetail ? <SessionFacts thread={selectedDetail} /> : null}
+
+          <Transcript detail={selectedDetail} hasSelection={Boolean(selectedThreadId)} />
         </section>
       </div>
       <Suspense fallback={null}>
@@ -1223,6 +1328,11 @@ export function App() {
           <TerminalDock visible={terminalVisible} theme={theme} onClose={() => setTerminalVisible(false)} />
         ) : null}
       </Suspense>
+      <MobileNavigation
+        view={mobileView}
+        hasSelection={Boolean(selectedThreadId)}
+        onViewChange={setMobileView}
+      />
     </main>
   );
 }
