@@ -1,4 +1,4 @@
-import type { GoalStatus, RuntimeStatus } from "../domain.js";
+import type { GoalStatus, GoalStatusUpdate, RuntimeStatus } from "../domain.js";
 
 export type AdapterThread = {
   id: string;
@@ -161,6 +161,7 @@ export interface CodexAdapter {
   forkThread(input: ForkThreadInput): Promise<AdapterThread>;
   renameThread(input: { threadId: string; title: string }): Promise<void>;
   setGoal(input: { threadId: string; objective: string; tokenBudget?: number | null }): Promise<AdapterGoal>;
+  setGoalStatus(input: { threadId: string; status: GoalStatusUpdate }): Promise<AdapterGoal>;
   startGoal(input: { threadId: string; objective: string; tokenBudget?: number | null }): Promise<AdapterGoalStart>;
   getGoal(threadId: string): Promise<AdapterGoal | null>;
   clearGoal(threadId: string): Promise<void>;

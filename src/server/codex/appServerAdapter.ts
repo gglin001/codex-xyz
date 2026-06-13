@@ -533,6 +533,16 @@ export class AppServerCodexAdapter implements CodexAdapter {
     return this.normalizeGoal(result.goal);
   }
 
+  async setGoalStatus(input: { threadId: string; status: "active" | "paused" | "complete" }) {
+    const result = asRecord(
+      await this.request("thread/goal/set", {
+        threadId: input.threadId,
+        status: input.status
+      })
+    );
+    return this.normalizeGoal(result.goal);
+  }
+
   async startGoal(input: { threadId: string; objective: string; tokenBudget?: number | null }) {
     const turnStarted = this.waitForTurnStart(input.threadId, "", "thread/goal/set did not start a turn");
     try {
@@ -1031,7 +1041,18 @@ export class AppServerCodexAdapter implements CodexAdapter {
     const status = String(goal.status ?? "active");
     return {
       objective: String(goal.objective ?? ""),
-      status: status === "complete" ? "complete" : status === "blocked" ? "blocked" : "in_progress",
+      status:
+        status === "complete"
+          ? "complete"
+          : status === "paused"
+            ? "paused"
+            : status === "blocked"
+              ? "blocked"
+              : status === "usageLimited"
+                ? "usage_limited"
+                : status === "budgetLimited"
+                  ? "budget_limited"
+                  : "in_progress",
       tokenBudget: typeof goal.tokenBudget === "number" ? goal.tokenBudget : null,
       tokensUsed: typeof goal.tokensUsed === "number" ? goal.tokensUsed : 0
     };

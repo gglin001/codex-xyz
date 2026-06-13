@@ -8,7 +8,15 @@ export type RuntimeStatus =
 
 export type TaskStatus = "queued" | "running" | "completed" | "failed" | "interrupted";
 
-export type GoalStatus = "in_progress" | "complete" | "blocked" | "cleared";
+export type GoalStatus =
+  | "in_progress"
+  | "paused"
+  | "blocked"
+  | "usage_limited"
+  | "budget_limited"
+  | "complete"
+  | "cleared";
+export type GoalStatusUpdate = "active" | "paused" | "complete";
 
 export type ItemType =
   | "user"
@@ -245,6 +253,11 @@ export type SetGoalInput = {
   threadId: string;
   objective: string;
   tokenBudget?: number | null;
+};
+
+export type SetGoalStatusInput = {
+  threadId: string;
+  status: GoalStatusUpdate;
 };
 
 export function nowIso() {

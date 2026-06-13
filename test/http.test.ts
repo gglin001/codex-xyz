@@ -367,6 +367,35 @@ describe("HTTP API", () => {
       prompt: ""
     });
 
+    const pausedGoal = await json<{ goal: { status: string }; thread: { goalStatus: string | null } }>(
+      `/api/threads/${created.thread.id}/goal/status`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          status: "paused"
+        })
+      }
+    );
+    expect(pausedGoal.goal.status).toBe("paused");
+    expect(pausedGoal.thread.goalStatus).toBe("paused");
+
+    const completedGoal = await json<{ goal: { status: string }; thread: { goalStatus: string | null } }>(
+      `/api/threads/${created.thread.id}/goal/status`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          status: "complete"
+        })
+      }
+    );
+    expect(completedGoal.goal.status).toBe("complete");
+    expect(completedGoal.thread.goalStatus).toBe("complete");
+
+    const clearedGoal = await json<{ goalStatus: string | null }>(`/api/threads/${created.thread.id}/goal`, {
+      method: "DELETE"
+    });
+    expect(clearedGoal.goalStatus).toBe("cleared");
+
     const fork = await json<{ id: string; forkedFromId: string | null }>(`/api/threads/${created.thread.id}/fork`, {
       method: "POST",
       body: JSON.stringify({})

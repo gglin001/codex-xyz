@@ -187,6 +187,21 @@ export function startGoal(threadId: string, objective: string, tokenBudget?: num
   });
 }
 
+export function setGoalStatus(threadId: string, status: "active" | "paused" | "complete") {
+  return request<{
+    goal: {
+      objective: string;
+      status: GoalStatus;
+      tokenBudget: number | null;
+      tokensUsed: number;
+    };
+    thread: ControlThread | null;
+  }>(`/api/threads/${threadId}/goal/status`, {
+    method: "PUT",
+    body: JSON.stringify({ status })
+  });
+}
+
 export function clearGoal(threadId: string) {
   return request<ControlThread>(`/api/threads/${threadId}/goal`, {
     method: "DELETE"

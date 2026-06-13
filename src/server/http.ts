@@ -4,7 +4,7 @@ import type { Duplex } from "node:stream";
 import { extname, join, normalize } from "node:path";
 import { WebSocket, WebSocketServer, type RawData } from "ws";
 import type { ControlService } from "./service.js";
-import { isSummaryEventType, type TerminalEvent } from "./domain.js";
+import { isSummaryEventType, type GoalStatusUpdate, type TerminalEvent } from "./domain.js";
 
 type HandlerContext = {
   request: IncomingMessage;
@@ -73,6 +73,14 @@ function requireRawString(body: Record<string, unknown>, key: string) {
     throw new Error(`Missing string field: ${key}`);
   }
   return value;
+}
+
+function requireGoalStatusUpdate(body: Record<string, unknown>): GoalStatusUpdate {
+  const status = requireString(body, "status");
+  if (status === "active" || status === "paused" || status === "complete") {
+    return status;
+  }
+  throw new Error("status must be active, paused, or complete");
 }
 
 function optionalString(body: Record<string, unknown>, key: string) {
@@ -595,11 +603,23 @@ async function handleApi(context: HandlerContext) {
     }
 
     if (parts[3] === "goal") {
-      if (method === "GET") {
+      if (method === "GET" && parts.length === 4) {
         sendJson(response, 200, await service.getGoal(threadId));
         return true;
       }
-      if (method === "PUT") {
+      if (method === "PUT" && parts[4] === "status" && parts.length === 5) {
+        const body = await readJson(request);
+        sendJson(
+          response,
+          200,
+          await service.setGoalStatus({
+            threadId,
+            status: requireGoalStatusUpdate(body)
+          })
+        );
+        return true;
+      }
+      if (method === "PUT" && parts.length === 4) {
         const body = await readJson(request);
         const goalStart = await service.startGoal({
           threadId,
@@ -609,7 +629,7 @@ async function handleApi(context: HandlerContext) {
         sendJson(response, 200, goalStart);
         return true;
       }
-      if (method === "DELETE") {
+      if (method === "DELETE" && parts.length === 4) {
         sendJson(response, 200, await service.clearGoal(threadId));
         return true;
       }

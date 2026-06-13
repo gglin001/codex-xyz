@@ -11,6 +11,7 @@ import {
   type RenameThreadInput,
   type RuntimeStatus,
   type SetGoalInput,
+  type SetGoalStatusInput,
   type StartTurnInput,
   type Task,
   type ThreadDetail,
@@ -353,6 +354,24 @@ export class ControlService {
     });
     this.publish("thread.goal.updated", input.threadId, null, { goal, thread });
     return goal;
+  }
+
+  async setGoalStatus(input: SetGoalStatusInput) {
+    const source = this.requireThread(input.threadId);
+    const goal = await this.withRuntimeThread(source, () =>
+      this.adapter.setGoalStatus({
+        threadId: input.threadId,
+        status: input.status
+      })
+    );
+    const thread = this.store.updateThread(input.threadId, {
+      goalObjective: goal.objective,
+      goalStatus: goalStatusFromAdapter(goal),
+      goalTokenBudget: goal.tokenBudget,
+      tokensUsed: goal.tokensUsed
+    });
+    this.publish("thread.goal.updated", input.threadId, null, { goal, thread });
+    return { goal, thread };
   }
 
   async startGoal(input: SetGoalInput) {

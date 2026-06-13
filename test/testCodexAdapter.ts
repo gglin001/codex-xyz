@@ -165,6 +165,19 @@ export class TestCodexAdapter implements CodexAdapter {
     return goal;
   }
 
+  async setGoalStatus(input: { threadId: string; status: "active" | "paused" | "complete" }) {
+    const thread = this.requireThread(input.threadId);
+    if (!thread.goal) {
+      throw new Error(`Test thread ${input.threadId} has no goal`);
+    }
+    const goal: AdapterGoal = {
+      ...thread.goal,
+      status: input.status === "active" ? "in_progress" : input.status
+    };
+    thread.goal = goal;
+    return goal;
+  }
+
   async startGoal(input: { threadId: string; objective: string; tokenBudget?: number | null }): Promise<AdapterGoalStart> {
     const thread = this.requireThread(input.threadId);
     const goal = await this.setGoal(input);

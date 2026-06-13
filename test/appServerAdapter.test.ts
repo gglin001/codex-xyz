@@ -103,11 +103,12 @@ function handle(message) {
 
   if (message.method === "thread/goal/set") {
     const threadId = message.params.threadId
+    const status = message.params.status ?? "active"
     const goal = {
       threadId,
-      objective: message.params.objective,
-      status: "active",
-      tokenBudget: message.params.tokenBudget,
+      objective: message.params.objective ?? "Existing goal",
+      status,
+      tokenBudget: message.params.tokenBudget ?? null,
       tokensUsed: 0,
       timeUsedSeconds: 0,
       createdAt: 1,
@@ -119,6 +120,9 @@ function handle(message) {
       turnId: null,
       goal
     })
+    if (message.params.objective === undefined) {
+      return
+    }
     notify("turn/started", {
       threadId,
       turn: {
@@ -640,6 +644,37 @@ describe("AppServerCodexAdapter", () => {
         })
       ])
     )
+  })
+
+  it("updates goal status without starting a goal turn", async () => {
+    const command = createFakeCodexCommand()
+    const events: AdapterEvent[] = []
+    adapter = new AppServerCodexAdapter(command)
+    adapter.onEvent((event) => events.push(event))
+
+    const goal = await adapter.setGoalStatus({
+      threadId: sourceThreadId,
+      status: "paused"
+    })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    expect(goal).toMatchObject({
+      objective: "Existing goal",
+      status: "paused",
+      tokenBudget: null
+    })
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "thread.goal",
+          threadId: sourceThreadId,
+          goal: expect.objectContaining({
+            status: "paused"
+          })
+        })
+      ])
+    )
+    expect(events.some((event) => event.type === "turn.started")).toBe(false)
   })
 
   it("runs thread shell commands through app-server and projects command output", async () => {

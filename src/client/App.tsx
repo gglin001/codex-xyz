@@ -2,6 +2,7 @@ import type { FormEvent, KeyboardEvent } from "react";
 import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   apiUrl,
+  clearGoal,
   createProject,
   createTask,
   forkThread,
@@ -12,6 +13,7 @@ import {
   queueTurn,
   renameThread,
   resumeThread,
+  setGoalStatus,
   startGoal,
   startTurn
 } from "./api.js";
@@ -812,6 +814,48 @@ export function App() {
     );
   }
 
+  function setSelectedGoalStatus(status: "active" | "paused" | "complete", label: string) {
+    if (!selectedThreadId) {
+      return;
+    }
+    const threadId = selectedThreadId;
+    void runAction(
+      label,
+      async () => {
+        const result = await setGoalStatus(threadId, status);
+        return result.thread?.id ?? threadId;
+      },
+      { mobileViewOnSuccess: "detail" }
+    );
+  }
+
+  function pauseSelectedGoal() {
+    setSelectedGoalStatus("paused", "Pausing goal");
+  }
+
+  function resumeSelectedGoal() {
+    setSelectedGoalStatus("active", "Resuming goal");
+  }
+
+  function completeSelectedGoal() {
+    setSelectedGoalStatus("complete", "Completing goal");
+  }
+
+  function clearSelectedGoal() {
+    if (!selectedThreadId) {
+      return;
+    }
+    const threadId = selectedThreadId;
+    void runAction(
+      "Clearing goal",
+      async () => {
+        const thread = await clearGoal(threadId);
+        return thread?.id ?? threadId;
+      },
+      { mobileViewOnSuccess: "detail" }
+    );
+  }
+
   const desktopComposer = !isMobileViewport ? (
     <PromptComposer
       className="desktop-composer detail-composer"
@@ -881,6 +925,10 @@ export function App() {
           onInterrupt={interruptSelectedThread}
           onResume={resumeSelectedThread}
           onFork={forkSelectedThread}
+          onPauseGoal={pauseSelectedGoal}
+          onResumeGoal={resumeSelectedGoal}
+          onCompleteGoal={completeSelectedGoal}
+          onClearGoal={clearSelectedGoal}
           composer={desktopComposer}
         />
       </div>

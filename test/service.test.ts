@@ -126,6 +126,16 @@ class VolatileCodexAdapter implements CodexAdapter {
     };
   }
 
+  async setGoalStatus(input: { threadId: string; status: "active" | "paused" | "complete" }): Promise<AdapterGoal> {
+    this.requireThread(input.threadId);
+    return {
+      objective: "Test goal",
+      status: input.status === "active" ? "in_progress" : input.status,
+      tokenBudget: null,
+      tokensUsed: 0
+    };
+  }
+
   async startGoal(input: { threadId: string; objective: string; tokenBudget?: number | null }): Promise<AdapterGoalStart> {
     const goal = await this.setGoal(input);
     const turn = await this.startTurn({
@@ -265,6 +275,16 @@ class EagerEventCodexAdapter implements CodexAdapter {
       objective: input.objective,
       status: "in_progress",
       tokenBudget: input.tokenBudget ?? null,
+      tokensUsed: 0
+    };
+  }
+
+  async setGoalStatus(input: { threadId: string; status: "active" | "paused" | "complete" }): Promise<AdapterGoal> {
+    this.requireThread(input.threadId);
+    return {
+      objective: "Test goal",
+      status: input.status === "active" ? "in_progress" : input.status,
+      tokenBudget: null,
       tokensUsed: 0
     };
   }
@@ -570,6 +590,20 @@ describe("ControlService", () => {
     });
     expect(goal.status).toBe("in_progress");
     expect(goal.tokenBudget).toBe(1200);
+
+    const pausedGoal = await service.setGoalStatus({
+      threadId,
+      status: "paused"
+    });
+    expect(pausedGoal.goal.status).toBe("paused");
+    expect(service.getThreadDetail(threadId).goalStatus).toBe("paused");
+
+    const resumedGoal = await service.setGoalStatus({
+      threadId,
+      status: "active"
+    });
+    expect(resumedGoal.goal.status).toBe("in_progress");
+    expect(service.getThreadDetail(threadId).goalStatus).toBe("in_progress");
 
     await service.steerTurn(threadId, "Narrow the response to local testing.");
     expect(service.getThreadDetail(threadId).items.some((item) => item.text.includes("Steer received"))).toBe(true);

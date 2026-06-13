@@ -1,7 +1,7 @@
 import type { RuntimeStatus, ThreadItem } from "../server/domain.js";
 
 export function statusLabel(status: string) {
-  return status.replace("_", " ");
+  return status.replace(/_/g, " ");
 }
 
 export function statusTone(status: RuntimeStatus) {

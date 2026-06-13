@@ -614,14 +614,14 @@ export class Store {
 
   listQueuedPrompts(threadId: string) {
     return this.db
-      .prepare("SELECT * FROM queued_prompts WHERE thread_id = ? ORDER BY created_at ASC, id ASC")
+      .prepare("SELECT * FROM queued_prompts WHERE thread_id = ? ORDER BY created_at ASC, rowid ASC")
       .all(threadId)
       .map((row) => queuedPromptFromRow(row as Row));
   }
 
   peekQueuedPrompt(threadId: string) {
     const row = this.db
-      .prepare("SELECT * FROM queued_prompts WHERE thread_id = ? ORDER BY created_at ASC, id ASC LIMIT 1")
+      .prepare("SELECT * FROM queued_prompts WHERE thread_id = ? ORDER BY created_at ASC, rowid ASC LIMIT 1")
       .get(threadId);
     return row ? queuedPromptFromRow(row as Row) : null;
   }

@@ -3,18 +3,24 @@ import {
   ArrowLeft,
   Bot,
   Check,
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
   FileText,
   GitFork,
   Info,
   ListChecks,
+  MoreHorizontal,
+  Pause,
+  Play,
   RotateCw,
   Square,
+  Target,
   Terminal,
+  Trash2,
   UserRound
 } from "lucide-react";
-import type { FormEvent, ReactNode } from "react";
+import type { FocusEvent, FormEvent, KeyboardEvent, ReactNode } from "react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import type { ControlThread, QueuedPrompt, ThreadDetail, ThreadItem } from "../../server/domain.js";
 import { getCollapsedTextPreview } from "../textPreview.js";
@@ -51,6 +57,10 @@ export type ThreadDetailViewProps = {
   onInterrupt: () => void;
   onResume: () => void;
   onFork: () => void;
+  onPauseGoal: () => void;
+  onResumeGoal: () => void;
+  onCompleteGoal: () => void;
+  onClearGoal: () => void;
   composer?: ReactNode;
 };
 
@@ -147,11 +157,14 @@ function summarizeProcessGroup(items: ThreadItem[]) {
 }
 
 function goalTone(status: string) {
-  if (status === "blocked") {
+  if (status === "blocked" || status === "usage_limited" || status === "budget_limited") {
     return "attention";
   }
   if (status === "in_progress") {
     return "running";
+  }
+  if (status === "paused") {
+    return "stale";
   }
   return "quiet";
 }
@@ -268,6 +281,86 @@ const QueuedPromptPanel = memo(function QueuedPromptPanel({ prompts }: { prompts
     </article>
   );
 });
+
+type ActionMenuItem = {
+  id: string;
+  label: string;
+  icon: ReactNode;
+  disabled?: boolean;
+  danger?: boolean;
+  onSelect: () => void;
+};
+
+function ActionMenu({
+  label,
+  icon,
+  disabled,
+  items
+}: {
+  label: string;
+  icon: ReactNode;
+  disabled?: boolean;
+  items: ActionMenuItem[];
+}) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (disabled) {
+      setOpen(false);
+    }
+  }, [disabled]);
+
+  function handleBlur(event: FocusEvent<HTMLDivElement>) {
+    const nextTarget = event.relatedTarget;
+    if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
+      setOpen(false);
+    }
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setOpen(false);
+    }
+  }
+
+  return (
+    <div className={`action-menu ${open ? "open" : ""}`} onBlur={handleBlur} onKeyDown={handleKeyDown}>
+      <button
+        type="button"
+        className="action-menu-trigger"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        disabled={disabled}
+        onClick={() => setOpen((current) => !current)}
+      >
+        {icon}
+        <span>{label}</span>
+        <ChevronDown size={14} />
+      </button>
+      {open ? (
+        <div className="action-menu-popover" role="menu">
+          {items.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`action-menu-item ${item.danger ? "danger" : ""}`}
+              role="menuitem"
+              disabled={item.disabled}
+              onClick={() => {
+                setOpen(false);
+                item.onSelect();
+              }}
+            >
+              {item.icon}
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 const TranscriptItem = memo(function TranscriptItem({
   item,
@@ -539,8 +632,79 @@ export const ThreadDetailView = memo(function ThreadDetailView({
   onInterrupt,
   onResume,
   onFork,
+  onPauseGoal,
+  onResumeGoal,
+  onCompleteGoal,
+  onClearGoal,
   composer = null
 }: ThreadDetailViewProps) {
+  const goalStatus = selectedThread?.goalStatus ?? null;
+  const hasGoal = Boolean(selectedThread?.goalObjective && goalStatus && goalStatus !== "cleared");
+  const canPauseGoal = goalStatus === "in_progress";
+  const canResumeGoal =
+    goalStatus === "paused" || goalStatus === "blocked" || goalStatus === "usage_limited" || goalStatus === "budget_limited";
+  const goalMenuItems: ActionMenuItem[] = [
+    ...(canPauseGoal
+      ? [
+          {
+            id: "pause-goal",
+            label: "Pause",
+            icon: <Pause size={15} />,
+            onSelect: onPauseGoal
+          }
+        ]
+      : []),
+    ...(canResumeGoal
+      ? [
+          {
+            id: "resume-goal",
+            label: "Resume",
+            icon: <Play size={15} />,
+            onSelect: onResumeGoal
+          }
+        ]
+      : []),
+    ...(goalStatus !== "complete"
+      ? [
+          {
+            id: "complete-goal",
+            label: "Complete",
+            icon: <CheckCircle2 size={15} />,
+            onSelect: onCompleteGoal
+          }
+        ]
+      : []),
+    {
+      id: "clear-goal",
+      label: "Clear",
+      icon: <Trash2 size={15} />,
+      danger: true,
+      onSelect: onClearGoal
+    }
+  ];
+  const sessionMenuItems: ActionMenuItem[] = [
+    {
+      id: "interrupt-session",
+      label: "Interrupt",
+      icon: <Square size={15} />,
+      disabled: selectedThread?.status !== "running",
+      onSelect: onInterrupt
+    },
+    {
+      id: "resume-session",
+      label: "Resume",
+      icon: <RotateCw size={15} />,
+      disabled: selectedThread?.status === "running",
+      onSelect: onResume
+    },
+    {
+      id: "fork-session",
+      label: "Fork",
+      icon: <GitFork size={15} />,
+      onSelect: onFork
+    }
+  ];
+
   return (
     <section className="detail panel">
       <div className="detail-header">
@@ -570,26 +734,19 @@ export const ThreadDetailView = memo(function ThreadDetailView({
             <h1>Session</h1>
           )}
         </div>
-        <div className="toolbar">
-          <button
-            title="Interrupt"
-            aria-label="Interrupt"
-            disabled={!selectedThreadId || selectedThread?.status !== "running" || busy}
-            onClick={onInterrupt}
-          >
-            <Square size={16} />
-          </button>
-          <button
-            title="Resume"
-            aria-label="Resume"
-            disabled={!selectedThreadId || selectedThread?.status === "running" || busy}
-            onClick={onResume}
-          >
-            <RotateCw size={16} />
-          </button>
-          <button title="Fork" aria-label="Fork" disabled={!selectedThreadId || busy} onClick={onFork}>
-            <GitFork size={16} />
-          </button>
+        <div className="detail-controls">
+          <ActionMenu
+            label="Goal"
+            icon={<Target size={15} />}
+            disabled={!selectedThreadId || !hasGoal || busy}
+            items={goalMenuItems}
+          />
+          <ActionMenu
+            label="Session"
+            icon={<MoreHorizontal size={15} />}
+            disabled={!selectedThreadId || busy}
+            items={sessionMenuItems}
+          />
         </div>
       </div>
 
