@@ -134,6 +134,14 @@ export const PromptComposer = memo(function PromptComposer({
     : promptTarget === "thread"
       ? "Goal mode requires an idle selected session"
       : "Goal mode requires a working directory";
+  const newModeTitle = promptTarget === "new" && selectedThreadId ? "Use selected session" : "New session";
+  const handleNewModeClick = useCallback(() => {
+    if (promptTarget === "new" && selectedThreadId) {
+      onModeChange("thread");
+      return;
+    }
+    onModeChange("new");
+  }, [onModeChange, promptTarget, selectedThreadId]);
 
   useEffect(() => {
     const handlePointerMove = (event: globalThis.PointerEvent) => {
@@ -220,25 +228,16 @@ export const PromptComposer = memo(function PromptComposer({
             />
             <div className="prompt-toolbar">
               <div className="prompt-toolbar-left">
-                <div className="composer-mode" role="group" aria-label="Prompt target">
+                <div className="composer-mode" role="group" aria-label="Session mode">
                   <button
                     type="button"
                     className={promptTarget === "new" ? "active" : ""}
-                    title="New session"
-                    onClick={() => onModeChange("new")}
+                    title={newModeTitle}
+                    aria-pressed={promptTarget === "new"}
+                    onClick={handleNewModeClick}
                   >
                     <Plus size={15} />
                     <span>New</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={promptTarget === "thread" ? "active" : ""}
-                    title="Selected session"
-                    disabled={!selectedThreadId}
-                    onClick={() => onModeChange("thread")}
-                  >
-                    <Send size={15} />
-                    <span>Sel</span>
                   </button>
                 </div>
                 <div className="prompt-options">
