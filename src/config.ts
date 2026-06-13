@@ -45,6 +45,16 @@ export function parseAppUrl(value: string, key: string): AppUrl {
   };
 }
 
+export function connectableOrigin(appUrl: AppUrl) {
+  const url = new URL(appUrl.origin);
+  if (url.hostname === "0.0.0.0") {
+    url.hostname = "127.0.0.1";
+  } else if (url.hostname === "[::]") {
+    url.hostname = "[::1]";
+  }
+  return url.origin;
+}
+
 export function readApiUrl(env: Env = process.env) {
   const configuredUrl = optionalEnv(env, "CODEX_XYZ_API_URL");
   if (configuredUrl) {

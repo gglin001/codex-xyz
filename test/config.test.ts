@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  connectableOrigin,
   DEFAULT_CODEX_XYZ_API_URL,
   DEFAULT_CODEX_XYZ_UI_URL,
   readApiUrl,
@@ -30,6 +31,15 @@ describe("URL environment config", () => {
     });
   });
 
+  it("maps wildcard bind hosts to loopback origins for local clients", () => {
+    expect(connectableOrigin(readApiUrl({ CODEX_XYZ_API_URL: "http://0.0.0.0:3211" }))).toBe(
+      "http://127.0.0.1:3211"
+    );
+    expect(connectableOrigin(readUiUrl({ CODEX_XYZ_UI_URL: "http://127.0.0.1:1123" }))).toBe(
+      "http://127.0.0.1:1123"
+    );
+  });
+
   it("keeps PORT as an API port fallback", () => {
     expect(readApiUrl({ PORT: "9000" })).toMatchObject({
       origin: "http://127.0.0.1:9000",
@@ -43,5 +53,4 @@ describe("URL environment config", () => {
     expect(() => readUiUrl({ CODEX_XYZ_UI_URL: "not-a-url" })).toThrow(/valid URL/);
     expect(() => readApiUrl({ PORT: "abc" })).toThrow(/TCP port/);
   });
-
 });

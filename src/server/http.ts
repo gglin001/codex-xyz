@@ -13,6 +13,12 @@ type HandlerContext = {
   service: ControlService;
 };
 
+type HttpServerOptions = {
+  clientDistDir?: string | null;
+  corsOrigin?: string | null;
+  corsOrigins?: readonly string[] | null;
+};
+
 const mimeTypes: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -547,11 +553,28 @@ async function handleApi(context: HandlerContext) {
   return false;
 }
 
-function applyCorsHeaders(response: ServerResponse, requestOrigin: string | undefined, corsOrigin: string | null) {
-  if (!corsOrigin || requestOrigin !== corsOrigin) {
+function normalizeCorsOrigins(options: HttpServerOptions) {
+  return [
+    ...new Set([
+      ...(options.corsOrigin ? [options.corsOrigin] : []),
+      ...(options.corsOrigins ?? [])
+    ])
+  ];
+}
+
+function allowedCorsOrigin(requestOrigin: string | undefined, corsOrigins: readonly string[]) {
+  if (!requestOrigin || !corsOrigins.includes(requestOrigin)) {
+    return null;
+  }
+  return requestOrigin;
+}
+
+function applyCorsHeaders(response: ServerResponse, requestOrigin: string | undefined, corsOrigins: readonly string[]) {
+  const origin = allowedCorsOrigin(requestOrigin, corsOrigins);
+  if (!origin) {
     return;
   }
-  response.setHeader("access-control-allow-origin", corsOrigin);
+  response.setHeader("access-control-allow-origin", origin);
   response.setHeader("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS");
   response.setHeader("access-control-allow-headers", "content-type");
   response.setHeader("vary", "Origin");
@@ -581,10 +604,8 @@ function rejectUpgrade(socket: Duplex, statusCode: number) {
   socket.destroy();
 }
 
-export function createHttpServer(
-  service: ControlService,
-  options: { clientDistDir?: string | null; corsOrigin?: string | null } = {}
-) {
+export function createHttpServer(service: ControlService, options: HttpServerOptions = {}) {
+  const corsOrigins = normalizeCorsOrigins(options);
   const terminalWebSocketServer = new WebSocketServer({
     noServer: true,
     perMessageDeflate: false
@@ -596,7 +617,7 @@ export function createHttpServer(
 
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "127.0.0.1"}`);
-    applyCorsHeaders(response, request.headers.origin, options.corsOrigin ?? null);
+    applyCorsHeaders(response, request.headers.origin, corsOrigins);
     try {
       if (url.pathname.startsWith("/api/")) {
         if (request.method === "OPTIONS") {
@@ -623,7 +644,7 @@ export function createHttpServer(
       rejectUpgrade(socket, 404);
       return;
     }
-    if (options.corsOrigin && request.headers.origin && request.headers.origin !== options.corsOrigin) {
+    if (corsOrigins.length > 0 && request.headers.origin && !allowedCorsOrigin(request.headers.origin, corsOrigins)) {
       rejectUpgrade(socket, 403);
       return;
     }

@@ -163,6 +163,23 @@ describe("HTTP API", () => {
     expect(detail.items.map((item) => item.text).join("\n")).toContain("Test run started");
   });
 
+  it("allows any configured CORS origin alias", async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    server = createHttpServer(service, {
+      corsOrigins: ["http://0.0.0.0:1123", "http://127.0.0.1:1123"]
+    });
+    await listen();
+
+    const response = await fetch(`${baseUrl}/api/state`, {
+      headers: {
+        origin: "http://127.0.0.1:1123"
+      }
+    });
+
+    expect(response.ok).toBe(true);
+    expect(response.headers.get("access-control-allow-origin")).toBe("http://127.0.0.1:1123");
+  });
+
   it("creates a project from a working directory path", async () => {
     const projectDir = join(tempDir, "nested-project");
     mkdirSync(projectDir);

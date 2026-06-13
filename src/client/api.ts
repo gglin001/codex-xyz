@@ -8,7 +8,46 @@ import type {
   Turn
 } from "../server/domain.js";
 
-const apiBaseUrl = import.meta.env.VITE_CODEX_XYZ_API_URL?.trim().replace(/\/+$/, "") ?? "";
+function formatHostnameForUrl(hostname: string) {
+  return hostname.includes(":") && !hostname.startsWith("[") ? `[${hostname}]` : hostname;
+}
+
+function browserReachableHostname(fallback: string) {
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+  const hostname = window.location.hostname;
+  if (hostname && hostname !== "0.0.0.0" && hostname !== "::" && hostname !== "[::]") {
+    return hostname;
+  }
+  return fallback;
+}
+
+function normalizeApiBaseUrl(value: string | undefined) {
+  const trimmed = value?.trim().replace(/\/+$/, "") ?? "";
+  if (!trimmed || typeof window === "undefined") {
+    return trimmed;
+  }
+
+  let url: URL;
+  try {
+    url = new URL(trimmed, window.location.href);
+  } catch {
+    return trimmed;
+  }
+
+  if (url.hostname === "0.0.0.0") {
+    url.hostname = formatHostnameForUrl(browserReachableHostname("127.0.0.1"));
+    return url.toString().replace(/\/+$/, "");
+  }
+  if (url.hostname === "[::]") {
+    url.hostname = formatHostnameForUrl(browserReachableHostname("[::1]"));
+    return url.toString().replace(/\/+$/, "");
+  }
+  return trimmed;
+}
+
+const apiBaseUrl = normalizeApiBaseUrl(import.meta.env.VITE_CODEX_XYZ_API_URL);
 
 export function apiUrl(path: string) {
   return apiBaseUrl ? `${apiBaseUrl}${path}` : path;

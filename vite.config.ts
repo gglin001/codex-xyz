@@ -1,9 +1,10 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
-import { readApiUrl, readUiUrl } from "./src/config.js";
+import { connectableOrigin, readApiUrl, readUiUrl } from "./src/config.js";
 
 const apiUrl = readApiUrl(process.env);
 const uiUrl = readUiUrl(process.env);
+const apiProxyOrigin = connectableOrigin(apiUrl);
 
 export default defineConfig({
   plugins: [react()],
@@ -12,7 +13,7 @@ export default defineConfig({
     port: uiUrl.port,
     proxy: {
       "/api": {
-        target: apiUrl.origin,
+        target: apiProxyOrigin,
         ws: true
       }
     }

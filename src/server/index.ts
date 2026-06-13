@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { AppServerCodexAdapter } from "./codex/appServerAdapter.js";
-import { readApiUrl, readUiUrl } from "../config.js";
+import { connectableOrigin, readApiUrl, readUiUrl } from "../config.js";
 import { createHttpServer } from "./http.js";
 import { ControlService } from "./service.js";
 import { Store } from "./store.js";
@@ -46,8 +46,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const service = createServiceFromEnv(options);
   const apiUrl = readApiUrl(process.env);
   const uiUrl = readUiUrl(process.env);
+  const corsOrigins = [...new Set([uiUrl.origin, connectableOrigin(uiUrl)])];
   const clientDistDir = resolve(process.cwd(), "dist/client");
-  const server = createHttpServer(service, { clientDistDir, corsOrigin: uiUrl.origin });
+  const server = createHttpServer(service, { clientDistDir, corsOrigins });
   server.listen(apiUrl.port, apiUrl.hostname, () => {
     console.log(`codex-xyz API listening on ${apiUrl.origin}`);
   });
