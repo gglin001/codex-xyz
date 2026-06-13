@@ -594,12 +594,12 @@ async function handleApi(context: HandlerContext) {
       }
       if (method === "PUT") {
         const body = await readJson(request);
-        const goal = await service.setGoal({
+        const goalStart = await service.startGoal({
           threadId,
           objective: requireString(body, "objective"),
           tokenBudget: optionalPositiveInteger(body, "tokenBudget")
         });
-        sendJson(response, 200, goal);
+        sendJson(response, 200, goalStart);
         return true;
       }
       if (method === "DELETE") {

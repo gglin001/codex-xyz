@@ -700,8 +700,8 @@ export function App() {
       void runAction(
         "Starting goal mode",
         async () => {
-          await setGoal(threadId, currentPrompt.trim());
-          return threadId;
+          const result = await setGoal(threadId, currentPrompt.trim());
+          return result.turn.threadId;
         },
         { mobileViewOnSuccess: "detail" }
       );

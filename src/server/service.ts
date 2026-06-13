@@ -210,24 +210,16 @@ export class ControlService {
     this.publish("thread.started", thread.id, null, { thread });
 
     if (input.goalMode) {
-      const goal = await this.adapter.setGoal({
+      const goalStart = await this.startGoal({
         threadId: thread.id,
         objective: input.prompt,
         tokenBudget: null
       });
-      const goalThread = this.store.updateThread(thread.id, {
-        goalObjective: goal.objective,
-        goalStatus: goalStatusFromAdapter(goal),
-        goalTokenBudget: goal.tokenBudget,
-        tokensUsed: goal.tokensUsed
-      });
-      this.store.updateTask(task.id, { status: "completed" });
-      this.publish("thread.goal.updated", thread.id, null, { goal, thread: goalThread });
       return {
         task: this.store.getTask(task.id),
-        thread: this.store.getThread(thread.id),
-        turn: null,
-        goal
+        thread: goalStart.thread,
+        turn: goalStart.turn,
+        goal: goalStart.goal
       };
     }
 
@@ -345,6 +337,36 @@ export class ControlService {
     });
     this.publish("thread.goal.updated", input.threadId, null, { goal, thread });
     return goal;
+  }
+
+  async startGoal(input: SetGoalInput) {
+    const source = this.requireThread(input.threadId);
+    if (source.activeTurnId || source.status !== "idle") {
+      throw new Error("Goal mode requires an idle thread");
+    }
+    const { goal, turn: adapterTurn } = await this.withRuntimeThread(source, () =>
+      this.adapter.startGoal({
+        threadId: input.threadId,
+        objective: input.objective,
+        tokenBudget: input.tokenBudget
+      })
+    );
+    const thread = this.store.updateThread(input.threadId, {
+      goalObjective: goal.objective,
+      goalStatus: goalStatusFromAdapter(goal),
+      goalTokenBudget: goal.tokenBudget,
+      tokensUsed: goal.tokensUsed
+    });
+    if (!thread) {
+      throw new Error(`Thread ${input.threadId} does not exist`);
+    }
+    this.publish("thread.goal.updated", input.threadId, null, { goal, thread });
+    const turn = this.recordTurn(thread, "", adapterTurn);
+    return {
+      goal,
+      turn,
+      thread: this.store.getThread(turn.threadId)
+    };
   }
 
   async getGoal(threadId: string) {

@@ -21,6 +21,11 @@ export type AdapterGoal = {
   tokensUsed: number;
 };
 
+export type AdapterGoalStart = {
+  goal: AdapterGoal;
+  turn: AdapterTurn;
+};
+
 export type AdapterTokenUsage = {
   totalTokens: number;
   inputTokens: number;
@@ -156,6 +161,7 @@ export interface CodexAdapter {
   forkThread(input: ForkThreadInput): Promise<AdapterThread>;
   renameThread(input: { threadId: string; title: string }): Promise<void>;
   setGoal(input: { threadId: string; objective: string; tokenBudget?: number | null }): Promise<AdapterGoal>;
+  startGoal(input: { threadId: string; objective: string; tokenBudget?: number | null }): Promise<AdapterGoalStart>;
   getGoal(threadId: string): Promise<AdapterGoal | null>;
   clearGoal(threadId: string): Promise<void>;
   close(): Promise<void>;

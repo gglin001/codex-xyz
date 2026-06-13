@@ -194,7 +194,7 @@ describe("HTTP API", () => {
     const created = await json<{
       goal: { objective: string; status: string } | null;
       thread: { id: string; goalObjective: string | null; goalStatus: string | null };
-      turn: unknown | null;
+      turn: { threadId: string; prompt: string; status: string } | null;
     }>("/api/tasks", {
       method: "POST",
       body: JSON.stringify({
@@ -204,15 +204,26 @@ describe("HTTP API", () => {
       })
     });
 
-    expect(created.turn).toBeNull();
+    expect(created.turn).toMatchObject({
+      threadId: created.thread.id,
+      prompt: "",
+      status: "running"
+    });
     expect(created.goal?.objective).toBe("Finish the local goal workflow");
     expect(created.goal?.status).toBe("in_progress");
     expect(created.thread.goalObjective).toBe("Finish the local goal workflow");
     expect(created.thread.goalStatus).toBe("in_progress");
 
-    const detail = await json<{ goalObjective: string | null; turns: unknown[] }>(`/api/threads/${created.thread.id}`);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const detail = await json<{ goalObjective: string | null; turns: Array<{ prompt: string; status: string }> }>(
+      `/api/threads/${created.thread.id}`
+    );
     expect(detail.goalObjective).toBe("Finish the local goal workflow");
-    expect(detail.turns).toHaveLength(0);
+    expect(detail.turns).toHaveLength(1);
+    expect(detail.turns[0]).toMatchObject({
+      prompt: "",
+      status: "completed"
+    });
   });
 
   it("paginates large thread sets while keeping small state snapshots complete", async () => {
@@ -316,15 +327,6 @@ describe("HTTP API", () => {
     });
     expect(renamed.title).toBe("HTTP controlled session");
 
-    const goal = await json<{ tokenBudget: number | null }>(`/api/threads/${created.thread.id}/goal`, {
-      method: "PUT",
-      body: JSON.stringify({
-        objective: "Finish the control surface",
-        tokenBudget: 2048
-      })
-    });
-    expect(goal.tokenBudget).toBe(2048);
-
     await noContent(`/api/threads/${created.thread.id}/steer`, {
       method: "POST",
       body: JSON.stringify({
@@ -345,6 +347,22 @@ describe("HTTP API", () => {
     expect(resumed).toMatchObject({
       id: created.thread.id,
       status: "idle"
+    });
+
+    const goalStart = await json<{ goal: { tokenBudget: number | null }; turn: { threadId: string; prompt: string } }>(
+      `/api/threads/${created.thread.id}/goal`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          objective: "Finish the control surface",
+          tokenBudget: 2048
+        })
+      }
+    );
+    expect(goalStart.goal.tokenBudget).toBe(2048);
+    expect(goalStart.turn).toMatchObject({
+      threadId: created.thread.id,
+      prompt: ""
     });
 
     const fork = await json<{ id: string; forkedFromId: string | null }>(`/api/threads/${created.thread.id}/fork`, {

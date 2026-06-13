@@ -11,6 +11,7 @@ const sourceThreadId = "00000000-0000-4000-8000-000000000001"
 const debugThreadId = "00000000-0000-4000-8000-000000000002"
 const forkThreadId = "00000000-0000-4000-8000-000000000003"
 const turnId = "turn_00000000-0000-4000-8000-000000000004"
+const goalTurnId = "turn_goal_00000000-0000-4000-8000-000000000005"
 
 function createFakeCodexCommand() {
   tempDir = mkdtempSync(join(tmpdir(), "codex-xyz-app-server-"))
@@ -96,6 +97,40 @@ function handle(message) {
     notify("thread/name/updated", {
       threadId: message.params.threadId,
       threadName: message.params.name
+    })
+    return
+  }
+
+  if (message.method === "thread/goal/set") {
+    const threadId = message.params.threadId
+    const goal = {
+      threadId,
+      objective: message.params.objective,
+      status: "active",
+      tokenBudget: message.params.tokenBudget,
+      tokensUsed: 0,
+      timeUsedSeconds: 0,
+      createdAt: 1,
+      updatedAt: 1
+    }
+    respond(message.id, { goal })
+    notify("thread/goal/updated", {
+      threadId,
+      turnId: null,
+      goal
+    })
+    notify("turn/started", {
+      threadId,
+      turn: {
+        id: "${goalTurnId}",
+        items: [],
+        itemsView: { type: "all" },
+        status: "inProgress",
+        error: null,
+        startedAt: 1,
+        completedAt: null,
+        durationMs: null
+      }
     })
     return
   }
@@ -562,6 +597,46 @@ describe("AppServerCodexAdapter", () => {
           type: "turn.status",
           status: "completed",
           durationMs: 50
+        })
+      ])
+    )
+  })
+
+  it("starts goal mode by waiting for the app-server automatic turn", async () => {
+    const command = createFakeCodexCommand()
+    const events: AdapterEvent[] = []
+    adapter = new AppServerCodexAdapter(command)
+    adapter.onEvent((event) => events.push(event))
+
+    const result = await adapter.startGoal({
+      threadId: sourceThreadId,
+      objective: "Finish the automatic goal flow",
+      tokenBudget: 2048
+    })
+
+    expect(result.goal).toMatchObject({
+      objective: "Finish the automatic goal flow",
+      status: "in_progress",
+      tokenBudget: 2048
+    })
+    expect(result.turn).toMatchObject({
+      id: goalTurnId,
+      status: "running"
+    })
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "thread.goal",
+          threadId: sourceThreadId,
+          goal: expect.objectContaining({
+            objective: "Finish the automatic goal flow"
+          })
+        }),
+        expect.objectContaining({
+          type: "turn.started",
+          threadId: sourceThreadId,
+          turnId: goalTurnId,
+          prompt: ""
         })
       ])
     )

@@ -4,6 +4,7 @@ import {
   type AdapterEvent,
   type AdapterEventHandler,
   type AdapterGoal,
+  type AdapterGoalStart,
   type AdapterThread,
   type AdapterTurn,
   type CodexAdapter,
@@ -164,6 +165,28 @@ export class TestCodexAdapter implements CodexAdapter {
     return goal;
   }
 
+  async startGoal(input: { threadId: string; objective: string; tokenBudget?: number | null }): Promise<AdapterGoalStart> {
+    const thread = this.requireThread(input.threadId);
+    const goal = await this.setGoal(input);
+    const turnId = `turn_${randomUUID()}`;
+    const running: RunningTurn = {
+      threadId: input.threadId,
+      turnId,
+      startedAt: Date.now(),
+      completed: false
+    };
+    thread.activeTurnId = turnId;
+    this.running.set(turnId, running);
+    setTimeout(() => this.emitGoalTurnOutput(input, turnId, running), 0);
+    return {
+      goal,
+      turn: {
+        id: turnId,
+        status: "running"
+      }
+    };
+  }
+
   async getGoal(threadId: string) {
     return this.requireThread(threadId).goal;
   }
@@ -219,6 +242,40 @@ export class TestCodexAdapter implements CodexAdapter {
       return;
     }
 
+    this.completeTurn(running, "completed");
+  }
+
+  private emitGoalTurnOutput(
+    input: { threadId: string; objective: string },
+    turnId: string,
+    running: RunningTurn
+  ) {
+    if (this.closed || running.completed) {
+      return;
+    }
+
+    const answerId = `item_agent_${randomUUID()}`;
+    this.emit({
+      type: "thread.status",
+      threadId: input.threadId,
+      status: "running"
+    });
+    this.emit({
+      type: "item.created",
+      threadId: input.threadId,
+      turnId,
+      itemId: answerId,
+      itemType: "agent",
+      text: "",
+      data: { adapter: "test", goalTurn: true }
+    });
+    this.emit({
+      type: "item.delta",
+      threadId: input.threadId,
+      turnId,
+      itemId: answerId,
+      delta: `Goal work started. Objective: ${input.objective}`
+    });
     this.completeTurn(running, "completed");
   }
 

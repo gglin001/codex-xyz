@@ -172,10 +172,14 @@ export function renameThread(threadId: string, title: string) {
 
 export function setGoal(threadId: string, objective: string, tokenBudget?: number | null) {
   return request<{
-    objective: string;
-    status: GoalStatus;
-    tokenBudget: number | null;
-    tokensUsed: number;
+    goal: {
+      objective: string;
+      status: GoalStatus;
+      tokenBudget: number | null;
+      tokensUsed: number;
+    };
+    turn: Turn;
+    thread: ControlThread | null;
   }>(`/api/threads/${threadId}/goal`, {
     method: "PUT",
     body: JSON.stringify({ objective, tokenBudget: tokenBudget ?? null })

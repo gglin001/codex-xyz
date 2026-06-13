@@ -6,6 +6,7 @@ import {
   AdapterThreadNotFoundError,
   type AdapterEventHandler,
   type AdapterGoal,
+  type AdapterGoalStart,
   type AdapterThread,
   type AdapterTurn,
   type CodexAdapter,
@@ -122,6 +123,15 @@ class VolatileCodexAdapter implements CodexAdapter {
       tokenBudget: input.tokenBudget ?? null,
       tokensUsed: 0
     };
+  }
+
+  async startGoal(input: { threadId: string; objective: string; tokenBudget?: number | null }): Promise<AdapterGoalStart> {
+    const goal = await this.setGoal(input);
+    const turn = await this.startTurn({
+      threadId: input.threadId,
+      prompt: ""
+    });
+    return { goal, turn };
   }
 
   async getGoal(threadId: string) {
@@ -258,6 +268,16 @@ class EagerEventCodexAdapter implements CodexAdapter {
     };
   }
 
+  async startGoal(input: { threadId: string; objective: string; tokenBudget?: number | null }): Promise<AdapterGoalStart> {
+    const goal = await this.setGoal(input);
+    const turn = await this.startTurn({
+      threadId: input.threadId,
+      prompt: "",
+      model: null
+    });
+    return { goal, turn };
+  }
+
   async getGoal(threadId: string) {
     this.requireThread(threadId);
     return null;
@@ -319,7 +339,7 @@ describe("ControlService", () => {
     expect(service.listTasks()[0].status).toBe("completed");
   });
 
-  it("creates a goal session without starting a normal prompt turn", async () => {
+  it("creates a goal session and starts the first goal turn", async () => {
     const project = service.listProjects()[0];
     const result = await service.createTask({
       projectId: project.id,
@@ -332,15 +352,28 @@ describe("ControlService", () => {
       throw new Error("Expected created thread id");
     }
 
-    expect(result.turn).toBeNull();
+    expect(result.turn).toMatchObject({
+      threadId,
+      status: "running",
+      prompt: ""
+    });
     expect(result.goal?.objective).toBe("Finish the first-version MVP");
     expect(result.thread?.goalObjective).toBe("Finish the first-version MVP");
     expect(result.thread?.goalStatus).toBe("in_progress");
-    expect(service.listTasks()[0].status).toBe("completed");
+    expect(result.thread?.status).toBe("running");
+    expect(service.listTasks()[0].status).toBe("running");
+
+    await waitForEvents();
 
     const detail = service.getThreadDetail(threadId);
-    expect(detail.turns).toHaveLength(0);
+    expect(detail.turns).toHaveLength(1);
+    expect(detail.turns[0]).toMatchObject({
+      prompt: "",
+      status: "completed"
+    });
     expect(detail.goalObjective).toBe("Finish the first-version MVP");
+    expect(detail.items.some((item) => item.type === "agent" && item.text.includes("Goal work started"))).toBe(true);
+    expect(service.listTasks()[0].status).toBe("completed");
   });
 
   it("keeps dashboard snapshots and summary event replay separate from transcript detail", async () => {

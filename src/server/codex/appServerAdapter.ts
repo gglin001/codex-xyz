@@ -34,11 +34,16 @@ type PendingRequest = {
   timeout: NodeJS.Timeout;
 };
 
-type PendingShellStart = {
-  command: string;
+type PendingTurnStart = {
+  prompt: string;
   resolve: (turn: AdapterTurn) => void;
   reject: (error: Error) => void;
   timeout: NodeJS.Timeout;
+};
+
+type PendingTurnStartHandle = {
+  promise: Promise<AdapterTurn>;
+  cancel: (error: Error) => void;
 };
 
 export type AppServerCodexAdapterOptions = {
@@ -395,7 +400,7 @@ export class AppServerCodexAdapter implements CodexAdapter {
   private stdout: Interface | null = null;
   private nextId = 1;
   private readonly pending = new Map<number | string, PendingRequest>();
-  private readonly pendingShellStarts = new Map<string, PendingShellStart[]>();
+  private readonly pendingTurnStarts = new Map<string, PendingTurnStart[]>();
   private eventHandler: AdapterEventHandler = () => {};
   private initialized = false;
   private readonly debugLogger: AppServerDebugLogger | null;
@@ -468,15 +473,15 @@ export class AppServerCodexAdapter implements CodexAdapter {
       };
     }
 
-    const turnStarted = this.waitForShellTurn(input.threadId, command);
+    const turnStarted = this.waitForTurnStart(input.threadId, `!${command}`, "thread/shellCommand did not start a turn");
     try {
       await this.request("thread/shellCommand", {
         threadId: input.threadId,
         command
       });
-      return await turnStarted;
+      return await turnStarted.promise;
     } catch (error) {
-      this.rejectPendingShellStart(input.threadId, error instanceof Error ? error : new Error(String(error)));
+      turnStarted.cancel(error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }
@@ -528,6 +533,18 @@ export class AppServerCodexAdapter implements CodexAdapter {
     return this.normalizeGoal(result.goal);
   }
 
+  async startGoal(input: { threadId: string; objective: string; tokenBudget?: number | null }) {
+    const turnStarted = this.waitForTurnStart(input.threadId, "", "thread/goal/set did not start a turn");
+    try {
+      const goal = await this.setGoal(input);
+      const turn = await turnStarted.promise;
+      return { goal, turn };
+    } catch (error) {
+      turnStarted.cancel(error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    }
+  }
+
   async getGoal(threadId: string) {
     const result = asRecord(await this.request("thread/goal/get", { threadId }));
     return result.goal ? this.normalizeGoal(result.goal) : null;
@@ -543,13 +560,13 @@ export class AppServerCodexAdapter implements CodexAdapter {
       pending.reject(new Error("app-server adapter closed"));
     }
     this.pending.clear();
-    for (const pending of this.pendingShellStarts.values()) {
-      for (const shellStart of pending) {
-        clearTimeout(shellStart.timeout);
-        shellStart.reject(new Error("app-server adapter closed"));
+    for (const pending of this.pendingTurnStarts.values()) {
+      for (const turnStart of pending) {
+        clearTimeout(turnStart.timeout);
+        turnStart.reject(new Error("app-server adapter closed"));
       }
     }
-    this.pendingShellStarts.clear();
+    this.pendingTurnStarts.clear();
     this.stdout?.close();
     this.process?.kill("SIGTERM");
     this.process = null;
@@ -557,66 +574,70 @@ export class AppServerCodexAdapter implements CodexAdapter {
     this.initialized = false;
   }
 
-  private waitForShellTurn(threadId: string, command: string) {
+  private waitForTurnStart(threadId: string, prompt: string, timeoutMessage: string): PendingTurnStartHandle {
     const key = normalizeThreadId(threadId);
-    return new Promise<AdapterTurn>((resolve, reject) => {
-      let entry: PendingShellStart;
+    let entry: PendingTurnStart | null = null;
+    const promise = new Promise<AdapterTurn>((resolve, reject) => {
       const timeout = setTimeout(() => {
-        this.removePendingShellStart(key, entry);
-        reject(new Error("thread/shellCommand did not start a turn"));
+        if (!entry) {
+          return;
+        }
+        this.removePendingTurnStart(key, entry);
+        reject(new Error(timeoutMessage));
       }, 10_000);
       entry = {
-        command,
+        prompt,
         resolve,
         reject,
         timeout
       };
-      const pending = this.pendingShellStarts.get(key) ?? [];
+      const pending = this.pendingTurnStarts.get(key) ?? [];
       pending.push(entry);
-      this.pendingShellStarts.set(key, pending);
+      this.pendingTurnStarts.set(key, pending);
     });
+    return {
+      promise,
+      cancel: (error: Error) => {
+        if (!entry) {
+          return;
+        }
+        if (!this.removePendingTurnStart(key, entry)) {
+          return;
+        }
+        clearTimeout(entry.timeout);
+        entry.reject(error);
+      }
+    };
   }
 
-  private removePendingShellStart(threadId: string, entry: PendingShellStart) {
+  private removePendingTurnStart(threadId: string, entry: PendingTurnStart) {
     const key = normalizeThreadId(threadId);
-    const pending = this.pendingShellStarts.get(key);
+    const pending = this.pendingTurnStarts.get(key);
     if (!pending) {
-      return;
+      return false;
     }
     const next = pending.filter((candidate) => candidate !== entry);
     if (next.length === 0) {
-      this.pendingShellStarts.delete(key);
+      this.pendingTurnStarts.delete(key);
     } else {
-      this.pendingShellStarts.set(key, next);
+      this.pendingTurnStarts.set(key, next);
     }
+    return next.length !== pending.length;
   }
 
-  private rejectPendingShellStart(threadId: string, error: Error) {
+  private resolvePendingTurnStart(threadId: string, turn: AdapterTurn) {
     const key = normalizeThreadId(threadId);
-    const pending = this.pendingShellStarts.get(key);
-    if (!pending) {
-      return;
-    }
-    this.pendingShellStarts.delete(key);
-    for (const shellStart of pending) {
-      clearTimeout(shellStart.timeout);
-      shellStart.reject(error);
-    }
-  }
-
-  private resolvePendingShellStart(threadId: string, turn: AdapterTurn) {
-    const key = normalizeThreadId(threadId);
-    const pending = this.pendingShellStarts.get(key);
-    const shellStart = pending?.shift();
-    if (!pending || !shellStart) {
+    const pending = this.pendingTurnStarts.get(key);
+    const turnStart = pending?.shift();
+    if (!pending || !turnStart) {
       return null;
     }
     if (pending.length === 0) {
-      this.pendingShellStarts.delete(key);
+      this.pendingTurnStarts.delete(key);
     }
-    clearTimeout(shellStart.timeout);
-    shellStart.resolve(turn);
-    return shellStart.command;
+    clearTimeout(turnStart.timeout);
+    turnStart.resolve(turn);
+    return turnStart.prompt;
   }
 
   private async request(method: string, params: unknown): Promise<unknown> {
@@ -680,13 +701,13 @@ export class AppServerCodexAdapter implements CodexAdapter {
           pending.reject(exitError);
         }
         this.pending.clear();
-        for (const pending of this.pendingShellStarts.values()) {
-          for (const shellStart of pending) {
-            clearTimeout(shellStart.timeout);
-            shellStart.reject(exitError);
+        for (const pending of this.pendingTurnStarts.values()) {
+          for (const turnStart of pending) {
+            clearTimeout(turnStart.timeout);
+            turnStart.reject(exitError);
           }
         }
-        this.pendingShellStarts.clear();
+        this.pendingTurnStarts.clear();
         if (this.process === child) {
           this.stdout?.close();
           this.process = null;
@@ -790,15 +811,13 @@ export class AppServerCodexAdapter implements CodexAdapter {
 
     if (message.method === "turn/started" && threadId) {
       const turn = normalizeTurn(asRecord(params.turn));
-      const command = this.resolvePendingShellStart(threadId, turn);
-      if (command) {
-        this.eventHandler({
-          type: "turn.started",
-          threadId,
-          turnId: turn.id,
-          prompt: `!${command}`
-        });
-      }
+      const prompt = this.resolvePendingTurnStart(threadId, turn);
+      this.eventHandler({
+        type: "turn.started",
+        threadId,
+        turnId: turn.id,
+        prompt: prompt ?? ""
+      });
       return;
     }
 
