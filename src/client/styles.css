@@ -269,8 +269,7 @@ small {
   text-transform: uppercase;
 }
 
-.panel-header p,
-.title-stack p {
+.panel-header p {
   margin-top: 4px;
   color: var(--muted);
   font-size: 12px;
@@ -770,6 +769,8 @@ button.active {
 }
 
 .title-stack {
+  display: flex;
+  align-items: center;
   min-width: 0;
   flex: 1 1 auto;
 }
@@ -778,6 +779,7 @@ button.active {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
+  width: 100%;
   max-width: 680px;
 }
 

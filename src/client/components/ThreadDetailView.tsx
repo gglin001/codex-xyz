@@ -526,9 +526,6 @@ export const ThreadDetailView = memo(function ThreadDetailView({
           ) : (
             <h1>Session</h1>
           )}
-          <p>
-            {selectedThread ? `${statusLabel(selectedThread.status)} · ${formatDateTime(selectedThread.updatedAt)}` : "idle"}
-          </p>
         </div>
         <div className="toolbar">
           <button
