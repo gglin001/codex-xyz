@@ -296,23 +296,22 @@ export const ThreadDetailView = memo(function ThreadDetailView({
         <div className="toolbar">
           <button
             title="Interrupt"
+            aria-label="Interrupt"
             disabled={!selectedThreadId || selectedThread?.status !== "running" || busy}
             onClick={onInterrupt}
           >
             <Square size={16} />
-            <span>Interrupt</span>
           </button>
           <button
             title="Resume"
+            aria-label="Resume"
             disabled={!selectedThreadId || selectedThread?.status === "running" || busy}
             onClick={onResume}
           >
             <RotateCw size={16} />
-            <span>Resume</span>
           </button>
-          <button title="Fork" disabled={!selectedThreadId || busy} onClick={onFork}>
+          <button title="Fork" aria-label="Fork" disabled={!selectedThreadId || busy} onClick={onFork}>
             <GitFork size={16} />
-            <span>Fork</span>
           </button>
         </div>
       </div>

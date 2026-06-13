@@ -292,10 +292,10 @@ small {
 }
 
 .toolbar button {
-  gap: 7px;
-  min-width: 0;
-  padding: 0 11px;
-  white-space: nowrap;
+  width: 34px;
+  min-width: 34px;
+  flex: 0 0 34px;
+  padding: 0;
 }
 
 button.active {
@@ -349,8 +349,7 @@ button.active {
   padding: 0 10px;
 }
 
-.composer-mode span,
-.toolbar span {
+.composer-mode span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -748,40 +747,70 @@ button.active {
 }
 
 .session-facts {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  padding-bottom: 4px;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
 }
 
 .session-facts div {
-  min-width: 0;
-  padding: 10px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  min-width: max-content;
+  min-height: 34px;
+  padding: 7px 10px;
   border: 1px solid var(--border-soft);
   border-radius: 8px;
   background: var(--surface-bg);
 }
 
 .session-facts .wide {
-  grid-column: span 2;
+  min-width: max-content;
+}
+
+.session-facts::-webkit-scrollbar {
+  height: 8px;
+}
+
+.session-facts::-webkit-scrollbar-thumb {
+  border: 2px solid var(--detail-bg);
+  border-radius: 999px;
+  background: var(--border-strong);
+}
+
+.session-facts::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .session-facts span {
   display: block;
-  margin-bottom: 5px;
+  flex: 0 0 auto;
+  margin-bottom: 0;
   color: var(--muted);
   font-size: 11px;
   font-weight: 700;
+  line-height: 1;
   text-transform: uppercase;
 }
 
 .session-facts strong {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-width: max-content;
+  overflow: visible;
   color: var(--text-strong);
   font-size: 13px;
   font-weight: 650;
-  text-overflow: ellipsis;
+  line-height: 1.2;
+  text-overflow: clip;
   white-space: nowrap;
 }
 
@@ -1143,14 +1172,6 @@ button.active {
     padding: 14px;
   }
 
-  .session-facts {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .session-facts .wide {
-    grid-column: span 2;
-  }
-
   .toolbar {
     flex-wrap: nowrap;
   }
@@ -1203,14 +1224,6 @@ button.active {
 
   .terminal-dock-actions button:last-child {
     width: auto;
-  }
-
-  .session-facts {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .session-facts .wide {
-    grid-column: span 2;
   }
 
   .item-meta {
@@ -1307,23 +1320,13 @@ button.active {
   }
 
   .session-facts {
-    display: flex;
-    flex: 0 0 auto;
     gap: 6px;
-    overflow-x: auto;
-    overscroll-behavior-inline: contain;
     padding-bottom: 2px;
-    scrollbar-gutter: stable;
   }
 
   .session-facts div,
   .session-facts .wide {
-    flex: 0 0 116px;
-    padding: 8px;
-  }
-
-  .session-facts .wide {
-    flex-basis: 180px;
+    padding: 7px 9px;
   }
 
   .session-facts strong {
