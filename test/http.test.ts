@@ -309,6 +309,15 @@ describe("HTTP API", () => {
 
     expect(response.ok).toBe(true);
     expect(response.headers.get("access-control-allow-origin")).toBe("http://127.0.0.1:1123");
+
+    const remoteResponse = await fetch(`${baseUrl}/api/state`, {
+      headers: {
+        origin: "http://100.64.0.1:1123"
+      }
+    });
+
+    expect(remoteResponse.ok).toBe(true);
+    expect(remoteResponse.headers.get("access-control-allow-origin")).toBe("http://100.64.0.1:1123");
   });
 
   it("opens idle thread event streams with an immediate SSE frame", async () => {
@@ -563,6 +572,35 @@ describe("HTTP API", () => {
 
     socket.send(JSON.stringify({ type: "terminal.resize", cols: 120, rows: 40 }));
     await waitFor(() => terminalPtys[0].cols === 120 && terminalPtys[0].rows === 40, "terminal websocket resize");
+
+    socket.close();
+    await new Promise<void>((resolve) => socket.once("close", () => resolve()));
+  });
+
+  it("accepts websocket origins through wildcard UI bind aliases", async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    server = createHttpServer(service, {
+      corsOrigins: ["http://0.0.0.0:1123"]
+    });
+    await listen();
+
+    const started = await json<TerminalSnapshot>("/api/terminal/start", {
+      method: "POST",
+      body: JSON.stringify({
+        cols: 80,
+        rows: 24
+      })
+    });
+    const socket = new WebSocket(`${baseUrl.replace(/^http/, "ws")}/api/terminal/ws?after=${started.sequence}`, {
+      headers: {
+        origin: "http://100.64.0.1:1123"
+      }
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      socket.once("open", resolve);
+      socket.once("error", reject);
+    });
 
     socket.close();
     await new Promise<void>((resolve) => socket.once("close", () => resolve()));

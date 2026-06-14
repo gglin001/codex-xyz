@@ -139,10 +139,7 @@ try {
   await waitForApi(apiProxyOrigin, api);
   const web = spawn("pnpm", ["run", "dev:web"], {
     stdio: "inherit",
-    env: {
-      ...process.env,
-      VITE_CODEX_XYZ_API_URL: optionalEnv("VITE_CODEX_XYZ_API_URL") ?? apiProxyOrigin
-    }
+    env: process.env
   });
   processes.push(web);
   watchChild(web);

@@ -674,8 +674,37 @@ function normalizeCorsOrigins(options: HttpServerOptions) {
   ];
 }
 
+function effectiveOriginPort(url: URL) {
+  return url.port || (url.protocol === "https:" ? "443" : "80");
+}
+
+function isWildcardBindHostname(hostname: string) {
+  return hostname === "0.0.0.0" || hostname === "[::]";
+}
+
+function corsOriginMatches(requestOrigin: string, configuredOrigin: string) {
+  if (requestOrigin === configuredOrigin) {
+    return true;
+  }
+
+  let requestUrl: URL;
+  let configuredUrl: URL;
+  try {
+    requestUrl = new URL(requestOrigin);
+    configuredUrl = new URL(configuredOrigin);
+  } catch {
+    return false;
+  }
+
+  return (
+    isWildcardBindHostname(configuredUrl.hostname) &&
+    requestUrl.protocol === configuredUrl.protocol &&
+    effectiveOriginPort(requestUrl) === effectiveOriginPort(configuredUrl)
+  );
+}
+
 function allowedCorsOrigin(requestOrigin: string | undefined, corsOrigins: readonly string[]) {
-  if (!requestOrigin || !corsOrigins.includes(requestOrigin)) {
+  if (!requestOrigin || !corsOrigins.some((origin) => corsOriginMatches(requestOrigin, origin))) {
     return null;
   }
   return requestOrigin;
