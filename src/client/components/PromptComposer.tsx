@@ -235,9 +235,18 @@ export const PromptComposer = memo(function PromptComposer({
         return;
       }
       event.preventDefault();
-      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 720;
+      const viewportHeight = window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 720;
       const minHeight = compact ? compactPromptMinHeight : defaultPromptMinHeight;
-      const maxHeight = Math.max(minHeight, Math.floor(viewportHeight * (compact ? 0.34 : 0.44)));
+      const viewportMaxHeight = Math.floor(viewportHeight * (compact ? 0.34 : 0.44));
+      const composer = textarea.closest<HTMLElement>(".mobile-composer");
+      const composerStyle = composer ? window.getComputedStyle(composer) : null;
+      const composerMaxHeight = composerStyle ? Number.parseFloat(composerStyle.maxHeight) : Number.NaN;
+      const layoutMaxHeight =
+        composer && Number.isFinite(composerMaxHeight)
+          ? textarea.getBoundingClientRect().height +
+            Math.max(0, composerMaxHeight - composer.getBoundingClientRect().height)
+          : viewportMaxHeight;
+      const maxHeight = Math.max(minHeight, Math.min(viewportMaxHeight, Math.floor(layoutMaxHeight)));
       resizeStateRef.current = {
         startY: event.clientY,
         startHeight: textarea.getBoundingClientRect().height,

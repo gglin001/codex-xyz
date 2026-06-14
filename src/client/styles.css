@@ -2150,7 +2150,11 @@ button.active {
   }
 
   .mobile-composer .prompt-toolbar {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
     flex-wrap: wrap;
+    background: var(--field-bg);
   }
 
   .mobile-composer .prompt-toolbar-left {
@@ -2177,7 +2181,7 @@ button.active {
     height: 38px;
     min-height: 38px;
     max-height: var(--mobile-textarea-max-height);
-    resize: vertical;
+    resize: none;
     font-size: 16px;
   }
 
