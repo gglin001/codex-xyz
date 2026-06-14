@@ -1812,27 +1812,6 @@ button.active {
     width: auto;
   }
 
-  .item-meta {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .item-meta-right {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .process-group-toggle,
-  .process-step-toggle {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .process-group-meta,
-  .process-step-right {
-    width: 100%;
-    justify-content: flex-start;
-  }
 }
 
 @media (max-width: 720px) {
@@ -2274,20 +2253,6 @@ button.active {
   .app-shell[data-ui-density="dense"] .session-facts .wide {
     min-height: 26px;
     padding: 3px 7px;
-  }
-
-  .app-shell[data-viewport-width="tiny"] .item-meta,
-  .app-shell[data-viewport-width="tiny"] .process-group-toggle,
-  .app-shell[data-viewport-width="tiny"] .process-step-toggle {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .app-shell[data-viewport-width="tiny"] .item-meta-right,
-  .app-shell[data-viewport-width="tiny"] .process-group-meta,
-  .app-shell[data-viewport-width="tiny"] .process-step-right {
-    width: 100%;
-    justify-content: flex-start;
   }
 
   .app-shell[data-keyboard-visible="true"] .mobile-composer {
