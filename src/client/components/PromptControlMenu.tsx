@@ -23,6 +23,7 @@ export type PromptControlMenuProps = {
   onResumeGoal: () => void;
   onCompleteGoal: () => void;
   onClearGoal: () => void;
+  onOpenChange?: (open: boolean) => void;
 };
 
 function ControlMenuSection({ title, items }: { title: string; items: ControlMenuItem[] }) {
@@ -60,7 +61,8 @@ export function PromptControlMenu({
   onPauseGoal,
   onResumeGoal,
   onCompleteGoal,
-  onClearGoal
+  onClearGoal,
+  onOpenChange
 }: PromptControlMenuProps) {
   const [open, setOpen] = useState(false);
   const goalStatus = selectedThread?.goalStatus ?? null;
@@ -75,6 +77,14 @@ export function PromptControlMenu({
       setOpen(false);
     }
   }, [disabled]);
+
+  useEffect(() => {
+    onOpenChange?.(open);
+  }, [onOpenChange, open]);
+
+  useEffect(() => {
+    return () => onOpenChange?.(false);
+  }, [onOpenChange]);
 
   function select(action: () => void) {
     setOpen(false);

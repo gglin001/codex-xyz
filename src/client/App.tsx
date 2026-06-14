@@ -1120,7 +1120,6 @@ export function App() {
           className="mobile-composer"
           showStatus
           compact
-          collapsible
           projects={state.projects}
           workdir={workdir}
           matchingProject={matchingWorkdirProject}

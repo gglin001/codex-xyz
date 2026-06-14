@@ -135,6 +135,7 @@ export const PromptComposer = memo(function PromptComposer({
   const focusOnExpandRef = useRef(false);
   const [promptHeight, setPromptHeight] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(!collapsible);
+  const [controlsOpen, setControlsOpen] = useState(false);
   const promptPlaceholder = queueMode
     ? "Queue next turn"
     : goalMode
@@ -166,7 +167,8 @@ export const PromptComposer = memo(function PromptComposer({
     "prompt-composer",
     className,
     collapsible ? "collapsible" : null,
-    isExpanded ? "expanded" : "collapsed"
+    isExpanded ? "expanded" : "collapsed",
+    isExpanded && controlsOpen ? "controls-open" : null
   ]
     .filter(Boolean)
     .join(" ");
@@ -374,6 +376,7 @@ export const PromptComposer = memo(function PromptComposer({
                       onResumeGoal={onResumeGoal}
                       onCompleteGoal={onCompleteGoal}
                       onClearGoal={onClearGoal}
+                      onOpenChange={setControlsOpen}
                     />
                   </div>
                 </div>

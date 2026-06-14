@@ -2034,6 +2034,8 @@ button.active {
   }
 
   .mobile-composer {
+    position: relative;
+    z-index: 2;
     max-height: var(--mobile-composer-max-height);
     padding: 6px var(--mobile-edge-padding);
     border-top: 1px solid var(--border-strong);
@@ -2041,6 +2043,11 @@ button.active {
     overflow: auto;
     overscroll-behavior: contain;
     scrollbar-gutter: stable;
+  }
+
+  .mobile-composer.controls-open {
+    z-index: 12;
+    overflow: visible;
   }
 
   .mobile-composer .status-banner {
@@ -2069,12 +2076,13 @@ button.active {
   }
 
   .mobile-composer .composer-mode button,
-  .mobile-composer .prompt-option {
+  .mobile-composer .prompt-option,
+  .mobile-composer .prompt-submit {
+    height: 32px;
     min-height: 32px;
   }
 
   .mobile-composer .prompt-submit {
-    height: 38px;
     min-width: var(--mobile-control-size);
     margin-left: auto;
   }
