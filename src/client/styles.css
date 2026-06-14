@@ -467,6 +467,30 @@ button.active {
   box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
+.prompt-collapsed-trigger {
+  width: 100%;
+  min-width: 0;
+  height: 42px;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 12px;
+  border-color: var(--border);
+  background: var(--field-bg);
+  color: var(--muted-strong);
+  text-align: left;
+}
+
+.prompt-collapsed-trigger svg {
+  color: var(--accent);
+}
+
+.prompt-collapsed-trigger span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .prompt-resize-handle {
   display: flex;
   height: 10px;
@@ -1889,6 +1913,71 @@ button.active {
     padding-right: 0;
   }
 
+  .sessions {
+    gap: 7px;
+    padding: 10px var(--mobile-edge-padding);
+  }
+
+  .sessions .session-search {
+    min-height: 34px;
+    padding: 0 9px;
+  }
+
+  .sessions .session-search input {
+    height: 26px;
+  }
+
+  .sessions .session-virtual-row {
+    padding-bottom: 6px;
+  }
+
+  .sessions .session-group-heading {
+    font-size: 11px;
+  }
+
+  .sessions .session-group-count {
+    min-width: 18px;
+    padding: 1px 6px;
+    font-size: 10px;
+  }
+
+  .sessions .session-row {
+    contain-intrinsic-size: auto 52px;
+    height: 52px;
+    gap: 5px;
+    padding: 8px 9px;
+    border-radius: 7px;
+  }
+
+  .sessions .session-row.with-goal {
+    contain-intrinsic-size: auto 76px;
+    height: 76px;
+  }
+
+  .sessions .session-row-main {
+    gap: 8px;
+  }
+
+  .sessions .session-copy strong {
+    font-size: 15px;
+    line-height: 1.15;
+  }
+
+  .sessions .session-copy small {
+    font-size: 11px;
+    line-height: 1.2;
+  }
+
+  .sessions .session-status,
+  .sessions .session-goal-budget {
+    padding: 2px 6px;
+    font-size: 10px;
+  }
+
+  .sessions .empty-state.compact {
+    min-height: 36px;
+  }
+
   .transcript {
     flex: 1 1 auto;
     margin: 0 calc(-1 * var(--mobile-panel-padding));
@@ -1946,7 +2035,7 @@ button.active {
 
   .mobile-composer {
     max-height: var(--mobile-composer-max-height);
-    padding: 8px var(--mobile-edge-padding);
+    padding: 6px var(--mobile-edge-padding);
     border-top: 1px solid var(--border-strong);
     background: var(--panel-bg);
     overflow: auto;
@@ -1957,6 +2046,14 @@ button.active {
   .mobile-composer .status-banner {
     padding: 8px 10px;
     font-size: 12px;
+  }
+
+  .mobile-composer.collapsed {
+    padding: 6px var(--mobile-edge-padding) max(6px, env(safe-area-inset-bottom));
+  }
+
+  .mobile-composer.collapsed .prompt-collapsed-trigger {
+    height: 40px;
   }
 
   .mobile-composer .composer-mode {

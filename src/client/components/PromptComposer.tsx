@@ -18,6 +18,7 @@ export type PromptComposerProps = {
   className?: string;
   showStatus?: boolean;
   compact?: boolean;
+  collapsible?: boolean;
   projects: Project[];
   workdir: string;
   matchingProject: Project | null;
@@ -97,6 +98,7 @@ export const PromptComposer = memo(function PromptComposer({
   className,
   showStatus = false,
   compact = false,
+  collapsible = false,
   projects,
   workdir,
   matchingProject,
@@ -128,10 +130,11 @@ export const PromptComposer = memo(function PromptComposer({
   onCompleteGoal,
   onClearGoal
 }: PromptComposerProps) {
-  const classes = className ? `prompt-composer ${className}` : "prompt-composer";
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const resizeStateRef = useRef<PromptResizeState | null>(null);
+  const focusOnExpandRef = useRef(false);
   const [promptHeight, setPromptHeight] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState(!collapsible);
   const promptPlaceholder = queueMode
     ? "Queue next turn"
     : goalMode
@@ -155,6 +158,18 @@ export const PromptComposer = memo(function PromptComposer({
       ? "Goal mode requires an idle selected session"
       : "Goal mode requires a working directory";
   const newModeTitle = promptTarget === "new" && selectedThreadId ? "Use selected session" : "New session";
+  const PromptIcon = queueMode ? ListPlus : goalMode ? Target : promptTarget === "thread" ? Send : Plus;
+  const hasPrompt = prompt.trim().length > 0;
+  const hasStatus = Boolean(busy || busyAction || notice || error);
+  const isExpanded = !collapsible || expanded || hasPrompt || hasStatus;
+  const classes = [
+    "prompt-composer",
+    className,
+    collapsible ? "collapsible" : null,
+    isExpanded ? "expanded" : "collapsed"
+  ]
+    .filter(Boolean)
+    .join(" ");
   const handleNewModeClick = useCallback(() => {
     if (promptTarget === "new" && selectedThreadId) {
       onModeChange("thread");
@@ -162,6 +177,26 @@ export const PromptComposer = memo(function PromptComposer({
     }
     onModeChange("new");
   }, [onModeChange, promptTarget, selectedThreadId]);
+  const expandComposer = useCallback(() => {
+    focusOnExpandRef.current = true;
+    setExpanded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!collapsible) {
+      setExpanded(true);
+    }
+  }, [collapsible]);
+
+  useEffect(() => {
+    if (!isExpanded || !focusOnExpandRef.current) {
+      return;
+    }
+    focusOnExpandRef.current = false;
+    window.requestAnimationFrame(() => {
+      textareaRef.current?.focus({ preventScroll: true });
+    });
+  }, [isExpanded]);
 
   useEffect(() => {
     const handlePointerMove = (event: globalThis.PointerEvent) => {
@@ -211,110 +246,146 @@ export const PromptComposer = memo(function PromptComposer({
     },
     [busy, compact]
   );
+  const collapseAfterSubmit = useCallback(() => {
+    if (!collapsible) {
+      return;
+    }
+    focusOnExpandRef.current = false;
+    setPromptHeight(null);
+    setExpanded(false);
+  }, [collapsible]);
+  const handleSubmit = useCallback(
+    (event: FormEvent) => {
+      const shouldCollapse = collapsible && canSubmitPrompt;
+      onPromptSubmit(event);
+      if (shouldCollapse) {
+        collapseAfterSubmit();
+      }
+    },
+    [canSubmitPrompt, collapseAfterSubmit, collapsible, onPromptSubmit]
+  );
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLTextAreaElement>) => {
+      const shouldCollapse =
+        collapsible && canSubmitPrompt && event.key === "Enter" && event.metaKey && !event.nativeEvent.isComposing;
+      onPromptKeyDown(event);
+      if (shouldCollapse) {
+        collapseAfterSubmit();
+      }
+    },
+    [canSubmitPrompt, collapseAfterSubmit, collapsible, onPromptKeyDown]
+  );
 
   return (
     <div className={classes}>
-      {showStatus ? <StatusBanners busyAction={busyAction} notice={notice} error={error} /> : null}
+      {showStatus && isExpanded ? <StatusBanners busyAction={busyAction} notice={notice} error={error} /> : null}
 
-      <div className="composer-stack">
-        {promptTarget === "new" ? (
-          <WorkdirField
-            projects={projects}
-            value={workdir}
-            matchingProject={matchingProject}
-            disabled={busy}
-            onChange={onWorkdirChange}
-          />
-        ) : null}
+      {!isExpanded ? (
+        <button
+          type="button"
+          className="prompt-collapsed-trigger"
+          title={promptPlaceholder}
+          aria-label={promptPlaceholder}
+          onClick={expandComposer}
+        >
+          <PromptIcon size={16} />
+          <span>{promptPlaceholder}</span>
+        </button>
+      ) : null}
 
-        <form className="task-form" onSubmit={onPromptSubmit}>
-          <div className="prompt-shell">
-            <div
-              className="prompt-resize-handle"
-              role="separator"
-              aria-label="Resize prompt input"
-              aria-orientation="horizontal"
-              title="Drag up to resize prompt input"
-              onPointerDown={handlePromptResizePointerDown}
-            />
-            <textarea
-              ref={textareaRef}
-              value={prompt}
-              onChange={(event) => onPromptChange(event.target.value)}
-              onKeyDown={onPromptKeyDown}
-              placeholder={promptPlaceholder}
+      {isExpanded ? (
+        <div className="composer-stack">
+          {promptTarget === "new" ? (
+            <WorkdirField
+              projects={projects}
+              value={workdir}
+              matchingProject={matchingProject}
               disabled={busy}
-              style={promptHeight === null ? undefined : { height: `${promptHeight}px` }}
+              onChange={onWorkdirChange}
             />
-            <div className="prompt-toolbar">
-              <div className="prompt-toolbar-left">
-                <div className="composer-mode" role="group" aria-label="Session mode">
-                  <button
-                    type="button"
-                    className={promptTarget === "new" ? "active" : ""}
-                    title={newModeTitle}
-                    aria-pressed={promptTarget === "new"}
-                    onClick={handleNewModeClick}
-                  >
-                    <Plus size={15} />
-                    <span>New</span>
-                  </button>
-                </div>
-                <div className="prompt-options">
-                  <label
-                    className={`prompt-option ${goalMode ? "active" : ""} ${!canUseGoalMode || busy ? "disabled" : ""}`}
-                    title={goalModeTitle}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={goalMode}
-                      disabled={!canUseGoalMode || busy}
-                      onChange={(event) => onGoalModeChange(event.target.checked)}
+          ) : null}
+
+          <form className="task-form" onSubmit={handleSubmit}>
+            <div className="prompt-shell">
+              <div
+                className="prompt-resize-handle"
+                role="separator"
+                aria-label="Resize prompt input"
+                aria-orientation="horizontal"
+                title="Drag up to resize prompt input"
+                onPointerDown={handlePromptResizePointerDown}
+              />
+              <textarea
+                ref={textareaRef}
+                value={prompt}
+                onChange={(event) => onPromptChange(event.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={promptPlaceholder}
+                disabled={busy}
+                style={promptHeight === null ? undefined : { height: `${promptHeight}px` }}
+              />
+              <div className="prompt-toolbar">
+                <div className="prompt-toolbar-left">
+                  <div className="composer-mode" role="group" aria-label="Session mode">
+                    <button
+                      type="button"
+                      className={promptTarget === "new" ? "active" : ""}
+                      title={newModeTitle}
+                      aria-pressed={promptTarget === "new"}
+                      onClick={handleNewModeClick}
+                    >
+                      <Plus size={15} />
+                      <span>New</span>
+                    </button>
+                  </div>
+                  <div className="prompt-options">
+                    <label
+                      className={`prompt-option ${goalMode ? "active" : ""} ${!canUseGoalMode || busy ? "disabled" : ""}`}
+                      title={goalModeTitle}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={goalMode}
+                        disabled={!canUseGoalMode || busy}
+                        onChange={(event) => onGoalModeChange(event.target.checked)}
+                      />
+                      <span>Goal</span>
+                    </label>
+                    <label
+                      className={`prompt-option ${queueMode ? "active" : ""} ${!canUseQueueMode || busy ? "disabled" : ""}`}
+                      title={queueModeTitle}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={queueMode}
+                        disabled={!canUseQueueMode || busy}
+                        onChange={(event) => onQueueModeChange(event.target.checked)}
+                      />
+                      <span>Queue</span>
+                    </label>
+                    <PromptControlMenu
+                      selectedThread={selectedThread}
+                      selectedThreadId={selectedThreadId}
+                      busy={busy}
+                      onInterrupt={onInterrupt}
+                      onResume={onResume}
+                      onFork={onFork}
+                      onPauseGoal={onPauseGoal}
+                      onResumeGoal={onResumeGoal}
+                      onCompleteGoal={onCompleteGoal}
+                      onClearGoal={onClearGoal}
                     />
-                    <span>Goal</span>
-                  </label>
-                  <label
-                    className={`prompt-option ${queueMode ? "active" : ""} ${!canUseQueueMode || busy ? "disabled" : ""}`}
-                    title={queueModeTitle}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={queueMode}
-                      disabled={!canUseQueueMode || busy}
-                      onChange={(event) => onQueueModeChange(event.target.checked)}
-                    />
-                    <span>Queue</span>
-                  </label>
-                  <PromptControlMenu
-                    selectedThread={selectedThread}
-                    selectedThreadId={selectedThreadId}
-                    busy={busy}
-                    onInterrupt={onInterrupt}
-                    onResume={onResume}
-                    onFork={onFork}
-                    onPauseGoal={onPauseGoal}
-                    onResumeGoal={onResumeGoal}
-                    onCompleteGoal={onCompleteGoal}
-                    onClearGoal={onClearGoal}
-                  />
+                  </div>
                 </div>
+                <button className="prompt-submit" disabled={!canSubmitPrompt} title={submitTitle}>
+                  <PromptIcon size={16} />
+                  <span>Run</span>
+                </button>
               </div>
-              <button className="prompt-submit" disabled={!canSubmitPrompt} title={submitTitle}>
-                {queueMode ? (
-                  <ListPlus size={16} />
-                ) : goalMode ? (
-                  <Target size={16} />
-                ) : promptTarget === "thread" ? (
-                  <Send size={16} />
-                ) : (
-                  <Plus size={16} />
-                )}
-                <span>Run</span>
-              </button>
             </div>
-          </div>
-        </form>
-      </div>
+          </form>
+        </div>
+      ) : null}
     </div>
   );
 });

@@ -1079,6 +1079,7 @@ export function App() {
     >
       <div className="workspace" data-theme={theme} data-mobile-view={mobileView}>
         <SessionSidebar
+          compactMobile={isMobileViewport}
           busy={busy}
           theme={theme}
           nextTheme={nextTheme}
@@ -1119,6 +1120,7 @@ export function App() {
           className="mobile-composer"
           showStatus
           compact
+          collapsible
           projects={state.projects}
           workdir={workdir}
           matchingProject={matchingWorkdirProject}

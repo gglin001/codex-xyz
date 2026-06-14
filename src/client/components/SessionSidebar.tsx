@@ -8,6 +8,7 @@ import type { ThemeMode } from "./types.js";
 type SelectThreadHandler = (threadId: string) => void | Promise<void>;
 
 export type SessionSidebarProps = {
+  compactMobile?: boolean;
   busy: boolean;
   theme: ThemeMode;
   nextTheme: ThemeMode;
@@ -25,10 +26,13 @@ export type SessionSidebarProps = {
   onSelectThread: SelectThreadHandler;
 };
 
+type SessionGroupId = "active" | "attention" | "history";
+
 type SessionListEntry =
   | {
       kind: "heading";
       id: string;
+      groupId: SessionGroupId;
       title: string;
       count: number;
     }
@@ -40,6 +44,7 @@ type SessionListEntry =
   | {
       kind: "thread";
       id: string;
+      groupId: SessionGroupId;
       thread: ControlThread;
     }
   | {
@@ -50,9 +55,14 @@ type SessionListEntry =
 
 const compactSessionRowHeight = 64;
 const goalSessionRowHeight = 88;
+const mobileCompactSessionRowHeight = 58;
+const mobileGoalSessionRowHeight = 82;
 const sessionHeadingHeight = 30;
 const sessionEmptyHeight = 50;
 const sessionLoadMoreHeight = 52;
+const mobileSessionHeadingHeight = 26;
+const mobileSessionEmptyHeight = 42;
+const mobileSessionLoadMoreHeight = 46;
 const sessionOverscanRows = 5;
 const loadMoreScrollThreshold = 320;
 
@@ -60,27 +70,37 @@ function threadHasGoal(thread: ControlThread) {
   return Boolean(thread.goalObjective && thread.goalStatus && thread.goalStatus !== "cleared");
 }
 
-function sessionEntryHeight(entry: SessionListEntry) {
+function sessionEntryHeight(entry: SessionListEntry, compactMobile: boolean) {
   if (entry.kind === "thread") {
+    if (compactMobile) {
+      return threadHasGoal(entry.thread) ? mobileGoalSessionRowHeight : mobileCompactSessionRowHeight;
+    }
     return threadHasGoal(entry.thread) ? goalSessionRowHeight : compactSessionRowHeight;
   }
   if (entry.kind === "heading") {
-    return sessionHeadingHeight;
+    return compactMobile ? mobileSessionHeadingHeight : sessionHeadingHeight;
   }
   if (entry.kind === "loadMore") {
-    return sessionLoadMoreHeight;
+    return compactMobile ? mobileSessionLoadMoreHeight : sessionLoadMoreHeight;
   }
-  return sessionEmptyHeight;
+  return compactMobile ? mobileSessionEmptyHeight : sessionEmptyHeight;
 }
 
 function buildSessionEntries(
   sessionList: SessionListModel,
   options: {
+    compactMobile: boolean;
     loadingMoreThreads: boolean;
   }
 ): SessionListEntry[] {
   const entries: SessionListEntry[] = [];
-  const groups = [
+  const groups: {
+    id: SessionGroupId;
+    title: string;
+    threads: ControlThread[];
+    emptyLabel: string;
+    emptyQueryLabel: string;
+  }[] = [
     {
       id: "active",
       title: "Active",
@@ -103,15 +123,29 @@ function buildSessionEntries(
       emptyQueryLabel: "No matching history"
     }
   ];
+  const hasAnyThreads = groups.some((group) => group.threads.length > 0);
+  let compactEmptyShown = false;
 
   for (const group of groups) {
     entries.push({
       kind: "heading",
       id: `heading:${group.id}`,
+      groupId: group.id,
       title: group.title,
       count: group.threads.length
     });
     if (group.threads.length === 0) {
+      if (options.compactMobile) {
+        if (!hasAnyThreads && !compactEmptyShown) {
+          compactEmptyShown = true;
+          entries.push({
+            kind: "empty",
+            id: "empty:all",
+            label: sessionList.hasQuery ? "No matching sessions" : "No sessions"
+          });
+        }
+        continue;
+      }
       entries.push({
         kind: "empty",
         id: `empty:${group.id}`,
@@ -123,6 +157,7 @@ function buildSessionEntries(
       entries.push({
         kind: "thread",
         id: `thread:${thread.id}`,
+        groupId: group.id,
         thread
       });
     }
@@ -211,6 +246,7 @@ const SessionRow = memo(function SessionRow({
 });
 
 const VirtualSessionList = memo(function VirtualSessionList({
+  compactMobile,
   sessionList,
   runtimeIssuesByThreadId,
   selectedThreadId,
@@ -218,6 +254,7 @@ const VirtualSessionList = memo(function VirtualSessionList({
   onLoadMoreThreads,
   onSelectThread
 }: {
+  compactMobile: boolean;
   sessionList: SessionListModel;
   runtimeIssuesByThreadId: ReadonlyMap<string, RuntimeSyncIssue>;
   selectedThreadId: string | null;
@@ -229,16 +266,16 @@ const VirtualSessionList = memo(function VirtualSessionList({
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const entries = useMemo(
-    () => buildSessionEntries(sessionList, { loadingMoreThreads }),
-    [loadingMoreThreads, sessionList]
+    () => buildSessionEntries(sessionList, { compactMobile, loadingMoreThreads }),
+    [compactMobile, loadingMoreThreads, sessionList]
   );
   const offsets = useMemo(() => {
     const values = [0];
     for (const entry of entries) {
-      values.push(values[values.length - 1] + sessionEntryHeight(entry));
+      values.push(values[values.length - 1] + sessionEntryHeight(entry, compactMobile));
     }
     return values;
-  }, [entries]);
+  }, [compactMobile, entries]);
   const totalHeight = offsets[offsets.length - 1] ?? 0;
   const visibleRange = useMemo(() => {
     const first = Math.max(0, upperBound(offsets, scrollTop) - 1 - sessionOverscanRows);
@@ -304,11 +341,11 @@ const VirtualSessionList = memo(function VirtualSessionList({
         {entries.slice(visibleRange.first, visibleRange.last).map((entry, localIndex) => {
           const index = visibleRange.first + localIndex;
           const top = offsets[index] ?? 0;
-          const height = sessionEntryHeight(entry);
+          const height = sessionEntryHeight(entry, compactMobile);
           return (
             <div
               key={entry.id}
-              className={`session-virtual-row ${entry.kind}`}
+              className={`session-virtual-row ${entry.kind} ${"groupId" in entry ? entry.groupId : ""}`}
               style={{ height, transform: `translateY(${top}px)` }}
             >
               {entry.kind === "heading" ? (
@@ -345,6 +382,7 @@ const VirtualSessionList = memo(function VirtualSessionList({
 });
 
 export const SessionSidebar = memo(function SessionSidebar({
+  compactMobile = false,
   busy,
   theme,
   nextTheme,
@@ -406,6 +444,7 @@ export const SessionSidebar = memo(function SessionSidebar({
       </label>
 
       <VirtualSessionList
+        compactMobile={compactMobile}
         sessionList={sessionList}
         runtimeIssuesByThreadId={runtimeIssuesByThreadId}
         selectedThreadId={selectedThreadId}
