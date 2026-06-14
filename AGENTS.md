@@ -46,15 +46,16 @@ Prefer test adapters and temporary directories for service or HTTP behavior. Run
 
 Before starting a dev server for manual validation, resolve the expected UI/API URLs from environment variables, falling back to the defaults (`http://127.0.0.1:1123` and `http://127.0.0.1:3211`) when unset. If services already respond there, assume the user has started testing and use those hot-reloading services instead of launching another server.
 
-### Playwright Manual Validation
+### Browser Manual Validation
 
-Use Playwright for UI screenshots and quick interaction checks. Prefer the existing UI service from `CODEX_XYZ_UI_URL`, falling back to `http://127.0.0.1:1123`.
+Use `tools/agent/browser.mjs` for UI screenshots, quick interaction checks, and scripted browser debugging. Prefer the existing UI service from `CODEX_XYZ_UI_URL`, falling back to `http://127.0.0.1:1123`.
 
 ```sh
-playwright screenshot --channel chrome --viewport-size=390,844 --wait-for-selector '.sessions-header' --wait-for-timeout 1000 "${CODEX_XYZ_UI_URL:-http://127.0.0.1:1123}" debug_agent/mobile.png
+node tools/agent/browser.mjs screenshot --viewport 390,844 --wait-selector '.sessions-header' --wait-timeout 1000 --output mobile.png
+node tools/agent/browser.mjs run --wait-selector '.sessions-header' --click '.sidebar-settings-trigger' --wait-selector '.sidebar-settings-popover' --screenshot settings.png
 ```
 
-Use `--channel chrome` to avoid requiring bundled Playwright browsers. Quote complex selectors, and store disposable screenshots or traces under `debug_agent/`.
+Relative outputs default to `debug_agent/`. Use `node tools/agent/browser.mjs --help` for the current flags.
 
 ## Commit & Pull Request Guidelines
 
