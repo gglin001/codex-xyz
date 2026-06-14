@@ -139,6 +139,7 @@ function getViewportProfile(): ViewportProfile {
         "--mobile-panel-padding": "14px",
         "--mobile-edge-padding": "10px",
         "--mobile-gap": "10px",
+        "--mobile-header-control-size": "34px",
         "--mobile-control-size": "40px"
       }
     };
@@ -168,6 +169,7 @@ function getViewportProfile(): ViewportProfile {
   const panelPadding = density === "dense" ? 10 : density === "compact" ? 12 : 14;
   const edgePadding = density === "dense" ? 8 : 10;
   const mobileGap = density === "dense" ? 7 : density === "compact" ? 8 : 10;
+  const mobileHeaderControlSize = density === "dense" ? 30 : density === "compact" ? 32 : 34;
   const mobileControlSize = density === "dense" ? 38 : 40;
 
   return {
@@ -188,6 +190,7 @@ function getViewportProfile(): ViewportProfile {
       "--mobile-panel-padding": `${panelPadding}px`,
       "--mobile-edge-padding": `${edgePadding}px`,
       "--mobile-gap": `${mobileGap}px`,
+      "--mobile-header-control-size": `${mobileHeaderControlSize}px`,
       "--mobile-control-size": `${mobileControlSize}px`
     }
   };
@@ -1120,6 +1123,7 @@ export function App() {
           className="mobile-composer"
           showStatus
           compact
+          collapsible
           projects={state.projects}
           workdir={workdir}
           matchingProject={matchingWorkdirProject}

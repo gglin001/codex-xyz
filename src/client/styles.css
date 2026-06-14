@@ -15,6 +15,7 @@
   --mobile-panel-padding: 14px;
   --mobile-edge-padding: 10px;
   --mobile-gap: 10px;
+  --mobile-header-control-size: 34px;
   --mobile-control-size: 40px;
 
   --app-bg: #0f1011;
@@ -1918,6 +1919,35 @@ button.active {
     padding: 10px var(--mobile-edge-padding);
   }
 
+  .sessions-header {
+    min-height: var(--mobile-header-control-size);
+  }
+
+  .sessions-title strong {
+    font-size: 11px;
+  }
+
+  .sessions-header .panel-header-actions {
+    gap: 6px;
+  }
+
+  .sessions-header .panel-header-actions > svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .sessions-header button {
+    width: var(--mobile-header-control-size);
+    min-width: var(--mobile-header-control-size);
+    height: var(--mobile-header-control-size);
+    border-radius: 7px;
+  }
+
+  .sessions-header button svg {
+    width: 14px;
+    height: 14px;
+  }
+
   .sessions .session-search {
     min-height: 34px;
     padding: 0 9px;
@@ -1981,7 +2011,8 @@ button.active {
   .transcript {
     flex: 1 1 auto;
     margin: 0 calc(-1 * var(--mobile-panel-padding));
-    padding: 8px var(--mobile-edge-padding);
+    gap: 8px;
+    padding: 6px var(--mobile-edge-padding);
     border-right: 0;
     border-left: 0;
     border-radius: 0;
@@ -1992,24 +2023,85 @@ button.active {
     border-radius: 7px;
   }
 
+  .item-meta {
+    align-items: center;
+    flex-direction: row;
+    min-height: 34px;
+    padding: 6px 8px;
+  }
+
+  .item-meta-right {
+    width: auto;
+    justify-content: flex-end;
+  }
+
+  .transcript pre {
+    padding: 10px;
+    line-height: 1.48;
+  }
+
+  .process-group-toggle {
+    align-items: center;
+    flex-direction: row;
+    min-height: 46px;
+    gap: 8px;
+    padding: 7px 8px;
+  }
+
+  .process-step-toggle {
+    align-items: center;
+    flex-direction: row;
+    min-height: 34px;
+    padding: 6px 8px;
+  }
+
+  .process-group-meta,
+  .process-step-right {
+    width: auto;
+    justify-content: flex-end;
+  }
+
+  .process-step pre {
+    padding: 9px 10px;
+  }
+
   .session-facts {
-    gap: 6px;
-    padding-bottom: 2px;
+    gap: 5px;
+    margin: -1px calc(-1 * var(--mobile-panel-padding)) 0;
+    padding: 0 var(--mobile-edge-padding) 1px;
+    scrollbar-width: none;
   }
 
   .session-facts div,
   .session-facts .wide {
-    padding: 7px 9px;
+    min-height: 28px;
+    gap: 5px;
+    padding: 4px 8px;
+    border-radius: 7px;
+  }
+
+  .session-facts::-webkit-scrollbar {
+    display: none;
+  }
+
+  .session-facts span {
+    font-size: 10px;
   }
 
   .session-facts strong {
     font-size: 12px;
+    line-height: 1.1;
+  }
+
+  .fact-status {
+    padding: 2px 6px;
   }
 
   .detail-header {
     align-items: center;
     flex-direction: row;
-    gap: 8px;
+    gap: 6px;
+    min-height: var(--mobile-header-control-size);
   }
 
   .detail-header .title-stack {
@@ -2021,15 +2113,26 @@ button.active {
   }
 
   .title-editor input {
-    height: 36px;
+    height: var(--mobile-header-control-size);
     min-width: 0;
     font-size: 16px;
+  }
+
+  .detail-header button {
+    min-width: var(--mobile-header-control-size);
+    height: var(--mobile-header-control-size);
+    border-radius: 7px;
+  }
+
+  .detail-header button svg {
+    width: 15px;
+    height: 15px;
   }
 
   .mobile-back-button {
     display: inline-flex;
     flex: 0 0 auto;
-    width: var(--mobile-control-size);
+    width: var(--mobile-header-control-size);
     padding: 0;
   }
 
@@ -2056,11 +2159,11 @@ button.active {
   }
 
   .mobile-composer.collapsed {
-    padding: 6px var(--mobile-edge-padding) max(6px, env(safe-area-inset-bottom));
+    padding: 5px var(--mobile-edge-padding) max(5px, env(safe-area-inset-bottom));
   }
 
   .mobile-composer.collapsed .prompt-collapsed-trigger {
-    height: 40px;
+    height: 38px;
   }
 
   .mobile-composer .composer-mode {
@@ -2169,7 +2272,22 @@ button.active {
 
   .app-shell[data-ui-density="dense"] .session-facts div,
   .app-shell[data-ui-density="dense"] .session-facts .wide {
-    padding: 6px 8px;
+    min-height: 26px;
+    padding: 3px 7px;
+  }
+
+  .app-shell[data-viewport-width="tiny"] .item-meta,
+  .app-shell[data-viewport-width="tiny"] .process-group-toggle,
+  .app-shell[data-viewport-width="tiny"] .process-step-toggle {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .app-shell[data-viewport-width="tiny"] .item-meta-right,
+  .app-shell[data-viewport-width="tiny"] .process-group-meta,
+  .app-shell[data-viewport-width="tiny"] .process-step-right {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .app-shell[data-keyboard-visible="true"] .mobile-composer {
