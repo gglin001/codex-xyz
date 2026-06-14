@@ -148,6 +148,10 @@ function writeSse(response: ServerResponse, event: string, data: unknown, id?: n
   response.write(formatSse(event, data, id));
 }
 
+function writeSseConnected(response: ServerResponse) {
+  response.write(": connected\n\n");
+}
+
 class TerminalSseConnection {
   private readonly pauseToken = Symbol("terminal-sse");
   private readonly queue: string[] = [];
@@ -394,6 +398,7 @@ async function handleApi(context: HandlerContext) {
       connection: "keep-alive",
       "x-accel-buffering": "no"
     });
+    writeSseConnected(response);
     const after = Number(url.searchParams.get("after") ?? 0);
     for (const event of service.replayEvents(Number.isFinite(after) ? after : 0, { summaryOnly: true })) {
       writeSse(response, event.type, event, event.id);
@@ -425,6 +430,7 @@ async function handleApi(context: HandlerContext) {
       connection: "keep-alive",
       "x-accel-buffering": "no"
     });
+    writeSseConnected(response);
     const after = Number(url.searchParams.get("after") ?? 0);
     const terminalSse = new TerminalSseConnection(response, service);
     for (const event of service.terminal.replay(Number.isFinite(after) ? after : 0)) {
@@ -549,6 +555,7 @@ async function handleApi(context: HandlerContext) {
         connection: "keep-alive",
         "x-accel-buffering": "no"
       });
+      writeSseConnected(response);
       const after = Number(url.searchParams.get("after") ?? 0);
       for (const event of service.replayEvents(Number.isFinite(after) ? after : 0, { threadId })) {
         writeSse(response, event.type, event, event.id);

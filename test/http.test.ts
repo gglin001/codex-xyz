@@ -112,6 +112,38 @@ async function noContent(path: string, init?: RequestInit) {
   expect(response.status).toBe(204);
 }
 
+async function firstStreamChunk(path: string, init?: RequestInit) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => {
+    controller.abort(new Error("Timed out waiting for the first stream chunk"));
+  }, 500);
+  try {
+    const response = await fetch(`${baseUrl}${path}`, {
+      ...init,
+      signal: controller.signal,
+      headers: {
+        "content-type": "application/json",
+        ...init?.headers
+      }
+    });
+    expect(response.ok).toBe(true);
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error("Expected a response body");
+    }
+    const chunk = await reader.read();
+    await reader.cancel();
+    expect(chunk.done).toBe(false);
+    return {
+      response,
+      text: new TextDecoder().decode(chunk.value)
+    };
+  } finally {
+    clearTimeout(timeout);
+    controller.abort();
+  }
+}
+
 async function waitFor(assertion: () => boolean | Promise<boolean>, label: string) {
   const deadline = Date.now() + 1_000;
   while (Date.now() < deadline) {
@@ -277,6 +309,28 @@ describe("HTTP API", () => {
 
     expect(response.ok).toBe(true);
     expect(response.headers.get("access-control-allow-origin")).toBe("http://127.0.0.1:1123");
+  });
+
+  it("opens idle thread event streams with an immediate SSE frame", async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    server = createHttpServer(service, {
+      corsOrigins: ["http://10.203.39.174:1123"]
+    });
+    await listen();
+
+    const project = service.listProjects()[0];
+    const thread = threadFixture(1, project.id);
+    service.store.createThread(thread);
+
+    const { response, text } = await firstStreamChunk(`/api/threads/${thread.id}/events?after=999999`, {
+      headers: {
+        origin: "http://10.203.39.174:1123"
+      }
+    });
+
+    expect(response.headers.get("access-control-allow-origin")).toBe("http://10.203.39.174:1123");
+    expect(response.headers.get("content-type")).toContain("text/event-stream");
+    expect(text).toBe(": connected\n\n");
   });
 
   it("creates a project from a working directory path", async () => {
