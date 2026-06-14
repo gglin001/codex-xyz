@@ -351,38 +351,36 @@ export const PromptComposer = memo(function PromptComposer({
                       type="button"
                       className={promptTarget === "new" ? "active" : ""}
                       title={newModeTitle}
+                      aria-label={newModeTitle}
                       aria-pressed={promptTarget === "new"}
                       onClick={handleNewModeClick}
                     >
                       <Plus size={15} />
-                      <span>New</span>
                     </button>
                   </div>
                   <div className="prompt-options">
-                    <label
+                    <button
+                      type="button"
                       className={`prompt-option ${goalMode ? "active" : ""} ${!canUseGoalMode || busy ? "disabled" : ""}`}
                       title={goalModeTitle}
+                      aria-label={goalModeTitle}
+                      aria-pressed={goalMode}
+                      disabled={!canUseGoalMode || busy}
+                      onClick={() => onGoalModeChange(!goalMode)}
                     >
-                      <input
-                        type="checkbox"
-                        checked={goalMode}
-                        disabled={!canUseGoalMode || busy}
-                        onChange={(event) => onGoalModeChange(event.target.checked)}
-                      />
-                      <span>Goal</span>
-                    </label>
-                    <label
+                      <Target size={15} />
+                    </button>
+                    <button
+                      type="button"
                       className={`prompt-option ${queueMode ? "active" : ""} ${!canUseQueueMode || busy ? "disabled" : ""}`}
                       title={queueModeTitle}
+                      aria-label={queueModeTitle}
+                      aria-pressed={queueMode}
+                      disabled={!canUseQueueMode || busy}
+                      onClick={() => onQueueModeChange(!queueMode)}
                     >
-                      <input
-                        type="checkbox"
-                        checked={queueMode}
-                        disabled={!canUseQueueMode || busy}
-                        onChange={(event) => onQueueModeChange(event.target.checked)}
-                      />
-                      <span>Queue</span>
-                    </label>
+                      <ListPlus size={15} />
+                    </button>
                     <PromptControlMenu
                       selectedThread={selectedThread}
                       selectedThreadId={selectedThreadId}

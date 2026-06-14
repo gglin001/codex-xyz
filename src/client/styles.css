@@ -373,22 +373,14 @@ button.active {
 }
 
 .composer-mode button {
-  width: auto;
-  min-width: 0;
+  width: 32px;
+  min-width: 32px;
   height: 32px;
-  gap: 5px;
-  padding: 0 9px;
+  padding: 0;
   border-color: var(--border);
   border-radius: 7px;
   background: var(--surface-bg);
   font-size: 12px;
-}
-
-.composer-mode span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .composer-stack,
@@ -595,9 +587,12 @@ button.active {
 .prompt-option {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
   min-height: 32px;
-  gap: 5px;
-  padding: 0 8px;
+  padding: 0;
   border: 1px solid var(--border);
   border-radius: 7px;
   background: var(--surface-bg);
@@ -624,25 +619,6 @@ button.active {
 
 .prompt-option.disabled:hover {
   border-color: var(--border);
-}
-
-.prompt-option input {
-  width: 13px;
-  height: 13px;
-  margin: 0;
-  accent-color: var(--accent);
-}
-
-.prompt-option input:disabled {
-  cursor: not-allowed;
-}
-
-.prompt-option input:disabled + span {
-  color: var(--muted);
-}
-
-.prompt-option span {
-  white-space: nowrap;
 }
 
 .prompt-control-menu {
@@ -674,11 +650,13 @@ button.active {
 
 .prompt-control-popover {
   position: absolute;
-  right: 0;
+  left: 0;
   bottom: calc(100% + 8px);
   z-index: 10;
   display: grid;
+  width: max-content;
   min-width: 178px;
+  max-width: min(240px, calc(100vw - 24px));
   gap: 6px;
   padding: 7px;
   border: 1px solid var(--border-strong);
@@ -2225,10 +2203,6 @@ button.active {
 
   .terminal-dock-body {
     padding: 6px var(--mobile-edge-padding) max(8px, env(safe-area-inset-bottom));
-  }
-
-  .app-shell[data-viewport-width="tiny"] .mobile-composer .composer-mode button span {
-    display: none;
   }
 
   .app-shell[data-ui-density="dense"] .mobile-composer .status-banner,
