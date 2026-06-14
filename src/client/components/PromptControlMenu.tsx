@@ -1,4 +1,4 @@
-import { CheckCircle2, GitFork, Pause, Play, RotateCw, Square, Trash2 } from "lucide-react";
+import { CheckCircle2, GitFork, MoreHorizontal, Pause, Play, RotateCw, Square, Trash2 } from "lucide-react";
 import type { FocusEvent, KeyboardEvent, ReactNode } from "react";
 import { useEffect, useState } from "react";
 import type { ControlThread } from "../../server/domain.js";
@@ -182,7 +182,7 @@ export function PromptControlMenu({
         disabled={disabled}
         onClick={() => setOpen((current) => !current)}
       >
-        ...
+        <MoreHorizontal size={16} />
       </button>
       {open ? (
         <div className="prompt-control-popover" role="menu">

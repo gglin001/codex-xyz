@@ -8,7 +8,7 @@ import type { ThemeMode } from "./types.js";
 type SelectThreadHandler = (threadId: string) => void | Promise<void>;
 
 export type SessionSidebarProps = {
-  compactMobile?: boolean;
+  density?: SessionListDensity;
   busy: boolean;
   theme: ThemeMode;
   nextTheme: ThemeMode;
@@ -27,6 +27,7 @@ export type SessionSidebarProps = {
 };
 
 type SessionGroupId = "active" | "attention" | "history";
+export type SessionListDensity = "regular" | "compact";
 
 type SessionListEntry =
   | {
@@ -53,16 +54,31 @@ type SessionListEntry =
       loading: boolean;
     };
 
-const compactSessionRowHeight = 64;
-const goalSessionRowHeight = 88;
-const mobileCompactSessionRowHeight = 58;
-const mobileGoalSessionRowHeight = 82;
-const sessionHeadingHeight = 30;
-const sessionEmptyHeight = 50;
-const sessionLoadMoreHeight = 52;
-const mobileSessionHeadingHeight = 26;
-const mobileSessionEmptyHeight = 42;
-const mobileSessionLoadMoreHeight = 46;
+const sessionEntryHeights: Record<
+  SessionListDensity,
+  {
+    compactRow: number;
+    goalRow: number;
+    heading: number;
+    empty: number;
+    loadMore: number;
+  }
+> = {
+  regular: {
+    compactRow: 64,
+    goalRow: 88,
+    heading: 30,
+    empty: 50,
+    loadMore: 52
+  },
+  compact: {
+    compactRow: 58,
+    goalRow: 82,
+    heading: 26,
+    empty: 42,
+    loadMore: 46
+  }
+};
 const sessionOverscanRows = 5;
 const loadMoreScrollThreshold = 320;
 
@@ -70,26 +86,23 @@ function threadHasGoal(thread: ControlThread) {
   return Boolean(thread.goalObjective && thread.goalStatus && thread.goalStatus !== "cleared");
 }
 
-function sessionEntryHeight(entry: SessionListEntry, compactMobile: boolean) {
+function sessionEntryHeight(entry: SessionListEntry, density: SessionListDensity) {
+  const heights = sessionEntryHeights[density];
   if (entry.kind === "thread") {
-    if (compactMobile) {
-      return threadHasGoal(entry.thread) ? mobileGoalSessionRowHeight : mobileCompactSessionRowHeight;
-    }
-    return threadHasGoal(entry.thread) ? goalSessionRowHeight : compactSessionRowHeight;
+    return threadHasGoal(entry.thread) ? heights.goalRow : heights.compactRow;
   }
   if (entry.kind === "heading") {
-    return compactMobile ? mobileSessionHeadingHeight : sessionHeadingHeight;
+    return heights.heading;
   }
   if (entry.kind === "loadMore") {
-    return compactMobile ? mobileSessionLoadMoreHeight : sessionLoadMoreHeight;
+    return heights.loadMore;
   }
-  return compactMobile ? mobileSessionEmptyHeight : sessionEmptyHeight;
+  return heights.empty;
 }
 
 function buildSessionEntries(
   sessionList: SessionListModel,
   options: {
-    compactMobile: boolean;
     loadingMoreThreads: boolean;
   }
 ): SessionListEntry[] {
@@ -98,35 +111,45 @@ function buildSessionEntries(
     id: SessionGroupId;
     title: string;
     threads: ControlThread[];
-    emptyLabel: string;
-    emptyQueryLabel: string;
   }[] = [
     {
       id: "active",
       title: "Active",
-      threads: sessionList.activeThreads,
-      emptyLabel: "No active sessions",
-      emptyQueryLabel: "No matching active sessions"
+      threads: sessionList.activeThreads
     },
     {
       id: "attention",
       title: "Needs attention",
-      threads: sessionList.attentionThreads,
-      emptyLabel: "No attention needed",
-      emptyQueryLabel: "No matching attention"
+      threads: sessionList.attentionThreads
     },
     {
       id: "history",
       title: "History",
-      threads: sessionList.otherThreads,
-      emptyLabel: "No history",
-      emptyQueryLabel: "No matching history"
+      threads: sessionList.otherThreads
     }
   ];
   const hasAnyThreads = groups.some((group) => group.threads.length > 0);
-  let compactEmptyShown = false;
+
+  if (!hasAnyThreads) {
+    entries.push({
+      kind: "empty",
+      id: "empty:all",
+      label: sessionList.hasQuery ? "No matching sessions" : "No sessions"
+    });
+    if (sessionList.hasMoreThreads) {
+      entries.push({
+        kind: "loadMore",
+        id: "load-more",
+        loading: options.loadingMoreThreads
+      });
+    }
+    return entries;
+  }
 
   for (const group of groups) {
+    if (group.threads.length === 0) {
+      continue;
+    }
     entries.push({
       kind: "heading",
       id: `heading:${group.id}`,
@@ -134,25 +157,6 @@ function buildSessionEntries(
       title: group.title,
       count: group.threads.length
     });
-    if (group.threads.length === 0) {
-      if (options.compactMobile) {
-        if (!hasAnyThreads && !compactEmptyShown) {
-          compactEmptyShown = true;
-          entries.push({
-            kind: "empty",
-            id: "empty:all",
-            label: sessionList.hasQuery ? "No matching sessions" : "No sessions"
-          });
-        }
-        continue;
-      }
-      entries.push({
-        kind: "empty",
-        id: `empty:${group.id}`,
-        label: sessionList.hasQuery ? group.emptyQueryLabel : group.emptyLabel
-      });
-      continue;
-    }
     for (const thread of group.threads) {
       entries.push({
         kind: "thread",
@@ -246,7 +250,7 @@ const SessionRow = memo(function SessionRow({
 });
 
 const VirtualSessionList = memo(function VirtualSessionList({
-  compactMobile,
+  density,
   sessionList,
   runtimeIssuesByThreadId,
   selectedThreadId,
@@ -254,7 +258,7 @@ const VirtualSessionList = memo(function VirtualSessionList({
   onLoadMoreThreads,
   onSelectThread
 }: {
-  compactMobile: boolean;
+  density: SessionListDensity;
   sessionList: SessionListModel;
   runtimeIssuesByThreadId: ReadonlyMap<string, RuntimeSyncIssue>;
   selectedThreadId: string | null;
@@ -266,16 +270,16 @@ const VirtualSessionList = memo(function VirtualSessionList({
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const entries = useMemo(
-    () => buildSessionEntries(sessionList, { compactMobile, loadingMoreThreads }),
-    [compactMobile, loadingMoreThreads, sessionList]
+    () => buildSessionEntries(sessionList, { loadingMoreThreads }),
+    [loadingMoreThreads, sessionList]
   );
   const offsets = useMemo(() => {
     const values = [0];
     for (const entry of entries) {
-      values.push(values[values.length - 1] + sessionEntryHeight(entry, compactMobile));
+      values.push(values[values.length - 1] + sessionEntryHeight(entry, density));
     }
     return values;
-  }, [compactMobile, entries]);
+  }, [density, entries]);
   const totalHeight = offsets[offsets.length - 1] ?? 0;
   const visibleRange = useMemo(() => {
     const first = Math.max(0, upperBound(offsets, scrollTop) - 1 - sessionOverscanRows);
@@ -341,7 +345,7 @@ const VirtualSessionList = memo(function VirtualSessionList({
         {entries.slice(visibleRange.first, visibleRange.last).map((entry, localIndex) => {
           const index = visibleRange.first + localIndex;
           const top = offsets[index] ?? 0;
-          const height = sessionEntryHeight(entry, compactMobile);
+          const height = sessionEntryHeight(entry, density);
           return (
             <div
               key={entry.id}
@@ -382,7 +386,7 @@ const VirtualSessionList = memo(function VirtualSessionList({
 });
 
 export const SessionSidebar = memo(function SessionSidebar({
-  compactMobile = false,
+  density = "regular",
   busy,
   theme,
   nextTheme,
@@ -444,7 +448,7 @@ export const SessionSidebar = memo(function SessionSidebar({
       </label>
 
       <VirtualSessionList
-        compactMobile={compactMobile}
+        density={density}
         sessionList={sessionList}
         runtimeIssuesByThreadId={runtimeIssuesByThreadId}
         selectedThreadId={selectedThreadId}

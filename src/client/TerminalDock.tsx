@@ -155,6 +155,7 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
   const label = statusLabel(snapshot, connection);
   const metricsLabel = terminalMetricsLabel(metrics, snapshot);
   const metricsTitle = terminalMetricsTitle(metrics, snapshot);
+  const startActionLabel = canStop ? "Reconnect terminal" : "Start terminal";
 
   useEffect(() => {
     const terminal = terminalRef.current;
@@ -585,13 +586,17 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
           {snapshot ? <small>{snapshot.command}</small> : null}
         </div>
         <div className="terminal-dock-actions">
-          <button type="button" title="Reconnect terminal" aria-label="Reconnect terminal" onClick={startOrAttach}>
+          <button type="button" title={startActionLabel} aria-label={startActionLabel} onClick={startOrAttach}>
             {canStop ? <RotateCw size={15} /> : <Play size={15} />}
-            <span>{canStop ? "Reconnect" : "Start"}</span>
           </button>
-          <button type="button" title="Stop terminal process" disabled={!canStop} onClick={stopTerminal}>
+          <button
+            type="button"
+            title="Stop terminal process"
+            aria-label="Stop terminal process"
+            disabled={!canStop}
+            onClick={stopTerminal}
+          >
             <Square size={15} />
-            <span>Stop</span>
           </button>
           <button type="button" title="Hide terminal" aria-label="Hide terminal" onClick={onClose}>
             <X size={16} />

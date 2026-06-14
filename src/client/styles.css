@@ -342,6 +342,11 @@ button.active {
   min-width: 0;
 }
 
+.prompt-composer.controls-open {
+  position: relative;
+  z-index: 12;
+}
+
 .detail-composer {
   flex: 0 0 auto;
   margin: 0 -2px;
@@ -370,7 +375,7 @@ button.active {
 .composer-mode button {
   width: auto;
   min-width: 0;
-  height: 30px;
+  height: 32px;
   gap: 5px;
   padding: 0 9px;
   border-color: var(--border);
@@ -527,7 +532,7 @@ button.active {
   color: var(--text);
   line-height: 1.45;
   outline: none;
-  resize: vertical;
+  resize: none;
 }
 
 .title-editor input,
@@ -558,12 +563,16 @@ button.active {
 }
 
 .prompt-toolbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   display: flex;
   min-width: 0;
   align-items: flex-end;
   justify-content: space-between;
   gap: 8px;
   padding: 0 8px 8px;
+  background: var(--field-bg);
 }
 
 .prompt-toolbar-left {
@@ -580,13 +589,13 @@ button.active {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  min-height: 30px;
+  min-height: 32px;
 }
 
 .prompt-option {
   display: inline-flex;
   align-items: center;
-  min-height: 30px;
+  min-height: 32px;
   gap: 5px;
   padding: 0 8px;
   border: 1px solid var(--border);
@@ -643,9 +652,9 @@ button.active {
 }
 
 .prompt-control-trigger {
-  width: 30px;
-  min-width: 30px;
-  height: 30px;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
   padding: 0;
   border-color: var(--border);
   border-radius: 7px;
@@ -728,9 +737,10 @@ button.active {
 
 .prompt-submit {
   flex: 0 0 auto;
+  width: 32px;
+  min-width: 32px;
   height: 32px;
-  gap: 6px;
-  padding: 0 10px;
+  padding: 0;
   border-color: var(--accent);
   background: var(--accent-soft);
   color: var(--accent-text);
@@ -1395,11 +1405,11 @@ button.active {
   display: flex;
   width: 100%;
   height: auto;
-  min-height: 52px;
+  min-height: 48px;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 9px 10px;
+  gap: 8px;
+  padding: 8px 10px;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -1468,11 +1478,11 @@ button.active {
   display: flex;
   width: 100%;
   height: auto;
-  min-height: 38px;
+  min-height: 36px;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 7px 10px;
+  padding: 6px 10px;
   border: 0;
   border-radius: 0;
   background: var(--surface-subtle-bg);
@@ -1501,18 +1511,18 @@ button.active {
 }
 
 .process-step pre {
-  padding: 10px 12px;
+  padding: 9px 10px;
 }
 
 .item-meta {
   display: flex;
   width: 100%;
   height: auto;
-  min-height: 38px;
+  min-height: 36px;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 7px 10px;
   border: 0;
   border-bottom: 1px solid var(--border-soft);
   border-radius: 0;
@@ -1691,21 +1701,10 @@ button.active {
 }
 
 .terminal-dock-actions button {
-  gap: 6px;
-  min-width: 0;
-  padding: 0 9px;
-}
-
-.terminal-dock-actions button:last-child {
   width: 34px;
+  min-width: 34px;
+  height: 34px;
   padding: 0;
-}
-
-.terminal-dock-actions span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .terminal-dock-meta {
@@ -1803,12 +1802,7 @@ button.active {
   }
 
   .terminal-dock-actions {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    width: 100%;
-  }
-
-  .terminal-dock-actions button:last-child {
+    align-self: flex-end;
     width: auto;
   }
 
@@ -2150,11 +2144,7 @@ button.active {
   }
 
   .mobile-composer .prompt-toolbar {
-    position: sticky;
-    bottom: 0;
-    z-index: 1;
     flex-wrap: wrap;
-    background: var(--field-bg);
   }
 
   .mobile-composer .prompt-toolbar-left {
@@ -2169,7 +2159,8 @@ button.active {
   }
 
   .mobile-composer .prompt-submit {
-    min-width: var(--mobile-control-size);
+    width: 32px;
+    min-width: 32px;
     margin-left: auto;
   }
 
@@ -2181,7 +2172,6 @@ button.active {
     height: 38px;
     min-height: 38px;
     max-height: var(--mobile-textarea-max-height);
-    resize: none;
     font-size: 16px;
   }
 
@@ -2213,21 +2203,15 @@ button.active {
   }
 
   .terminal-dock-actions {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    width: min(100%, 280px);
+    width: auto;
   }
 
   .terminal-dock-actions button,
   .terminal-dock-actions button:last-child {
-    width: 100%;
-    min-width: 0;
-    height: var(--mobile-control-size);
-    padding: 0 8px;
-  }
-
-  .terminal-dock-actions button:last-child span {
-    display: none;
+    width: var(--mobile-header-control-size);
+    min-width: var(--mobile-header-control-size);
+    height: var(--mobile-header-control-size);
+    padding: 0;
   }
 
   .terminal-dock-meta {
@@ -2243,7 +2227,6 @@ button.active {
     padding: 6px var(--mobile-edge-padding) max(8px, env(safe-area-inset-bottom));
   }
 
-  .app-shell[data-ui-density="dense"] .mobile-composer .prompt-submit span,
   .app-shell[data-viewport-width="tiny"] .mobile-composer .composer-mode button span {
     display: none;
   }

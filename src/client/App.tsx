@@ -1082,7 +1082,7 @@ export function App() {
     >
       <div className="workspace" data-theme={theme} data-mobile-view={mobileView}>
         <SessionSidebar
-          compactMobile={isMobileViewport}
+          density={isMobileViewport ? "compact" : "regular"}
           busy={busy}
           theme={theme}
           nextTheme={nextTheme}

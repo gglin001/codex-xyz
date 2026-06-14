@@ -61,6 +61,22 @@ type PromptResizeState = {
 const compactPromptMinHeight = 38;
 const defaultPromptMinHeight = 124;
 
+function getViewportHeight() {
+  return window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 720;
+}
+
+function getPromptLayoutMaxHeight(textarea: HTMLTextAreaElement, viewportMaxHeight: number) {
+  const composer = textarea.closest<HTMLElement>(".prompt-composer");
+  const composerStyle = composer ? window.getComputedStyle(composer) : null;
+  const composerMaxHeight = composerStyle ? Number.parseFloat(composerStyle.maxHeight) : Number.NaN;
+  if (!composer || !Number.isFinite(composerMaxHeight)) {
+    return viewportMaxHeight;
+  }
+
+  const availableComposerGrowth = Math.max(0, composerMaxHeight - composer.getBoundingClientRect().height);
+  return textarea.getBoundingClientRect().height + availableComposerGrowth;
+}
+
 const WorkdirField = memo(function WorkdirField({
   projects,
   value,
@@ -235,17 +251,10 @@ export const PromptComposer = memo(function PromptComposer({
         return;
       }
       event.preventDefault();
-      const viewportHeight = window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 720;
+      const viewportHeight = getViewportHeight();
       const minHeight = compact ? compactPromptMinHeight : defaultPromptMinHeight;
       const viewportMaxHeight = Math.floor(viewportHeight * (compact ? 0.34 : 0.44));
-      const composer = textarea.closest<HTMLElement>(".mobile-composer");
-      const composerStyle = composer ? window.getComputedStyle(composer) : null;
-      const composerMaxHeight = composerStyle ? Number.parseFloat(composerStyle.maxHeight) : Number.NaN;
-      const layoutMaxHeight =
-        composer && Number.isFinite(composerMaxHeight)
-          ? textarea.getBoundingClientRect().height +
-            Math.max(0, composerMaxHeight - composer.getBoundingClientRect().height)
-          : viewportMaxHeight;
+      const layoutMaxHeight = getPromptLayoutMaxHeight(textarea, viewportMaxHeight);
       const maxHeight = Math.max(minHeight, Math.min(viewportMaxHeight, Math.floor(layoutMaxHeight)));
       resizeStateRef.current = {
         startY: event.clientY,
@@ -389,9 +398,13 @@ export const PromptComposer = memo(function PromptComposer({
                     />
                   </div>
                 </div>
-                <button className="prompt-submit" disabled={!canSubmitPrompt} title={submitTitle}>
+                <button
+                  className="prompt-submit"
+                  disabled={!canSubmitPrompt}
+                  title={submitTitle}
+                  aria-label={submitTitle}
+                >
                   <PromptIcon size={16} />
-                  <span>Run</span>
                 </button>
               </div>
             </div>
