@@ -1,4 +1,4 @@
-import type { FormEvent, KeyboardEvent } from "react";
+import type { CSSProperties, FormEvent, KeyboardEvent } from "react";
 import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   apiUrl,
@@ -60,6 +60,22 @@ type RuntimeSyncSummary = {
   title: string;
 };
 
+type ViewportWidthProfile = "regular" | "narrow" | "tiny";
+type ViewportHeightProfile = "regular" | "short" | "tiny";
+type UiDensityProfile = "comfortable" | "compact" | "dense";
+type ViewportStyle = CSSProperties & Record<`--${string}`, string | number>;
+
+type ViewportProfile = {
+  width: number;
+  height: number;
+  keyboardInset: number;
+  widthProfile: ViewportWidthProfile;
+  heightProfile: ViewportHeightProfile;
+  density: UiDensityProfile;
+  keyboardVisible: boolean;
+  style: ViewportStyle;
+};
+
 function mergeThreadsById(current: DashboardState["threads"], incoming: DashboardState["threads"]) {
   const next = [...current];
   const indexById = new Map(current.map((thread, index) => [thread.id, index]));
@@ -110,6 +126,133 @@ function useMediaQuery(query: string) {
   return matches;
 }
 
+function getViewportProfile(): ViewportProfile {
+  if (typeof window === "undefined") {
+    return {
+      width: 1024,
+      height: 768,
+      keyboardInset: 0,
+      widthProfile: "regular",
+      heightProfile: "regular",
+      density: "comfortable",
+      keyboardVisible: false,
+      style: {
+        "--app-viewport-width": "1024px",
+        "--app-viewport-height": "768px",
+        "--keyboard-inset": "0px",
+        "--adaptive-fit": "1",
+        "--mobile-composer-max-height": "414px",
+        "--mobile-textarea-max-height": "240px",
+        "--mobile-panel-padding": "14px",
+        "--mobile-edge-padding": "10px",
+        "--mobile-gap": "10px",
+        "--mobile-control-size": "40px"
+      }
+    };
+  }
+
+  const root = document.documentElement;
+  const visualViewport = window.visualViewport;
+  const layoutWidth = Math.round(root.clientWidth || window.innerWidth || 1024);
+  const layoutHeight = Math.round(window.innerHeight || root.clientHeight || 768);
+  const width = Math.max(0, Math.round(visualViewport?.width ?? layoutWidth));
+  const height = Math.max(0, Math.round(visualViewport?.height ?? layoutHeight));
+  const viewportOffsetTop = Math.round(visualViewport?.offsetTop ?? 0);
+  const keyboardInset = Math.max(0, layoutHeight - height - viewportOffsetTop);
+  const widthProfile: ViewportWidthProfile = width <= 340 ? "tiny" : width <= 430 ? "narrow" : "regular";
+  const heightProfile: ViewportHeightProfile = height <= 600 ? "tiny" : height <= 700 ? "short" : "regular";
+  const keyboardVisible = keyboardInset > 80;
+  const density: UiDensityProfile =
+    widthProfile === "tiny" || heightProfile === "tiny"
+      ? "dense"
+      : widthProfile === "narrow" || heightProfile === "short" || keyboardVisible
+        ? "compact"
+        : "comfortable";
+  const adaptiveFit = Math.max(0.86, Math.min(1, width / 390, height / 720));
+  const composerRatio = keyboardVisible ? 0.4 : density === "dense" ? 0.42 : density === "compact" ? 0.48 : 0.54;
+  const composerMaxHeight = Math.round(Math.max(168, Math.min(440, height * composerRatio)));
+  const textareaMaxHeight = Math.round(Math.max(96, Math.min(240, height * (keyboardVisible ? 0.22 : 0.34))));
+  const panelPadding = density === "dense" ? 10 : density === "compact" ? 12 : 14;
+  const edgePadding = density === "dense" ? 8 : 10;
+  const mobileGap = density === "dense" ? 7 : density === "compact" ? 8 : 10;
+  const mobileControlSize = density === "dense" ? 38 : 40;
+
+  return {
+    width,
+    height,
+    keyboardInset,
+    widthProfile,
+    heightProfile,
+    density,
+    keyboardVisible,
+    style: {
+      "--app-viewport-width": `${width}px`,
+      "--app-viewport-height": `${height}px`,
+      "--keyboard-inset": `${keyboardInset}px`,
+      "--adaptive-fit": adaptiveFit.toFixed(3),
+      "--mobile-composer-max-height": `${composerMaxHeight}px`,
+      "--mobile-textarea-max-height": `${textareaMaxHeight}px`,
+      "--mobile-panel-padding": `${panelPadding}px`,
+      "--mobile-edge-padding": `${edgePadding}px`,
+      "--mobile-gap": `${mobileGap}px`,
+      "--mobile-control-size": `${mobileControlSize}px`
+    }
+  };
+}
+
+function sameViewportProfile(current: ViewportProfile, next: ViewportProfile) {
+  return (
+    current.width === next.width &&
+    current.height === next.height &&
+    current.keyboardInset === next.keyboardInset &&
+    current.widthProfile === next.widthProfile &&
+    current.heightProfile === next.heightProfile &&
+    current.density === next.density &&
+    current.keyboardVisible === next.keyboardVisible
+  );
+}
+
+function useViewportProfile() {
+  const [profile, setProfile] = useState(getViewportProfile);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    let animationFrame: number | null = null;
+    const syncProfile = () => {
+      if (animationFrame !== null) {
+        return;
+      }
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = null;
+        setProfile((current) => {
+          const next = getViewportProfile();
+          return sameViewportProfile(current, next) ? current : next;
+        });
+      });
+    };
+
+    syncProfile();
+    window.addEventListener("resize", syncProfile);
+    window.addEventListener("orientationchange", syncProfile);
+    window.visualViewport?.addEventListener("resize", syncProfile);
+    window.visualViewport?.addEventListener("scroll", syncProfile);
+    return () => {
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+      window.removeEventListener("resize", syncProfile);
+      window.removeEventListener("orientationchange", syncProfile);
+      window.visualViewport?.removeEventListener("resize", syncProfile);
+      window.visualViewport?.removeEventListener("scroll", syncProfile);
+    };
+  }, []);
+
+  return profile;
+}
+
 function readStoredTheme(): ThemeMode {
   if (typeof window === "undefined") {
     return "dark";
@@ -155,6 +298,7 @@ export function App() {
   const [loadingMoreThreads, setLoadingMoreThreads] = useState(false);
   const [runtimeSyncResult, setRuntimeSyncResult] = useState<RuntimeSyncResult | null>(null);
   const isMobileViewport = useMediaQuery(mobileViewportQuery);
+  const viewportProfile = useViewportProfile();
   const isMobileViewportRef = useRef(isMobileViewport);
   const loadingMoreThreadsRef = useRef(false);
   const selectedThreadIdRef = useRef<string | null>(null);
@@ -960,6 +1104,11 @@ export function App() {
       data-theme={theme}
       data-mobile-view={mobileView}
       data-terminal-visible={terminalVisible}
+      data-viewport-width={viewportProfile.widthProfile}
+      data-viewport-height={viewportProfile.heightProfile}
+      data-ui-density={viewportProfile.density}
+      data-keyboard-visible={viewportProfile.keyboardVisible}
+      style={viewportProfile.style}
     >
       <div className="workspace" data-theme={theme} data-mobile-view={mobileView}>
         <SessionSidebar
