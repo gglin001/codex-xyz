@@ -223,7 +223,7 @@ p {
 }
 
 h1 {
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.2;
 }
@@ -545,6 +545,8 @@ button.active {
 }
 
 .title-editor input {
+  font-size: 14px;
+  font-weight: 700;
   height: 34px;
   padding: 0 10px;
 }
@@ -1136,7 +1138,7 @@ button.active {
 
 .title-editor input {
   height: 38px;
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -2112,7 +2114,7 @@ button.active {
   .title-editor input {
     height: var(--mobile-header-control-size);
     min-width: 0;
-    font-size: 16px;
+    font-size: 14px;
   }
 
   .detail-header button {
