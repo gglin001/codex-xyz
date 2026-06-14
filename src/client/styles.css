@@ -897,16 +897,58 @@ button.active {
 .session-copy {
   min-width: 0;
   flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.session-copy strong,
-.session-copy small {
+.session-title-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
+
+.session-meta-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
+
+.session-title-line strong,
+.session-meta-line small {
   display: block;
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.session-title-line strong {
+  flex: 1 1 0;
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 720;
+  line-height: 1.15;
+}
+
+.session-updated {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.session-meta-line small {
+  flex: 1 1 0;
+  font-size: 11px;
+  line-height: 1.2;
 }
 
 .session-status,
@@ -1939,12 +1981,16 @@ button.active {
     gap: 8px;
   }
 
-  .sessions .session-copy strong {
-    font-size: 15px;
+  .sessions .session-title-line strong {
+    font-size: 12.5px;
     line-height: 1.15;
   }
 
-  .sessions .session-copy small {
+  .sessions .session-updated {
+    font-size: 10px;
+  }
+
+  .sessions .session-meta-line small {
     font-size: 11px;
     line-height: 1.2;
   }

@@ -67,35 +67,41 @@ describe("session list model", () => {
     expect(selectionTouchesThreadGroup(threads, null, "outside")).toBe(false);
   });
 
-  it("groups running and attention threads separately from history", () => {
+  it("keeps visible sessions in a single updated-time ordered list", () => {
     const result = getSessionListModel(
       [
-        thread({ id: "running", status: "running" }),
-        thread({ id: "idle", status: "idle" }),
-        thread({ id: "failed", status: "failed" }),
-        thread({ id: "interrupted", status: "interrupted" }),
-        thread({ id: "stale", status: "stale" }),
-        thread({ id: "blocked-goal", status: "idle", goalStatus: "blocked", goalObjective: "Finish review" })
+        thread({ id: "running", status: "running", updatedAt: early }),
+        thread({ id: "idle", status: "idle", updatedAt: late }),
+        thread({ id: "failed", status: "failed", updatedAt: middle }),
+        thread({ id: "interrupted", status: "interrupted", updatedAt: createdAt }),
+        thread({ id: "stale", status: "stale", updatedAt: createdAt }),
+        thread({
+          id: "blocked-goal",
+          status: "idle",
+          goalStatus: "blocked",
+          goalObjective: "Finish review",
+          updatedAt: createdAt
+        })
       ],
       [task({ status: "queued" }), task({ id: "task-2", status: "completed" })],
       ""
     );
 
-    expect(result.activeThreads.map((candidate) => candidate.id)).toEqual(["running"]);
-    expect(result.attentionThreads.map((candidate) => candidate.id)).toEqual([
+    expect(result.threads.map((candidate) => candidate.id)).toEqual([
+      "idle",
       "failed",
+      "running",
       "interrupted",
       "stale",
       "blocked-goal"
     ]);
-    expect(result.otherThreads.map((candidate) => candidate.id)).toEqual(["idle"]);
     expect(result.queuedTaskCount).toBe(1);
     expect(result.visibleThreadCount).toBe(6);
     expect(result.totalThreadCount).toBe(6);
     expect(result.hasQuery).toBe(false);
   });
 
-  it("groups runtime sync issues with attention sessions", () => {
+  it("keeps runtime sync issues searchable without changing status-based position", () => {
     const issues = new Map([
       ["idle-drift", runtimeIssue({ threadId: "idle-drift", localStatus: "idle", severity: "warning", runtimeStatus: "idle" })],
       ["running-drift", runtimeIssue({ threadId: "running-drift", localStatus: "running", runtimeStatus: "running" })]
@@ -114,9 +120,13 @@ describe("session list model", () => {
       }
     );
 
-    expect(result.activeThreads.map((candidate) => candidate.id)).toEqual(["running"]);
-    expect(result.attentionThreads.map((candidate) => candidate.id)).toEqual(["idle-drift", "running-drift"]);
-    expect(result.otherThreads.map((candidate) => candidate.id)).toEqual(["idle"]);
+    expect(result.threads.map((candidate) => candidate.id)).toEqual([
+      "running",
+      "idle-drift",
+      "running-drift",
+      "idle"
+    ]);
+    expect(getSessionListModel(result.threads, [], "not loaded", { runtimeIssuesByThreadId: issues }).visibleThreadCount).toBe(2);
   });
 
   it("filters sessions by title, preview, cwd, status, model, goal, and session id", () => {
@@ -153,7 +163,7 @@ describe("session list model", () => {
     expect(result.hasQuery).toBe(true);
   });
 
-  it("keeps attention grouping after filtering", () => {
+  it("keeps a single list after filtering across statuses", () => {
     const result = getSessionListModel(
       [
         thread({ id: "visible-attention", title: "Match", status: "failed" }),
@@ -164,13 +174,11 @@ describe("session list model", () => {
       "match"
     );
 
-    expect(result.activeThreads).toEqual([]);
-    expect(result.attentionThreads.map((candidate) => candidate.id)).toEqual(["visible-attention"]);
-    expect(result.otherThreads.map((candidate) => candidate.id)).toEqual(["visible-history"]);
+    expect(result.threads.map((candidate) => candidate.id)).toEqual(["visible-attention", "visible-history"]);
     expect(result.visibleThreadCount).toBe(2);
   });
 
-  it("orders each group by the most recently updated session first", () => {
+  it("orders sessions by the most recently updated session first", () => {
     const result = getSessionListModel(
       [
         thread({ id: "active-old", status: "running", updatedAt: early }),
@@ -185,12 +193,28 @@ describe("session list model", () => {
       ""
     );
 
-    expect(result.activeThreads.map((candidate) => candidate.id)).toEqual([
+    expect(result.threads.map((candidate) => candidate.id)).toEqual([
       "active-new",
+      "history-new",
+      "attention-new",
       "active-middle",
-      "active-old"
+      "active-old",
+      "history-old",
+      "attention-old"
     ]);
-    expect(result.attentionThreads.map((candidate) => candidate.id)).toEqual(["attention-new", "attention-old"]);
-    expect(result.otherThreads.map((candidate) => candidate.id)).toEqual(["history-new", "history-old"]);
+  });
+
+  it("keeps the existing order stable for sessions with the same update time", () => {
+    const result = getSessionListModel(
+      [
+        thread({ id: "first", status: "idle", updatedAt: middle }),
+        thread({ id: "second", status: "failed", updatedAt: middle }),
+        thread({ id: "third", status: "running", updatedAt: middle })
+      ],
+      [],
+      ""
+    );
+
+    expect(result.threads.map((candidate) => candidate.id)).toEqual(["first", "second", "third"]);
   });
 });

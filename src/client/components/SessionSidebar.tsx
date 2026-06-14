@@ -2,7 +2,7 @@ import { History, Loader2, Moon, RefreshCw, Search, Sun, Target, Terminal } from
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ControlThread, RuntimeSyncIssue } from "../../server/domain.js";
 import type { SessionListModel } from "../sessionList.js";
-import { formatTokens, statusLabel, statusTone } from "../uiFormat.js";
+import { formatDateTime, formatTokens, statusLabel, statusTone } from "../uiFormat.js";
 import type { ThemeMode } from "./types.js";
 
 type SelectThreadHandler = (threadId: string) => void | Promise<void>;
@@ -26,17 +26,9 @@ export type SessionSidebarProps = {
   onSelectThread: SelectThreadHandler;
 };
 
-type SessionGroupId = "active" | "attention" | "history";
 export type SessionListDensity = "regular" | "compact";
 
 type SessionListEntry =
-  | {
-      kind: "heading";
-      id: string;
-      groupId: SessionGroupId;
-      title: string;
-      count: number;
-    }
   | {
       kind: "empty";
       id: string;
@@ -45,7 +37,6 @@ type SessionListEntry =
   | {
       kind: "thread";
       id: string;
-      groupId: SessionGroupId;
       thread: ControlThread;
     }
   | {
@@ -59,7 +50,6 @@ const sessionEntryHeights: Record<
   {
     compactRow: number;
     goalRow: number;
-    heading: number;
     empty: number;
     loadMore: number;
   }
@@ -67,14 +57,12 @@ const sessionEntryHeights: Record<
   regular: {
     compactRow: 64,
     goalRow: 88,
-    heading: 30,
     empty: 50,
     loadMore: 52
   },
   compact: {
     compactRow: 58,
     goalRow: 82,
-    heading: 26,
     empty: 42,
     loadMore: 46
   }
@@ -91,9 +79,6 @@ function sessionEntryHeight(entry: SessionListEntry, density: SessionListDensity
   if (entry.kind === "thread") {
     return threadHasGoal(entry.thread) ? heights.goalRow : heights.compactRow;
   }
-  if (entry.kind === "heading") {
-    return heights.heading;
-  }
   if (entry.kind === "loadMore") {
     return heights.loadMore;
   }
@@ -107,30 +92,8 @@ function buildSessionEntries(
   }
 ): SessionListEntry[] {
   const entries: SessionListEntry[] = [];
-  const groups: {
-    id: SessionGroupId;
-    title: string;
-    threads: ControlThread[];
-  }[] = [
-    {
-      id: "active",
-      title: "Active",
-      threads: sessionList.activeThreads
-    },
-    {
-      id: "attention",
-      title: "Needs attention",
-      threads: sessionList.attentionThreads
-    },
-    {
-      id: "history",
-      title: "History",
-      threads: sessionList.otherThreads
-    }
-  ];
-  const hasAnyThreads = groups.some((group) => group.threads.length > 0);
 
-  if (!hasAnyThreads) {
+  if (sessionList.threads.length === 0) {
     entries.push({
       kind: "empty",
       id: "empty:all",
@@ -146,25 +109,12 @@ function buildSessionEntries(
     return entries;
   }
 
-  for (const group of groups) {
-    if (group.threads.length === 0) {
-      continue;
-    }
+  for (const thread of sessionList.threads) {
     entries.push({
-      kind: "heading",
-      id: `heading:${group.id}`,
-      groupId: group.id,
-      title: group.title,
-      count: group.threads.length
+      kind: "thread",
+      id: `thread:${thread.id}`,
+      thread
     });
-    for (const thread of group.threads) {
-      entries.push({
-        kind: "thread",
-        id: `thread:${thread.id}`,
-        groupId: group.id,
-        thread
-      });
-    }
   }
 
   if (sessionList.hasMoreThreads) {
@@ -208,9 +158,10 @@ const SessionRow = memo(function SessionRow({
   const runtimeTone = runtimeIssue?.severity ?? null;
   const visibleStatus = runtimeIssue ? `runtime ${runtimeIssue.severity}` : statusLabel(thread.status);
   const visiblePreview = runtimeIssue?.message ?? (thread.preview || thread.cwd);
+  const visibleUpdatedAt = formatDateTime(thread.updatedAt);
   const rowTitle = runtimeIssue
-    ? `${thread.title}\n${runtimeIssue.message}`
-    : thread.preview || thread.cwd || thread.title;
+    ? `${thread.title}\n${runtimeIssue.message}\nUpdated ${visibleUpdatedAt}`
+    : `${thread.preview || thread.cwd || thread.title}\nUpdated ${visibleUpdatedAt}`;
 
   return (
     <button
@@ -226,10 +177,17 @@ const SessionRow = memo(function SessionRow({
       <span className="session-row-main">
         <span className={`status-dot ${runtimeTone ? `runtime-${runtimeTone}` : thread.status}`} />
         <span className="session-copy">
-          <strong>{thread.title}</strong>
-          <small>{visiblePreview}</small>
+          <span className="session-title-line">
+            <strong>{thread.title}</strong>
+            <time className="session-updated" dateTime={thread.updatedAt} title={`Updated ${visibleUpdatedAt}`}>
+              {visibleUpdatedAt}
+            </time>
+          </span>
+          <span className="session-meta-line">
+            <small>{visiblePreview}</small>
+            <span className={`session-status ${runtimeTone ?? statusTone(thread.status)}`}>{visibleStatus}</span>
+          </span>
         </span>
-        <span className={`session-status ${runtimeTone ?? statusTone(thread.status)}`}>{visibleStatus}</span>
       </span>
       {hasGoal ? (
         <span className={`session-goal ${thread.goalStatus ?? ""}`} title={thread.goalObjective ?? undefined}>
@@ -349,15 +307,9 @@ const VirtualSessionList = memo(function VirtualSessionList({
           return (
             <div
               key={entry.id}
-              className={`session-virtual-row ${entry.kind} ${"groupId" in entry ? entry.groupId : ""}`}
+              className={`session-virtual-row ${entry.kind}`}
               style={{ height, transform: `translateY(${top}px)` }}
             >
-              {entry.kind === "heading" ? (
-                <h2 className="session-group-heading">
-                  <span>{entry.title}</span>
-                  <span className="session-group-count">{entry.count}</span>
-                </h2>
-              ) : null}
               {entry.kind === "empty" ? <div className="empty-state compact">{entry.label}</div> : null}
               {entry.kind === "thread" ? (
                 <SessionRow

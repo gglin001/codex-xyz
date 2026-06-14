@@ -1,9 +1,7 @@
 import type { ControlThread, RuntimeSyncIssue, Task } from "../server/domain.js";
 
 export type SessionListModel = {
-  activeThreads: ControlThread[];
-  attentionThreads: ControlThread[];
-  otherThreads: ControlThread[];
+  threads: ControlThread[];
   queuedTaskCount: number;
   loadedThreadCount: number;
   totalThreadCount: number;
@@ -55,21 +53,11 @@ function matchesThreadQuery(thread: ControlThread, query: string, runtimeIssue: 
   );
 }
 
-function needsAttention(thread: ControlThread, runtimeIssue: RuntimeSyncIssue | null) {
-  return (
-    Boolean(runtimeIssue) ||
-    thread.status === "failed" ||
-    thread.status === "interrupted" ||
-    thread.status === "stale" ||
-    thread.goalStatus === "blocked"
-  );
-}
-
 function byUpdatedDesc(a: ControlThread, b: ControlThread) {
   return b.updatedAt.localeCompare(a.updatedAt);
 }
 
-function orderThreadGroup(threads: ControlThread[]) {
+function orderThreads(threads: ControlThread[]) {
   return threads.sort(byUpdatedDesc);
 }
 
@@ -94,9 +82,7 @@ export function getSessionListModel(
   } = {}
 ): SessionListModel {
   const normalizedQuery = normalizeQuery(query);
-  const activeThreads: ControlThread[] = [];
-  const attentionThreads: ControlThread[] = [];
-  const otherThreads: ControlThread[] = [];
+  const visibleThreads: ControlThread[] = [];
   let visibleThreadCount = 0;
 
   for (const thread of threads) {
@@ -105,19 +91,11 @@ export function getSessionListModel(
       continue;
     }
     visibleThreadCount += 1;
-    if (needsAttention(thread, runtimeIssue)) {
-      attentionThreads.push(thread);
-    } else if (thread.status === "running") {
-      activeThreads.push(thread);
-    } else {
-      otherThreads.push(thread);
-    }
+    visibleThreads.push(thread);
   }
 
   return {
-    activeThreads: orderThreadGroup(activeThreads),
-    attentionThreads: orderThreadGroup(attentionThreads),
-    otherThreads: orderThreadGroup(otherThreads),
+    threads: orderThreads(visibleThreads),
     queuedTaskCount: countActiveTasks(tasks),
     loadedThreadCount: threads.length,
     totalThreadCount: options.totalThreadCount ?? threads.length,

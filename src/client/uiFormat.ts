@@ -19,6 +19,7 @@ export function statusTone(status: RuntimeStatus) {
 
 const timeFormatter = new Intl.DateTimeFormat(undefined, {
   hour: "2-digit",
+  hourCycle: "h23",
   minute: "2-digit"
 });
 
@@ -26,6 +27,7 @@ const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
   month: "short",
   day: "numeric",
   hour: "2-digit",
+  hourCycle: "h23",
   minute: "2-digit"
 });
 
