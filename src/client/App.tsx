@@ -26,6 +26,7 @@ import { applyEventProjectionBatch, incrementalEventNames, type ClientProjection
 import { getSessionListModel } from "./sessionList.js";
 import { isMacTerminalToggleShortcut } from "./terminalShortcut.js";
 import { choosePreferredThreadId, shouldLoadThreadSelection, shouldSelectActionResult } from "./threadSelection.js";
+import { installPageZoomGuards } from "./zoomGuards.js"
 import type { DashboardState, RuntimeSyncIssue, RuntimeSyncResult, ThreadDetail, XyzEvent } from "../server/domain.js";
 
 function initialState(): DashboardState {
@@ -522,6 +523,8 @@ export function App() {
   useEffect(() => {
     isMobileViewportRef.current = isMobileViewport;
   }, [isMobileViewport]);
+
+  useEffect(() => installPageZoomGuards(window), [])
 
   useEffect(() => {
     if (!selectedThreadId && mobileView === "detail") {
