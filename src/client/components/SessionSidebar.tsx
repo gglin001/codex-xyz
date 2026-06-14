@@ -228,6 +228,8 @@ const VirtualSessionList = memo(function VirtualSessionList({
   onSelectThread: SelectThreadHandler;
 }) {
   const listRef = useRef<HTMLDivElement | null>(null);
+  const scrollFrameRef = useRef<number | null>(null);
+  const pendingScrollTopRef = useRef(0);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const entries = useMemo(
@@ -265,14 +267,23 @@ const VirtualSessionList = memo(function VirtualSessionList({
     }
   }, [loadingMoreThreads, onLoadMoreThreads, sessionList.hasMoreThreads]);
 
+  const flushScrollState = useCallback(() => {
+    scrollFrameRef.current = null;
+    setScrollTop(pendingScrollTopRef.current);
+    maybeLoadMore();
+  }, [maybeLoadMore]);
+
   const handleScroll = useCallback(() => {
     const element = listRef.current;
     if (!element) {
       return;
     }
-    setScrollTop(element.scrollTop);
-    maybeLoadMore();
-  }, [maybeLoadMore]);
+    pendingScrollTopRef.current = element.scrollTop;
+    if (scrollFrameRef.current !== null) {
+      return;
+    }
+    scrollFrameRef.current = window.requestAnimationFrame(flushScrollState);
+  }, [flushScrollState]);
 
   useEffect(() => {
     const element = listRef.current;
@@ -280,6 +291,7 @@ const VirtualSessionList = memo(function VirtualSessionList({
       return;
     }
     const syncSize = () => {
+      pendingScrollTopRef.current = element.scrollTop;
       setViewportHeight(element.clientHeight);
       setScrollTop(element.scrollTop);
     };
@@ -294,6 +306,14 @@ const VirtualSessionList = memo(function VirtualSessionList({
   useEffect(() => {
     maybeLoadMore();
   }, [maybeLoadMore, totalHeight, viewportHeight]);
+
+  useEffect(() => {
+    return () => {
+      if (scrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollFrameRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div

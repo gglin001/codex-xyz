@@ -419,7 +419,7 @@ export function App() {
       currentThreadId: selectedThreadIdRef.current,
       requestedThreadId,
       preferRequestedThread: shouldPreferRequestedThread,
-      allowFallbackSelection: Boolean(requestedThreadId)
+      allowFallbackSelection: true
     });
     setSelectedThreadId(preferredThreadId);
     selectedThreadIdRef.current = preferredThreadId;
@@ -519,7 +519,7 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    void refresh().catch((loadError: unknown) => {
+    void refresh(undefined, { loadDetail: true }).catch((loadError: unknown) => {
       setError(loadError instanceof Error ? loadError.message : "Failed to load state");
     });
   }, []);
