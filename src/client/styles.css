@@ -284,50 +284,40 @@ small {
   gap: 12px;
 }
 
+.sessions-header {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.sessions-title {
+  display: inline-flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  overflow: hidden;
+}
+
 .sessions-title strong {
   display: block;
-  margin-bottom: 4px;
+  min-width: 0;
+  overflow: hidden;
   color: var(--muted-strong);
   font-size: 12px;
   letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-.panel-header p {
-  margin-top: 4px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.runtime-sync-chip {
-  display: inline-flex;
-  max-width: 100%;
-  margin-top: 6px;
-  overflow: hidden;
-  padding: 3px 7px;
-  border-radius: 999px;
-  font-size: 11px;
-  line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.runtime-sync-chip.warning {
-  background: var(--goal-bg);
-  color: var(--goal-text);
-}
-
-.runtime-sync-chip.error {
-  background: var(--attention-bg);
-  color: var(--attention-text);
-}
-
 .panel-header-actions {
+  flex: 0 0 auto;
   gap: 8px;
 }
 
-.mobile-back-button,
-.mobile-nav {
+.sessions-header .panel-header-actions {
+  flex-wrap: nowrap;
+}
+
+.mobile-back-button {
   display: none;
 }
 
@@ -482,7 +472,7 @@ button.active {
   height: 10px;
   align-items: center;
   justify-content: center;
-  margin: 0 48px -2px 0;
+  margin: 0 0 -2px;
   cursor: ns-resize;
   touch-action: none;
 }
@@ -1777,6 +1767,11 @@ button.active {
     flex-direction: column;
   }
 
+  .panel-header.sessions-header {
+    align-items: center;
+    flex-direction: row;
+  }
+
   .terminal-dock-header {
     align-items: stretch;
     flex-direction: column;
@@ -1832,7 +1827,7 @@ button.active {
 
   .app-shell {
     position: relative;
-    grid-template-rows: minmax(0, 1fr) auto auto auto;
+    grid-template-rows: minmax(0, 1fr) auto;
     height: 100vh;
     height: 100dvh;
     height: var(--app-viewport-height, 100dvh);
@@ -1849,8 +1844,7 @@ button.active {
     pointer-events: none;
   }
 
-  .app-shell[data-terminal-visible="true"] .mobile-composer,
-  .app-shell[data-terminal-visible="true"] .mobile-nav {
+  .app-shell[data-terminal-visible="true"] .mobile-composer {
     display: none;
   }
 
@@ -1873,6 +1867,10 @@ button.active {
   .panel-header-actions {
     flex-wrap: wrap;
     justify-content: flex-end;
+  }
+
+  .sessions-header .panel-header-actions {
+    flex-wrap: nowrap;
   }
 
   .workspace[data-mobile-view="sessions"] .detail,
@@ -1989,7 +1987,8 @@ button.active {
   }
 
   .mobile-composer .task-form textarea {
-    min-height: 96px;
+    height: 38px;
+    min-height: 38px;
     max-height: var(--mobile-textarea-max-height);
     resize: vertical;
     font-size: 16px;
@@ -2051,34 +2050,6 @@ button.active {
 
   .terminal-dock-body {
     padding: 6px var(--mobile-edge-padding) max(8px, env(safe-area-inset-bottom));
-  }
-
-  .mobile-nav {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
-    min-height: calc(58px + env(safe-area-inset-bottom));
-    padding: 7px var(--mobile-edge-padding) max(7px, env(safe-area-inset-bottom));
-    border-top: 1px solid var(--border-strong);
-    background: var(--panel-bg);
-  }
-
-  .mobile-nav button {
-    height: 44px;
-    min-width: 0;
-    flex-direction: column;
-    gap: 3px;
-    border-color: transparent;
-    background: transparent;
-    color: var(--muted-strong);
-    font-size: 11px;
-    line-height: 1;
-  }
-
-  .mobile-nav button.active {
-    border-color: var(--accent);
-    background: var(--accent-soft);
-    color: var(--accent-text);
   }
 
   .app-shell[data-ui-density="dense"] .mobile-composer .prompt-submit span,

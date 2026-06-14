@@ -57,6 +57,9 @@ type PromptResizeState = {
   maxHeight: number;
 };
 
+const compactPromptMinHeight = 38;
+const defaultPromptMinHeight = 124;
+
 const WorkdirField = memo(function WorkdirField({
   projects,
   value,
@@ -196,7 +199,7 @@ export const PromptComposer = memo(function PromptComposer({
       }
       event.preventDefault();
       const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 720;
-      const minHeight = compact ? 96 : 124;
+      const minHeight = compact ? compactPromptMinHeight : defaultPromptMinHeight;
       const maxHeight = Math.max(minHeight, Math.floor(viewportHeight * (compact ? 0.34 : 0.44)));
       resizeStateRef.current = {
         startY: event.clientY,

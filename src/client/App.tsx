@@ -18,7 +18,6 @@ import {
   startTurn,
   syncThreadRuntime
 } from "./api.js";
-import { MobileNavigation } from "./components/MobileNavigation.js";
 import { PromptComposer } from "./components/PromptComposer.js";
 import { SessionSidebar } from "./components/SessionSidebar.js";
 import { ThreadDetailView } from "./components/ThreadDetailView.js";
@@ -52,12 +51,6 @@ type RunActionOptions = {
 type DetailSubscription = {
   threadId: string;
   after: number;
-};
-
-type RuntimeSyncSummary = {
-  tone: "warning" | "error";
-  label: string;
-  title: string;
 };
 
 type ViewportWidthProfile = "regular" | "narrow" | "tiny";
@@ -751,32 +744,6 @@ export function App() {
       state.threads
     ]
   );
-  const sessionCountLabel = sessionList.hasQuery
-    ? sessionList.loadedThreadCount < sessionList.totalThreadCount
-      ? `${sessionList.visibleThreadCount} / ${sessionList.loadedThreadCount} loaded shown, ${sessionList.totalThreadCount} total`
-      : `${sessionList.visibleThreadCount} / ${sessionList.totalThreadCount} shown`
-    : sessionList.loadedThreadCount < sessionList.totalThreadCount
-      ? `${sessionList.loadedThreadCount} / ${sessionList.totalThreadCount} loaded`
-      : `${sessionList.totalThreadCount} total`;
-  const runtimeSyncSummary = useMemo<RuntimeSyncSummary | null>(() => {
-    if (!runtimeSyncResult || (runtimeSyncResult.warningCount === 0 && runtimeSyncResult.errorCount === 0)) {
-      return null;
-    }
-    const tone = runtimeSyncResult.errorCount > 0 ? "error" : "warning";
-    const issueLabel =
-      runtimeSyncResult.errorCount > 0
-        ? `${runtimeSyncResult.errorCount} runtime error${runtimeSyncResult.errorCount === 1 ? "" : "s"}`
-        : `${runtimeSyncResult.warningCount} runtime warning${runtimeSyncResult.warningCount === 1 ? "" : "s"}`;
-    const details = runtimeSyncResult.issues
-      .slice(0, 4)
-      .map((issue) => `${issue.title}: ${issue.message}`)
-      .join("\n");
-    return {
-      tone,
-      label: issueLabel,
-      title: details || issueLabel
-    };
-  }, [runtimeSyncResult]);
   const promptTarget = composerMode === "thread" && selectedThread ? "thread" : "new";
   const trimmedWorkdir = workdir.trim();
   const canUseGoalMode =
@@ -1112,15 +1079,12 @@ export function App() {
     >
       <div className="workspace" data-theme={theme} data-mobile-view={mobileView}>
         <SessionSidebar
-          sessionCountLabel={sessionCountLabel}
-          queuedTaskCount={sessionList.queuedTaskCount}
           busy={busy}
           theme={theme}
           nextTheme={nextTheme}
           terminalVisible={terminalVisible}
           sessionQuery={sessionQuery}
           sessionList={sessionList}
-          runtimeSyncSummary={runtimeSyncSummary}
           runtimeIssuesByThreadId={runtimeIssuesByThreadId}
           selectedThreadId={selectedThreadId}
           loadingMoreThreads={loadingMoreThreads}
@@ -1187,11 +1151,6 @@ export function App() {
           onClearGoal={clearSelectedGoal}
         />
       ) : null}
-      <MobileNavigation
-        view={mobileView}
-        hasSelection={Boolean(selectedThreadId)}
-        onViewChange={setMobileView}
-      />
     </main>
   );
 }

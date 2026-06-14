@@ -7,22 +7,13 @@ import type { ThemeMode } from "./types.js";
 
 type SelectThreadHandler = (threadId: string) => void | Promise<void>;
 
-type RuntimeSyncSummary = {
-  tone: "warning" | "error";
-  label: string;
-  title: string;
-};
-
 export type SessionSidebarProps = {
-  sessionCountLabel: string;
-  queuedTaskCount: number;
   busy: boolean;
   theme: ThemeMode;
   nextTheme: ThemeMode;
   terminalVisible: boolean;
   sessionQuery: string;
   sessionList: SessionListModel;
-  runtimeSyncSummary: RuntimeSyncSummary | null;
   runtimeIssuesByThreadId: ReadonlyMap<string, RuntimeSyncIssue>;
   selectedThreadId: string | null;
   loadingMoreThreads: boolean;
@@ -354,15 +345,12 @@ const VirtualSessionList = memo(function VirtualSessionList({
 });
 
 export const SessionSidebar = memo(function SessionSidebar({
-  sessionCountLabel,
-  queuedTaskCount,
   busy,
   theme,
   nextTheme,
   terminalVisible,
   sessionQuery,
   sessionList,
-  runtimeSyncSummary,
   runtimeIssuesByThreadId,
   selectedThreadId,
   loadingMoreThreads,
@@ -378,15 +366,6 @@ export const SessionSidebar = memo(function SessionSidebar({
       <div className="panel-header sessions-header">
         <div className="sessions-title">
           <strong>codex-xyz</strong>
-          <h1>Sessions</h1>
-          <p>
-            {sessionCountLabel}, {queuedTaskCount} active tasks
-          </p>
-          {runtimeSyncSummary ? (
-            <span className={`runtime-sync-chip ${runtimeSyncSummary.tone}`} title={runtimeSyncSummary.title}>
-              {runtimeSyncSummary.label}
-            </span>
-          ) : null}
         </div>
         <div className="panel-header-actions">
           {busy ? <Loader2 className="spin" size={18} /> : <History size={18} />}

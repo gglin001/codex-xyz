@@ -12,6 +12,7 @@ This repository is a local Codex control-plane prototype with a React client and
 - `scripts/`: utility scripts, including Codex protocol generation.
 - `third_party/codex/`: upstream Codex reference source and generated protocol context.
 - `dist/client/`: generated client build output.
+- `debug_agent/`: untracked scratch workspace for temp files and local experiments (use this instead of `/tmp`).
 
 Runtime state defaults to `.codex-xyz/`.
 
@@ -58,3 +59,5 @@ Before starting a dev server for manual validation, resolve the expected UI/API 
 - Keep `.codex-xyz/`, `dot.home/`, and machine-specific Codex config out of commits.
 - Prefer documented environment variables over hard-coded URLs, ports, or binary paths.
 - When using `third_party/codex/` as reference material, keep edits scoped to this project unless upstream code is explicitly part of the task.
+- When searching under `third_party/`, prefer `rg -u` or `rg -uL` so `.gitignore` rules and symlinks do not hide relevant files.
+- Put disposable scripts and outputs in `debug_agent/` instead of broadening ignore rules.
