@@ -46,6 +46,12 @@
   --shadow-control: 0 1px 0 rgba(255, 255, 255, 0.035) inset;
   --shadow-card: 0 10px 28px rgba(0, 0, 0, 0.12);
   --shadow-popover: 0 18px 42px rgba(0, 0, 0, 0.42);
+  --glass-bg: rgba(27, 29, 32, 0.78);
+  --glass-strong-bg: rgba(17, 19, 21, 0.86);
+  --glass-border: rgba(236, 239, 241, 0.18);
+  --glass-filter: blur(18px) saturate(1.18);
+  --overlay-bg: rgba(3, 7, 18, 0.42);
+  --overlay-filter: blur(14px) saturate(1.1);
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --transition-fast: 140ms var(--ease-standard);
   --transition-medium: 190ms var(--ease-standard);
@@ -116,6 +122,12 @@
   --shadow-control: 0 1px 0 rgba(255, 255, 255, 0.78) inset;
   --shadow-card: 0 10px 28px rgba(15, 23, 42, 0.06);
   --shadow-popover: 0 18px 42px rgba(15, 23, 42, 0.16);
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-strong-bg: rgba(255, 255, 255, 0.86);
+  --glass-border: rgba(15, 23, 42, 0.12);
+  --glass-filter: blur(18px) saturate(1.16);
+  --overlay-bg: rgba(15, 23, 42, 0.2);
+  --overlay-filter: blur(14px) saturate(1.08);
   --quiet-bg: #e8edf3;
   --quiet-text: #4d5b6e;
   --running-bg: #def7ec;
@@ -386,11 +398,13 @@ small {
   max-width: min(240px, calc(100vw - 24px));
   gap: 3px;
   padding: 7px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
   border-radius: 8px;
-  background: var(--surface-bg);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-filter);
   box-shadow: var(--shadow-popover);
   transform-origin: top right;
+  -webkit-backdrop-filter: var(--glass-filter);
 }
 
 .sessions-header .sidebar-settings-item {
@@ -810,11 +824,13 @@ button.active {
   max-width: min(240px, calc(100vw - 24px));
   gap: 6px;
   padding: 7px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
   border-radius: 8px;
-  background: var(--surface-bg);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-filter);
   box-shadow: var(--shadow-popover);
   transform-origin: bottom left;
+  -webkit-backdrop-filter: var(--glass-filter);
 }
 
 .prompt-control-section {
@@ -1834,9 +1850,11 @@ button.active {
   height: clamp(240px, 34vh, 420px);
   min-height: 0;
   border-top: 1px solid var(--border-strong);
-  background: var(--detail-bg);
+  background: var(--glass-strong-bg);
+  backdrop-filter: var(--glass-filter);
   color: var(--text);
   contain: layout paint style;
+  -webkit-backdrop-filter: var(--glass-filter);
 }
 
 .terminal-dock-header,
@@ -2111,8 +2129,10 @@ button.active {
     position: fixed;
     inset: 0;
     z-index: 8;
-    background: rgba(3, 7, 18, 0.42);
+    background: var(--overlay-bg);
+    backdrop-filter: var(--overlay-filter);
     pointer-events: none;
+    -webkit-backdrop-filter: var(--overlay-filter);
   }
 
   .app-shell[data-terminal-visible="true"] .mobile-composer {
@@ -2463,7 +2483,7 @@ button.active {
     z-index: 9;
     height: min(76dvh, 680px);
     max-height: calc(var(--app-viewport-height, 100dvh) - env(safe-area-inset-top));
-    border-top: 1px solid var(--border-strong);
+    border-top: 1px solid var(--glass-border);
     border-radius: 12px 12px 0 0;
     box-shadow: 0 -18px 48px rgba(0, 0, 0, 0.32);
   }
