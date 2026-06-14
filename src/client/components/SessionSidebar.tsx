@@ -1,4 +1,5 @@
-import { History, Loader2, Moon, RefreshCw, Search, Sun, Target, Terminal } from "lucide-react";
+import { Check, History, Loader2, Moon, RefreshCw, Search, Settings, Target, Terminal, WrapText } from "lucide-react";
+import type { FocusEvent, KeyboardEvent } from "react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ControlThread, RuntimeSyncIssue } from "../../server/domain.js";
 import type { SessionListModel } from "../sessionList.js";
@@ -12,6 +13,7 @@ export type SessionSidebarProps = {
   busy: boolean;
   theme: ThemeMode;
   nextTheme: ThemeMode;
+  detailWordWrap: boolean;
   terminalVisible: boolean;
   sessionQuery: string;
   sessionList: SessionListModel;
@@ -20,6 +22,7 @@ export type SessionSidebarProps = {
   loadingMoreThreads: boolean;
   onTerminalToggle: () => void;
   onThemeChange: (theme: ThemeMode) => void;
+  onDetailWordWrapChange: (enabled: boolean) => void;
   onRefresh: () => void;
   onLoadMoreThreads: () => void;
   onSessionQueryChange: (value: string) => void;
@@ -337,11 +340,88 @@ const VirtualSessionList = memo(function VirtualSessionList({
   );
 });
 
+function SidebarSettingsMenu({
+  theme,
+  nextTheme,
+  detailWordWrap,
+  onThemeChange,
+  onDetailWordWrapChange
+}: {
+  theme: ThemeMode;
+  nextTheme: ThemeMode;
+  detailWordWrap: boolean;
+  onThemeChange: (theme: ThemeMode) => void;
+  onDetailWordWrapChange: (enabled: boolean) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  function handleBlur(event: FocusEvent<HTMLDivElement>) {
+    const nextTarget = event.relatedTarget;
+    if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
+      setOpen(false);
+    }
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setOpen(false);
+    }
+  }
+
+  return (
+    <div className={`sidebar-settings-menu ${open ? "open" : ""}`} onBlur={handleBlur} onKeyDown={handleKeyDown}>
+      <button
+        type="button"
+        className="sidebar-settings-trigger"
+        title="Settings"
+        aria-label="Settings"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <Settings size={16} />
+      </button>
+      {open ? (
+        <div className="sidebar-settings-popover" role="menu" aria-label="Settings">
+          <button
+            type="button"
+            className={`sidebar-settings-item ${theme === "dark" ? "active" : ""}`}
+            role="menuitemcheckbox"
+            aria-checked={theme === "dark"}
+            onClick={() => onThemeChange(nextTheme)}
+          >
+            <Moon size={15} />
+            <span>Dark mode</span>
+            <span className="sidebar-settings-check" aria-hidden="true">
+              {theme === "dark" ? <Check size={15} /> : null}
+            </span>
+          </button>
+          <button
+            type="button"
+            className={`sidebar-settings-item ${detailWordWrap ? "active" : ""}`}
+            role="menuitemcheckbox"
+            aria-checked={detailWordWrap}
+            onClick={() => onDetailWordWrapChange(!detailWordWrap)}
+          >
+            <WrapText size={15} />
+            <span>Word wrap</span>
+            <span className="sidebar-settings-check" aria-hidden="true">
+              {detailWordWrap ? <Check size={15} /> : null}
+            </span>
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export const SessionSidebar = memo(function SessionSidebar({
   density = "regular",
   busy,
   theme,
   nextTheme,
+  detailWordWrap,
   terminalVisible,
   sessionQuery,
   sessionList,
@@ -350,6 +430,7 @@ export const SessionSidebar = memo(function SessionSidebar({
   loadingMoreThreads,
   onTerminalToggle,
   onThemeChange,
+  onDetailWordWrapChange,
   onRefresh,
   onLoadMoreThreads,
   onSessionQueryChange,
@@ -373,19 +454,16 @@ export const SessionSidebar = memo(function SessionSidebar({
           >
             <Terminal size={16} />
           </button>
-          <button
-            type="button"
-            className="theme-toggle"
-            title={`Switch to ${nextTheme} mode`}
-            aria-label={`Switch to ${nextTheme} mode`}
-            aria-pressed={theme === "light"}
-            onClick={() => onThemeChange(nextTheme)}
-          >
-            {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
           <button title="Refresh" aria-label="Refresh" onClick={onRefresh} disabled={busy}>
             <RefreshCw size={16} className={busy ? "spin" : ""} />
           </button>
+          <SidebarSettingsMenu
+            theme={theme}
+            nextTheme={nextTheme}
+            detailWordWrap={detailWordWrap}
+            onThemeChange={onThemeChange}
+            onDetailWordWrapChange={onDetailWordWrapChange}
+          />
         </div>
       </div>
 

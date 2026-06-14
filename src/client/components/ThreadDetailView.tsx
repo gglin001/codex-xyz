@@ -42,6 +42,7 @@ export type ThreadDetailViewProps = {
   busy: boolean;
   renameTitle: string;
   canRename: boolean;
+  detailWordWrap: boolean;
   onBack: () => void;
   onRenameTitleChange: (value: string) => void;
   onRenameSubmit: (event: FormEvent) => void;
@@ -530,13 +531,14 @@ export const ThreadDetailView = memo(function ThreadDetailView({
   busy,
   renameTitle,
   canRename,
+  detailWordWrap,
   onBack,
   onRenameTitleChange,
   onRenameSubmit,
   composer = null
 }: ThreadDetailViewProps) {
   return (
-    <section className="detail panel">
+    <section className="detail panel" data-detail-word-wrap={detailWordWrap ? "true" : "false"}>
       <div className="detail-header">
         <button
           type="button"

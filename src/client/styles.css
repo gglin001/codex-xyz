@@ -318,6 +318,75 @@ small {
   flex-wrap: nowrap;
 }
 
+.sidebar-settings-menu {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.sidebar-settings-menu.open .sidebar-settings-trigger {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.sidebar-settings-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 12;
+  display: grid;
+  width: max-content;
+  min-width: 176px;
+  max-width: min(240px, calc(100vw - 24px));
+  gap: 3px;
+  padding: 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-bg);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.36);
+}
+
+.sessions-header .sidebar-settings-item {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) 16px;
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  align-items: center;
+  justify-items: start;
+  gap: 8px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.sessions-header .sidebar-settings-item:hover {
+  border-color: transparent;
+  background: var(--button-hover-bg);
+}
+
+.sessions-header .sidebar-settings-item.active {
+  color: var(--accent-text);
+}
+
+.sidebar-settings-item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-settings-check {
+  display: inline-flex;
+  justify-content: flex-end;
+  width: 16px;
+  color: var(--accent-text);
+}
+
 .mobile-back-button {
   display: none;
 }
@@ -1609,6 +1678,14 @@ button.active {
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-size: 13px;
   line-height: 1.55;
+}
+
+.detail[data-detail-word-wrap="false"] .queued-prompt pre,
+.detail[data-detail-word-wrap="false"] .transcript pre {
+  overflow-x: auto;
+  overflow-wrap: normal;
+  white-space: pre;
+  word-break: normal;
 }
 
 .empty-state {

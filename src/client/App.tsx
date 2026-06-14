@@ -87,6 +87,7 @@ function mergeThreadsById(current: DashboardState["threads"], incoming: Dashboar
 
 const themeStorageKey = "codex-xyz-theme";
 const terminalVisibleStorageKey = "codex-xyz-terminal-visible";
+const detailWordWrapStorageKey = "codex-xyz-detail-word-wrap";
 const mobileViewportQuery = "(max-width: 720px)";
 const TerminalDock = lazy(async () => ({
   default: (await import("./TerminalDock.js")).TerminalDock
@@ -272,6 +273,17 @@ function readStoredTerminalVisible() {
   }
 }
 
+function readStoredDetailWordWrap() {
+  if (typeof window === "undefined") {
+    return true;
+  }
+  try {
+    return window.localStorage.getItem(detailWordWrapStorageKey) !== "false";
+  } catch {
+    return true;
+  }
+}
+
 export function App() {
   const [state, setState] = useState<DashboardState>(initialState);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
@@ -288,6 +300,7 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeMode>(readStoredTheme);
+  const [detailWordWrap, setDetailWordWrap] = useState(readStoredDetailWordWrap);
   const [terminalVisible, setTerminalVisible] = useState(readStoredTerminalVisible);
   const [mobileView, setMobileView] = useState<MobileView>("sessions");
   const [summaryEventsReady, setSummaryEventsReady] = useState(false);
@@ -519,6 +532,14 @@ export function App() {
       // Keep the in-memory theme even if the browser blocks persistence.
     }
   }, [theme]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(detailWordWrapStorageKey, detailWordWrap ? "true" : "false");
+    } catch {
+      // Keep the in-memory detail wrapping preference even if persistence is blocked.
+    }
+  }, [detailWordWrap]);
 
   useEffect(() => {
     isMobileViewportRef.current = isMobileViewport;
@@ -1089,6 +1110,7 @@ export function App() {
           busy={busy}
           theme={theme}
           nextTheme={nextTheme}
+          detailWordWrap={detailWordWrap}
           terminalVisible={terminalVisible}
           sessionQuery={sessionQuery}
           sessionList={sessionList}
@@ -1097,6 +1119,7 @@ export function App() {
           loadingMoreThreads={loadingMoreThreads}
           onTerminalToggle={() => setTerminalVisible((current) => !current)}
           onThemeChange={setTheme}
+          onDetailWordWrapChange={setDetailWordWrap}
           onRefresh={() => void refreshWithRuntimeSync()}
           onLoadMoreThreads={() => void loadMoreThreads()}
           onSessionQueryChange={setSessionQuery}
@@ -1110,6 +1133,7 @@ export function App() {
           busy={busy}
           renameTitle={renameTitle}
           canRename={canRename}
+          detailWordWrap={detailWordWrap}
           onBack={() => setMobileView("sessions")}
           onRenameTitleChange={setRenameTitle}
           onRenameSubmit={submitRename}
