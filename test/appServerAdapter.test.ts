@@ -66,7 +66,8 @@ function handle(message) {
         forkedFromId: null,
         preview: "resumed without turns",
         cwd: message.params.cwd,
-        model: message.params.model
+        model: message.params.model,
+        updatedAt: 1700000000
       },
       model: message.params.model
     })
@@ -85,7 +86,8 @@ function handle(message) {
         forkedFromId: "thread_" + message.params.threadId,
         preview: "forked without turns",
         cwd: message.params.cwd,
-        model: message.params.model
+        model: message.params.model,
+        updatedAt: 1700000100
       },
       model: message.params.model
     })
@@ -399,7 +401,8 @@ describe("AppServerCodexAdapter", () => {
     expect(thread).toMatchObject({
       id: sourceThreadId,
       preview: "resumed without turns",
-      model: "test-model"
+      model: "test-model",
+      updatedAt: "2023-11-14T22:13:20.000Z"
     })
   })
 

@@ -497,6 +497,15 @@ export function applyEventProjection(projection: ClientProjection, event: XyzEve
     if (!event.threadId || !status) {
       return result(projection, projection, false, event);
     }
+    const thread = payloadValue<ControlThread>(event, "thread");
+    if (thread) {
+      return result(
+        projection,
+        withThread(projection, thread, { insertIfMissing: false }),
+        true,
+        event
+      );
+    }
     const updates: Partial<ControlThread> = {
       status,
       updatedAt: event.createdAt

@@ -283,6 +283,37 @@ describe("client event projection", () => {
     });
   });
 
+  it("preserves thread content time from runtime sync status payloads", () => {
+    const contentUpdatedAt = "2026-06-13T00:00:30.000Z";
+    const syncedThread = thread({
+      status: "idle",
+      activeTurnId: null,
+      preview: "Runtime preview",
+      updatedAt: contentUpdatedAt
+    });
+    const result = applyEventProjection(
+      projection(),
+      event("thread.status", {
+        status: "idle",
+        thread: syncedThread
+      })
+    );
+
+    expect(result.changed).toBe(true);
+    expect(result.state.threads[0]).toMatchObject({
+      status: "idle",
+      activeTurnId: null,
+      preview: "Runtime preview",
+      updatedAt: contentUpdatedAt
+    });
+    expect(result.detail).toMatchObject({
+      status: "idle",
+      activeTurnId: null,
+      preview: "Runtime preview",
+      updatedAt: contentUpdatedAt
+    });
+  });
+
   it("upserts new threads and keeps the low-frequency relationship refresh signal", () => {
     const newThread = thread({
       id: "thread-2",

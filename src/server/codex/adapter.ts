@@ -9,6 +9,7 @@ export type AdapterThread = {
   model: string | null;
   status: RuntimeStatus;
   activeTurnId?: string | null;
+  updatedAt?: string | null;
 };
 
 export type AdapterTurn = {

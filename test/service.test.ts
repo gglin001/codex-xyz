@@ -550,6 +550,8 @@ describe("ControlService", () => {
     }
 
     testAdapter.dropActiveTurn(threadId);
+    const updatedAtBeforeSync = service.getThreadDetail(threadId).updatedAt;
+    await new Promise((resolve) => setTimeout(resolve, 10));
     const sync = await service.syncRuntimeThreads([threadId]);
     const detail = service.getThreadDetail(threadId);
 
@@ -561,13 +563,52 @@ describe("ControlService", () => {
     });
     expect(detail).toMatchObject({
       status: "idle",
-      activeTurnId: null
+      activeTurnId: null,
+      updatedAt: updatedAtBeforeSync
     });
     expect(detail.turns[0]).toMatchObject({
       id: result.turn.id,
       status: "interrupted"
     });
     expect(service.listTasks()[0].status).toBe("interrupted");
+  });
+
+  it("keeps session ordering stable when refresh only aligns runtime state", async () => {
+    const project = service.listProjects()[0];
+    const older = await service.createTask({
+      projectId: project.id,
+      prompt: "Keep this turn open for runtime ordering"
+    });
+    await waitForEvents();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const newer = await service.createTask({
+      projectId: project.id,
+      prompt: "Complete after the open session"
+    });
+    await waitForEvents();
+
+    const olderThreadId = older.thread?.id;
+    const newerThreadId = newer.thread?.id;
+    if (!olderThreadId || !newerThreadId) {
+      throw new Error("Expected created thread ids");
+    }
+
+    expect(service.listThreads().slice(0, 2).map((thread) => thread.id)).toEqual([newerThreadId, olderThreadId]);
+
+    const olderUpdatedAt = service.getThreadDetail(olderThreadId).updatedAt;
+    const newerUpdatedAt = service.getThreadDetail(newerThreadId).updatedAt;
+    testAdapter.dropActiveTurn(olderThreadId);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    const sync = await service.syncRuntimeThreads([olderThreadId, newerThreadId]);
+
+    expect(sync).toMatchObject({
+      checkedThreadCount: 2,
+      updatedThreadCount: 1
+    });
+    expect(service.getThreadDetail(olderThreadId).updatedAt).toBe(olderUpdatedAt);
+    expect(service.getThreadDetail(newerThreadId).updatedAt).toBe(newerUpdatedAt);
+    expect(service.listThreads().slice(0, 2).map((thread) => thread.id)).toEqual([newerThreadId, olderThreadId]);
   });
 
   it("starts a new turn when default submission finds no runtime active turn", async () => {

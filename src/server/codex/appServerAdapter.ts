@@ -314,6 +314,14 @@ function normalizeOptionalTurnId(value: unknown) {
   return typeof value === "string" && value.trim().length > 0 ? value : null;
 }
 
+function normalizeUnixTimestamp(value: unknown) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    return null;
+  }
+  const milliseconds = value > 10_000_000_000 ? value : value * 1000;
+  return new Date(milliseconds).toISOString();
+}
+
 function normalizeThread(value: unknown, model?: unknown): AdapterThread {
   const thread = asRecord(value);
   const id = normalizeThreadId(thread.id);
@@ -329,7 +337,8 @@ function normalizeThread(value: unknown, model?: unknown): AdapterThread {
     activeTurnId:
       normalizeOptionalTurnId(thread.activeTurnId) ??
       normalizeOptionalTurnId(status.activeTurnId) ??
-      normalizeOptionalTurnId(status.turnId)
+      normalizeOptionalTurnId(status.turnId),
+    updatedAt: normalizeUnixTimestamp(thread.updatedAt)
   };
 }
 

@@ -33,6 +33,11 @@ type ThreadListOptions = {
   offset?: number | null;
 };
 
+type ThreadUpdateOptions = {
+  updatedAt?: string | null;
+  preserveUpdatedAt?: boolean;
+};
+
 function readJson<T>(value: unknown, fallback: T): T {
   if (typeof value !== "string" || value.length === 0) {
     return fallback;
@@ -422,13 +427,15 @@ export class Store {
         ControlThread,
         "status" | "activeTurnId" | "goalObjective" | "goalStatus" | "goalTokenBudget" | "tokensUsed" | "title" | "preview"
       >
-    >
+    >,
+    options: ThreadUpdateOptions = {}
   ) {
     const existing = this.getThread(id);
     if (!existing) {
       throw new Error(`Thread ${id} does not exist`);
     }
-    const next = { ...existing, ...updates, updatedAt: nowIso() };
+    const updatedAt = options.updatedAt ?? (options.preserveUpdatedAt ? existing.updatedAt : nowIso());
+    const next = { ...existing, ...updates, updatedAt };
     this.db
       .prepare(
         `

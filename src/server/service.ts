@@ -770,7 +770,7 @@ export class ControlService {
     preview?: string;
     tokensUsed: number;
   }) {
-    const now = nowIso();
+    const now = input.adapterThread.updatedAt ?? nowIso();
     const status = normalizeThreadRuntimeStatus(input.adapterThread.status);
     const thread: ControlThread = {
       id: input.adapterThread.id,
@@ -1031,10 +1031,12 @@ export class ControlService {
       activeTurnId: nextActiveTurnId,
       preview: adapterThread.preview || thread.preview
     };
-    const changed =
+    const fieldsChanged =
       thread.status !== updates.status ||
       thread.activeTurnId !== updates.activeTurnId ||
       thread.preview !== updates.preview;
+    const updatedAtChanged = Boolean(adapterThread.updatedAt && adapterThread.updatedAt !== thread.updatedAt);
+    const changed = fieldsChanged || updatedAtChanged;
     const issues: RuntimeSyncIssue[] = [];
 
     if (runtimeStatus !== "running" && thread.activeTurnId) {
@@ -1068,8 +1070,14 @@ export class ControlService {
       });
     }
 
-    const updated = changed ? this.store.updateThread(thread.id, updates) : thread;
-    if (changed) {
+    const updated = changed
+      ? this.store.updateThread(
+          thread.id,
+          updates,
+          adapterThread.updatedAt ? { updatedAt: adapterThread.updatedAt } : { preserveUpdatedAt: true }
+        )
+      : thread;
+    if (fieldsChanged) {
       this.store.updateTasksForThread(
         thread.id,
         runtimeStatus !== "running" && thread.activeTurnId ? "interrupted" : taskStatusFromRuntime(runtimeStatus)
