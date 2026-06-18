@@ -1,22 +1,7 @@
-import {
-  Activity,
-  Check,
-  Folder,
-  History,
-  ListChecks,
-  Loader2,
-  MessageSquarePlus,
-  Moon,
-  RefreshCw,
-  Search,
-  Settings,
-  Target,
-  Terminal,
-  WrapText
-} from "lucide-react";
+import { Check, History, Loader2, Moon, RefreshCw, Search, Settings, Target, Terminal, WrapText } from "lucide-react";
 import type { FocusEvent, KeyboardEvent } from "react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ControlThread, Project, RuntimeSyncIssue } from "../../server/domain.js";
+import type { ControlThread, RuntimeSyncIssue } from "../../server/domain.js";
 import type { SessionListModel } from "../sessionList.js";
 import { formatDateTime, formatTokens, statusLabel, statusTone } from "../uiFormat.js";
 import type { ThemeMode } from "./types.js";
@@ -30,14 +15,11 @@ export type SessionSidebarProps = {
   nextTheme: ThemeMode;
   detailWordWrap: boolean;
   terminalVisible: boolean;
-  projects: Project[];
-  selectedProjectId: string | null;
   sessionQuery: string;
   sessionList: SessionListModel;
   runtimeIssuesByThreadId: ReadonlyMap<string, RuntimeSyncIssue>;
   selectedThreadId: string | null;
   loadingMoreThreads: boolean;
-  onNewSession: () => void;
   onTerminalToggle: () => void;
   onThemeChange: (theme: ThemeMode) => void;
   onDetailWordWrapChange: (enabled: boolean) => void;
@@ -454,11 +436,6 @@ function SidebarSettingsMenu({
   );
 }
 
-function projectNameFromPath(path: string) {
-  const normalized = path.replace(/\/+$/, "");
-  return normalized.split("/").filter(Boolean).pop() || path || "Project";
-}
-
 export const SessionSidebar = memo(function SessionSidebar({
   density = "regular",
   busy,
@@ -466,14 +443,11 @@ export const SessionSidebar = memo(function SessionSidebar({
   nextTheme,
   detailWordWrap,
   terminalVisible,
-  projects,
-  selectedProjectId,
   sessionQuery,
   sessionList,
   runtimeIssuesByThreadId,
   selectedThreadId,
   loadingMoreThreads,
-  onNewSession,
   onTerminalToggle,
   onThemeChange,
   onDetailWordWrapChange,
@@ -482,30 +456,11 @@ export const SessionSidebar = memo(function SessionSidebar({
   onSessionQueryChange,
   onSelectThread
 }: SessionSidebarProps) {
-  const selectedThread = sessionList.threads.find((thread) => thread.id === selectedThreadId) ?? null;
-  const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null;
-  const leadingProjects = projects.slice(0, 5);
-  const visibleProjects =
-    projects.length > 0
-      ? selectedProject && !leadingProjects.some((project) => project.id === selectedProject.id)
-        ? [...projects.slice(0, 4), selectedProject]
-        : leadingProjects
-      : null;
-  const runningThreadCount = sessionList.threads.filter((thread) => thread.status === "running").length;
-  const runtimeIssueCount = runtimeIssuesByThreadId.size;
-  const activeProjectName =
-    selectedProject?.name ??
-    (selectedThread ? projectNameFromPath(selectedThread.cwd) : "Codex");
-
   return (
-    <section className="sessions panel" aria-label="Workspace navigation">
-      <div className="workspace-window-bar" aria-label="Workspace controls">
-        <div className="workspace-brand">
+    <section className="sessions panel">
+      <div className="panel-header sessions-header">
+        <div className="sessions-title">
           <strong>codex-xyz</strong>
-          <span>
-            {sessionList.loadedThreadCount}
-            {sessionList.totalThreadCount > sessionList.loadedThreadCount ? ` / ${sessionList.totalThreadCount}` : ""} sessions
-          </span>
         </div>
         <div className="panel-header-actions">
           {busy ? <Loader2 className="spin" size={18} /> : <History size={18} />}
@@ -522,81 +477,25 @@ export const SessionSidebar = memo(function SessionSidebar({
           <button title="Refresh" aria-label="Refresh" onClick={onRefresh} disabled={busy}>
             <RefreshCw size={16} className={busy ? "spin" : ""} />
           </button>
-        </div>
-      </div>
-
-      <nav className="workspace-nav" aria-label="Primary">
-        <button type="button" className="workspace-nav-item" onClick={onNewSession}>
-          <MessageSquarePlus size={19} />
-          <span>New session</span>
-        </button>
-        <label className="workspace-nav-item workspace-search">
-          <Search size={19} />
-          <input
-            value={sessionQuery}
-            onChange={(event) => onSessionQueryChange(event.target.value)}
-            placeholder="Search sessions"
-            aria-label="Search sessions"
+          <SidebarSettingsMenu
+            theme={theme}
+            nextTheme={nextTheme}
+            detailWordWrap={detailWordWrap}
+            onThemeChange={onThemeChange}
+            onDetailWordWrapChange={onDetailWordWrapChange}
           />
-        </label>
-      </nav>
-
-      <div className="workspace-section workspace-runtime">
-        <div className="workspace-section-heading">
-          <h2>Runtime</h2>
-        </div>
-        <div className="workspace-metrics" aria-label="Runtime summary">
-          <div className="workspace-metric">
-            <Activity size={16} />
-            <span>Running</span>
-            <strong>{runningThreadCount}</strong>
-          </div>
-          <div className="workspace-metric">
-            <ListChecks size={16} />
-            <span>Queue</span>
-            <strong>{sessionList.queuedTaskCount}</strong>
-          </div>
-          <div className={`workspace-metric ${runtimeIssueCount > 0 ? "attention" : ""}`}>
-            <Target size={16} />
-            <span>Issues</span>
-            <strong>{runtimeIssueCount}</strong>
-          </div>
         </div>
       </div>
 
-      <div className="workspace-section workspace-projects">
-        <h2>Projects</h2>
-        <div className="workspace-project-list">
-          {visibleProjects ? (
-            visibleProjects.map((project) => (
-              <div
-                key={project.id}
-                className={`workspace-project ${project.id === selectedProjectId ? "active" : ""}`}
-                title={project.path}
-              >
-                <span className="workspace-project-label">
-                  <Folder size={18} />
-                  <span>{project.name || projectNameFromPath(project.path)}</span>
-                </span>
-              </div>
-            ))
-          ) : (
-            <div className="workspace-project active">
-              <span className="workspace-project-label">
-                <Folder size={18} />
-                <span>{activeProjectName}</span>
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="workspace-section workspace-chats">
-        <div className="workspace-section-heading">
-          <h2>Sessions</h2>
-          <span>{sessionList.visibleThreadCount}</span>
-        </div>
-      </div>
+      <label className="session-search">
+        <Search size={14} />
+        <input
+          value={sessionQuery}
+          onChange={(event) => onSessionQueryChange(event.target.value)}
+          placeholder="Search sessions"
+          aria-label="Search sessions"
+        />
+      </label>
 
       <VirtualSessionList
         density={density}
@@ -607,17 +506,6 @@ export const SessionSidebar = memo(function SessionSidebar({
         onLoadMoreThreads={onLoadMoreThreads}
         onSelectThread={onSelectThread}
       />
-
-      <div className="workspace-settings-row">
-        <SidebarSettingsMenu
-          theme={theme}
-          nextTheme={nextTheme}
-          detailWordWrap={detailWordWrap}
-          onThemeChange={onThemeChange}
-          onDetailWordWrapChange={onDetailWordWrapChange}
-        />
-        <span>Settings</span>
-      </div>
     </section>
   );
 });

@@ -1055,16 +1055,6 @@ export function App() {
     );
   }
 
-  function beginNewSession() {
-    setComposerMode("new");
-    if (isMobileViewportRef.current) {
-      setMobileView("detail");
-    }
-  }
-
-  const selectedProjectId =
-    selectedThread?.projectId ?? matchingWorkdirProject?.id ?? state.projects[0]?.id ?? null;
-
   const desktopComposer = !isMobileViewport ? (
     <PromptComposer
       className="desktop-composer detail-composer"
@@ -1122,14 +1112,11 @@ export function App() {
           nextTheme={nextTheme}
           detailWordWrap={detailWordWrap}
           terminalVisible={terminalVisible}
-          projects={state.projects}
-          selectedProjectId={selectedProjectId}
           sessionQuery={sessionQuery}
           sessionList={sessionList}
           runtimeIssuesByThreadId={runtimeIssuesByThreadId}
           selectedThreadId={selectedThreadId}
           loadingMoreThreads={loadingMoreThreads}
-          onNewSession={beginNewSession}
           onTerminalToggle={() => setTerminalVisible((current) => !current)}
           onThemeChange={setTheme}
           onDetailWordWrapChange={setDetailWordWrap}
@@ -1148,15 +1135,6 @@ export function App() {
           canRename={canRename}
           detailWordWrap={detailWordWrap}
           onBack={() => setMobileView("sessions")}
-          terminalVisible={terminalVisible}
-          onTerminalToggle={() => setTerminalVisible((current) => !current)}
-          onInterrupt={interruptSelectedThread}
-          onResume={resumeSelectedThread}
-          onFork={forkSelectedThread}
-          onPauseGoal={pauseSelectedGoal}
-          onResumeGoal={resumeSelectedGoal}
-          onCompleteGoal={completeSelectedGoal}
-          onClearGoal={clearSelectedGoal}
           onRenameTitleChange={setRenameTitle}
           onRenameSubmit={submitRename}
           composer={desktopComposer}
