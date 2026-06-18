@@ -18,7 +18,6 @@ const app = next({
   port: uiUrl.port
 });
 const handle = app.getRequestHandler();
-const handleUpgrade = app.getUpgradeHandler();
 const terminalWebSocketServer = new WebSocketServer({
   noServer: true,
   perMessageDeflate: false
@@ -35,6 +34,7 @@ function rejectUpgrade(socket: NodeJS.WritableStream & { destroy: () => void }, 
 }
 
 await app.prepare();
+const handleUpgrade = app.getUpgradeHandler();
 
 const server = createServer((request, response) => {
   void handle(request, response);
