@@ -1,8 +1,11 @@
 node_modules/
 dist/
-.codex-xyz/
-coverage/
+
 src/generated/
+
+.codex-xyz/
+.next
+
 *.log
 .DS_Store
 
