@@ -1,56 +1,8 @@
-import { execFileSync } from "node:child_process";
-import { resolve } from "node:path";
-import { AppServerCodexAdapter } from "./codex/appServerAdapter.js";
 import { connectableOrigin, readApiUrl, readUiUrl } from "../config.js";
 import { createHttpServer } from "./http.js";
-import { ControlService } from "./service.js";
-import { Store } from "./store.js";
+import { createServiceFromEnv, parseServerArgs } from "./serviceFactory.js";
 
-export type ServerOptions = {
-  verbosity?: number;
-};
-
-const maxVerbosity = 3;
-
-function codexVersion() {
-  try {
-    const bin = process.env.CODEX_XYZ_CODEX_BIN ?? "codex";
-    return execFileSync(bin, ["--version"], { encoding: "utf8" }).trim();
-  } catch {
-    return null;
-  }
-}
-
-export function parseServerArgs(argv: string[]): ServerOptions {
-  const verbosity = argv.reduce((total, arg) => {
-    if (!/^-v+$/.test(arg)) {
-      return total;
-    }
-    return total + arg.length - 1;
-  }, 0);
-
-  return {
-    verbosity: Math.min(maxVerbosity, verbosity)
-  };
-}
-
-export function createServiceFromEnv(options: ServerOptions = {}) {
-  const dataDir = resolve(process.cwd(), process.env.CODEX_XYZ_DATA_DIR ?? ".codex-xyz");
-  const codexBin = process.env.CODEX_XYZ_CODEX_BIN ?? "codex";
-  const store = Store.open(resolve(dataDir, "codex-xyz.sqlite"));
-  const verbosity = Math.min(maxVerbosity, Math.max(0, Math.floor(options.verbosity ?? 0)));
-  const adapter = new AppServerCodexAdapter(codexBin, {
-    debugLogPath: verbosity > 0 ? resolve(dataDir, "debug.jsonl") : null,
-    debugLogLevel: verbosity
-  });
-  const service = new ControlService(store, adapter);
-  service.seedLocalState({
-    cwd: process.cwd(),
-    adapterName: adapter.name,
-    cliVersion: codexVersion()
-  });
-  return service;
-}
+export { createServiceFromEnv, parseServerArgs };
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const options = parseServerArgs(process.argv.slice(2));
@@ -58,8 +10,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const apiUrl = readApiUrl(process.env);
   const uiUrl = readUiUrl(process.env);
   const corsOrigins = [...new Set([uiUrl.origin, connectableOrigin(uiUrl)])];
-  const clientDistDir = resolve(process.cwd(), "dist/client");
-  const server = createHttpServer(service, { clientDistDir, corsOrigins });
+  const server = createHttpServer(service, { corsOrigins });
   server.listen(apiUrl.port, apiUrl.hostname, () => {
     console.log(`codex-xyz API listening on ${apiUrl.origin}`);
   });

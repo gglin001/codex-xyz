@@ -1,0 +1,468 @@
+import type { ControlService } from "./service.js";
+import { isSummaryEventType, type GoalStatusUpdate, type TerminalEvent } from "./domain.js";
+
+const textEncoder = new TextEncoder();
+
+function jsonResponse(body: unknown, status = 200) {
+  return Response.json(body, {
+    status,
+    headers: {
+      "cache-control": "no-store"
+    }
+  });
+}
+
+function noContentResponse() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      "cache-control": "no-store"
+    }
+  });
+}
+
+async function readJson(request: Request) {
+  const text = await request.text();
+  return text ? (JSON.parse(text) as Record<string, unknown>) : {};
+}
+
+function requireString(body: Record<string, unknown>, key: string) {
+  const value = body[key];
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new Error(`Missing string field: ${key}`);
+  }
+  return value.trim();
+}
+
+function requireRawString(body: Record<string, unknown>, key: string) {
+  const value = body[key];
+  if (typeof value !== "string") {
+    throw new Error(`Missing string field: ${key}`);
+  }
+  return value;
+}
+
+function requireGoalStatusUpdate(body: Record<string, unknown>): GoalStatusUpdate {
+  const status = requireString(body, "status");
+  if (status === "active" || status === "paused" || status === "complete") {
+    return status;
+  }
+  throw new Error("status must be active, paused, or complete");
+}
+
+function optionalString(body: Record<string, unknown>, key: string) {
+  const value = body[key];
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function optionalBoolean(body: Record<string, unknown>, key: string) {
+  const value = body[key];
+  return typeof value === "boolean" ? value : null;
+}
+
+function requireStringArray(body: Record<string, unknown>, key: string) {
+  const value = body[key];
+  if (!Array.isArray(value)) {
+    throw new Error(`Missing string array field: ${key}`);
+  }
+  return value.map((item) => {
+    if (typeof item !== "string" || item.trim().length === 0) {
+      throw new Error(`${key} must contain only non-empty strings`);
+    }
+    return item.trim();
+  });
+}
+
+function optionalPositiveInteger(body: Record<string, unknown>, key: string) {
+  const value = body[key];
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+  const number = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(number) || number <= 0) {
+    throw new Error(`${key} must be a positive integer`);
+  }
+  return number;
+}
+
+function optionalQueryInteger(url: URL, key: string, options: { min: number }) {
+  const value = url.searchParams.get(key);
+  if (value === null || value.trim() === "") {
+    return null;
+  }
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < options.min) {
+    throw new Error(`${key} must be an integer >= ${options.min}`);
+  }
+  return number;
+}
+
+function pathParts(url: URL) {
+  return url.pathname
+    .split("/")
+    .filter(Boolean)
+    .map((part) => decodeURIComponent(part));
+}
+
+function formatSse(event: string, data: unknown, id?: number) {
+  let payload = "";
+  if (id !== undefined) {
+    payload += `id: ${id}\n`;
+  }
+  payload += `event: ${event}\n`;
+  payload += `data: ${JSON.stringify(data)}\n\n`;
+  return payload;
+}
+
+type SseSetup = (sendRaw: (payload: string) => void) => () => void;
+
+function sseResponse(request: Request, setup: SseSetup) {
+  let cleanup: (() => void) | null = null;
+  let closeStream: (() => void) | null = null;
+
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      let closed = false;
+
+      const close = () => {
+        if (closed) {
+          return;
+        }
+        closed = true;
+        cleanup?.();
+        cleanup = null;
+        try {
+          controller.close();
+        } catch {
+          // The stream may already be closed by the consumer.
+        }
+      };
+
+      closeStream = close;
+      const sendRaw = (payload: string) => {
+        if (closed) {
+          return;
+        }
+        try {
+          controller.enqueue(textEncoder.encode(payload));
+        } catch {
+          close();
+        }
+      };
+
+      if (request.signal.aborted) {
+        close();
+        return;
+      }
+      request.signal.addEventListener("abort", close, { once: true });
+      cleanup = () => {
+        request.signal.removeEventListener("abort", close);
+      };
+      const setupCleanup = setup(sendRaw);
+      const abortCleanup = cleanup;
+      cleanup = () => {
+        abortCleanup?.();
+        setupCleanup();
+      };
+    },
+    cancel() {
+      closeStream?.();
+    }
+  });
+
+  return new Response(body, {
+    status: 200,
+    headers: {
+      "content-type": "text/event-stream; charset=utf-8",
+      "cache-control": "no-cache, no-transform",
+      connection: "keep-alive",
+      "x-accel-buffering": "no"
+    }
+  });
+}
+
+function writeSseConnected(sendRaw: (payload: string) => void) {
+  sendRaw(": connected\n\n");
+}
+
+function writeSse(sendRaw: (payload: string) => void, event: string, data: unknown, id?: number) {
+  sendRaw(formatSse(event, data, id));
+}
+
+function summaryEventsResponse(service: ControlService, request: Request, url: URL) {
+  return sseResponse(request, (sendRaw) => {
+    writeSseConnected(sendRaw);
+    const after = Number(url.searchParams.get("after") ?? 0);
+    for (const event of service.replayEvents(Number.isFinite(after) ? after : 0, { summaryOnly: true })) {
+      writeSse(sendRaw, event.type, event, event.id);
+    }
+    const unsubscribe = service.events.subscribe((event) => {
+      if (isSummaryEventType(event.type)) {
+        writeSse(sendRaw, event.type, event, event.id);
+      }
+    });
+    const heartbeat = setInterval(() => {
+      sendRaw(": ping\n\n");
+    }, 25_000);
+    return () => {
+      clearInterval(heartbeat);
+      unsubscribe();
+    };
+  });
+}
+
+function threadEventsResponse(service: ControlService, request: Request, url: URL, threadId: string) {
+  return sseResponse(request, (sendRaw) => {
+    writeSseConnected(sendRaw);
+    const after = Number(url.searchParams.get("after") ?? 0);
+    for (const event of service.replayEvents(Number.isFinite(after) ? after : 0, { threadId })) {
+      writeSse(sendRaw, event.type, event, event.id);
+    }
+    const unsubscribe = service.events.subscribe((event) => {
+      if (event.threadId === threadId) {
+        writeSse(sendRaw, event.type, event, event.id);
+      }
+    });
+    const heartbeat = setInterval(() => {
+      sendRaw(": ping\n\n");
+    }, 25_000);
+    return () => {
+      clearInterval(heartbeat);
+      unsubscribe();
+    };
+  });
+}
+
+function terminalEventsResponse(service: ControlService, request: Request, url: URL) {
+  return sseResponse(request, (sendRaw) => {
+    writeSseConnected(sendRaw);
+    const after = Number(url.searchParams.get("after") ?? 0);
+    const replayAfter = Number.isFinite(after) ? after : 0;
+    const send = (event: TerminalEvent) => writeSse(sendRaw, event.type, event, event.sequence);
+
+    for (const event of service.terminal.replay(replayAfter)) {
+      send(event);
+    }
+    const unsubscribe = service.terminal.subscribe(send);
+    const heartbeat = setInterval(() => {
+      sendRaw(": ping\n\n");
+    }, 25_000);
+
+    return () => {
+      clearInterval(heartbeat);
+      unsubscribe();
+    };
+  });
+}
+
+async function routeApiRequest(service: ControlService, request: Request, url: URL) {
+  const method = request.method;
+
+  if (method === "OPTIONS") {
+    return noContentResponse();
+  }
+
+  if (method === "GET" && url.pathname === "/api/health") {
+    return jsonResponse({
+      ok: true,
+      adapter: service.adapter.name
+    });
+  }
+
+  if (method === "GET" && url.pathname === "/api/state") {
+    return jsonResponse(service.dashboard());
+  }
+
+  if (method === "GET" && url.pathname === "/api/events") {
+    return summaryEventsResponse(service, request, url);
+  }
+
+  if (method === "GET" && url.pathname === "/api/terminal") {
+    return jsonResponse(await service.terminal.snapshot());
+  }
+
+  if (method === "GET" && url.pathname === "/api/terminal/events") {
+    return terminalEventsResponse(service, request, url);
+  }
+
+  const parts = pathParts(url);
+  const route = parts.join("/");
+
+  if (method === "POST" && route === "api/terminal/start") {
+    const body = await readJson(request);
+    return jsonResponse(
+      await service.terminal.start({
+        cols: optionalPositiveInteger(body, "cols"),
+        rows: optionalPositiveInteger(body, "rows")
+      })
+    );
+  }
+
+  if (method === "POST" && route === "api/terminal/input") {
+    const body = await readJson(request);
+    const data = requireRawString(body, "data");
+    if (data.length > 0) {
+      service.terminal.write(data);
+    }
+    return noContentResponse();
+  }
+
+  if (method === "POST" && route === "api/terminal/resize") {
+    const body = await readJson(request);
+    return jsonResponse(
+      await service.terminal.resize({
+        cols: optionalPositiveInteger(body, "cols"),
+        rows: optionalPositiveInteger(body, "rows")
+      })
+    );
+  }
+
+  if (method === "POST" && route === "api/terminal/terminate") {
+    return jsonResponse(await service.terminal.terminate());
+  }
+
+  if (method === "GET" && route === "api/projects") {
+    return jsonResponse(service.listProjects());
+  }
+
+  if (method === "POST" && route === "api/projects") {
+    const body = await readJson(request);
+    const project = service.createProject({
+      name: optionalString(body, "name"),
+      path: requireString(body, "path")
+    });
+    return jsonResponse(project, 201);
+  }
+
+  if (method === "GET" && route === "api/tasks") {
+    return jsonResponse(service.listTasks());
+  }
+
+  if (method === "POST" && route === "api/tasks") {
+    const body = await readJson(request);
+    const result = await service.createTask({
+      projectId: requireString(body, "projectId"),
+      prompt: requireString(body, "prompt"),
+      goalMode: optionalBoolean(body, "goalMode"),
+      title: optionalString(body, "title"),
+      recipeId: optionalString(body, "recipeId"),
+      model: optionalString(body, "model")
+    });
+    return jsonResponse(result, 201);
+  }
+
+  if (method === "GET" && route === "api/threads") {
+    if (url.searchParams.has("limit") || url.searchParams.has("offset")) {
+      return jsonResponse(
+        service.listThreadPage({
+          limit: optionalQueryInteger(url, "limit", { min: 1 }),
+          offset: optionalQueryInteger(url, "offset", { min: 0 })
+        })
+      );
+    }
+    return jsonResponse(service.listThreads());
+  }
+
+  if (method === "POST" && route === "api/threads/runtime-sync") {
+    const body = await readJson(request);
+    return jsonResponse(await service.syncRuntimeThreads(requireStringArray(body, "threadIds")));
+  }
+
+  if (parts[0] === "api" && parts[1] === "threads" && parts[2]) {
+    const threadId = parts[2];
+    if (method === "GET" && parts.length === 3) {
+      return jsonResponse(service.getThreadDetail(threadId));
+    }
+
+    if (method === "GET" && parts[3] === "events") {
+      return threadEventsResponse(service, request, url, threadId);
+    }
+
+    if (method === "POST" && parts[3] === "turns") {
+      const body = await readJson(request);
+      const turn = await service.startTurn({
+        threadId,
+        prompt: requireString(body, "prompt"),
+        model: optionalString(body, "model")
+      });
+      return jsonResponse(turn, 201);
+    }
+
+    if (method === "POST" && parts[3] === "resume") {
+      return jsonResponse(await service.resumeThread(threadId));
+    }
+
+    if (method === "PUT" && parts[3] === "name") {
+      const body = await readJson(request);
+      return jsonResponse(
+        await service.renameThread({
+          threadId,
+          title: requireString(body, "title")
+        })
+      );
+    }
+
+    if (method === "POST" && parts[3] === "steer") {
+      const body = await readJson(request);
+      await service.steerTurn(threadId, requireString(body, "prompt"));
+      return noContentResponse();
+    }
+
+    if (method === "POST" && parts[3] === "queue") {
+      const body = await readJson(request);
+      return jsonResponse(await service.queueTurn(threadId, requireString(body, "prompt")), 201);
+    }
+
+    if (method === "POST" && parts[3] === "interrupt") {
+      return jsonResponse(await service.interruptTurn(threadId));
+    }
+
+    if (method === "POST" && parts[3] === "fork") {
+      return jsonResponse(await service.forkThread(threadId), 201);
+    }
+
+    if (parts[3] === "goal") {
+      if (method === "GET" && parts.length === 4) {
+        return jsonResponse(await service.getGoal(threadId));
+      }
+      if (method === "PUT" && parts[4] === "status" && parts.length === 5) {
+        const body = await readJson(request);
+        return jsonResponse(
+          await service.setGoalStatus({
+            threadId,
+            status: requireGoalStatusUpdate(body)
+          })
+        );
+      }
+      if (method === "PUT" && parts.length === 4) {
+        const body = await readJson(request);
+        return jsonResponse(
+          await service.startGoal({
+            threadId,
+            objective: requireString(body, "objective"),
+            tokenBudget: optionalPositiveInteger(body, "tokenBudget")
+          })
+        );
+      }
+      if (method === "DELETE" && parts.length === 4) {
+        return jsonResponse(await service.clearGoal(threadId));
+      }
+    }
+  }
+
+  return jsonResponse({ error: "Not found" }, 404);
+}
+
+export async function handleApiRequest(service: ControlService, request: Request) {
+  const url = new URL(request.url);
+  if (!url.pathname.startsWith("/api/")) {
+    return null;
+  }
+
+  try {
+    return await routeApiRequest(service, request, url);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return jsonResponse({ error: message }, 400);
+  }
+}

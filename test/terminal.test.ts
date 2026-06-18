@@ -87,7 +87,7 @@ describe("TerminalController", () => {
     };
     const terminal = new TerminalController({
       cwd: tempDir,
-      env: { SHELL: "/bin/test-shell" },
+      env: { ...process.env, SHELL: "/bin/test-shell" },
       ptyFactory: factory
     });
 

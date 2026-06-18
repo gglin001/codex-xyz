@@ -1,6 +1,6 @@
 # codex-xyz
 
-`codex-xyz` is a local Codex control-plane prototype. It provides a React web console, a Node API host, a SQLite projection store, and an app-server adapter for real Codex sessions.
+`codex-xyz` is a local Codex control-plane prototype. It provides a Next.js web console, local API route handlers, a SQLite projection store, and an app-server adapter for real Codex sessions.
 
 ## Usage
 
@@ -16,7 +16,15 @@ Start the local console:
 pnpm run dev
 ```
 
-Open `http://127.0.0.1:1123`. The API runs on `http://127.0.0.1:3211`, and local state defaults to `.codex-xyz/codex-xyz.sqlite`.
+Open `http://127.0.0.1:1123`. The web console and `/api/*` routes are served from the same Next.js host by default, and local state defaults to `.codex-xyz/codex-xyz.sqlite`.
+
+Start the API-only host for focused HTTP debugging:
+
+```bash
+pnpm run dev:api
+```
+
+The API-only host listens on `http://127.0.0.1:3211` unless `CODEX_XYZ_API_URL` or `PORT` is set.
 
 Start with app-server protocol logging:
 
@@ -40,4 +48,10 @@ Run TypeScript checks:
 
 ```bash
 pnpm run typecheck
+```
+
+Build the production Next.js app:
+
+```bash
+pnpm run build
 ```

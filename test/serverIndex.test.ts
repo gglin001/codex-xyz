@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { parseServerArgs } from "../src/server/index.js"
+import { parseServerArgs } from "../src/server/serviceFactory.js"
 
 describe("server argument parsing", () => {
   it("uses zero verbosity by default", () => {

@@ -2,16 +2,17 @@
 
 ## Project Structure & Module Organization
 
-This repository is a local Codex control-plane prototype with a React client and Node server:
+This repository is a local Codex control-plane prototype with a Next.js client/server app and an API-only Node server:
 
-- `src/client/`: Vite UI, browser API wrapper, and application styles.
-- `src/server/`: HTTP server, service layer, SQLite store, event bus, and domain types.
+- `src/app/`: Next.js App Router entry, route handlers, metadata, and global CSS.
+- `src/client/`: client-side dashboard island, browser API wrapper, and interactive UI styles.
+- `src/server/`: shared API handlers, service layer, SQLite store, event bus, terminal WebSocket support, and domain types.
 - `src/server/codex/`: adapter boundary for real Codex app-server sessions.
 - `src/config.ts`: environment and URL parsing.
 - `test/`: Vitest coverage for service, HTTP, and configuration behavior.
 - `scripts/`: utility scripts, including Codex protocol generation.
 - `third_party/codex/`: upstream Codex reference source and generated protocol context.
-- `dist/client/`: generated client build output.
+- `.next/`: generated Next.js build output.
 - `debug_agent/`: untracked scratch workspace for temp files and local experiments (use this instead of `/tmp`).
 
 Runtime state defaults to `.codex-xyz/`.
@@ -23,9 +24,9 @@ Use `NOTICE.md` for repository-specific operating constraints and supported or d
 ## Build, Test, and Development Commands
 
 - `pnpm install`: install dependencies.
-- `pnpm run dev`: start the local API and Vite web console.
-- `pnpm run dev:api`: watch and restart `src/server/index.ts`.
-- `pnpm run dev:web`: start only the Vite client.
+- `pnpm run dev`: start the local Next.js web console with same-origin API routes.
+- `pnpm run dev:api`: watch and restart the API-only `src/server/index.ts` host.
+- `pnpm run dev:web`: alias for the Next.js web console.
 - `pnpm test`: generate Codex types, then run Vitest once.
 - `pnpm run typecheck`: run strict TypeScript checks without emitting files.
 - `pnpm run build`: generate Codex types, typecheck, and build the client.

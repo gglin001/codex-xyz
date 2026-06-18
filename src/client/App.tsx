@@ -1,3 +1,5 @@
+ "use client";
+
 import type { CSSProperties, FormEvent, KeyboardEvent } from "react";
 import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -284,8 +286,12 @@ function readStoredDetailWordWrap() {
   }
 }
 
-export function App() {
-  const [state, setState] = useState<DashboardState>(initialState);
+export type AppProps = {
+  initialState?: DashboardState;
+};
+
+export function App({ initialState: serverInitialState }: AppProps) {
+  const [state, setState] = useState<DashboardState>(() => serverInitialState ?? initialState());
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ThreadDetail | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -321,7 +327,7 @@ export function App() {
   const projectionFrameRef = useRef<number | null>(null);
   const fallbackRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const projectionRef = useRef<ClientProjection>({
-    state: initialState(),
+    state: serverInitialState ?? initialState(),
     detail: null
   });
 
@@ -519,10 +525,30 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    if (serverInitialState) {
+      summaryEventIdRef.current = Math.max(summaryEventIdRef.current, serverInitialState.latestEventId);
+      setSummaryEventsReady(true);
+      const preferredThreadId = choosePreferredThreadId(serverInitialState.threads, {
+        currentThreadId: selectedThreadIdRef.current,
+        requestedThreadId: null,
+        preferRequestedThread: false,
+        allowFallbackSelection: true
+      });
+      setSelectedThreadId(preferredThreadId);
+      selectedThreadIdRef.current = preferredThreadId;
+      if (preferredThreadId) {
+        void loadThreadDetail(preferredThreadId).catch((loadError: unknown) => {
+          if (selectedThreadIdRef.current === preferredThreadId) {
+            setError(loadError instanceof Error ? loadError.message : "Failed to load session");
+          }
+        });
+      }
+      return;
+    }
     void refresh(undefined, { loadDetail: true }).catch((loadError: unknown) => {
       setError(loadError instanceof Error ? loadError.message : "Failed to load state");
     });
-  }, []);
+  }, [serverInitialState]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;

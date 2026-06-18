@@ -50,7 +50,9 @@ function normalizeApiBaseUrl(value: string | undefined) {
   return trimmed;
 }
 
-const apiBaseUrl = normalizeApiBaseUrl(import.meta.env.VITE_CODEX_XYZ_API_URL);
+const configuredApiBaseUrl =
+  typeof process !== "undefined" ? process.env.NEXT_PUBLIC_CODEX_XYZ_API_URL : undefined;
+const apiBaseUrl = normalizeApiBaseUrl(configuredApiBaseUrl);
 
 export function apiUrl(path: string) {
   return apiBaseUrl ? `${apiBaseUrl}${path}` : path;
