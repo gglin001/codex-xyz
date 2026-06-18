@@ -3,12 +3,19 @@ import {
   ArrowLeft,
   Bot,
   Check,
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
   FileText,
+  GitFork,
   Info,
   ListChecks,
+  Pause,
+  Play,
+  RotateCw,
+  Square,
   Terminal,
+  Trash2,
   UserRound
 } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
@@ -44,6 +51,15 @@ export type ThreadDetailViewProps = {
   canRename: boolean;
   detailWordWrap: boolean;
   onBack: () => void;
+  terminalVisible: boolean;
+  onTerminalToggle: () => void;
+  onInterrupt: () => void;
+  onResume: () => void;
+  onFork: () => void;
+  onPauseGoal: () => void;
+  onResumeGoal: () => void;
+  onCompleteGoal: () => void;
+  onClearGoal: () => void;
   onRenameTitleChange: (value: string) => void;
   onRenameSubmit: (event: FormEvent) => void;
   composer?: ReactNode;
@@ -152,6 +168,17 @@ function goalTone(status: string) {
     return "stale";
   }
   return "quiet";
+}
+
+function goalSummary(thread: ControlThread | ThreadDetail | null) {
+  if (!thread?.goalObjective || !thread.goalStatus || thread.goalStatus === "cleared") {
+    return null;
+  }
+  return {
+    objective: thread.goalObjective,
+    status: thread.goalStatus,
+    label: statusLabel(thread.goalStatus)
+  };
 }
 
 const SessionFacts = memo(
@@ -533,48 +560,216 @@ export const ThreadDetailView = memo(function ThreadDetailView({
   canRename,
   detailWordWrap,
   onBack,
+  terminalVisible,
+  onTerminalToggle,
+  onInterrupt,
+  onResume,
+  onFork,
+  onPauseGoal,
+  onResumeGoal,
+  onCompleteGoal,
+  onClearGoal,
   onRenameTitleChange,
   onRenameSubmit,
   composer = null
 }: ThreadDetailViewProps) {
+  const goal = goalSummary(detail ?? selectedThread);
+  const canUseSessionControls = Boolean(selectedThreadId) && !busy;
+  const canInterrupt = canUseSessionControls && selectedThread?.status === "running";
+  const canResume = canUseSessionControls && selectedThread?.status !== "running";
+  const canPauseGoal = canUseSessionControls && goal?.status === "in_progress";
+  const canResumeGoal =
+    canUseSessionControls &&
+    (goal?.status === "paused" ||
+      goal?.status === "blocked" ||
+      goal?.status === "usage_limited" ||
+      goal?.status === "budget_limited");
+  const canCompleteGoal = canUseSessionControls && Boolean(goal) && goal?.status !== "complete";
+  const canClearGoal = canUseSessionControls && Boolean(goal);
+
   return (
     <section className="detail panel" data-detail-word-wrap={detailWordWrap ? "true" : "false"}>
-      <div className="detail-header">
-        <button
-          type="button"
-          className="mobile-back-button"
-          title="Back to sessions"
-          aria-label="Back to sessions"
-          onClick={onBack}
-        >
-          <ArrowLeft size={18} />
-        </button>
-        <div className="title-stack">
-          {selectedThread ? (
-            <form className="title-editor" onSubmit={onRenameSubmit}>
-              <input
-                value={renameTitle}
-                onChange={(event) => onRenameTitleChange(event.target.value)}
-                disabled={busy}
-                aria-label="Session title"
-              />
-              <button title="Save title" disabled={!canRename}>
-                <Check size={16} />
-              </button>
-            </form>
-          ) : (
-            <h1>Session</h1>
-          )}
+      <div className="detail-layout">
+        <div className="detail-conversation">
+          <div className="detail-header">
+            <button
+              type="button"
+              className="mobile-back-button"
+              title="Back to sessions"
+              aria-label="Back to sessions"
+              onClick={onBack}
+            >
+              <ArrowLeft size={18} />
+            </button>
+            <div className="title-stack">
+              {selectedThread ? (
+                <form className="title-editor" onSubmit={onRenameSubmit}>
+                  <input
+                    value={renameTitle}
+                    onChange={(event) => onRenameTitleChange(event.target.value)}
+                    disabled={busy}
+                    aria-label="Session title"
+                  />
+                  <button title="Save title" disabled={!canRename}>
+                    <Check size={16} />
+                  </button>
+                </form>
+              ) : (
+                <h1>Session</h1>
+              )}
+            </div>
+          </div>
+
+          {detail ? <QueuedPromptPanel prompts={detail.queuedPrompts} /> : null}
+
+          <Transcript detail={detail} hasSelection={Boolean(selectedThreadId)} />
+
+          {composer}
         </div>
+
+        <aside className="detail-tools" aria-label="Session controls">
+          <div className="detail-tool-section">
+            <h2>Controls</h2>
+            <div className="tool-card-list">
+              <button
+                type="button"
+                className="tool-card"
+                disabled={!canInterrupt}
+                title="Interrupt active turn"
+                onClick={onInterrupt}
+              >
+                <span>
+                  <Square size={18} />
+                  <span>Interrupt</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                className="tool-card"
+                disabled={!canResume}
+                title="Resume selected session"
+                onClick={onResume}
+              >
+                <span>
+                  <RotateCw size={18} />
+                  <span>Resume</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                className="tool-card"
+                disabled={!canUseSessionControls}
+                title="Fork selected session"
+                onClick={onFork}
+              >
+                <span>
+                  <GitFork size={18} />
+                  <span>Fork</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                className={`tool-card ${terminalVisible ? "active" : ""}`}
+                title={terminalVisible ? "Hide terminal" : "Open terminal"}
+                aria-pressed={terminalVisible}
+                onClick={onTerminalToggle}
+              >
+                <span>
+                  <Terminal size={18} />
+                  <span>Terminal</span>
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {goal ? (
+            <div className="detail-tool-section">
+              <h2>Goal</h2>
+              <div className="goal-panel">
+                <div className={`goal-panel-status ${goalTone(goal.status)}`}>{goal.label}</div>
+                <p>{goal.objective}</p>
+              </div>
+              <div className="tool-card-list compact">
+                <button
+                  type="button"
+                  className="tool-card"
+                  disabled={!canPauseGoal}
+                  title="Pause goal"
+                  onClick={onPauseGoal}
+                >
+                  <span>
+                    <Pause size={18} />
+                    <span>Pause</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="tool-card"
+                  disabled={!canResumeGoal}
+                  title="Resume goal"
+                  onClick={onResumeGoal}
+                >
+                  <span>
+                    <Play size={18} />
+                    <span>Resume goal</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="tool-card"
+                  disabled={!canCompleteGoal}
+                  title="Mark goal complete"
+                  onClick={onCompleteGoal}
+                >
+                  <span>
+                    <CheckCircle2 size={18} />
+                    <span>Complete</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="tool-card danger"
+                  disabled={!canClearGoal}
+                  title="Clear goal"
+                  onClick={onClearGoal}
+                >
+                  <span>
+                    <Trash2 size={18} />
+                    <span>Clear</span>
+                  </span>
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="detail-tool-section">
+            <h2>Runtime</h2>
+            <div className="runtime-panel">
+              <div>
+                <span>
+                  <Activity size={16} />
+                  <span>Status</span>
+                </span>
+                <strong>{selectedThread ? statusLabel(selectedThread.status) : "No selection"}</strong>
+              </div>
+              <div>
+                <span>
+                  <ListChecks size={16} />
+                  <span>Turns</span>
+                </span>
+                <strong>{detail?.turns.length ?? 0}</strong>
+              </div>
+            </div>
+          </div>
+
+          {detail ? (
+            <div className="detail-tool-section detail-tool-facts">
+              <h2>Session</h2>
+              <SessionFacts thread={detail} />
+            </div>
+          ) : null}
+        </aside>
       </div>
-
-      {detail ? <SessionFacts thread={detail} /> : null}
-
-      {detail ? <QueuedPromptPanel prompts={detail.queuedPrompts} /> : null}
-
-      <Transcript detail={detail} hasSelection={Boolean(selectedThreadId)} />
-
-      {composer}
     </section>
   );
 });
