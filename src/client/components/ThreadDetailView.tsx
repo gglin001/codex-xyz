@@ -558,9 +558,11 @@ export const ThreadDetailView = memo(function ThreadDetailView({
                 disabled={busy}
                 aria-label="Session title"
               />
-              <button title="Save title" disabled={!canRename}>
-                <Check size={16} />
-              </button>
+              {canRename ? (
+                <button title="Save title" aria-label="Save title">
+                  <Check size={16} />
+                </button>
+              ) : null}
             </form>
           ) : (
             <h1>Session</h1>

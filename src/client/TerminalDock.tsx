@@ -59,32 +59,32 @@ function terminalTheme(mode: "dark" | "light") {
   if (mode === "light") {
     return {
       background: "#ffffff",
-      foreground: "#1f2937",
-      cursor: "#2c7a7b",
-      selectionBackground: "#d8f3ef",
-      black: "#111827",
+      foreground: "#2f2f2f",
+      cursor: "#111111",
+      selectionBackground: "#dedede",
+      black: "#111111",
       red: "#b42318",
       green: "#1d684f",
       yellow: "#8a5a12",
-      blue: "#28577a",
+      blue: "#255a8a",
       magenta: "#5b42a8",
-      cyan: "#155e63",
-      white: "#e5e7eb"
+      cyan: "#4a4a4a",
+      white: "#ededed"
     };
   }
   return {
-    background: "#0b111a",
-    foreground: "#e6edf5",
-    cursor: "#55c8bd",
-    selectionBackground: "#244650",
-    black: "#0f1723",
+    background: "#0b0b0b",
+    foreground: "#ececec",
+    cursor: "#f5f5f5",
+    selectionBackground: "#333333",
+    black: "#111111",
     red: "#ffb4b4",
-    green: "#7ee3c1",
+    green: "#a8e6cf",
     yellow: "#f1c56f",
-    blue: "#add7ff",
+    blue: "#c8d7ff",
     magenta: "#ccb7ff",
-    cyan: "#9df0e7",
-    white: "#f8fafc"
+    cyan: "#c8c8c8",
+    white: "#f5f5f5"
   };
 }
 

@@ -3,12 +3,12 @@ import {
   ChevronDown,
   ChevronRight,
   FolderOpen,
-  History,
   Loader2,
   Moon,
   RefreshCw,
   Search,
   Settings,
+  SidebarClose,
   Target,
   Terminal,
   WrapText
@@ -34,6 +34,7 @@ export type SessionSidebarProps = {
   runtimeIssuesByThreadId: ReadonlyMap<string, RuntimeSyncIssue>;
   selectedThreadId: string | null;
   loadingMoreThreads: boolean;
+  onSidebarToggle?: () => void;
   onTerminalToggle: () => void;
   onThemeChange: (theme: ThemeMode) => void;
   onDetailWordWrapChange: (enabled: boolean) => void;
@@ -570,6 +571,7 @@ export const SessionSidebar = memo(function SessionSidebar({
   runtimeIssuesByThreadId,
   selectedThreadId,
   loadingMoreThreads,
+  onSidebarToggle,
   onTerminalToggle,
   onThemeChange,
   onDetailWordWrapChange,
@@ -668,7 +670,18 @@ export const SessionSidebar = memo(function SessionSidebar({
           </span>
         </div>
         <div className="panel-header-actions">
-          {busy ? <Loader2 className="spin" size={18} /> : <History size={18} />}
+          {busy ? <Loader2 className="spin header-status-icon" size={18} /> : null}
+          {onSidebarToggle ? (
+            <button
+              type="button"
+              className="sidebar-toggle-button"
+              title="Hide sidebar"
+              aria-label="Hide sidebar"
+              onClick={onSidebarToggle}
+            >
+              <SidebarClose size={16} />
+            </button>
+          ) : null}
           <button
             type="button"
             className={terminalVisible ? "active" : ""}

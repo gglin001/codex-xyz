@@ -2,6 +2,7 @@
 
 import type { CSSProperties, FormEvent, KeyboardEvent } from "react";
 import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { SidebarOpen } from "lucide-react";
 import {
   apiUrl,
   clearGoal,
@@ -90,6 +91,7 @@ function mergeThreadsById(current: DashboardState["threads"], incoming: Dashboar
 const themeStorageKey = "codex-xyz-theme";
 const terminalVisibleStorageKey = "codex-xyz-terminal-visible";
 const detailWordWrapStorageKey = "codex-xyz-detail-word-wrap";
+const sidebarVisibleStorageKey = "codex-xyz-sidebar-visible";
 const mobileViewportQuery = "(max-width: 720px)";
 const TerminalDock = lazy(async () => ({
   default: (await import("./TerminalDock.js")).TerminalDock
@@ -295,6 +297,17 @@ function readStoredDetailWordWrap() {
   }
 }
 
+function readStoredSidebarVisible() {
+  if (typeof window === "undefined") {
+    return true;
+  }
+  try {
+    return window.localStorage.getItem(sidebarVisibleStorageKey) !== "false";
+  } catch {
+    return true;
+  }
+}
+
 export type AppProps = {
   initialState?: DashboardState;
 };
@@ -317,6 +330,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
   const [theme, setTheme] = useState<ThemeMode>(readStoredTheme);
   const [detailWordWrap, setDetailWordWrap] = useState(readStoredDetailWordWrap);
   const [terminalVisible, setTerminalVisible] = useState(readStoredTerminalVisible);
+  const [sidebarVisible, setSidebarVisible] = useState(readStoredSidebarVisible);
   const [mobileView, setMobileView] = useState<MobileView>("sessions");
   const [summaryEventsReady, setSummaryEventsReady] = useState(false);
   const [detailSubscription, setDetailSubscription] = useState<DetailSubscription | null>(null);
@@ -575,6 +589,14 @@ export function App({ initialState: serverInitialState }: AppProps) {
       // Keep the in-memory detail wrapping preference even if persistence is blocked.
     }
   }, [detailWordWrap]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(sidebarVisibleStorageKey, sidebarVisible ? "true" : "false");
+    } catch {
+      // Keep the in-memory sidebar preference even if persistence is blocked.
+    }
+  }, [sidebarVisible]);
 
   useEffect(() => {
     isMobileViewportRef.current = isMobileViewport;
@@ -1139,29 +1161,43 @@ export function App({ initialState: serverInitialState }: AppProps) {
       data-viewport-height={viewportProfile.heightProfile}
       data-ui-density={viewportProfile.density}
       data-keyboard-visible={viewportProfile.keyboardVisible}
+      data-sidebar-visible={sidebarVisible}
       style={viewportProfile.style}
     >
-      <div className="workspace" data-theme={theme} data-mobile-view={mobileView}>
-        <SessionSidebar
-          density={isMobileViewport ? "compact" : "regular"}
-          busy={busy}
-          theme={theme}
-          nextTheme={nextTheme}
-          detailWordWrap={detailWordWrap}
-          terminalVisible={terminalVisible}
-          sessionQuery={sessionQuery}
-          sessionList={sessionList}
-          runtimeIssuesByThreadId={runtimeIssuesByThreadId}
-          selectedThreadId={selectedThreadId}
-          loadingMoreThreads={loadingMoreThreads}
-          onTerminalToggle={() => setTerminalVisible((current) => !current)}
-          onThemeChange={setTheme}
-          onDetailWordWrapChange={setDetailWordWrap}
-          onRefresh={() => void refreshWithRuntimeSync()}
-          onLoadMoreThreads={() => void loadMoreThreads()}
-          onSessionQueryChange={setSessionQuery}
-          onSelectThread={selectThread}
-        />
+      <div className="workspace" data-theme={theme} data-mobile-view={mobileView} data-sidebar-visible={sidebarVisible}>
+        {sidebarVisible || isMobileViewport ? (
+          <SessionSidebar
+            density={isMobileViewport ? "compact" : "regular"}
+            busy={busy}
+            theme={theme}
+            nextTheme={nextTheme}
+            detailWordWrap={detailWordWrap}
+            terminalVisible={terminalVisible}
+            sessionQuery={sessionQuery}
+            sessionList={sessionList}
+            runtimeIssuesByThreadId={runtimeIssuesByThreadId}
+            selectedThreadId={selectedThreadId}
+            loadingMoreThreads={loadingMoreThreads}
+            onSidebarToggle={isMobileViewport ? undefined : () => setSidebarVisible(false)}
+            onTerminalToggle={() => setTerminalVisible((current) => !current)}
+            onThemeChange={setTheme}
+            onDetailWordWrapChange={setDetailWordWrap}
+            onRefresh={() => void refreshWithRuntimeSync()}
+            onLoadMoreThreads={() => void loadMoreThreads()}
+            onSessionQueryChange={setSessionQuery}
+            onSelectThread={selectThread}
+          />
+        ) : (
+          <button
+            type="button"
+            className="sidebar-restore-button"
+            title="Show sidebar"
+            aria-label="Show sidebar"
+            onClick={() => setSidebarVisible(true)}
+          >
+            <SidebarOpen size={18} />
+          </button>
+        )}
 
         <ThreadDetailView
           detail={selectedDetail}
