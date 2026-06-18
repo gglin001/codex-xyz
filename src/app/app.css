@@ -1,3 +1,4 @@
+@layer base {
 :root {
   color-scheme: dark;
   font-family:
@@ -192,15 +193,9 @@ body {
   color: var(--text);
   overflow: hidden;
 }
-
-#root {
-  width: 100%;
-  min-width: 0;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
 }
 
+@layer components {
 .app-shell {
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
@@ -2840,4 +2835,6 @@ button.active {
   .transcript {
     margin: 0 calc(-1 * var(--mobile-panel-padding));
   }
+}
+
 }

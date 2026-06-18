@@ -2,14 +2,14 @@
 
 ## Project Structure & Module Organization
 
-This repository is a local Codex control-plane prototype with a Next.js client/server app and an API-only Node server:
+This repository is a local Codex control-plane prototype with a Next.js client/server app:
 
 - `src/app/`: Next.js App Router entry, route handlers, metadata, and global CSS.
-- `src/client/`: client-side dashboard island, browser API wrapper, and interactive UI styles.
-- `src/server/`: shared API handlers, service layer, SQLite store, event bus, terminal WebSocket support, and domain types.
+- `src/client/`: client-side dashboard island, browser API wrapper, and interactive UI components.
+- `src/server/`: shared API handlers, service layer, SQLite store, event bus, terminal support, and domain types.
 - `src/server/codex/`: adapter boundary for real Codex app-server sessions.
-- `src/config.ts`: environment and URL parsing.
-- `test/`: Vitest coverage for service, HTTP, and configuration behavior.
+- `src/config.ts`: runtime environment parsing.
+- `test/`: Vitest coverage for service, API route, and configuration behavior.
 - `scripts/`: utility scripts, including Codex protocol generation.
 - `third_party/codex/`: upstream Codex reference source and generated protocol context.
 - `.next/`: generated Next.js build output.
@@ -25,11 +25,10 @@ Use `NOTICE.md` for repository-specific operating constraints and supported or d
 
 - `pnpm install`: install dependencies.
 - `pnpm run dev`: start the local Next.js web console with same-origin API routes.
-- `pnpm run dev:api`: watch and restart the API-only `src/server/index.ts` host.
-- `pnpm run dev:web`: alias for the Next.js web console.
 - `pnpm test`: generate Codex types, then run Vitest once.
 - `pnpm run typecheck`: run strict TypeScript checks without emitting files.
 - `pnpm run build`: generate Codex types, typecheck, and build the client.
+- `pnpm run start`: run the built production Next.js server.
 
 ## Coding Style & Naming Conventions
 
@@ -43,9 +42,9 @@ Use `NOTICE.md` for repository-specific operating constraints and supported or d
 
 Use Vitest with the Node environment. Add tests under `test/` using `*.test.ts`, grouped with `describe` and `it`.
 
-Prefer test adapters and temporary directories for service or HTTP behavior. Run `pnpm test` before submitting changes, and run `pnpm run typecheck` when changing shared types, config, adapters, or APIs.
+Prefer test adapters and temporary directories for service or API route behavior. Run `pnpm test` before submitting changes, and run `pnpm run typecheck` when changing shared types, config, adapters, or APIs.
 
-Before starting a dev server for manual validation, resolve the expected UI/API URLs from environment variables, falling back to the defaults (`http://127.0.0.1:1123` and `http://127.0.0.1:3211`) when unset. If services already respond there, assume the user has started testing and use those hot-reloading services instead of launching another server.
+Before starting a dev server for manual validation, use the Next.js app URL (`http://127.0.0.1:1123` by default). If a service already responds there, assume the user has started testing and use that hot-reloading service instead of launching another server.
 
 ## Commit & Pull Request Guidelines
 

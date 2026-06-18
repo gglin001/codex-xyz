@@ -2,19 +2,16 @@ import { EventEmitter } from "node:events";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AddressInfo } from "node:net";
-import WebSocket from "ws";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type {
   ControlThread,
   DashboardState,
   RuntimeSyncResult,
-  TerminalEvent,
   TerminalSnapshot,
   ThreadPage
 } from "../src/server/domain.js";
 import { EventBus } from "../src/server/eventBus.js";
-import { createHttpServer } from "../src/server/http.js";
+import { handleApiRequest } from "../src/server/api.js";
 import { ControlService } from "../src/server/service.js";
 import { Store } from "../src/server/store.js";
 import { TerminalController, type PtyFactory } from "../src/server/terminal.js";
@@ -77,38 +74,32 @@ class FakeTerminalPty {
 let tempDir: string;
 let service: ControlService;
 let testAdapter: TestCodexAdapter;
-let baseUrl: string;
-let server: ReturnType<typeof createHttpServer>;
 let terminalPtys: FakeTerminalPty[];
 
-async function listen() {
-  await new Promise<void>((resolve) => {
-    server.listen(0, "127.0.0.1", resolve);
-  });
-  const address = server.address() as AddressInfo;
-  baseUrl = `http://127.0.0.1:${address.port}`;
+async function apiResponse(path: string, init: RequestInit = {}) {
+  const headers = new Headers(init.headers);
+  if (!headers.has("content-type")) {
+    headers.set("content-type", "application/json");
+  }
+  return (
+    (await handleApiRequest(
+      service,
+      new Request(`http://codex-xyz.test${path}`, {
+        ...init,
+        headers
+      })
+    )) ?? Response.json({ error: "Not found" }, { status: 404 })
+  );
 }
 
 async function json<T>(path: string, init?: RequestInit) {
-  const response = await fetch(`${baseUrl}${path}`, {
-    ...init,
-    headers: {
-      "content-type": "application/json",
-      ...init?.headers
-    }
-  });
+  const response = await apiResponse(path, init);
   expect(response.ok).toBe(true);
   return (await response.json()) as T;
 }
 
 async function noContent(path: string, init?: RequestInit) {
-  const response = await fetch(`${baseUrl}${path}`, {
-    ...init,
-    headers: {
-      "content-type": "application/json",
-      ...init?.headers
-    }
-  });
+  const response = await apiResponse(path, init);
   expect(response.status).toBe(204);
 }
 
@@ -118,13 +109,9 @@ async function firstStreamChunk(path: string, init?: RequestInit) {
     controller.abort(new Error("Timed out waiting for the first stream chunk"));
   }, 500);
   try {
-    const response = await fetch(`${baseUrl}${path}`, {
+    const response = await apiResponse(path, {
       ...init,
-      signal: controller.signal,
-      headers: {
-        "content-type": "application/json",
-        ...init?.headers
-      }
+      signal: controller.signal
     });
     expect(response.ok).toBe(true);
     const reader = response.body?.getReader();
@@ -142,6 +129,31 @@ async function firstStreamChunk(path: string, init?: RequestInit) {
     clearTimeout(timeout);
     controller.abort();
   }
+}
+
+async function readStreamUntil(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  predicate: (text: string) => boolean,
+  label: string
+) {
+  const decoder = new TextDecoder();
+  const deadline = Date.now() + 1_000;
+  let text = "";
+  while (Date.now() < deadline) {
+    const remaining = Math.max(1, deadline - Date.now());
+    const timeout = new Promise<ReadableStreamReadResult<Uint8Array>>((_, reject) => {
+      setTimeout(() => reject(new Error(`Timed out waiting for ${label}`)), remaining);
+    });
+    const chunk = await Promise.race([reader.read(), timeout]);
+    if (chunk.done) {
+      break;
+    }
+    text += decoder.decode(chunk.value, { stream: true });
+    if (predicate(text)) {
+      return text;
+    }
+  }
+  throw new Error(`Timed out waiting for ${label}`);
 }
 
 async function waitFor(assertion: () => boolean | Promise<boolean>, label: string) {
@@ -177,8 +189,8 @@ function threadFixture(index: number, projectId: string): ControlThread {
   };
 }
 
-beforeEach(async () => {
-  tempDir = mkdtempSync(join(tmpdir(), "codex-xyz-http-"));
+beforeEach(() => {
+  tempDir = mkdtempSync(join(tmpdir(), "codex-xyz-api-"));
   terminalPtys = [];
   const ptyFactory: PtyFactory = (_file, _args, options) => {
     const fake = new FakeTerminalPty(options.cols ?? 80, options.rows ?? 24);
@@ -197,17 +209,14 @@ beforeEach(async () => {
     adapterName: "test",
     cliVersion: "test"
   });
-  server = createHttpServer(service);
-  await listen();
 });
 
 afterEach(async () => {
-  await new Promise<void>((resolve) => server.close(() => resolve()));
   await service.close();
   rmSync(tempDir, { recursive: true, force: true });
 });
 
-describe("HTTP API", () => {
+describe("Next API routes", () => {
   it("serves dashboard state and can create a local task", async () => {
     const state = await json<DashboardState>("/api/state");
     expect(state.projects).toHaveLength(1);
@@ -224,7 +233,9 @@ describe("HTTP API", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 20));
     const nextState = await json<DashboardState>("/api/state");
-    const detail = await json<{ items: Array<{ text: string }>; latestEventId: number }>(`/api/threads/${created.thread.id}`);
+    const detail = await json<{ items: Array<{ text: string }>; latestEventId: number }>(
+      `/api/threads/${created.thread.id}`
+    );
     expect(nextState.latestEventId).toBeGreaterThan(0);
     expect(detail.latestEventId).toBeGreaterThan(0);
     expect(detail.items.map((item) => item.text).join("\n")).toContain("Test run started");
@@ -294,50 +305,13 @@ describe("HTTP API", () => {
     ]);
   });
 
-  it("allows any configured CORS origin alias", async () => {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-    server = createHttpServer(service, {
-      corsOrigins: ["http://0.0.0.0:1123", "http://127.0.0.1:1123"]
-    });
-    await listen();
-
-    const response = await fetch(`${baseUrl}/api/state`, {
-      headers: {
-        origin: "http://127.0.0.1:1123"
-      }
-    });
-
-    expect(response.ok).toBe(true);
-    expect(response.headers.get("access-control-allow-origin")).toBe("http://127.0.0.1:1123");
-
-    const remoteResponse = await fetch(`${baseUrl}/api/state`, {
-      headers: {
-        origin: "http://100.64.0.1:1123"
-      }
-    });
-
-    expect(remoteResponse.ok).toBe(true);
-    expect(remoteResponse.headers.get("access-control-allow-origin")).toBe("http://100.64.0.1:1123");
-  });
-
   it("opens idle thread event streams with an immediate SSE frame", async () => {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-    server = createHttpServer(service, {
-      corsOrigins: ["http://10.203.39.174:1123"]
-    });
-    await listen();
-
     const project = service.listProjects()[0];
     const thread = threadFixture(1, project.id);
     service.store.createThread(thread);
 
-    const { response, text } = await firstStreamChunk(`/api/threads/${thread.id}/events?after=999999`, {
-      headers: {
-        origin: "http://10.203.39.174:1123"
-      }
-    });
+    const { response, text } = await firstStreamChunk(`/api/threads/${thread.id}/events?after=999999`);
 
-    expect(response.headers.get("access-control-allow-origin")).toBe("http://10.203.39.174:1123");
     expect(response.headers.get("content-type")).toContain("text/event-stream");
     expect(text).toBe(": connected\n\n");
   });
@@ -380,7 +354,7 @@ describe("HTTP API", () => {
     expect(detail.items.map((item) => item.text).join("\n")).toContain("Test run started");
   });
 
-  it("controls a running session through the HTTP API", async () => {
+  it("controls a running session through the API", async () => {
     const state = await json<DashboardState>("/api/state");
     const created = await json<{ thread: { id: string } }>("/api/tasks", {
       method: "POST",
@@ -473,7 +447,7 @@ describe("HTTP API", () => {
     expect(fork.forkedFromId).toBe(created.thread.id);
   });
 
-  it("queues prompts through the HTTP API and drains them after the active turn", async () => {
+  it("queues prompts through the API and drains them after the active turn", async () => {
     const state = await json<DashboardState>("/api/state");
     const created = await json<{ thread: { id: string } }>("/api/tasks", {
       method: "POST",
@@ -492,7 +466,9 @@ describe("HTTP API", () => {
     });
     expect(queued.map((prompt) => prompt.prompt)).toEqual(["Run after the current turn."]);
 
-    const detailWithQueue = await json<{ queuedPrompts: Array<{ prompt: string }> }>(`/api/threads/${created.thread.id}`);
+    const detailWithQueue = await json<{ queuedPrompts: Array<{ prompt: string }> }>(
+      `/api/threads/${created.thread.id}`
+    );
     expect(detailWithQueue.queuedPrompts.map((prompt) => prompt.prompt)).toEqual(["Run after the current turn."]);
 
     testAdapter.completeActiveTurn(created.thread.id);
@@ -507,7 +483,7 @@ describe("HTTP API", () => {
     }, "queued prompt to drain");
   });
 
-  it("syncs loaded session runtime status through the HTTP API", async () => {
+  it("syncs loaded session runtime status through the API", async () => {
     const state = await json<DashboardState>("/api/state");
     const created = await json<{ thread: { id: string }; turn: { id: string } }>("/api/tasks", {
       method: "POST",
@@ -533,9 +509,11 @@ describe("HTTP API", () => {
       errorCount: 0
     });
 
-    const detail = await json<{ status: string; activeTurnId: string | null; turns: Array<{ id: string; status: string }> }>(
-      `/api/threads/${created.thread.id}`
-    );
+    const detail = await json<{
+      status: string;
+      activeTurnId: string | null;
+      turns: Array<{ id: string; status: string }>;
+    }>(`/api/threads/${created.thread.id}`);
     expect(detail).toMatchObject({
       status: "idle",
       activeTurnId: null
@@ -543,7 +521,7 @@ describe("HTTP API", () => {
     expect(detail.turns.find((turn) => turn.id === created.turn.id)?.status).toBe("interrupted");
   });
 
-  it("streams terminal output and input over websocket", async () => {
+  it("streams terminal output over SSE and controls input over POST routes", async () => {
     const started = await json<TerminalSnapshot>("/api/terminal/start", {
       method: "POST",
       body: JSON.stringify({
@@ -551,58 +529,47 @@ describe("HTTP API", () => {
         rows: 24
       })
     });
-    const socket = new WebSocket(`${baseUrl.replace(/^http/, "ws")}/api/terminal/ws?after=${started.sequence}`);
-    const events: TerminalEvent[] = [];
-    socket.on("message", (data) => {
-      events.push(JSON.parse(data.toString()) as TerminalEvent);
+    const controller = new AbortController();
+    const response = await apiResponse(`/api/terminal/events?after=${started.sequence}`, {
+      signal: controller.signal
     });
-    await new Promise<void>((resolve, reject) => {
-      socket.once("open", resolve);
-      socket.once("error", reject);
-    });
+    expect(response.ok).toBe(true);
+    expect(response.headers.get("content-type")).toContain("text/event-stream");
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error("Expected a terminal event stream");
+    }
 
-    terminalPtys[0].emitData("hello over ws\r\n");
-    await waitFor(
-      () => events.some((event) => event.type === "terminal.output" && event.data.includes("hello over ws")),
-      "terminal websocket output"
-    );
+    try {
+      const connected = await readStreamUntil(reader, (text) => text.includes(": connected\n\n"), "SSE connection");
+      expect(connected).toContain(": connected\n\n");
 
-    socket.send(JSON.stringify({ type: "terminal.input", data: "abc" }));
-    await waitFor(() => terminalPtys[0].writes.includes("abc"), "terminal websocket input");
+      terminalPtys[0].emitData("hello over sse\r\n");
+      const output = await readStreamUntil(
+        reader,
+        (text) => text.includes("terminal.output") && text.includes("hello over sse"),
+        "terminal SSE output"
+      );
+      expect(output).toContain("terminal.output");
+      expect(output).toContain("hello over sse");
 
-    socket.send(JSON.stringify({ type: "terminal.resize", cols: 120, rows: 40 }));
-    await waitFor(() => terminalPtys[0].cols === 120 && terminalPtys[0].rows === 40, "terminal websocket resize");
+      await noContent("/api/terminal/input", {
+        method: "POST",
+        body: JSON.stringify({ data: "abc" })
+      });
+      await waitFor(() => terminalPtys[0].writes.includes("abc"), "terminal input");
 
-    socket.close();
-    await new Promise<void>((resolve) => socket.once("close", () => resolve()));
-  });
-
-  it("accepts websocket origins through wildcard UI bind aliases", async () => {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-    server = createHttpServer(service, {
-      corsOrigins: ["http://0.0.0.0:1123"]
-    });
-    await listen();
-
-    const started = await json<TerminalSnapshot>("/api/terminal/start", {
-      method: "POST",
-      body: JSON.stringify({
-        cols: 80,
-        rows: 24
-      })
-    });
-    const socket = new WebSocket(`${baseUrl.replace(/^http/, "ws")}/api/terminal/ws?after=${started.sequence}`, {
-      headers: {
-        origin: "http://100.64.0.1:1123"
-      }
-    });
-
-    await new Promise<void>((resolve, reject) => {
-      socket.once("open", resolve);
-      socket.once("error", reject);
-    });
-
-    socket.close();
-    await new Promise<void>((resolve) => socket.once("close", () => resolve()));
+      const resized = await json<TerminalSnapshot>("/api/terminal/resize", {
+        method: "POST",
+        body: JSON.stringify({ cols: 120, rows: 40 })
+      });
+      expect(resized.cols).toBe(120);
+      expect(resized.rows).toBe(40);
+      expect(terminalPtys[0].cols).toBe(120);
+      expect(terminalPtys[0].rows).toBe(40);
+    } finally {
+      await reader.cancel();
+      controller.abort();
+    }
   });
 });

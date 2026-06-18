@@ -1,56 +1,14 @@
 import { describe, expect, it } from "vitest";
-import {
-  connectableOrigin,
-  DEFAULT_CODEX_XYZ_API_URL,
-  DEFAULT_CODEX_XYZ_UI_URL,
-  readApiUrl,
-  readUiUrl
-} from "../src/config.js";
+import { readDebugLevel } from "../src/config.js";
 
-describe("URL environment config", () => {
-  it("uses default UI and API URLs", () => {
-    expect(readUiUrl({}).origin).toBe(DEFAULT_CODEX_XYZ_UI_URL);
-    expect(readApiUrl({}).origin).toBe(DEFAULT_CODEX_XYZ_API_URL);
+describe("runtime environment config", () => {
+  it("reads debug logging level", () => {
+    expect(readDebugLevel({})).toBe(0);
+    expect(readDebugLevel({ CODEX_XYZ_DEBUG_LEVEL: "2" })).toBe(2);
   });
 
-  it("reads UI and API URLs from env", () => {
-    const env = {
-      CODEX_XYZ_UI_URL: "http://0.0.0.0:1123",
-      CODEX_XYZ_API_URL: "http://127.0.0.1:3211"
-    };
-
-    expect(readUiUrl(env)).toMatchObject({
-      origin: "http://0.0.0.0:1123",
-      hostname: "0.0.0.0",
-      port: 1123
-    });
-    expect(readApiUrl(env)).toMatchObject({
-      origin: "http://127.0.0.1:3211",
-      hostname: "127.0.0.1",
-      port: 3211
-    });
-  });
-
-  it("maps wildcard bind hosts to loopback origins for local clients", () => {
-    expect(connectableOrigin(readApiUrl({ CODEX_XYZ_API_URL: "http://0.0.0.0:3211" }))).toBe(
-      "http://127.0.0.1:3211"
-    );
-    expect(connectableOrigin(readUiUrl({ CODEX_XYZ_UI_URL: "http://127.0.0.1:1123" }))).toBe(
-      "http://127.0.0.1:1123"
-    );
-  });
-
-  it("keeps PORT as an API port fallback", () => {
-    expect(readApiUrl({ PORT: "9000" })).toMatchObject({
-      origin: "http://127.0.0.1:9000",
-      hostname: "127.0.0.1",
-      port: 9000
-    });
-  });
-
-  it("rejects invalid URL config", () => {
-    expect(() => readApiUrl({ CODEX_XYZ_API_URL: "file:///tmp/api" })).toThrow(/http or https/);
-    expect(() => readUiUrl({ CODEX_XYZ_UI_URL: "not-a-url" })).toThrow(/valid URL/);
-    expect(() => readApiUrl({ PORT: "abc" })).toThrow(/TCP port/);
+  it("rejects invalid debug logging levels", () => {
+    expect(() => readDebugLevel({ CODEX_XYZ_DEBUG_LEVEL: "4" })).toThrow(/integer between 0 and 3/);
+    expect(() => readDebugLevel({ CODEX_XYZ_DEBUG_LEVEL: "debug" })).toThrow(/integer between 0 and 3/);
   });
 });

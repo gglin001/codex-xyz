@@ -6,7 +6,6 @@ import { Play, RotateCw, Square, Terminal as TerminalIcon, X } from "lucide-reac
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   apiUrl,
-  apiWebSocketUrl,
   resizeTerminal,
   startTerminal,
   terminateTerminal,
@@ -21,7 +20,7 @@ type TerminalDockProps = {
 };
 
 type ConnectionStatus = "idle" | "connecting" | "connected" | "reconnecting" | "offline";
-type TerminalTransport = "idle" | "ws" | "sse";
+type TerminalTransport = "idle" | "sse";
 type TerminalRenderer = "canvas" | "webgl";
 
 type TerminalClientMetrics = {
@@ -33,7 +32,6 @@ type TerminalClientMetrics = {
   outputWriteMs: number;
   inputFrames: number;
   inputChars: number;
-  websocketBuffered: number;
   reconnects: number;
 };
 
@@ -51,7 +49,6 @@ const initialTerminalClientMetrics: TerminalClientMetrics = {
   outputWriteMs: 0,
   inputFrames: 0,
   inputChars: 0,
-  websocketBuffered: 0,
   reconnects: 0
 };
 
@@ -132,7 +129,6 @@ function terminalMetricsTitle(metrics: TerminalClientMetrics, snapshot: Terminal
     `client xterm writes: ${metrics.outputFrames}`,
     `client average write: ${formatMs(averageWriteMs)}`,
     `client input frames: ${metrics.inputFrames}`,
-    `client websocket buffered: ${metrics.websocketBuffered}`,
     `server pty chunks: ${stats?.ptyOutputChunks ?? 0}`,
     `server output flushes: ${stats?.outputFlushes ?? 0}`,
     `server model pending writes: ${stats?.modelPendingWrites ?? 0}`,
@@ -171,7 +167,6 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
 
     let disposed = false;
     let source: EventSource | null = null;
-    let socket: WebSocket | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
     let metricsTimer: ReturnType<typeof setInterval> | null = null;
@@ -297,36 +292,9 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
       }
     }
 
-    function sendSocketMessage(message: Record<string, unknown>) {
-      if (!socket || socket.readyState !== WebSocket.OPEN) {
-        return false;
-      }
-      socket.send(JSON.stringify(message));
-      clientMetrics.websocketBuffered = socket.bufferedAmount;
-      return true;
-    }
-
-    function flushBufferedInputOverSocket() {
-      if (!inputBuffer) {
-        return;
-      }
-      if (inputTimer) {
-        clearTimeout(inputTimer);
-        inputTimer = null;
-      }
-      const data = inputBuffer;
-      inputBuffer = "";
-      if (!sendSocketMessage({ type: "terminal.input", data })) {
-        queueHttpInput(data);
-      }
-    }
-
     function queueInput(data: string) {
       clientMetrics.inputFrames += 1;
       clientMetrics.inputChars += data.length;
-      if (sendSocketMessage({ type: "terminal.input", data })) {
-        return;
-      }
       queueHttpInput(data);
     }
 
@@ -346,9 +314,6 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
         resizeTimer = null;
         try {
           const size = terminalSize();
-          if (sendSocketMessage({ type: "terminal.resize", ...size })) {
-            return;
-          }
           void resizeTerminal(size)
             .then((nextSnapshot) => {
               if (!disposed) {
@@ -406,8 +371,6 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
     function closeTransports() {
       source?.close();
       source = null;
-      socket?.close();
-      socket = null;
     }
 
     function connectSse(afterSequence: number) {
@@ -430,46 +393,6 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
       };
     }
 
-    function connectWebSocket(afterSequence: number) {
-      const nextSocket = new WebSocket(apiWebSocketUrl(`/api/terminal/ws?after=${afterSequence}`));
-      let opened = false;
-      socket = nextSocket;
-      clientMetrics.transport = "ws";
-      commitMetrics();
-      nextSocket.onopen = () => {
-        if (disposed || socket !== nextSocket) {
-          return;
-        }
-        opened = true;
-        setConnection("connected");
-        setError(null);
-        flushBufferedInputOverSocket();
-      };
-      nextSocket.onmessage = (message) => {
-        if (typeof message.data === "string") {
-          handleTerminalMessage(message.data);
-        }
-        clientMetrics.websocketBuffered = nextSocket.bufferedAmount;
-      };
-      nextSocket.onerror = () => {
-        nextSocket.close();
-      };
-      nextSocket.onclose = () => {
-        if (socket !== nextSocket) {
-          return;
-        }
-        socket = null;
-        if (disposed) {
-          return;
-        }
-        if (!opened) {
-          connectSse(afterSequence);
-          return;
-        }
-        scheduleReconnect();
-      };
-    }
-
     function connect(afterSequence: number) {
       closeTransports();
       if (reconnectTimer) {
@@ -478,10 +401,6 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
       }
       if (!disposed) {
         setConnection(afterSequence > 0 ? "reconnecting" : "connecting");
-      }
-      if ("WebSocket" in window) {
-        connectWebSocket(afterSequence);
-        return;
       }
       connectSse(afterSequence);
     }

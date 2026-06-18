@@ -11,57 +11,8 @@ import type {
   Turn
 } from "../server/domain.js";
 
-function formatHostnameForUrl(hostname: string) {
-  return hostname.includes(":") && !hostname.startsWith("[") ? `[${hostname}]` : hostname;
-}
-
-function browserReachableHostname(fallback: string) {
-  if (typeof window === "undefined") {
-    return fallback;
-  }
-  const hostname = window.location.hostname;
-  if (hostname && hostname !== "0.0.0.0" && hostname !== "::" && hostname !== "[::]") {
-    return hostname;
-  }
-  return fallback;
-}
-
-function normalizeApiBaseUrl(value: string | undefined) {
-  const trimmed = value?.trim().replace(/\/+$/, "") ?? "";
-  if (!trimmed || typeof window === "undefined") {
-    return trimmed;
-  }
-
-  let url: URL;
-  try {
-    url = new URL(trimmed, window.location.href);
-  } catch {
-    return trimmed;
-  }
-
-  if (url.hostname === "0.0.0.0") {
-    url.hostname = formatHostnameForUrl(browserReachableHostname("127.0.0.1"));
-    return url.toString().replace(/\/+$/, "");
-  }
-  if (url.hostname === "[::]") {
-    url.hostname = formatHostnameForUrl(browserReachableHostname("[::1]"));
-    return url.toString().replace(/\/+$/, "");
-  }
-  return trimmed;
-}
-
-const configuredApiBaseUrl =
-  typeof process !== "undefined" ? process.env.NEXT_PUBLIC_CODEX_XYZ_API_URL : undefined;
-const apiBaseUrl = normalizeApiBaseUrl(configuredApiBaseUrl);
-
 export function apiUrl(path: string) {
-  return apiBaseUrl ? `${apiBaseUrl}${path}` : path;
-}
-
-export function apiWebSocketUrl(path: string) {
-  const url = new URL(apiUrl(path), window.location.href);
-  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-  return url.toString();
+  return path;
 }
 
 async function request<T>(path: string, options: RequestInit = {}) {

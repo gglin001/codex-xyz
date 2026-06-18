@@ -7,12 +7,10 @@
   "description": "Local Codex control plane prototype for managing multiple sessions.",
   "scripts": {
     "generate:codex": "node scripts/generate-codex-types.mjs",
-    "dev": "tsx src/server/next.ts",
-    "dev:api": "tsx watch src/server/index.ts",
-    "dev:web": "tsx src/server/next.ts",
+    "dev": "next dev --hostname 127.0.0.1 --port 1123",
     "prebuild": "pnpm run generate:codex",
-    "build": "tsc -p tsconfig.json && next build",
-    "preview": "NODE_ENV=production tsx src/server/next.ts",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1 --port 1123",
     "pretest": "pnpm run generate:codex",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -27,15 +25,13 @@
     "next": "^16.2.9",
     "node-pty": "^1.1.0",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7",
-    "ws": "^8.21.0"
+    "react-dom": "^19.2.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.1",
     "@types/node": "^25.9.3",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
-    "@types/ws": "^8.18.1",
     "jsdom": "^27.3.0",
     "tailwindcss": "^4.3.1",
     "tsx": "^4.21.0",
