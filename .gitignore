@@ -1,6 +1,7 @@
 node_modules/
 dist/
 tsconfig.tsbuildinfo
+next-env.d.ts
 
 src/generated/
 
