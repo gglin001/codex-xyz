@@ -1,11 +1,26 @@
-import type { ControlThread, RuntimeSyncIssue, Task } from "../server/domain.js";
+import type { ControlThread, Project, RuntimeSyncIssue, Task } from "../server/domain.js";
+
+export type SessionProjectGroup = {
+  id: string;
+  name: string;
+  path: string;
+  threads: ControlThread[];
+  threadCount: number;
+  runningCount: number;
+  attentionCount: number;
+  goalCount: number;
+  issueCount: number;
+  updatedAt: string;
+};
 
 export type SessionListModel = {
   threads: ControlThread[];
+  projectGroups: SessionProjectGroup[];
   queuedTaskCount: number;
   loadedThreadCount: number;
   totalThreadCount: number;
   visibleThreadCount: number;
+  visibleProjectCount: number;
   hasMoreThreads: boolean;
   hasQuery: boolean;
 };
@@ -61,6 +76,70 @@ function orderThreads(threads: ControlThread[]) {
   return threads.sort(byUpdatedDesc);
 }
 
+function basenameFromPath(value: string) {
+  const trimmed = value.trim().replace(/[\\/]+$/, "");
+  if (!trimmed) {
+    return "Unknown workdir";
+  }
+  return trimmed.split(/[\\/]/).filter(Boolean).pop() ?? trimmed;
+}
+
+function threadNeedsAttention(thread: ControlThread, runtimeIssue: RuntimeSyncIssue | null) {
+  return Boolean(runtimeIssue) || thread.status === "failed" || thread.status === "interrupted" || thread.status === "stale";
+}
+
+function threadHasGoal(thread: ControlThread) {
+  return Boolean(thread.goalObjective && thread.goalStatus && thread.goalStatus !== "cleared");
+}
+
+function buildProjectGroups(
+  threads: ControlThread[],
+  options: {
+    projects?: Project[];
+    runtimeIssuesByThreadId?: ReadonlyMap<string, RuntimeSyncIssue>;
+  }
+) {
+  const projectsByPath = new Map((options.projects ?? []).map((project) => [project.path, project]));
+  const projectsById = new Map((options.projects ?? []).map((project) => [project.id, project]));
+  const groups = new Map<string, SessionProjectGroup>();
+
+  for (const thread of threads) {
+    const path = thread.cwd.trim() || "Unknown workdir";
+    const project = projectsByPath.get(thread.cwd) ?? projectsById.get(thread.projectId) ?? null;
+    const id = path;
+    let group = groups.get(id);
+
+    if (!group) {
+      group = {
+        id,
+        name: project?.name || basenameFromPath(path),
+        path,
+        threads: [],
+        threadCount: 0,
+        runningCount: 0,
+        attentionCount: 0,
+        goalCount: 0,
+        issueCount: 0,
+        updatedAt: thread.updatedAt
+      };
+      groups.set(id, group);
+    }
+
+    const runtimeIssue = options.runtimeIssuesByThreadId?.get(thread.id) ?? null;
+    group.threads.push(thread);
+    group.threadCount += 1;
+    group.runningCount += thread.status === "running" ? 1 : 0;
+    group.attentionCount += threadNeedsAttention(thread, runtimeIssue) ? 1 : 0;
+    group.goalCount += threadHasGoal(thread) ? 1 : 0;
+    group.issueCount += runtimeIssue ? 1 : 0;
+    if (thread.updatedAt.localeCompare(group.updatedAt) > 0) {
+      group.updatedAt = thread.updatedAt;
+    }
+  }
+
+  return Array.from(groups.values());
+}
+
 function countActiveTasks(tasks: Task[]) {
   let count = 0;
   for (const task of tasks) {
@@ -76,6 +155,7 @@ export function getSessionListModel(
   tasks: Task[],
   query: string,
   options: {
+    projects?: Project[];
     totalThreadCount?: number;
     hasMoreThreads?: boolean;
     runtimeIssuesByThreadId?: ReadonlyMap<string, RuntimeSyncIssue>;
@@ -93,13 +173,20 @@ export function getSessionListModel(
     visibleThreadCount += 1;
     visibleThreads.push(thread);
   }
+  const orderedThreads = orderThreads(visibleThreads);
+  const projectGroups = buildProjectGroups(orderedThreads, {
+    projects: options.projects,
+    runtimeIssuesByThreadId: options.runtimeIssuesByThreadId
+  });
 
   return {
-    threads: orderThreads(visibleThreads),
+    threads: orderedThreads,
+    projectGroups,
     queuedTaskCount: countActiveTasks(tasks),
     loadedThreadCount: threads.length,
     totalThreadCount: options.totalThreadCount ?? threads.length,
     visibleThreadCount,
+    visibleProjectCount: projectGroups.length,
     hasMoreThreads: options.hasMoreThreads ?? false,
     hasQuery: normalizedQuery.length > 0
   };

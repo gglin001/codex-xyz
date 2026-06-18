@@ -1,8 +1,22 @@
-import { Check, History, Loader2, Moon, RefreshCw, Search, Settings, Target, Terminal, WrapText } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  FolderOpen,
+  History,
+  Loader2,
+  Moon,
+  RefreshCw,
+  Search,
+  Settings,
+  Target,
+  Terminal,
+  WrapText
+} from "lucide-react";
 import type { FocusEvent, KeyboardEvent } from "react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ControlThread, RuntimeSyncIssue } from "../../server/domain.js";
-import type { SessionListModel } from "../sessionList.js";
+import type { SessionListModel, SessionProjectGroup } from "../sessionList.js";
 import { formatDateTime, formatTokens, statusLabel, statusTone } from "../uiFormat.js";
 import type { ThemeMode } from "./types.js";
 
@@ -38,6 +52,13 @@ type SessionListEntry =
       label: string;
     }
   | {
+      kind: "project";
+      id: string;
+      group: SessionProjectGroup;
+      collapsed: boolean;
+      containsSelected: boolean;
+    }
+  | {
       kind: "thread";
       id: string;
       thread: ControlThread;
@@ -53,6 +74,7 @@ const sessionEntryHeights: Record<
   {
     compactRow: number;
     goalRow: number;
+    projectHeading: number;
     empty: number;
     loadMore: number;
   }
@@ -60,12 +82,14 @@ const sessionEntryHeights: Record<
   regular: {
     compactRow: 64,
     goalRow: 88,
+    projectHeading: 54,
     empty: 50,
     loadMore: 52
   },
   compact: {
     compactRow: 58,
     goalRow: 82,
+    projectHeading: 48,
     empty: 42,
     loadMore: 46
   }
@@ -82,6 +106,9 @@ function sessionEntryHeight(entry: SessionListEntry, density: SessionListDensity
   if (entry.kind === "thread") {
     return threadHasGoal(entry.thread) ? heights.goalRow : heights.compactRow;
   }
+  if (entry.kind === "project") {
+    return heights.projectHeading;
+  }
   if (entry.kind === "loadMore") {
     return heights.loadMore;
   }
@@ -91,12 +118,14 @@ function sessionEntryHeight(entry: SessionListEntry, density: SessionListDensity
 function buildSessionEntries(
   sessionList: SessionListModel,
   options: {
+    collapsedProjectIds: ReadonlySet<string>;
+    selectedThreadId: string | null;
     loadingMoreThreads: boolean;
   }
 ): SessionListEntry[] {
   const entries: SessionListEntry[] = [];
 
-  if (sessionList.threads.length === 0) {
+  if (sessionList.projectGroups.length === 0) {
     entries.push({
       kind: "empty",
       id: "empty:all",
@@ -112,12 +141,30 @@ function buildSessionEntries(
     return entries;
   }
 
-  for (const thread of sessionList.threads) {
+  for (const group of sessionList.projectGroups) {
+    const collapsed = !sessionList.hasQuery && options.collapsedProjectIds.has(group.id);
+    const containsSelected = Boolean(
+      options.selectedThreadId && group.threads.some((thread) => thread.id === options.selectedThreadId)
+    );
     entries.push({
-      kind: "thread",
-      id: `thread:${thread.id}`,
-      thread
+      kind: "project",
+      id: `project:${group.id}`,
+      group,
+      collapsed,
+      containsSelected
     });
+
+    if (collapsed) {
+      continue;
+    }
+
+    for (const thread of group.threads) {
+      entries.push({
+        kind: "thread",
+        id: `thread:${thread.id}`,
+        thread
+      });
+    }
   }
 
   if (sessionList.hasMoreThreads) {
@@ -145,6 +192,69 @@ function upperBound(values: number[], target: number) {
   return low;
 }
 
+function projectHeadingTitle(group: SessionProjectGroup) {
+  const parts = [
+    group.path,
+    `${group.threadCount} ${group.threadCount === 1 ? "session" : "sessions"}`
+  ];
+  if (group.runningCount > 0) {
+    parts.push(`${group.runningCount} running`);
+  }
+  if (group.attentionCount > 0) {
+    parts.push(`${group.attentionCount} attention`);
+  }
+  if (group.goalCount > 0) {
+    parts.push(`${group.goalCount} goals`);
+  }
+  return parts.join("\n");
+}
+
+const ProjectGroupHeading = memo(function ProjectGroupHeading({
+  group,
+  collapsed,
+  containsSelected,
+  onToggleProject
+}: {
+  group: SessionProjectGroup;
+  collapsed: boolean;
+  containsSelected: boolean;
+  onToggleProject: (projectId: string) => void;
+}) {
+  const updatedAt = formatDateTime(group.updatedAt);
+
+  return (
+    <button
+      type="button"
+      className={`session-project-heading ${collapsed ? "collapsed" : "expanded"} ${
+        containsSelected ? "contains-selected" : ""
+      }`}
+      aria-expanded={!collapsed}
+      title={projectHeadingTitle(group)}
+      onClick={() => onToggleProject(group.id)}
+    >
+      <span className="session-project-chevron" aria-hidden="true">
+        {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+      </span>
+      <span className="session-project-icon" aria-hidden="true">
+        <FolderOpen size={15} />
+      </span>
+      <span className="session-project-copy">
+        <strong>{group.name}</strong>
+        <small>{group.path}</small>
+      </span>
+      <span className="session-project-meta">
+        {group.runningCount > 0 ? <span className="session-project-chip running">{group.runningCount}</span> : null}
+        {group.attentionCount > 0 ? <span className="session-project-chip attention">{group.attentionCount}</span> : null}
+        {group.issueCount > 0 ? <span className="session-project-chip issue">{group.issueCount}</span> : null}
+        <span className="session-project-chip count">{group.threadCount}</span>
+        <time dateTime={group.updatedAt} title={`Updated ${updatedAt}`}>
+          {updatedAt}
+        </time>
+      </span>
+    </button>
+  );
+});
+
 const SessionRow = memo(function SessionRow({
   thread,
   runtimeIssue,
@@ -160,7 +270,7 @@ const SessionRow = memo(function SessionRow({
   const goalStatus = thread.goalStatus ? `Goal ${statusLabel(thread.goalStatus)}` : "Goal";
   const runtimeTone = runtimeIssue?.severity ?? null;
   const visibleStatus = runtimeIssue ? `runtime ${runtimeIssue.severity}` : statusLabel(thread.status);
-  const visiblePreview = runtimeIssue?.message ?? (thread.preview || thread.cwd);
+  const visiblePreview = runtimeIssue?.message ?? (thread.preview || thread.model || thread.cwd);
   const visibleUpdatedAt = formatDateTime(thread.updatedAt);
   const rowTitle = runtimeIssue
     ? `${thread.title}\n${runtimeIssue.message}\nUpdated ${visibleUpdatedAt}`
@@ -213,17 +323,21 @@ const SessionRow = memo(function SessionRow({
 const VirtualSessionList = memo(function VirtualSessionList({
   density,
   sessionList,
+  collapsedProjectIds,
   runtimeIssuesByThreadId,
   selectedThreadId,
   loadingMoreThreads,
+  onToggleProject,
   onLoadMoreThreads,
   onSelectThread
 }: {
   density: SessionListDensity;
   sessionList: SessionListModel;
+  collapsedProjectIds: ReadonlySet<string>;
   runtimeIssuesByThreadId: ReadonlyMap<string, RuntimeSyncIssue>;
   selectedThreadId: string | null;
   loadingMoreThreads: boolean;
+  onToggleProject: (projectId: string) => void;
   onLoadMoreThreads: () => void;
   onSelectThread: SelectThreadHandler;
 }) {
@@ -233,8 +347,8 @@ const VirtualSessionList = memo(function VirtualSessionList({
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const entries = useMemo(
-    () => buildSessionEntries(sessionList, { loadingMoreThreads }),
-    [loadingMoreThreads, sessionList]
+    () => buildSessionEntries(sessionList, { collapsedProjectIds, loadingMoreThreads, selectedThreadId }),
+    [collapsedProjectIds, loadingMoreThreads, selectedThreadId, sessionList]
   );
   const offsets = useMemo(() => {
     const values = [0];
@@ -334,6 +448,14 @@ const VirtualSessionList = memo(function VirtualSessionList({
               style={{ height, transform: `translateY(${top}px)` }}
             >
               {entry.kind === "empty" ? <div className="empty-state compact">{entry.label}</div> : null}
+              {entry.kind === "project" ? (
+                <ProjectGroupHeading
+                  group={entry.group}
+                  collapsed={entry.collapsed}
+                  containsSelected={entry.containsSelected}
+                  onToggleProject={onToggleProject}
+                />
+              ) : null}
               {entry.kind === "thread" ? (
                 <SessionRow
                   thread={entry.thread}
@@ -456,11 +578,94 @@ export const SessionSidebar = memo(function SessionSidebar({
   onSessionQueryChange,
   onSelectThread
 }: SessionSidebarProps) {
+  const [collapsedProjectIds, setCollapsedProjectIds] = useState<Set<string>>(() => new Set());
+  const visibleProjectIdKey = useMemo(
+    () => sessionList.projectGroups.map((group) => group.id).join("\u0000"),
+    [sessionList.projectGroups]
+  );
+  const visibleProjectIds = useMemo(() => new Set(visibleProjectIdKey.split("\u0000").filter(Boolean)), [visibleProjectIdKey]);
+  const selectedProjectId = useMemo(() => {
+    if (!selectedThreadId) {
+      return null;
+    }
+    return sessionList.projectGroups.find((group) => group.threads.some((thread) => thread.id === selectedThreadId))?.id ?? null;
+  }, [selectedThreadId, sessionList.projectGroups]);
+  const collapsibleProjectCount = sessionList.projectGroups.length;
+  const collapsedVisibleProjectCount = sessionList.hasQuery
+    ? 0
+    : sessionList.projectGroups.filter((group) => collapsedProjectIds.has(group.id)).length;
+  const allVisibleProjectsCollapsed = collapsibleProjectCount > 0 && collapsedVisibleProjectCount === collapsibleProjectCount;
+
+  useEffect(() => {
+    setCollapsedProjectIds((current) => {
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of current) {
+        if (visibleProjectIds.has(id)) {
+          next.add(id);
+        } else {
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  }, [visibleProjectIds]);
+
+  useEffect(() => {
+    if (!selectedProjectId) {
+      return;
+    }
+    setCollapsedProjectIds((current) => {
+      if (!current.has(selectedProjectId)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.delete(selectedProjectId);
+      return next;
+    });
+  }, [selectedProjectId]);
+
+  const toggleProject = useCallback((projectId: string) => {
+    setCollapsedProjectIds((current) => {
+      const next = new Set(current);
+      if (next.has(projectId)) {
+        next.delete(projectId);
+      } else {
+        next.add(projectId);
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleAllProjects = useCallback(() => {
+    setCollapsedProjectIds((current) => {
+      if (allVisibleProjectsCollapsed) {
+        return new Set();
+      }
+      const next = new Set(current);
+      for (const group of sessionList.projectGroups) {
+        next.add(group.id);
+      }
+      return next;
+    });
+  }, [allVisibleProjectsCollapsed, sessionList.projectGroups]);
+  const totalSessionLabel =
+    sessionList.totalThreadCount === sessionList.loadedThreadCount
+      ? `${sessionList.visibleThreadCount} sessions`
+      : `${sessionList.visibleThreadCount} / ${sessionList.totalThreadCount} sessions`;
+  const collapseAllTitle = allVisibleProjectsCollapsed ? "Expand workdirs" : "Collapse workdirs";
+
   return (
     <section className="sessions panel">
       <div className="panel-header sessions-header">
         <div className="sessions-title">
-          <strong>codex-xyz</strong>
+          <span className="brand-mark" aria-hidden="true">
+            xyz
+          </span>
+          <span className="brand-copy">
+            <strong>codex-xyz</strong>
+            <small>{totalSessionLabel}</small>
+          </span>
         </div>
         <div className="panel-header-actions">
           {busy ? <Loader2 className="spin" size={18} /> : <History size={18} />}
@@ -497,12 +702,39 @@ export const SessionSidebar = memo(function SessionSidebar({
         />
       </label>
 
+      <div className="session-summary" aria-label="Session summary">
+        <span>
+          <strong>{sessionList.visibleProjectCount}</strong> workdirs
+        </span>
+        <span>
+          <strong>{sessionList.loadedThreadCount}</strong> loaded
+        </span>
+        {sessionList.queuedTaskCount > 0 ? (
+          <span className="queued">
+            <strong>{sessionList.queuedTaskCount}</strong> queued
+          </span>
+        ) : null}
+        <button
+          type="button"
+          className="session-collapse-all"
+          title={collapseAllTitle}
+          aria-label={collapseAllTitle}
+          aria-pressed={allVisibleProjectsCollapsed}
+          disabled={sessionList.hasQuery || collapsibleProjectCount === 0}
+          onClick={toggleAllProjects}
+        >
+          {allVisibleProjectsCollapsed ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </button>
+      </div>
+
       <VirtualSessionList
         density={density}
         sessionList={sessionList}
+        collapsedProjectIds={collapsedProjectIds}
         runtimeIssuesByThreadId={runtimeIssuesByThreadId}
         selectedThreadId={selectedThreadId}
         loadingMoreThreads={loadingMoreThreads}
+        onToggleProject={toggleProject}
         onLoadMoreThreads={onLoadMoreThreads}
         onSelectThread={onSelectThread}
       />

@@ -140,6 +140,7 @@ function getViewportProfile(): ViewportProfile {
         "--adaptive-fit": "1",
         "--mobile-composer-max-height": "414px",
         "--mobile-textarea-max-height": "240px",
+        "--mobile-composer-reserved": "58px",
         "--mobile-panel-padding": "14px",
         "--mobile-edge-padding": "10px",
         "--mobile-gap": "10px",
@@ -170,6 +171,13 @@ function getViewportProfile(): ViewportProfile {
   const composerRatio = keyboardVisible ? 0.4 : density === "dense" ? 0.42 : density === "compact" ? 0.48 : 0.54;
   const composerMaxHeight = Math.round(Math.max(168, Math.min(440, height * composerRatio)));
   const textareaMaxHeight = Math.round(Math.max(96, Math.min(240, height * (keyboardVisible ? 0.22 : 0.34))));
+  const composerReserved = keyboardVisible
+    ? Math.round(Math.max(52, Math.min(176, composerMaxHeight)))
+    : density === "dense"
+      ? 48
+      : density === "compact"
+        ? 54
+        : 58;
   const panelPadding = density === "dense" ? 10 : density === "compact" ? 12 : 14;
   const edgePadding = density === "dense" ? 8 : 10;
   const mobileGap = density === "dense" ? 7 : density === "compact" ? 8 : 10;
@@ -191,6 +199,7 @@ function getViewportProfile(): ViewportProfile {
       "--adaptive-fit": adaptiveFit.toFixed(3),
       "--mobile-composer-max-height": `${composerMaxHeight}px`,
       "--mobile-textarea-max-height": `${textareaMaxHeight}px`,
+      "--mobile-composer-reserved": `${composerReserved}px`,
       "--mobile-panel-padding": `${panelPadding}px`,
       "--mobile-edge-padding": `${edgePadding}px`,
       "--mobile-gap": `${mobileGap}px`,
@@ -784,6 +793,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
   const sessionList = useMemo(
     () =>
       getSessionListModel(state.threads, state.tasks, deferredSessionQuery, {
+        projects: state.projects,
         totalThreadCount: state.threadTotalCount,
         hasMoreThreads: state.threadHasMore,
         runtimeIssuesByThreadId
@@ -791,6 +801,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
     [
       deferredSessionQuery,
       runtimeIssuesByThreadId,
+      state.projects,
       state.tasks,
       state.threadHasMore,
       state.threadTotalCount,
