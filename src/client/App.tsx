@@ -1,26 +1,21 @@
  "use client";
 
-import type { CSSProperties, FormEvent, KeyboardEvent } from "react";
-import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { SidebarOpen } from "lucide-react";
+import type { FormEvent, KeyboardEvent } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   apiUrl,
   createSession,
   getState,
   getThread,
-  getThreadsPage,
   interruptTurn,
   resumeThread,
   startGoal,
   startTurn
 } from "./api.js";
-import { cn, subtleIconButtonClass } from "./classNames.js";
-import { PromptComposer } from "./components/PromptComposer.js";
-import { SessionSidebar } from "./components/SessionSidebar.js";
-import { ThreadDetailView } from "./components/ThreadDetailView.js";
-import type { ComposerMode, MobileView, ThemeMode } from "./components/types.js";
+import { DashboardLayout } from "./components/DashboardLayout.js";
+import { buildWorkbenchProjects, findProjectForThread, findSession } from "./components/workbenchData.js";
+import type { ComposerMode, ParameterState, WorkbenchSession } from "./components/workbenchTypes.js";
 import { applyEventProjectionBatch, incrementalEventNames, type ClientProjection } from "./eventProjection.js";
-import { getSessionListModel } from "./sessionList.js";
 import { isMacTerminalToggleShortcut } from "./terminalShortcut.js";
 import { choosePreferredThreadId, shouldLoadThreadSelection, shouldSelectActionResult } from "./threadSelection.js";
 import { installPageZoomGuards } from "./zoomGuards.js"
@@ -41,7 +36,6 @@ function initialState(): DashboardState {
 type RunActionOptions = {
   selectResult?: boolean;
   successMessage?: string;
-  mobileViewOnSuccess?: MobileView;
 };
 
 type DetailSubscription = {
@@ -49,220 +43,12 @@ type DetailSubscription = {
   after: number;
 };
 
-type ViewportWidthProfile = "regular" | "narrow" | "tiny";
-type ViewportHeightProfile = "regular" | "short" | "tiny";
-type UiDensityProfile = "comfortable" | "compact" | "dense";
-type ViewportStyle = CSSProperties & Record<`--${string}`, string | number>;
-
-type ViewportProfile = {
-  width: number;
-  height: number;
-  keyboardInset: number;
-  widthProfile: ViewportWidthProfile;
-  heightProfile: ViewportHeightProfile;
-  density: UiDensityProfile;
-  keyboardVisible: boolean;
-  style: ViewportStyle;
-};
-
-function mergeThreadsById(current: DashboardState["threads"], incoming: DashboardState["threads"]) {
-  const next = [...current];
-  const indexById = new Map(current.map((thread, index) => [thread.id, index]));
-  for (const thread of incoming) {
-    const index = indexById.get(thread.id);
-    if (index === undefined) {
-      indexById.set(thread.id, next.length);
-      next.push(thread);
-    } else {
-      next[index] = thread;
-    }
-  }
-  return next;
-}
-
-const themeStorageKey = "codex-xyz-theme";
 const terminalVisibleStorageKey = "codex-xyz-terminal-visible";
-const detailWordWrapStorageKey = "codex-xyz-detail-word-wrap";
-const sidebarVisibleStorageKey = "codex-xyz-sidebar-visible";
-const mobileViewportQuery = "(max-width: 720px)";
+const navigatorVisibleStorageKey = "codex-xyz-navigator-visible";
+const inspectorVisibleStorageKey = "codex-xyz-inspector-visible";
 const TerminalDock = lazy(async () => ({
   default: (await import("./TerminalDock.js")).TerminalDock
 }));
-
-function useMediaQuery(query: string) {
-  const [matches, setMatches] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const media = window.matchMedia(query);
-    const syncMatches = () => setMatches(media.matches);
-
-    syncMatches();
-    media.addEventListener("change", syncMatches);
-    return () => {
-      media.removeEventListener("change", syncMatches);
-    };
-  }, [query]);
-
-  return matches;
-}
-
-function getViewportProfile(): ViewportProfile {
-  if (typeof window === "undefined") {
-    return defaultViewportProfile();
-  }
-
-  const root = document.documentElement;
-  const visualViewport = window.visualViewport;
-  const layoutWidth = Math.round(root.clientWidth || window.innerWidth || 1024);
-  const layoutHeight = Math.round(window.innerHeight || root.clientHeight || 768);
-  const width = Math.max(0, Math.round(visualViewport?.width ?? layoutWidth));
-  const height = Math.max(0, Math.round(visualViewport?.height ?? layoutHeight));
-  const viewportOffsetTop = Math.round(visualViewport?.offsetTop ?? 0);
-  const keyboardInset = Math.max(0, layoutHeight - height - viewportOffsetTop);
-  const widthProfile: ViewportWidthProfile = width <= 340 ? "tiny" : width <= 430 ? "narrow" : "regular";
-  const heightProfile: ViewportHeightProfile = height <= 600 ? "tiny" : height <= 700 ? "short" : "regular";
-  const keyboardVisible = keyboardInset > 80;
-  const density: UiDensityProfile =
-    widthProfile === "tiny" || heightProfile === "tiny"
-      ? "dense"
-      : widthProfile === "narrow" || heightProfile === "short" || keyboardVisible
-        ? "compact"
-        : "comfortable";
-  const adaptiveFit = Math.max(0.86, Math.min(1, width / 390, height / 720));
-  const composerRatio = keyboardVisible ? 0.4 : density === "dense" ? 0.42 : density === "compact" ? 0.48 : 0.54;
-  const composerMaxHeight = Math.round(Math.max(168, Math.min(440, height * composerRatio)));
-  const textareaMaxHeight = Math.round(Math.max(96, Math.min(240, height * (keyboardVisible ? 0.22 : 0.34))));
-  const composerReserved = keyboardVisible
-    ? Math.round(Math.max(52, Math.min(176, composerMaxHeight)))
-    : density === "dense"
-      ? 48
-      : density === "compact"
-        ? 54
-        : 58;
-  const panelPadding = density === "dense" ? 10 : density === "compact" ? 12 : 14;
-  const edgePadding = density === "dense" ? 8 : 10;
-  const mobileGap = density === "dense" ? 7 : density === "compact" ? 8 : 10;
-  const mobileHeaderControlSize = density === "dense" ? 30 : density === "compact" ? 32 : 34;
-  const mobileControlSize = density === "dense" ? 38 : 40;
-
-  return {
-    width,
-    height,
-    keyboardInset,
-    widthProfile,
-    heightProfile,
-    density,
-    keyboardVisible,
-    style: {
-      "--app-viewport-width": `${width}px`,
-      "--app-viewport-height": `${height}px`,
-      "--keyboard-inset": `${keyboardInset}px`,
-      "--adaptive-fit": adaptiveFit.toFixed(3),
-      "--mobile-composer-max-height": `${composerMaxHeight}px`,
-      "--mobile-textarea-max-height": `${textareaMaxHeight}px`,
-      "--mobile-composer-reserved": `${composerReserved}px`,
-      "--mobile-panel-padding": `${panelPadding}px`,
-      "--mobile-edge-padding": `${edgePadding}px`,
-      "--mobile-gap": `${mobileGap}px`,
-      "--mobile-header-control-size": `${mobileHeaderControlSize}px`,
-      "--mobile-control-size": `${mobileControlSize}px`
-    }
-  };
-}
-
-function defaultViewportProfile(): ViewportProfile {
-  return {
-    width: 1024,
-    height: 768,
-    keyboardInset: 0,
-    widthProfile: "regular",
-    heightProfile: "regular",
-    density: "comfortable",
-    keyboardVisible: false,
-    style: {
-      "--app-viewport-width": "1024px",
-      "--app-viewport-height": "768px",
-      "--keyboard-inset": "0px",
-      "--adaptive-fit": "1",
-      "--mobile-composer-max-height": "414px",
-      "--mobile-textarea-max-height": "240px",
-      "--mobile-composer-reserved": "58px",
-      "--mobile-panel-padding": "14px",
-      "--mobile-edge-padding": "10px",
-      "--mobile-gap": "10px",
-      "--mobile-header-control-size": "34px",
-      "--mobile-control-size": "40px"
-    }
-  };
-}
-
-function sameViewportProfile(current: ViewportProfile, next: ViewportProfile) {
-  return (
-    current.width === next.width &&
-    current.height === next.height &&
-    current.keyboardInset === next.keyboardInset &&
-    current.widthProfile === next.widthProfile &&
-    current.heightProfile === next.heightProfile &&
-    current.density === next.density &&
-    current.keyboardVisible === next.keyboardVisible
-  );
-}
-
-function useViewportProfile() {
-  const [profile, setProfile] = useState(defaultViewportProfile);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    let animationFrame: number | null = null;
-    const syncProfile = () => {
-      if (animationFrame !== null) {
-        return;
-      }
-      animationFrame = window.requestAnimationFrame(() => {
-        animationFrame = null;
-        setProfile((current) => {
-          const next = getViewportProfile();
-          return sameViewportProfile(current, next) ? current : next;
-        });
-      });
-    };
-
-    syncProfile();
-    window.addEventListener("resize", syncProfile);
-    window.addEventListener("orientationchange", syncProfile);
-    window.visualViewport?.addEventListener("resize", syncProfile);
-    window.visualViewport?.addEventListener("scroll", syncProfile);
-    return () => {
-      if (animationFrame !== null) {
-        window.cancelAnimationFrame(animationFrame);
-      }
-      window.removeEventListener("resize", syncProfile);
-      window.removeEventListener("orientationchange", syncProfile);
-      window.visualViewport?.removeEventListener("resize", syncProfile);
-      window.visualViewport?.removeEventListener("scroll", syncProfile);
-    };
-  }, []);
-
-  return profile;
-}
-
-function readStoredTheme(): ThemeMode {
-  if (typeof window === "undefined") {
-    return "dark";
-  }
-  try {
-    return window.localStorage.getItem(themeStorageKey) === "light" ? "light" : "dark";
-  } catch {
-    return "dark";
-  }
-}
 
 function readStoredTerminalVisible() {
   if (typeof window === "undefined") {
@@ -275,25 +61,15 @@ function readStoredTerminalVisible() {
   }
 }
 
-function readStoredDetailWordWrap() {
+function readStoredBoolean(key: string, fallback: boolean) {
   if (typeof window === "undefined") {
-    return true;
+    return fallback;
   }
   try {
-    return window.localStorage.getItem(detailWordWrapStorageKey) !== "false";
+    const value = window.localStorage.getItem(key);
+    return value === null ? fallback : value === "true";
   } catch {
-    return true;
-  }
-}
-
-function readStoredSidebarVisible() {
-  if (typeof window === "undefined") {
-    return true;
-  }
-  try {
-    return window.localStorage.getItem(sidebarVisibleStorageKey) !== "false";
-  } catch {
-    return true;
+    return fallback;
   }
 }
 
@@ -314,19 +90,21 @@ export function App({ initialState: serverInitialState }: AppProps) {
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [theme, setTheme] = useState<ThemeMode>("dark");
-  const [detailWordWrap, setDetailWordWrap] = useState(true);
   const [terminalVisible, setTerminalVisible] = useState(false);
-  const [sidebarVisible, setSidebarVisible] = useState(true);
+  const [navigatorVisible, setNavigatorVisible] = useState(true);
+  const [inspectorVisible, setInspectorVisible] = useState(true);
+  const [selectedProjectId, setSelectedProjectId] = useState("project-alpha");
+  const [params, setParams] = useState<ParameterState>({
+    model: "codex",
+    runtime: "Node",
+    temperature: 0.28,
+    maxTokens: 64000,
+    reasoning: 62,
+    autoRun: false
+  });
   const [preferencesReady, setPreferencesReady] = useState(false);
-  const [mobileView, setMobileView] = useState<MobileView>("sessions");
   const [summaryEventsReady, setSummaryEventsReady] = useState(false);
   const [detailSubscription, setDetailSubscription] = useState<DetailSubscription | null>(null);
-  const [loadingMoreThreads, setLoadingMoreThreads] = useState(false);
-  const isMobileViewport = useMediaQuery(mobileViewportQuery);
-  const viewportProfile = useViewportProfile();
-  const isMobileViewportRef = useRef(isMobileViewport);
-  const loadingMoreThreadsRef = useRef(false);
   const selectedThreadIdRef = useRef<string | null>(null);
   const manualSelectionSeqRef = useRef(0);
   const refreshSeqRef = useRef(0);
@@ -342,7 +120,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
   });
 
   const busy = busyAction !== null;
-  const nextTheme = theme === "dark" ? "light" : "dark";
 
   function beginRefresh() {
     refreshSeqRef.current += 1;
@@ -456,43 +233,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
     }
   }
 
-  async function loadMoreThreads() {
-    const current = projectionRef.current.state;
-    if (!current.threadHasMore || loadingMoreThreadsRef.current) {
-      return;
-    }
-    loadingMoreThreadsRef.current = true;
-    setLoadingMoreThreads(true);
-    setError(null);
-    try {
-      const page = await getThreadsPage({
-        limit: current.threadPageSize,
-        offset: current.threadNextOffset
-      });
-      setState((previous) => {
-        const threads = mergeThreadsById(previous.threads, page.threads);
-        const nextState: DashboardState = {
-          ...previous,
-          threads,
-          threadTotalCount: page.totalCount,
-          threadPageSize: page.limit,
-          threadNextOffset: page.nextOffset,
-          threadHasMore: page.hasMore
-        };
-        projectionRef.current = {
-          ...projectionRef.current,
-          state: nextState
-        };
-        return nextState;
-      });
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Failed to load more sessions");
-    } finally {
-      loadingMoreThreadsRef.current = false;
-      setLoadingMoreThreads(false);
-    }
-  }
-
   const selectThread = useCallback(async (threadId: string) => {
     beginManualSelection();
     const shouldLoadDetail = shouldLoadThreadSelection(threadId, {
@@ -501,9 +241,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
     });
     setComposerMode("thread");
     setError(null);
-    if (isMobileViewportRef.current) {
-      setMobileView("detail");
-    }
     if (!shouldLoadDetail) {
       return;
     }
@@ -545,58 +282,12 @@ export function App({ initialState: serverInitialState }: AppProps) {
   }, [serverInitialState]);
 
   useEffect(() => {
-    setTheme(readStoredTheme());
-    setDetailWordWrap(readStoredDetailWordWrap());
+    document.documentElement.dataset.theme = "dark";
     setTerminalVisible(readStoredTerminalVisible());
-    setSidebarVisible(readStoredSidebarVisible());
+    setNavigatorVisible(readStoredBoolean(navigatorVisibleStorageKey, true));
+    setInspectorVisible(readStoredBoolean(inspectorVisibleStorageKey, true));
     setPreferencesReady(true);
   }, []);
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    if (!preferencesReady) {
-      return;
-    }
-    try {
-      window.localStorage.setItem(themeStorageKey, theme);
-    } catch {
-      // Keep the in-memory theme even if the browser blocks persistence.
-    }
-  }, [preferencesReady, theme]);
-
-  useEffect(() => {
-    if (!preferencesReady) {
-      return;
-    }
-    try {
-      window.localStorage.setItem(detailWordWrapStorageKey, detailWordWrap ? "true" : "false");
-    } catch {
-      // Keep the in-memory detail wrapping preference even if persistence is blocked.
-    }
-  }, [detailWordWrap, preferencesReady]);
-
-  useEffect(() => {
-    if (!preferencesReady) {
-      return;
-    }
-    try {
-      window.localStorage.setItem(sidebarVisibleStorageKey, sidebarVisible ? "true" : "false");
-    } catch {
-      // Keep the in-memory sidebar preference even if persistence is blocked.
-    }
-  }, [preferencesReady, sidebarVisible]);
-
-  useEffect(() => {
-    isMobileViewportRef.current = isMobileViewport;
-  }, [isMobileViewport]);
-
-  useEffect(() => installPageZoomGuards(window), [])
-
-  useEffect(() => {
-    if (!selectedThreadId && mobileView === "detail") {
-      setMobileView("sessions");
-    }
-  }, [mobileView, selectedThreadId]);
 
   useEffect(() => {
     if (!preferencesReady) {
@@ -605,9 +296,33 @@ export function App({ initialState: serverInitialState }: AppProps) {
     try {
       window.localStorage.setItem(terminalVisibleStorageKey, terminalVisible ? "true" : "false");
     } catch {
-      // Keep the in-memory terminal visibility even if persistence is blocked.
+      // Keep the in-memory preference even if the browser blocks persistence.
     }
   }, [preferencesReady, terminalVisible]);
+
+  useEffect(() => {
+    if (!preferencesReady) {
+      return;
+    }
+    try {
+      window.localStorage.setItem(navigatorVisibleStorageKey, navigatorVisible ? "true" : "false");
+    } catch {
+      // Keep the in-memory preference even if the browser blocks persistence.
+    }
+  }, [navigatorVisible, preferencesReady]);
+
+  useEffect(() => {
+    if (!preferencesReady) {
+      return;
+    }
+    try {
+      window.localStorage.setItem(inspectorVisibleStorageKey, inspectorVisible ? "true" : "false");
+    } catch {
+      // Keep the in-memory preference even if the browser blocks persistence.
+    }
+  }, [inspectorVisible, preferencesReady]);
+
+  useEffect(() => installPageZoomGuards(window), [])
 
   useEffect(() => {
     const handleTerminalShortcut = (event: globalThis.KeyboardEvent) => {
@@ -787,15 +502,17 @@ export function App({ initialState: serverInitialState }: AppProps) {
     [selectedThreadId, state.threads]
   );
   const selectedDetail = detail?.id === selectedThreadId ? detail : null;
-  const deferredSessionQuery = useDeferredValue(sessionQuery);
-  const sessionList = useMemo(
-    () =>
-      getSessionListModel(state.threads, deferredSessionQuery, {
-        totalThreadCount: state.threadTotalCount,
-        hasMoreThreads: state.threadHasMore
-      }),
-    [deferredSessionQuery, state.threadHasMore, state.threadTotalCount, state.threads]
-  );
+  const workbenchProjects = useMemo(() => buildWorkbenchProjects(state.threads), [state.threads]);
+  const selectedProject = workbenchProjects.find((project) => project.id === selectedProjectId) ?? workbenchProjects[0] ?? null;
+  const selectedWorkbenchSession = useMemo(() => {
+    const selectedByThread = findSession(workbenchProjects, selectedThreadId);
+    if (selectedByThread) {
+      return selectedByThread;
+    }
+    return selectedProject?.sessions[0] ?? null;
+  }, [selectedProject, selectedThreadId, workbenchProjects]);
+  const contextTokens = selectedDetail?.tokensUsed ?? selectedWorkbenchSession?.tokensUsed ?? 0;
+  const contextLimit = params.maxTokens;
   const promptTarget = composerMode === "thread" && selectedThread ? "thread" : "new";
   const trimmedWorkdir = workdir.trim();
   const canUseGoalMode =
@@ -815,6 +532,13 @@ export function App({ initialState: serverInitialState }: AppProps) {
   }, [state.defaultCwd, workdir, workdirTouched]);
 
   useEffect(() => {
+    const project = findProjectForThread(workbenchProjects, selectedThreadId);
+    if (project && project.id !== selectedProjectId) {
+      setSelectedProjectId(project.id);
+    }
+  }, [selectedProjectId, selectedThreadId, workbenchProjects]);
+
+  useEffect(() => {
     setGoalMode(false);
   }, [selectedThreadId, promptTarget]);
 
@@ -832,6 +556,33 @@ export function App({ initialState: serverInitialState }: AppProps) {
   const updateGoalMode = useCallback((value: boolean) => {
     setGoalMode(value);
   }, []);
+
+  const selectWorkbenchSession = useCallback(
+    (session: WorkbenchSession) => {
+      setComposerMode("thread");
+      setError(null);
+      setNotice(null);
+      if (!session.threadId) {
+        beginManualSelection();
+        setSelectedThreadId(null);
+        selectedThreadIdRef.current = null;
+        beginDetailLoad();
+        clearDetail();
+        return;
+      }
+      void selectThread(session.threadId);
+    },
+    [selectThread]
+  );
+
+  const createWorkbenchSession = useCallback(() => {
+    setComposerMode("new");
+    setPrompt("");
+    setGoalMode(false);
+    if (!workdirTouched && selectedProject?.path) {
+      setWorkdir(selectedProject.path);
+    }
+  }, [selectedProject?.path, workdirTouched]);
 
   async function runAction(
     label: string,
@@ -858,9 +609,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
       if (options.successMessage) {
         setNotice(options.successMessage);
       }
-      if (options.mobileViewOnSuccess && isMobileViewportRef.current) {
-        setMobileView(options.mobileViewOnSuccess);
-      }
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : "Action failed");
     } finally {
@@ -886,8 +634,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
         async () => {
           const result = await startGoal(threadId, currentPrompt.trim());
           return result.turn.threadId;
-        },
-        { mobileViewOnSuccess: "detail" }
+        }
       );
       return;
     }
@@ -901,8 +648,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
         async () => {
           const turn = await startTurn(threadId, currentPrompt);
           return turn.threadId;
-        },
-        { mobileViewOnSuccess: "detail" }
+        }
       );
       return;
     }
@@ -919,7 +665,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
         setComposerMode("thread");
         return thread?.id;
       },
-      { selectResult: true, mobileViewOnSuccess: "detail" }
+      { selectResult: true }
     );
   }
 
@@ -956,139 +702,59 @@ export function App({ initialState: serverInitialState }: AppProps) {
         const thread = await resumeThread(threadId);
         return thread.id;
       },
-      { successMessage: "Session resumed", mobileViewOnSuccess: "detail" }
+      { successMessage: "Session resumed" }
     );
   }
 
-  const desktopComposer = !isMobileViewport ? (
-    <PromptComposer
-      className="border-t border-border-soft bg-app-detail/95 px-5 py-4"
-      showStatus
-      workdir={workdir}
-      busy={busy}
-      busyAction={busyAction}
-      notice={notice}
-      error={error}
-      prompt={prompt}
-      promptTarget={promptTarget}
-      goalMode={goalMode}
-      selectedThread={selectedThread}
-      selectedThreadId={selectedThreadId}
-      canUseGoalMode={canUseGoalMode}
-      canSubmitPrompt={canSubmitPrompt}
-      onModeChange={setComposerMode}
-      onWorkdirChange={updateWorkdir}
-      onPromptChange={setPrompt}
-      onPromptKeyDown={handlePromptKeyDown}
-      onPromptSubmit={submitPrompt}
-      onGoalModeChange={updateGoalMode}
-      onInterrupt={interruptSelectedThread}
-      onResume={resumeSelectedThread}
-    />
-  ) : null;
-
   return (
-    <main
-      className="grid h-dvh min-h-0 w-full grid-rows-[minmax(0,1fr)_auto] overflow-hidden bg-app-bg text-fg antialiased"
-      data-theme={theme}
-      data-mobile-view={mobileView}
-      data-terminal-visible={terminalVisible}
-      data-viewport-width={viewportProfile.widthProfile}
-      data-viewport-height={viewportProfile.heightProfile}
-      data-ui-density={viewportProfile.density}
-      data-keyboard-visible={viewportProfile.keyboardVisible}
-      data-sidebar-visible={sidebarVisible}
-      style={viewportProfile.style}
-    >
-      <div
-        className={cn(
-          "relative grid h-full min-h-0 overflow-hidden bg-app-bg text-fg transition-[grid-template-columns,padding] duration-300 ease-snappy",
-          isMobileViewport
-            ? "grid-cols-1 pb-[calc(var(--mobile-composer-reserved)+env(safe-area-inset-bottom))]"
-            : sidebarVisible
-              ? "grid-cols-[minmax(292px,336px)_minmax(0,1fr)] gap-3 p-3"
-              : "grid-cols-1 p-3"
-        )}
-        data-theme={theme}
-        data-mobile-view={mobileView}
-        data-sidebar-visible={sidebarVisible}
-      >
-        {(sidebarVisible || isMobileViewport) && (!isMobileViewport || mobileView === "sessions") ? (
-          <SessionSidebar
-            density={isMobileViewport ? "compact" : "regular"}
-            busy={busy}
-            theme={theme}
-            nextTheme={nextTheme}
-            detailWordWrap={detailWordWrap}
-            terminalVisible={terminalVisible}
-            sessionQuery={sessionQuery}
-            sessionList={sessionList}
-            selectedThreadId={selectedThreadId}
-            loadingMoreThreads={loadingMoreThreads}
-            onSidebarToggle={isMobileViewport ? undefined : () => setSidebarVisible(false)}
-            onTerminalToggle={() => setTerminalVisible((current) => !current)}
-            onThemeChange={setTheme}
-            onDetailWordWrapChange={setDetailWordWrap}
-            onLoadMoreThreads={() => void loadMoreThreads()}
-            onSessionQueryChange={setSessionQuery}
-            onSelectThread={selectThread}
-          />
-        ) : !isMobileViewport ? (
-          <button
-            type="button"
-            className={cn(subtleIconButtonClass, "absolute left-5 top-5 z-20 bg-surface/85 backdrop-blur-xl")}
-            title="Show sidebar"
-            aria-label="Show sidebar"
-            onClick={() => setSidebarVisible(true)}
-          >
-            <SidebarOpen size={18} />
-          </button>
-        ) : null}
-
-        {!isMobileViewport || mobileView === "detail" ? (
-          <ThreadDetailView
-            detail={selectedDetail}
-            selectedThread={selectedThread}
-            selectedThreadId={selectedThreadId}
-            detailWordWrap={detailWordWrap}
-            onBack={() => setMobileView("sessions")}
-            composer={desktopComposer}
-          />
-        ) : null}
-      </div>
+    <>
+      <DashboardLayout
+        projects={workbenchProjects}
+        selectedProjectId={selectedProjectId}
+        selectedSessionId={selectedWorkbenchSession?.id ?? selectedThreadId}
+        session={selectedWorkbenchSession}
+        detail={selectedDetail}
+        selectedThread={selectedThread}
+        selectedThreadId={selectedThreadId}
+        navigatorVisible={navigatorVisible}
+        inspectorVisible={inspectorVisible}
+        terminalVisible={terminalVisible}
+        sessionQuery={sessionQuery}
+        params={params}
+        contextTokens={contextTokens}
+        contextLimit={contextLimit}
+        workdir={workdir}
+        busy={busy}
+        busyAction={busyAction}
+        notice={notice}
+        error={error}
+        prompt={prompt}
+        promptTarget={promptTarget}
+        goalMode={goalMode}
+        canUseGoalMode={canUseGoalMode}
+        canSubmitPrompt={canSubmitPrompt}
+        onNavigatorVisibleChange={setNavigatorVisible}
+        onInspectorVisibleChange={setInspectorVisible}
+        onProjectChange={setSelectedProjectId}
+        onSelectSession={selectWorkbenchSession}
+        onCreateSession={createWorkbenchSession}
+        onSessionQueryChange={setSessionQuery}
+        onToggleTerminal={() => setTerminalVisible((current) => !current)}
+        onParamChange={setParams}
+        onPromptChange={setPrompt}
+        onPromptKeyDown={handlePromptKeyDown}
+        onPromptSubmit={submitPrompt}
+        onModeChange={setComposerMode}
+        onWorkdirChange={updateWorkdir}
+        onGoalModeChange={updateGoalMode}
+        onInterrupt={interruptSelectedThread}
+        onResume={resumeSelectedThread}
+      />
       <Suspense fallback={null}>
         {terminalVisible ? (
-          <TerminalDock visible={terminalVisible} theme={theme} onClose={() => setTerminalVisible(false)} />
+          <TerminalDock visible={terminalVisible} onClose={() => setTerminalVisible(false)} />
         ) : null}
       </Suspense>
-      {isMobileViewport ? (
-        <PromptComposer
-          className="fixed bottom-0 left-0 right-0 z-[100] w-full max-h-[var(--mobile-composer-max-height)] border-t border-border bg-surface/95 px-[max(var(--mobile-edge-padding),12px)] py-2 shadow-popover backdrop-blur-xl supports-[backdrop-filter]:bg-surface/88"
-          showStatus
-          compact
-          collapsible
-          workdir={workdir}
-          busy={busy}
-          busyAction={busyAction}
-          notice={notice}
-          error={error}
-          prompt={prompt}
-          promptTarget={promptTarget}
-          goalMode={goalMode}
-          selectedThread={selectedThread}
-          selectedThreadId={selectedThreadId}
-          canUseGoalMode={canUseGoalMode}
-          canSubmitPrompt={canSubmitPrompt}
-          onModeChange={setComposerMode}
-          onWorkdirChange={updateWorkdir}
-          onPromptChange={setPrompt}
-          onPromptKeyDown={handlePromptKeyDown}
-          onPromptSubmit={submitPrompt}
-          onGoalModeChange={updateGoalMode}
-          onInterrupt={interruptSelectedThread}
-          onResume={resumeSelectedThread}
-        />
-      ) : null}
-    </main>
+    </>
   );
 }

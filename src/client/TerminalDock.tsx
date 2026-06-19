@@ -16,7 +16,6 @@ import type { TerminalEvent, TerminalSnapshot } from "../server/domain.js";
 
 type TerminalDockProps = {
   visible: boolean;
-  theme: "dark" | "light";
   onClose: () => void;
 };
 
@@ -65,36 +64,20 @@ const initialTerminalClientMetrics: TerminalClientMetrics = {
   reconnects: 0
 };
 
-function terminalTheme(mode: "dark" | "light") {
-  if (mode === "light") {
-    return {
-      background: "#ffffff",
-      foreground: "#2f2f2f",
-      cursor: "#111111",
-      selectionBackground: "#dedede",
-      black: "#111111",
-      red: "#b42318",
-      green: "#1d684f",
-      yellow: "#8a5a12",
-      blue: "#255a8a",
-      magenta: "#5b42a8",
-      cyan: "#4a4a4a",
-      white: "#ededed"
-    };
-  }
+function terminalTheme() {
   return {
-    background: "#0b0b0b",
-    foreground: "#ececec",
-    cursor: "#f5f5f5",
-    selectionBackground: "#333333",
-    black: "#111111",
-    red: "#ffb4b4",
-    green: "#a8e6cf",
-    yellow: "#f1c56f",
-    blue: "#c8d7ff",
-    magenta: "#ccb7ff",
-    cyan: "#c8c8c8",
-    white: "#f5f5f5"
+    background: "#020617",
+    foreground: "#cbd5e1",
+    cursor: "#34d399",
+    selectionBackground: "#1e293b",
+    black: "#0f172a",
+    red: "#fb7185",
+    green: "#34d399",
+    yellow: "#fbbf24",
+    blue: "#93c5fd",
+    magenta: "#c4b5fd",
+    cyan: "#67e8f9",
+    white: "#f8fafc"
   };
 }
 
@@ -149,7 +132,7 @@ function terminalMetricsTitle(metrics: TerminalClientMetrics, snapshot: Terminal
   ].join("\n");
 }
 
-export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
+export function TerminalDock({ visible, onClose }: TerminalDockProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -159,7 +142,7 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
   const [connection, setConnection] = useState<ConnectionStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<TerminalClientMetrics>(initialTerminalClientMetrics);
-  const themeOptions = useMemo(() => terminalTheme(theme), [theme]);
+  const themeOptions = useMemo(() => terminalTheme(), []);
   const canStop = snapshot?.status === "running" || snapshot?.status === "starting";
   const label = statusLabel(snapshot, connection);
   const metricsLabel = terminalMetricsLabel(metrics, snapshot);
@@ -509,7 +492,7 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
   }
 
   return (
-    <section className="shrink-0 border-t border-border bg-surface shadow-popover" aria-label="Terminal">
+    <section className="fixed inset-x-3 bottom-3 z-[80] overflow-hidden rounded-lg border border-slate-800/90 bg-slate-950/95 shadow-2xl shadow-black/45 backdrop-blur-md" aria-label="Terminal">
       <div className="flex h-11 items-center justify-between gap-3 border-b border-border-soft px-3">
         <div className="flex min-w-0 items-center gap-2">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-chip text-chip-fg">
@@ -544,7 +527,7 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
         <span className={cn(pillClass, "hidden max-w-[42vw] truncate font-mono lg:inline-flex")} title={metricsTitle}>{metricsLabel}</span>
         {error ? <span className="max-w-[34vw] truncate rounded-full bg-error px-2 py-1 font-medium text-error-fg">{error}</span> : null}
       </div>
-      <div className="h-[min(32dvh,320px)] min-h-[160px] bg-[#09090a] p-2 [&_.xterm]:h-full [&_.xterm-screen]:will-change-transform [&_.xterm-viewport]:!bg-transparent" ref={containerRef} />
+      <div className="h-[min(32dvh,320px)] min-h-[160px] bg-slate-950 p-2 [&_.xterm]:h-full [&_.xterm-screen]:will-change-transform [&_.xterm-viewport]:!bg-transparent" ref={containerRef} />
     </section>
   );
 }
