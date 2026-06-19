@@ -11,6 +11,7 @@ import {
   terminateTerminal,
   writeTerminalInput
 } from "./api.js";
+import { cn, iconButtonClass, pillClass } from "./classNames.js";
 import type { TerminalEvent, TerminalSnapshot } from "../server/domain.js";
 
 type TerminalDockProps = {
@@ -39,6 +40,18 @@ const reconnectDelayMs = 1_200;
 const inputFlushMs = 8;
 const resizeFlushMs = 100;
 const metricsCommitMs = 500;
+
+const terminalStatusClass: Record<string, string> = {
+  idle: "bg-chip text-chip-fg",
+  connected: "bg-running text-running-fg",
+  running: "bg-running text-running-fg",
+  starting: "bg-stale text-stale-fg",
+  connecting: "bg-stale text-stale-fg",
+  reconnecting: "bg-stale text-stale-fg",
+  exited: "bg-chip text-chip-fg",
+  failed: "bg-attention text-attention-fg",
+  offline: "bg-attention text-attention-fg"
+};
 
 const initialTerminalClientMetrics: TerminalClientMetrics = {
   transport: "idle",
@@ -496,20 +509,23 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
   }
 
   return (
-    <section className="terminal-dock" aria-label="Terminal">
-      <div className="terminal-dock-header">
-        <div className="terminal-dock-title">
-          <TerminalIcon size={15} />
-          <strong>Terminal</strong>
-          <span className={`terminal-status ${label}`}>{label}</span>
-          {snapshot ? <small>{snapshot.command}</small> : null}
+    <section className="shrink-0 border-t border-border bg-surface shadow-popover" aria-label="Terminal">
+      <div className="flex h-11 items-center justify-between gap-3 border-b border-border-soft px-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-chip text-chip-fg">
+            <TerminalIcon size={15} />
+          </span>
+          <strong className="shrink-0 text-sm font-semibold text-fg-strong">Terminal</strong>
+          <span className={cn("rounded-full px-2 py-1 text-[11px] font-semibold leading-none", terminalStatusClass[label] ?? terminalStatusClass.idle)}>{label}</span>
+          {snapshot ? <small className="min-w-0 truncate font-mono text-[11px] text-muted">{snapshot.command}</small> : null}
         </div>
-        <div className="terminal-dock-actions">
-          <button type="button" title={startActionLabel} aria-label={startActionLabel} onClick={startOrAttach}>
+        <div className="flex shrink-0 items-center gap-1">
+          <button className={iconButtonClass} type="button" title={startActionLabel} aria-label={startActionLabel} onClick={startOrAttach}>
             {canStop ? <RotateCw size={15} /> : <Play size={15} />}
           </button>
           <button
             type="button"
+            className={iconButtonClass}
             title="Stop terminal process"
             aria-label="Stop terminal process"
             disabled={!canStop}
@@ -517,18 +533,18 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
           >
             <Square size={15} />
           </button>
-          <button type="button" title="Hide terminal" aria-label="Hide terminal" onClick={onClose}>
+          <button className={iconButtonClass} type="button" title="Hide terminal" aria-label="Hide terminal" onClick={onClose}>
             <X size={16} />
           </button>
         </div>
       </div>
-      <div className="terminal-dock-meta">
-        <span>{snapshot?.cwd ?? ""}</span>
-        {snapshot?.pid ? <span>pid {snapshot.pid}</span> : null}
-        <span className="terminal-metrics" title={metricsTitle}>{metricsLabel}</span>
-        {error ? <span className="terminal-error">{error}</span> : null}
+      <div className="flex h-8 min-w-0 items-center gap-2 overflow-hidden border-b border-border-soft px-3 text-[11px] text-muted">
+        <span className="min-w-0 flex-1 truncate font-mono">{snapshot?.cwd ?? ""}</span>
+        {snapshot?.pid ? <span className={pillClass}>pid {snapshot.pid}</span> : null}
+        <span className={cn(pillClass, "hidden max-w-[42vw] truncate font-mono lg:inline-flex")} title={metricsTitle}>{metricsLabel}</span>
+        {error ? <span className="max-w-[34vw] truncate rounded-full bg-error px-2 py-1 font-medium text-error-fg">{error}</span> : null}
       </div>
-      <div className="terminal-dock-body" ref={containerRef} />
+      <div className="h-[min(32dvh,320px)] min-h-[160px] bg-[#09090a] p-2 [&_.xterm]:h-full [&_.xterm-screen]:will-change-transform [&_.xterm-viewport]:!bg-transparent" ref={containerRef} />
     </section>
   );
 }

@@ -12,7 +12,13 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import type { ControlThread, ThreadDetail, ThreadItem } from "../../server/domain.js";
+import type { ControlThread, ItemType, ThreadDetail, ThreadItem } from "../../server/domain.js";
+import {
+  cn,
+  pillClass,
+  statusToneClass,
+  subtleIconButtonClass
+} from "../classNames.js";
 import { getCollapsedTextPreview } from "../textPreview.js";
 import { getTranscriptEntries, type TranscriptProcessEntry } from "../transcriptEntries.js";
 import {
@@ -32,6 +38,24 @@ import {
 
 const processStepPreviewLineCount = 3;
 const processPreviewItemCount = 3;
+
+const itemToneClass: Record<ItemType, string> = {
+  user: "border-l-fg-strong",
+  agent: "border-l-running-dot",
+  plan: "border-l-stale-dot",
+  command: "border-l-muted",
+  file: "border-l-completed-dot",
+  system: "border-l-border-strong"
+};
+
+const itemIconToneClass: Record<ItemType, string> = {
+  user: "bg-accent text-accent-fg",
+  agent: "bg-running text-running-fg",
+  plan: "bg-stale text-stale-fg",
+  command: "bg-chip text-chip-fg",
+  file: "bg-success text-success-fg",
+  system: "bg-chip text-chip-fg"
+};
 
 export type ThreadDetailViewProps = {
   detail: ThreadDetail | null;
@@ -153,50 +177,56 @@ const SessionFacts = memo(
     const visibleGoalObjective = visibleGoalStatus ? thread.goalObjective : null;
 
     return (
-      <div className="session-facts">
-        <div>
-          <span>Status</span>
-          <strong className={`fact-status ${statusTone(thread.status)}`}>{statusLabel(thread.status)}</strong>
+      <div className="grid shrink-0 grid-cols-[repeat(auto-fit,minmax(118px,1fr))] gap-px border-b border-border-soft bg-border-soft">
+        <div className="min-w-0 bg-app-detail px-4 py-2">
+          <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Status</span>
+          <strong className={cn("mt-1 inline-flex rounded-full px-2 py-1 text-[11px] font-semibold leading-none", statusToneClass[statusTone(thread.status)])}>{statusLabel(thread.status)}</strong>
         </div>
         {visibleGoalObjective && visibleGoalStatus ? (
-          <div className="wide">
-            <span>Goal</span>
-            <strong className={`fact-status ${goalTone(visibleGoalStatus)}`} title={visibleGoalObjective}>
+          <div className="min-w-0 bg-app-detail px-4 py-2 sm:col-span-2">
+            <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Goal</span>
+            <strong
+              className={cn(
+                "mt-1 block truncate rounded-full px-2 py-1 text-[11px] font-semibold leading-none",
+                statusToneClass[goalTone(visibleGoalStatus)]
+              )}
+              title={visibleGoalObjective}
+            >
               {statusLabel(visibleGoalStatus)}: {visibleGoalObjective}
             </strong>
           </div>
         ) : null}
-        <div>
-          <span>Tokens</span>
-          <strong>{formatTokens(thread.tokensUsed)}</strong>
+        <div className="min-w-0 bg-app-detail px-4 py-2">
+          <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Tokens</span>
+          <strong className="mt-1 block truncate text-[13px] font-semibold leading-5 text-fg-strong">{formatTokens(thread.tokensUsed)}</strong>
         </div>
         {thread.goalTokenBudget ? (
-          <div>
-            <span>Budget</span>
-            <strong>
+          <div className="min-w-0 bg-app-detail px-4 py-2">
+            <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Budget</span>
+            <strong className="mt-1 block truncate text-[13px] font-semibold leading-5 text-fg-strong">
               {formatTokens(thread.tokensUsed)} / {formatTokens(thread.goalTokenBudget)}
             </strong>
           </div>
         ) : null}
-        <div>
-          <span>Turns</span>
-          <strong>{thread.turns.length}</strong>
+        <div className="min-w-0 bg-app-detail px-4 py-2">
+          <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Turns</span>
+          <strong className="mt-1 block truncate text-[13px] font-semibold leading-5 text-fg-strong">{thread.turns.length}</strong>
         </div>
-        <div>
-          <span>Model</span>
-          <strong>{thread.model ?? "default"}</strong>
+        <div className="min-w-0 bg-app-detail px-4 py-2">
+          <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Model</span>
+          <strong className="mt-1 block truncate text-[13px] font-semibold leading-5 text-fg-strong">{thread.model ?? "default"}</strong>
         </div>
-        <div className="wide">
-          <span>Workdir</span>
-          <strong>{thread.cwd}</strong>
+        <div className="min-w-0 bg-app-detail px-4 py-2 sm:col-span-2">
+          <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Workdir</span>
+          <strong className="mt-1 block truncate font-mono text-[12px] font-medium leading-5 text-fg-strong">{thread.cwd}</strong>
         </div>
-        <div>
-          <span>Session</span>
-          <strong>{shortId(thread.sessionId)}</strong>
+        <div className="min-w-0 bg-app-detail px-4 py-2">
+          <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Session</span>
+          <strong className="mt-1 block truncate font-mono text-[12px] font-medium leading-5 text-fg-strong">{shortId(thread.sessionId)}</strong>
         </div>
-        <div>
-          <span>Updated</span>
-          <strong>{formatDateTime(thread.updatedAt)}</strong>
+        <div className="min-w-0 bg-app-detail px-4 py-2">
+          <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Updated</span>
+          <strong className="mt-1 block truncate text-[13px] font-semibold leading-5 text-fg-strong">{formatDateTime(thread.updatedAt)}</strong>
         </div>
       </div>
     );
@@ -229,26 +259,28 @@ const TranscriptItem = memo(function TranscriptItem({
   const title = itemTitle(item);
 
   return (
-    <article className={`transcript-item ${item.type} ${visible ? "expanded" : "collapsed"}`}>
+    <article className={cn("rounded-lg border border-border-soft border-l-2 bg-surface shadow-control", itemToneClass[item.type])}>
       <button
         type="button"
-        className="item-meta"
+        className="flex min-h-10 w-full items-center gap-3 rounded-t-lg px-3 py-2 text-left transition duration-150 ease-fluid hover:bg-control-hover"
         aria-expanded={visible}
         aria-label={`${visible ? "Hide" : "Show"} ${title}`}
         onClick={() => onToggleVisible(item.id)}
       >
-        <span className="item-title">
-          <ItemIcon item={item} />
-          <span>{title}</span>
+        <span className="flex min-w-0 flex-1 items-center gap-2">
+          <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-md", itemIconToneClass[item.type])}>
+            <ItemIcon item={item} />
+          </span>
+          <span className="truncate text-sm font-medium text-fg-strong">{title}</span>
         </span>
-        <span className="item-meta-right">
-          {status ? <span className="item-chip">{status}</span> : null}
-          {exitCode !== null ? <span className="item-chip">exit {exitCode}</span> : null}
-          <time>{formatTime(item.createdAt)}</time>
+        <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted">
+          {status ? <span className={pillClass}>{readableStatus(status)}</span> : null}
+          {exitCode !== null ? <span className={pillClass}>exit {exitCode}</span> : null}
+          <time className="hidden sm:inline">{formatTime(item.createdAt)}</time>
           {visible ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </span>
       </button>
-      {visible ? <pre>{outputText}</pre> : null}
+      {visible ? <pre className="overflow-x-auto whitespace-pre-wrap border-t border-border-soft bg-surface-subtle p-3 font-mono text-[12px] leading-5 text-fg">{outputText}</pre> : null}
     </article>
   );
 });
@@ -274,26 +306,31 @@ const ProcessStep = memo(function ProcessStep({
   const title = itemTitle(item);
 
   return (
-    <div className={`process-step ${item.type}`}>
+    <div className={cn("rounded-md border border-border-soft border-l-2 bg-surface", itemToneClass[item.type])}>
       <button
         type="button"
-        className={`process-step-toggle ${canCollapse ? "" : "static"}`}
+        className={cn(
+          "flex min-h-9 w-full items-center gap-3 rounded-t-md px-3 py-2 text-left transition duration-150 ease-fluid",
+          canCollapse ? "hover:bg-control-hover" : "cursor-default"
+        )}
         aria-expanded={canCollapse ? expanded : undefined}
         aria-label={canCollapse ? `${expanded ? "Collapse" : "Expand"} ${title}` : undefined}
         onClick={canCollapse ? () => onToggleExpanded(item.id) : undefined}
       >
-        <span className="process-step-title">
-          <ItemIcon item={item} />
-          <span>{title}</span>
+        <span className="flex min-w-0 flex-1 items-center gap-2">
+          <span className={cn("flex h-5 w-5 shrink-0 items-center justify-center rounded", itemIconToneClass[item.type])}>
+            <ItemIcon item={item} />
+          </span>
+          <span className="truncate text-[13px] font-medium text-fg-strong">{title}</span>
         </span>
-        <span className="process-step-right">
-          {status ? <span className="item-chip">{readableStatus(status)}</span> : null}
-          {exitCode !== null ? <span className="item-chip">exit {exitCode}</span> : null}
-          <time>{formatTime(item.createdAt)}</time>
+        <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted">
+          {status ? <span className={pillClass}>{readableStatus(status)}</span> : null}
+          {exitCode !== null ? <span className={pillClass}>exit {exitCode}</span> : null}
+          <time className="hidden sm:inline">{formatTime(item.createdAt)}</time>
           {canCollapse ? (expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />) : null}
         </span>
       </button>
-      <pre>{visibleText}</pre>
+      <pre className="overflow-x-auto whitespace-pre-wrap border-t border-border-soft bg-surface-subtle p-3 font-mono text-[12px] leading-5 text-fg">{visibleText}</pre>
     </div>
   );
 });
@@ -333,30 +370,32 @@ const ProcessGroup = memo(function ProcessGroup({
   }, []);
 
   return (
-    <article className={`process-group ${expanded ? "expanded" : "collapsed"}`}>
+    <article className="rounded-lg border border-border-soft bg-surface shadow-control">
       <button
         type="button"
-        className="process-group-toggle"
+        className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition duration-150 ease-fluid hover:bg-control-hover"
         aria-expanded={expanded}
         aria-label={`${expanded ? "Collapse" : "Expand"} ${summary.title}`}
         onClick={() => onToggleExpanded(group.id)}
       >
-        <span className="process-group-main">
-          <span className="process-group-title">
-            <Activity size={15} />
-            <span>{summary.title}</span>
+        <span className="min-w-0 flex-1">
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-chip text-chip-fg">
+              <Activity size={15} />
+            </span>
+            <span className="truncate text-sm font-medium text-fg-strong">{summary.title}</span>
           </span>
-          <span className="process-group-preview">{summary.preview || summary.detail}</span>
+          <span className="mt-1 block truncate text-[12px] leading-4 text-muted">{summary.preview || summary.detail}</span>
         </span>
-        <span className="process-group-meta">
-          <span className="item-chip">{summary.count}</span>
-          {summary.status ? <span className="item-chip">{readableStatus(summary.status)}</span> : null}
-          <time>{formatTime(group.updatedAt)}</time>
+        <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted">
+          <span className={pillClass}>{summary.count}</span>
+          {summary.status ? <span className={pillClass}>{readableStatus(summary.status)}</span> : null}
+          <time className="hidden sm:inline">{formatTime(group.updatedAt)}</time>
           {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </span>
       </button>
       {expanded ? (
-        <div className="process-group-body">
+        <div className="grid gap-2 border-t border-border-soft bg-surface-subtle/60 p-2">
           {group.items.map((item) => (
             <ProcessStep
               key={item.id}
@@ -373,10 +412,12 @@ const ProcessGroup = memo(function ProcessGroup({
 
 const Transcript = memo(function Transcript({
   detail,
-  hasSelection
+  hasSelection,
+  detailWordWrap
 }: {
   detail: ThreadDetail | null;
   hasSelection: boolean;
+  detailWordWrap: boolean;
 }) {
   const [expandedProcessEntryIds, setExpandedProcessEntryIds] = useState<Set<string>>(() => new Set());
   const [hiddenItemIds, setHiddenItemIds] = useState<Set<string>>(() => new Set());
@@ -424,16 +465,22 @@ const Transcript = memo(function Transcript({
   const transcriptEntries = useMemo(() => getTranscriptEntries(transcriptWindow.items), [transcriptWindow.items]);
 
   return (
-    <div className="transcript" aria-label="Session transcript">
-      {!detail ? <div className="empty-state">{hasSelection ? "Loading session..." : "No session selected"}</div> : null}
-      {detail?.items.length === 0 ? <div className="empty-state">No transcript items yet</div> : null}
+    <div
+      className={cn(
+        "min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden px-5 py-4",
+        detailWordWrap ? "[&_pre]:whitespace-pre-wrap" : "[&_pre]:whitespace-pre"
+      )}
+      aria-label="Session transcript"
+    >
+      {!detail ? <div className="flex h-full min-h-48 items-center justify-center rounded-lg border border-dashed border-border-soft text-sm text-muted">{hasSelection ? "Loading session..." : "No session selected"}</div> : null}
+      {detail?.items.length === 0 ? <div className="flex h-full min-h-48 items-center justify-center rounded-lg border border-dashed border-border-soft text-sm text-muted">No transcript items yet</div> : null}
       {showWindowControls ? (
-        <div className="transcript-window-bar">
-          <span>{windowSummary}</span>
-          <div className="transcript-window-mode" role="group" aria-label="Transcript range">
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-lg border border-border-soft bg-app-detail/90 p-2 text-xs text-muted shadow-control backdrop-blur-xl">
+          <span className="px-1">{windowSummary}</span>
+          <div className="flex rounded-md border border-border-soft bg-surface-subtle p-0.5" role="group" aria-label="Transcript range">
             <button
               type="button"
-              className={windowMode === "recent" ? "active" : ""}
+              className={cn("h-7 rounded px-2 text-xs font-medium text-muted-strong transition hover:text-fg-strong", windowMode === "recent" ? "bg-control-hover text-fg-strong" : null)}
               aria-pressed={windowMode === "recent"}
               onClick={() => setWindowMode("recent")}
             >
@@ -441,7 +488,7 @@ const Transcript = memo(function Transcript({
             </button>
             <button
               type="button"
-              className={windowMode === "all" ? "active" : ""}
+              className={cn("h-7 rounded px-2 text-xs font-medium text-muted-strong transition hover:text-fg-strong", windowMode === "all" ? "bg-control-hover text-fg-strong" : null)}
               aria-pressed={windowMode === "all"}
               onClick={() => setWindowMode("all")}
             >
@@ -480,25 +527,26 @@ export const ThreadDetailView = memo(function ThreadDetailView({
   composer = null
 }: ThreadDetailViewProps) {
   return (
-    <section className="detail panel" data-detail-word-wrap={detailWordWrap ? "true" : "false"}>
-      <div className="detail-header">
+    <section className="flex min-h-0 flex-col bg-app-detail" data-detail-word-wrap={detailWordWrap ? "true" : "false"}>
+      <div className="flex h-14 shrink-0 items-center gap-3 border-b border-border-soft px-4">
         <button
           type="button"
-          className="mobile-back-button"
+          className={cn(subtleIconButtonClass, "md:hidden")}
           title="Back to sessions"
           aria-label="Back to sessions"
           onClick={onBack}
         >
           <ArrowLeft size={18} />
         </button>
-        <div className="title-stack">
-          <h1>{selectedThread?.title ?? "Session"}</h1>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-sm font-semibold leading-5 text-fg-strong">{selectedThread?.title ?? "Session"}</h1>
+          <p className="truncate text-[11px] leading-4 text-muted">{selectedThread?.cwd ?? "Select a session to inspect the transcript"}</p>
         </div>
       </div>
 
       {detail ? <SessionFacts thread={detail} /> : null}
 
-      <Transcript detail={detail} hasSelection={Boolean(selectedThreadId)} />
+      <Transcript detail={detail} hasSelection={Boolean(selectedThreadId)} detailWordWrap={detailWordWrap} />
 
       {composer}
     </section>

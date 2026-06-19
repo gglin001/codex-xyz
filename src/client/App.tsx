@@ -14,6 +14,7 @@ import {
   startGoal,
   startTurn
 } from "./api.js";
+import { cn, subtleIconButtonClass } from "./classNames.js";
 import { PromptComposer } from "./components/PromptComposer.js";
 import { SessionSidebar } from "./components/SessionSidebar.js";
 import { ThreadDetailView } from "./components/ThreadDetailView.js";
@@ -88,15 +89,8 @@ const TerminalDock = lazy(async () => ({
   default: (await import("./TerminalDock.js")).TerminalDock
 }));
 
-function readMediaQuery(query: string) {
-  if (typeof window === "undefined") {
-    return false;
-  }
-  return window.matchMedia(query).matches;
-}
-
 function useMediaQuery(query: string) {
-  const [matches, setMatches] = useState(() => readMediaQuery(query));
+  const [matches, setMatches] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -320,10 +314,11 @@ export function App({ initialState: serverInitialState }: AppProps) {
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [theme, setTheme] = useState<ThemeMode>(readStoredTheme);
-  const [detailWordWrap, setDetailWordWrap] = useState(readStoredDetailWordWrap);
-  const [terminalVisible, setTerminalVisible] = useState(readStoredTerminalVisible);
-  const [sidebarVisible, setSidebarVisible] = useState(readStoredSidebarVisible);
+  const [theme, setTheme] = useState<ThemeMode>("dark");
+  const [detailWordWrap, setDetailWordWrap] = useState(true);
+  const [terminalVisible, setTerminalVisible] = useState(false);
+  const [sidebarVisible, setSidebarVisible] = useState(true);
+  const [preferencesReady, setPreferencesReady] = useState(false);
   const [mobileView, setMobileView] = useState<MobileView>("sessions");
   const [summaryEventsReady, setSummaryEventsReady] = useState(false);
   const [detailSubscription, setDetailSubscription] = useState<DetailSubscription | null>(null);
@@ -563,29 +558,46 @@ export function App({ initialState: serverInitialState }: AppProps) {
   }, [serverInitialState]);
 
   useEffect(() => {
+    setTheme(readStoredTheme());
+    setDetailWordWrap(readStoredDetailWordWrap());
+    setTerminalVisible(readStoredTerminalVisible());
+    setSidebarVisible(readStoredSidebarVisible());
+    setPreferencesReady(true);
+  }, []);
+
+  useEffect(() => {
     document.documentElement.dataset.theme = theme;
+    if (!preferencesReady) {
+      return;
+    }
     try {
       window.localStorage.setItem(themeStorageKey, theme);
     } catch {
       // Keep the in-memory theme even if the browser blocks persistence.
     }
-  }, [theme]);
+  }, [preferencesReady, theme]);
 
   useEffect(() => {
+    if (!preferencesReady) {
+      return;
+    }
     try {
       window.localStorage.setItem(detailWordWrapStorageKey, detailWordWrap ? "true" : "false");
     } catch {
       // Keep the in-memory detail wrapping preference even if persistence is blocked.
     }
-  }, [detailWordWrap]);
+  }, [detailWordWrap, preferencesReady]);
 
   useEffect(() => {
+    if (!preferencesReady) {
+      return;
+    }
     try {
       window.localStorage.setItem(sidebarVisibleStorageKey, sidebarVisible ? "true" : "false");
     } catch {
       // Keep the in-memory sidebar preference even if persistence is blocked.
     }
-  }, [sidebarVisible]);
+  }, [preferencesReady, sidebarVisible]);
 
   useEffect(() => {
     isMobileViewportRef.current = isMobileViewport;
@@ -600,12 +612,15 @@ export function App({ initialState: serverInitialState }: AppProps) {
   }, [mobileView, selectedThreadId]);
 
   useEffect(() => {
+    if (!preferencesReady) {
+      return;
+    }
     try {
       window.localStorage.setItem(terminalVisibleStorageKey, terminalVisible ? "true" : "false");
     } catch {
       // Keep the in-memory terminal visibility even if persistence is blocked.
     }
-  }, [terminalVisible]);
+  }, [preferencesReady, terminalVisible]);
 
   useEffect(() => {
     const handleTerminalShortcut = (event: globalThis.KeyboardEvent) => {
@@ -960,7 +975,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 
   const desktopComposer = !isMobileViewport ? (
     <PromptComposer
-      className="desktop-composer detail-composer"
+      className="border-t border-border-soft bg-app-detail px-5 py-4"
       showStatus
       workdir={workdir}
       busy={busy}
@@ -987,7 +1002,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 
   return (
     <main
-      className="app-shell"
+      className="grid h-dvh min-h-0 w-full grid-rows-[minmax(0,1fr)_auto] overflow-hidden bg-app-bg text-fg antialiased"
       data-theme={theme}
       data-mobile-view={mobileView}
       data-terminal-visible={terminalVisible}
@@ -998,8 +1013,20 @@ export function App({ initialState: serverInitialState }: AppProps) {
       data-sidebar-visible={sidebarVisible}
       style={viewportProfile.style}
     >
-      <div className="workspace" data-theme={theme} data-mobile-view={mobileView} data-sidebar-visible={sidebarVisible}>
-        {sidebarVisible || isMobileViewport ? (
+      <div
+        className={cn(
+          "relative grid h-full min-h-0 overflow-hidden bg-app-bg text-fg",
+          isMobileViewport
+            ? "grid-cols-1 pb-[calc(var(--mobile-composer-reserved)+env(safe-area-inset-bottom))]"
+            : sidebarVisible
+              ? "grid-cols-[minmax(280px,320px)_minmax(0,1fr)]"
+              : "grid-cols-1"
+        )}
+        data-theme={theme}
+        data-mobile-view={mobileView}
+        data-sidebar-visible={sidebarVisible}
+      >
+        {(sidebarVisible || isMobileViewport) && (!isMobileViewport || mobileView === "sessions") ? (
           <SessionSidebar
             density={isMobileViewport ? "compact" : "regular"}
             busy={busy}
@@ -1020,26 +1047,28 @@ export function App({ initialState: serverInitialState }: AppProps) {
             onSessionQueryChange={setSessionQuery}
             onSelectThread={selectThread}
           />
-        ) : (
+        ) : !isMobileViewport ? (
           <button
             type="button"
-            className="sidebar-restore-button"
+            className={cn(subtleIconButtonClass, "absolute left-3 top-3 z-20 bg-surface/85 backdrop-blur-xl")}
             title="Show sidebar"
             aria-label="Show sidebar"
             onClick={() => setSidebarVisible(true)}
           >
             <SidebarOpen size={18} />
           </button>
-        )}
+        ) : null}
 
-        <ThreadDetailView
-          detail={selectedDetail}
-          selectedThread={selectedThread}
-          selectedThreadId={selectedThreadId}
-          detailWordWrap={detailWordWrap}
-          onBack={() => setMobileView("sessions")}
-          composer={desktopComposer}
-        />
+        {!isMobileViewport || mobileView === "detail" ? (
+          <ThreadDetailView
+            detail={selectedDetail}
+            selectedThread={selectedThread}
+            selectedThreadId={selectedThreadId}
+            detailWordWrap={detailWordWrap}
+            onBack={() => setMobileView("sessions")}
+            composer={desktopComposer}
+          />
+        ) : null}
       </div>
       <Suspense fallback={null}>
         {terminalVisible ? (
@@ -1048,7 +1077,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
       </Suspense>
       {isMobileViewport ? (
         <PromptComposer
-          className="mobile-composer"
+          className="fixed inset-x-0 bottom-0 z-[100] max-h-[var(--mobile-composer-max-height)] border-t border-border bg-surface/95 px-[max(var(--mobile-edge-padding),12px)] py-2 shadow-popover backdrop-blur-xl supports-[backdrop-filter]:bg-surface/80"
           showStatus
           compact
           collapsible

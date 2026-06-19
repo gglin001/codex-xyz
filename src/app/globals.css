@@ -1,9 +1,217 @@
 @import "tailwindcss";
-@import "./app.css";
 
 @theme {
   --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --color-app-bg: #0f1011;
-  --color-app-accent: #45c4a8;
+
+  --color-app-bg: var(--app-bg);
+  --color-app-panel: var(--panel-bg);
+  --color-app-detail: var(--detail-bg);
+  --color-surface: var(--surface-bg);
+  --color-surface-subtle: var(--surface-subtle-bg);
+  --color-field: var(--field-bg);
+  --color-control: var(--control-bg);
+  --color-control-hover: var(--control-hover-bg);
+  --color-fg: var(--text);
+  --color-fg-strong: var(--text-strong);
+  --color-muted: var(--muted);
+  --color-muted-strong: var(--muted-strong);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-border-soft: var(--border-soft);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-text);
+  --color-accent-soft: var(--accent-soft);
+  --color-focus-ring: var(--focus-ring);
+  --color-chip: var(--chip-bg);
+  --color-chip-fg: var(--chip-text);
+  --color-quiet: var(--quiet-bg);
+  --color-quiet-fg: var(--quiet-text);
+  --color-running: var(--running-bg);
+  --color-running-fg: var(--running-text);
+  --color-attention: var(--attention-bg);
+  --color-attention-fg: var(--attention-text);
+  --color-stale: var(--stale-bg);
+  --color-stale-fg: var(--stale-text);
+  --color-success: var(--success-bg);
+  --color-success-fg: var(--success-text);
+  --color-error: var(--error-bg);
+  --color-error-fg: var(--error-text);
+  --color-running-dot: var(--running-dot);
+  --color-stale-dot: var(--stale-dot);
+  --color-failed-dot: var(--failed-dot);
+  --color-completed-dot: var(--completed-dot);
+
   --ease-fluid: cubic-bezier(0.2, 0, 0, 1);
+
+  --shadow-control: var(--shadow-control-value);
+  --shadow-popover: var(--shadow-popover-value);
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    text-rendering: optimizeLegibility;
+
+    --app-viewport-width: 100vw;
+    --app-viewport-height: 100dvh;
+    --keyboard-inset: 0px;
+    --adaptive-fit: 1;
+    --mobile-composer-max-height: min(54dvh, 440px);
+    --mobile-textarea-max-height: min(34dvh, 240px);
+    --mobile-composer-reserved: 58px;
+    --mobile-panel-padding: 14px;
+    --mobile-edge-padding: 10px;
+    --mobile-gap: 10px;
+    --mobile-header-control-size: 34px;
+    --mobile-control-size: 40px;
+
+    --app-bg: #09090a;
+    --panel-bg: #111214;
+    --detail-bg: #0b0c0d;
+    --surface-bg: #15171a;
+    --surface-subtle-bg: #101113;
+    --field-bg: #17191c;
+    --control-bg: #191b1f;
+    --control-hover-bg: #202329;
+    --text: #eceff3;
+    --text-strong: #f7f8fa;
+    --muted: #8d939d;
+    --muted-strong: #b5bbc5;
+    --border: rgba(255, 255, 255, 0.12);
+    --border-strong: rgba(255, 255, 255, 0.18);
+    --border-soft: rgba(255, 255, 255, 0.075);
+    --accent: #f4f5f7;
+    --accent-text: #08090a;
+    --accent-soft: rgba(255, 255, 255, 0.1);
+    --focus-ring: rgba(255, 255, 255, 0.18);
+    --chip-bg: rgba(255, 255, 255, 0.08);
+    --chip-text: #c7ccd4;
+    --quiet-bg: rgba(255, 255, 255, 0.075);
+    --quiet-text: #c4c9d2;
+    --running-bg: rgba(31, 180, 126, 0.16);
+    --running-text: #8be7bf;
+    --attention-bg: rgba(239, 93, 88, 0.17);
+    --attention-text: #ffaaa6;
+    --stale-bg: rgba(139, 116, 246, 0.16);
+    --stale-text: #c4b8ff;
+    --success-bg: rgba(31, 180, 126, 0.14);
+    --success-text: #9ee7c4;
+    --error-bg: rgba(239, 93, 88, 0.16);
+    --error-text: #ffb2ae;
+    --running-dot: #2cd398;
+    --stale-dot: #a78bfa;
+    --failed-dot: #ff6b66;
+    --completed-dot: #51d49f;
+    --shadow-control-value: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+    --shadow-popover-value: 0 24px 60px rgba(0, 0, 0, 0.42);
+  }
+
+  :root[data-theme="light"] {
+    color-scheme: light;
+
+    --app-bg: #f5f6f8;
+    --panel-bg: #ffffff;
+    --detail-bg: #fbfbfc;
+    --surface-bg: #ffffff;
+    --surface-subtle-bg: #f2f3f5;
+    --field-bg: #f4f5f7;
+    --control-bg: #ffffff;
+    --control-hover-bg: #eef0f3;
+    --text: #25272d;
+    --text-strong: #0d0f14;
+    --muted: #6e7480;
+    --muted-strong: #4d535e;
+    --border: rgba(16, 24, 40, 0.13);
+    --border-strong: rgba(16, 24, 40, 0.18);
+    --border-soft: rgba(16, 24, 40, 0.085);
+    --accent: #111318;
+    --accent-text: #ffffff;
+    --accent-soft: rgba(17, 19, 24, 0.08);
+    --focus-ring: rgba(16, 24, 40, 0.16);
+    --chip-bg: rgba(16, 24, 40, 0.07);
+    --chip-text: #535965;
+    --quiet-bg: rgba(16, 24, 40, 0.065);
+    --quiet-text: #535965;
+    --running-bg: #e4f8ef;
+    --running-text: #167457;
+    --attention-bg: #fff0ef;
+    --attention-text: #b93832;
+    --stale-bg: #f0edff;
+    --stale-text: #6650bf;
+    --success-bg: #e9f9f1;
+    --success-text: #166d52;
+    --error-bg: #fff0ef;
+    --error-text: #a93832;
+    --running-dot: #13a778;
+    --stale-dot: #7c5cc4;
+    --failed-dot: #dc4c45;
+    --completed-dot: #238767;
+    --shadow-control-value: 0 1px 0 rgba(255, 255, 255, 0.85) inset;
+    --shadow-popover-value: 0 24px 60px rgba(16, 24, 40, 0.16);
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    height: 100%;
+    min-height: 100%;
+    overflow: hidden;
+    background: var(--app-bg);
+    color: var(--text);
+  }
+
+  body {
+    margin: 0;
+  }
+
+  button,
+  input,
+  textarea {
+    font: inherit;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  img,
+  canvas,
+  video,
+  svg {
+    max-width: 100%;
+  }
+
+  h1,
+  h2,
+  p {
+    margin: 0;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: 1ms !important;
+    }
+  }
 }

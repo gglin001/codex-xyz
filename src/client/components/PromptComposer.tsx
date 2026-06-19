@@ -2,6 +2,7 @@ import { FolderOpen, Plus, Send, Square, Target } from "lucide-react";
 import type { FormEvent, KeyboardEvent, PointerEvent } from "react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { ControlThread } from "../../server/domain.js";
+import { activeIconButtonClass, cn } from "../classNames.js";
 import type { ComposerMode } from "./types.js";
 import { StatusBanners } from "./StatusBanners.js";
 
@@ -46,7 +47,9 @@ type PromptResizeState = {
 };
 
 const compactPromptMinHeight = 38;
-const defaultPromptMinHeight = 124;
+const defaultPromptMinHeight = 88;
+const toolbarButtonClass =
+  "inline-flex h-8 min-w-8 items-center justify-center rounded-md border border-border-soft text-muted-strong transition duration-150 ease-fluid hover:border-border hover:bg-control-hover hover:text-fg-strong disabled:cursor-not-allowed disabled:opacity-35"
 
 function getViewportHeight() {
   return window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 720;
@@ -66,12 +69,13 @@ function getPromptLayoutMaxHeight(textarea: HTMLTextAreaElement, viewportMaxHeig
 
 const WorkdirField = memo(function WorkdirField({ value, disabled, onChange }: WorkdirFieldProps) {
   return (
-    <div className="workdir-panel">
-      <label className="workdir-field">
-        <span className="field-label">
+    <div className="rounded-lg border border-border-soft bg-surface-subtle p-1">
+      <label className="flex h-9 items-center gap-2 rounded-md px-2 text-muted transition duration-150 ease-fluid focus-within:bg-field focus-within:text-muted-strong">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-chip text-chip-fg">
           <FolderOpen size={14} />
         </span>
         <input
+          className="min-w-0 flex-1 border-0 bg-transparent font-mono text-[12px] text-fg-strong placeholder:text-muted focus:outline-none disabled:opacity-60"
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder="/path/to/repo"
@@ -136,6 +140,7 @@ export const PromptComposer = memo(function PromptComposer({
   const classes = [
     "prompt-composer",
     className,
+    "grid gap-2",
     collapsible ? "collapsible" : null,
     isExpanded ? "expanded" : "collapsed"
   ]
@@ -256,32 +261,40 @@ export const PromptComposer = memo(function PromptComposer({
       {!isExpanded ? (
         <button
           type="button"
-          className="prompt-collapsed-trigger"
+          className="flex h-11 w-full items-center gap-2 rounded-lg border border-border-soft bg-surface px-3 text-left text-sm font-medium text-muted-strong shadow-control transition duration-150 ease-fluid hover:border-border hover:bg-control-hover hover:text-fg-strong"
           title={promptPlaceholder}
           aria-label={promptPlaceholder}
           onClick={expandComposer}
         >
           <PromptIcon size={16} />
-          <span>{promptPlaceholder}</span>
+          <span className="min-w-0 truncate">{promptPlaceholder}</span>
         </button>
       ) : null}
 
       {isExpanded ? (
-        <div className="composer-stack">
+        <div className="grid gap-2">
           {promptTarget === "new" ? <WorkdirField value={workdir} disabled={busy} onChange={onWorkdirChange} /> : null}
 
-          <form className="task-form" onSubmit={handleSubmit}>
-            <div className="prompt-shell">
+          <form onSubmit={handleSubmit}>
+            <div className="relative overflow-hidden rounded-xl border border-border bg-surface shadow-control transition duration-150 ease-fluid focus-within:border-border-strong focus-within:ring-2 focus-within:ring-focus-ring/60">
               <div
-                className="prompt-resize-handle"
+                className="absolute inset-x-0 top-0 z-10 flex h-3 cursor-ns-resize items-start justify-center"
                 role="separator"
                 aria-label="Resize prompt input"
                 aria-orientation="horizontal"
                 title="Drag up to resize prompt input"
                 onPointerDown={handlePromptResizePointerDown}
-              />
+              >
+                <span className="mt-1 h-0.5 w-10 rounded-full bg-border-strong opacity-70 transition group-hover:bg-muted" />
+              </div>
               <textarea
                 ref={textareaRef}
+                className={cn(
+                  "block w-full resize-none border-0 bg-transparent px-3 pb-2 pt-4 text-sm leading-6 text-fg-strong placeholder:text-muted focus:outline-none disabled:opacity-60",
+                  compact
+                    ? "min-h-[38px] max-h-[var(--mobile-textarea-max-height)]"
+                    : "min-h-[88px] max-h-[38dvh]"
+                )}
                 value={prompt}
                 onChange={(event) => onPromptChange(event.target.value)}
                 onKeyDown={handleKeyDown}
@@ -289,12 +302,15 @@ export const PromptComposer = memo(function PromptComposer({
                 disabled={busy}
                 style={promptHeight === null ? undefined : { height: `${promptHeight}px` }}
               />
-              <div className="prompt-toolbar">
-                <div className="prompt-toolbar-left">
-                  <div className="composer-mode" role="group" aria-label="Session mode">
+              <div className="flex items-center justify-between gap-2 border-t border-border-soft bg-surface-subtle px-2 py-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="flex rounded-md border border-border-soft bg-surface p-0.5" role="group" aria-label="Session mode">
                     <button
                       type="button"
-                      className={promptTarget === "new" ? "active" : ""}
+                      className={cn(
+                        "inline-flex h-7 min-w-7 items-center justify-center rounded text-muted-strong transition hover:bg-control-hover hover:text-fg-strong",
+                        promptTarget === "new" ? "bg-control-hover text-fg-strong" : null
+                      )}
                       title={newModeTitle}
                       aria-label={newModeTitle}
                       aria-pressed={promptTarget === "new"}
@@ -303,10 +319,10 @@ export const PromptComposer = memo(function PromptComposer({
                       <Plus size={15} />
                     </button>
                   </div>
-                  <div className="prompt-options">
+                  <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      className={`prompt-option ${goalMode ? "active" : ""} ${!canUseGoalMode || busy ? "disabled" : ""}`}
+                      className={cn(toolbarButtonClass, goalMode ? activeIconButtonClass : null)}
                       title={goalModeTitle}
                       aria-label={goalModeTitle}
                       aria-pressed={goalMode}
@@ -317,7 +333,7 @@ export const PromptComposer = memo(function PromptComposer({
                     </button>
                     <button
                       type="button"
-                      className="prompt-option"
+                      className={toolbarButtonClass}
                       title="Interrupt"
                       aria-label="Interrupt"
                       disabled={!canInterrupt}
@@ -327,7 +343,7 @@ export const PromptComposer = memo(function PromptComposer({
                     </button>
                     <button
                       type="button"
-                      className="prompt-option"
+                      className={toolbarButtonClass}
                       title="Resume"
                       aria-label="Resume"
                       disabled={!canResume}
@@ -338,7 +354,10 @@ export const PromptComposer = memo(function PromptComposer({
                   </div>
                 </div>
                 <button
-                  className="prompt-submit"
+                  className={cn(
+                    "inline-flex h-8 min-w-8 items-center justify-center rounded-md border border-transparent bg-accent px-2 text-accent-fg transition duration-150 ease-fluid hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-35",
+                    canSubmitPrompt ? "shadow-control" : null
+                  )}
                   disabled={!canSubmitPrompt}
                   title={submitTitle}
                   aria-label={submitTitle}

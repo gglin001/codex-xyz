@@ -16,6 +16,15 @@ import {
 import type { FocusEvent, KeyboardEvent } from "react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ControlThread } from "../../server/domain.js";
+import {
+  activeIconButtonClass,
+  cn,
+  iconButtonClass,
+  pillClass,
+  statusDotClass,
+  statusToneClass,
+  subtleIconButtonClass
+} from "../classNames.js";
 import type { SessionListModel, SessionProjectGroup } from "../sessionList.js";
 import { formatDateTime, formatTokens, statusLabel, statusTone } from "../uiFormat.js";
 import type { ThemeMode } from "./types.js";
@@ -96,6 +105,22 @@ const sessionEntryHeights: Record<
 };
 const sessionOverscanRows = 5;
 const loadMoreScrollThreshold = 320;
+
+const projectChipClass = {
+  running: "border-transparent bg-running px-1.5 text-running-fg",
+  attention: "border-transparent bg-attention px-1.5 text-attention-fg",
+  count: "border-border-soft bg-chip px-1.5 text-chip-fg"
+} as const;
+
+const goalClass = {
+  in_progress: "border-running/40 bg-running text-running-fg",
+  paused: "border-stale/40 bg-stale text-stale-fg",
+  blocked: "border-attention/40 bg-attention text-attention-fg",
+  usage_limited: "border-attention/40 bg-attention text-attention-fg",
+  budget_limited: "border-attention/40 bg-attention text-attention-fg",
+  complete: "border-running/40 bg-running text-running-fg",
+  cleared: "border-border-soft bg-chip text-chip-fg"
+} as const;
 
 function threadHasGoal(thread: ControlThread) {
   return Boolean(thread.goalObjective && thread.goalStatus && thread.goalStatus !== "cleared");
@@ -225,28 +250,29 @@ const ProjectGroupHeading = memo(function ProjectGroupHeading({
   return (
     <button
       type="button"
-      className={`session-project-heading ${collapsed ? "collapsed" : "expanded"} ${
-        containsSelected ? "contains-selected" : ""
-      }`}
+      className={cn(
+        "group flex h-full w-full items-center gap-2 rounded-md px-2 text-left transition duration-150 ease-fluid hover:bg-control-hover",
+        containsSelected ? "bg-accent-soft text-fg-strong" : "text-muted-strong"
+      )}
       aria-expanded={!collapsed}
       title={projectHeadingTitle(group)}
       onClick={() => onToggleProject(group.id)}
     >
-      <span className="session-project-chevron" aria-hidden="true">
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center text-muted transition group-hover:text-fg" aria-hidden="true">
         {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
       </span>
-      <span className="session-project-icon" aria-hidden="true">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-border-soft bg-surface-subtle text-muted-strong" aria-hidden="true">
         <FolderOpen size={15} />
       </span>
-      <span className="session-project-copy">
-        <strong>{group.name}</strong>
-        <small>{group.path}</small>
+      <span className="min-w-0 flex-1">
+        <strong className="block truncate text-[13px] font-semibold leading-5 text-fg-strong">{group.name}</strong>
+        <small className="block truncate text-[11px] leading-4 text-muted">{group.path}</small>
       </span>
-      <span className="session-project-meta">
-        {group.runningCount > 0 ? <span className="session-project-chip running">{group.runningCount}</span> : null}
-        {group.attentionCount > 0 ? <span className="session-project-chip attention">{group.attentionCount}</span> : null}
-        <span className="session-project-chip count">{group.threadCount}</span>
-        <time dateTime={group.updatedAt} title={`Updated ${updatedAt}`}>
+      <span className="flex shrink-0 items-center gap-1 text-[11px] text-muted">
+        {group.runningCount > 0 ? <span className={cn("rounded-full border font-medium leading-5", projectChipClass.running)}>{group.runningCount}</span> : null}
+        {group.attentionCount > 0 ? <span className={cn("rounded-full border font-medium leading-5", projectChipClass.attention)}>{group.attentionCount}</span> : null}
+        <span className={cn("rounded-full border font-medium leading-5", projectChipClass.count)}>{group.threadCount}</span>
+        <time className="hidden max-w-[72px] truncate md:inline" dateTime={group.updatedAt} title={`Updated ${updatedAt}`}>
           {updatedAt}
         </time>
       </span>
@@ -272,37 +298,46 @@ const SessionRow = memo(function SessionRow({
 
   return (
     <button
-      className={`session-row ${hasGoal ? "with-goal" : "compact"} ${selected ? "selected" : ""}`}
+      className={cn(
+        "group flex h-full w-full flex-col justify-center gap-1 rounded-md px-2.5 py-1.5 text-left transition duration-150 ease-fluid hover:bg-control-hover",
+        selected ? "bg-accent-soft text-fg-strong ring-1 ring-border" : "text-fg"
+      )}
       onClick={() => {
         void onSelectThread(thread.id);
       }}
       aria-pressed={selected}
       title={rowTitle}
     >
-      <span className="session-row-main">
-        <span className={`status-dot ${thread.status}`} />
-        <span className="session-copy">
-          <span className="session-title-line">
-            <strong>{thread.title}</strong>
-            <time className="session-updated" dateTime={thread.updatedAt} title={`Updated ${visibleUpdatedAt}`}>
+      <span className="flex min-w-0 items-start gap-2">
+        <span className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", statusDotClass[thread.status])} />
+        <span className="min-w-0 flex-1">
+          <span className="flex min-w-0 items-center gap-2">
+            <strong className="min-w-0 flex-1 truncate text-[13px] font-medium leading-5 text-fg-strong">{thread.title}</strong>
+            <time className="shrink-0 text-[11px] leading-4 text-muted" dateTime={thread.updatedAt} title={`Updated ${visibleUpdatedAt}`}>
               {visibleUpdatedAt}
             </time>
           </span>
-          <span className="session-meta-line">
-            <small>{visiblePreview}</small>
-            <span className={`session-status ${statusTone(thread.status)}`}>{visibleStatus}</span>
+          <span className="flex min-w-0 items-center gap-2">
+            <small className="min-w-0 flex-1 truncate text-[11px] leading-4 text-muted">{visiblePreview}</small>
+            <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-medium leading-none", statusToneClass[statusTone(thread.status)])}>{visibleStatus}</span>
           </span>
         </span>
       </span>
       {hasGoal ? (
-        <span className={`session-goal ${thread.goalStatus ?? ""}`} title={thread.goalObjective ?? undefined}>
+        <span
+          className={cn(
+            "flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11px]",
+            thread.goalStatus ? goalClass[thread.goalStatus] : "border-border-soft bg-chip text-chip-fg"
+          )}
+          title={thread.goalObjective ?? undefined}
+        >
           <Target size={13} />
-          <span className="session-goal-copy">
-            <strong>{goalStatus}</strong>
-            <small>{thread.goalObjective}</small>
+          <span className="min-w-0 flex-1">
+            <strong className="block truncate font-semibold leading-4">{goalStatus}</strong>
+            <small className="block truncate text-current opacity-80">{thread.goalObjective}</small>
           </span>
           {thread.goalTokenBudget ? (
-            <span className="session-goal-budget">
+            <span className="shrink-0 rounded-full bg-black/10 px-1.5 py-0.5 text-[10px] font-medium dark:bg-white/10">
               {formatTokens(thread.tokensUsed)} / {formatTokens(thread.goalTokenBudget)}
             </span>
           ) : null}
@@ -422,11 +457,11 @@ const VirtualSessionList = memo(function VirtualSessionList({
   return (
     <div
       ref={listRef}
-      className="session-list session-list-virtual"
+      className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2 pb-3"
       aria-label="Session list"
       onScroll={handleScroll}
     >
-      <div className="session-virtual-spacer" style={{ height: totalHeight }}>
+      <div className="relative" style={{ height: totalHeight }}>
         {entries.slice(visibleRange.first, visibleRange.last).map((entry, localIndex) => {
           const index = visibleRange.first + localIndex;
           const top = offsets[index] ?? 0;
@@ -434,10 +469,10 @@ const VirtualSessionList = memo(function VirtualSessionList({
           return (
             <div
               key={entry.id}
-              className={`session-virtual-row ${entry.kind}`}
+              className="absolute inset-x-0 px-1"
               style={{ height, transform: `translateY(${top}px)` }}
             >
-              {entry.kind === "empty" ? <div className="empty-state compact">{entry.label}</div> : null}
+              {entry.kind === "empty" ? <div className="flex h-full items-center justify-center rounded-md border border-dashed border-border-soft text-sm text-muted">{entry.label}</div> : null}
               {entry.kind === "project" ? (
                 <ProjectGroupHeading
                   group={entry.group}
@@ -456,7 +491,7 @@ const VirtualSessionList = memo(function VirtualSessionList({
               {entry.kind === "loadMore" ? (
                 <button
                   type="button"
-                  className="session-load-more"
+                  className="h-9 w-full rounded-md border border-border-soft bg-surface-subtle px-3 text-sm text-muted-strong transition hover:border-border hover:bg-control-hover disabled:cursor-wait disabled:opacity-70"
                   disabled={entry.loading}
                   onClick={onLoadMoreThreads}
                 >
@@ -501,10 +536,10 @@ function SidebarSettingsMenu({
   }
 
   return (
-    <div className={`sidebar-settings-menu ${open ? "open" : ""}`} onBlur={handleBlur} onKeyDown={handleKeyDown}>
+    <div className="relative" onBlur={handleBlur} onKeyDown={handleKeyDown}>
       <button
         type="button"
-        className="sidebar-settings-trigger"
+        className={cn(iconButtonClass, open ? activeIconButtonClass : null)}
         title="Settings"
         aria-label="Settings"
         aria-haspopup="menu"
@@ -514,30 +549,36 @@ function SidebarSettingsMenu({
         <Settings size={16} />
       </button>
       {open ? (
-        <div className="sidebar-settings-popover" role="menu" aria-label="Settings">
+        <div className="absolute right-0 top-10 z-40 w-48 rounded-lg border border-border bg-surface p-1 shadow-popover" role="menu" aria-label="Settings">
           <button
             type="button"
-            className={`sidebar-settings-item ${theme === "dark" ? "active" : ""}`}
+            className={cn(
+              "flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-muted-strong transition hover:bg-control-hover hover:text-fg-strong",
+              theme === "dark" ? "bg-accent-soft text-fg-strong" : null
+            )}
             role="menuitemcheckbox"
             aria-checked={theme === "dark"}
             onClick={() => onThemeChange(nextTheme)}
           >
             <Moon size={15} />
             <span>Dark mode</span>
-            <span className="sidebar-settings-check" aria-hidden="true">
+            <span className="ml-auto flex h-5 w-5 items-center justify-center" aria-hidden="true">
               {theme === "dark" ? <Check size={15} /> : null}
             </span>
           </button>
           <button
             type="button"
-            className={`sidebar-settings-item ${detailWordWrap ? "active" : ""}`}
+            className={cn(
+              "flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-muted-strong transition hover:bg-control-hover hover:text-fg-strong",
+              detailWordWrap ? "bg-accent-soft text-fg-strong" : null
+            )}
             role="menuitemcheckbox"
             aria-checked={detailWordWrap}
             onClick={() => onDetailWordWrapChange(!detailWordWrap)}
           >
             <WrapText size={15} />
             <span>Word wrap</span>
-            <span className="sidebar-settings-check" aria-hidden="true">
+            <span className="ml-auto flex h-5 w-5 items-center justify-center" aria-hidden="true">
               {detailWordWrap ? <Check size={15} /> : null}
             </span>
           </button>
@@ -645,23 +686,23 @@ export const SessionSidebar = memo(function SessionSidebar({
   const collapseAllTitle = allVisibleProjectsCollapsed ? "Expand workdirs" : "Collapse workdirs";
 
   return (
-    <section className="sessions panel">
-      <div className="panel-header sessions-header">
-        <div className="sessions-title">
-          <span className="brand-mark" aria-hidden="true">
+    <section className="flex min-h-0 flex-col border-r border-border-soft bg-app-panel">
+      <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border-soft px-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border-soft bg-fg-strong text-[11px] font-bold lowercase tracking-normal text-app-panel" aria-hidden="true">
             xyz
           </span>
-          <span className="brand-copy">
-            <strong>codex-xyz</strong>
-            <small>{totalSessionLabel}</small>
+          <span className="min-w-0">
+            <strong className="block truncate text-sm font-semibold leading-5 text-fg-strong">codex-xyz</strong>
+            <small className="block truncate text-[11px] leading-4 text-muted">{totalSessionLabel}</small>
           </span>
         </div>
-        <div className="panel-header-actions">
-          {busy ? <Loader2 className="spin header-status-icon" size={18} /> : null}
+        <div className="flex shrink-0 items-center gap-1">
+          {busy ? <Loader2 className="animate-spin text-muted" size={18} /> : null}
           {onSidebarToggle ? (
             <button
               type="button"
-              className="sidebar-toggle-button"
+              className={iconButtonClass}
               title="Hide sidebar"
               aria-label="Hide sidebar"
               onClick={onSidebarToggle}
@@ -671,7 +712,7 @@ export const SessionSidebar = memo(function SessionSidebar({
           ) : null}
           <button
             type="button"
-            className={terminalVisible ? "active" : ""}
+            className={cn(iconButtonClass, terminalVisible ? activeIconButtonClass : null)}
             title={terminalVisible ? "Hide terminal" : "Open terminal"}
             aria-label={terminalVisible ? "Hide terminal" : "Open terminal"}
             aria-pressed={terminalVisible}
@@ -679,8 +720,8 @@ export const SessionSidebar = memo(function SessionSidebar({
           >
             <Terminal size={16} />
           </button>
-          <button title="Refresh" aria-label="Refresh" onClick={onRefresh} disabled={busy}>
-            <RefreshCw size={16} className={busy ? "spin" : ""} />
+          <button className={iconButtonClass} title="Refresh" aria-label="Refresh" onClick={onRefresh} disabled={busy}>
+            <RefreshCw size={16} className={busy ? "animate-spin" : ""} />
           </button>
           <SidebarSettingsMenu
             theme={theme}
@@ -692,9 +733,10 @@ export const SessionSidebar = memo(function SessionSidebar({
         </div>
       </div>
 
-      <label className="session-search">
-        <Search size={14} />
+      <label className="mx-3 mt-3 flex h-9 shrink-0 items-center gap-2 rounded-md border border-border-soft bg-field px-2.5 text-muted transition duration-150 ease-fluid focus-within:border-border">
+        <Search size={14} className="shrink-0" />
         <input
+          className="min-w-0 flex-1 border-0 bg-transparent text-sm text-fg-strong placeholder:text-muted focus:outline-none"
           value={sessionQuery}
           onChange={(event) => onSessionQueryChange(event.target.value)}
           placeholder="Search sessions"
@@ -702,16 +744,16 @@ export const SessionSidebar = memo(function SessionSidebar({
         />
       </label>
 
-      <div className="session-summary" aria-label="Session summary">
-        <span>
+      <div className="flex h-10 shrink-0 items-center gap-2 px-3 text-[11px] text-muted" aria-label="Session summary">
+        <span className={pillClass}>
           <strong>{sessionList.visibleProjectCount}</strong> workdirs
         </span>
-        <span>
+        <span className={pillClass}>
           <strong>{sessionList.loadedThreadCount}</strong> loaded
         </span>
         <button
           type="button"
-          className="session-collapse-all"
+          className={cn(subtleIconButtonClass, "ml-auto h-7 min-w-7")}
           title={collapseAllTitle}
           aria-label={collapseAllTitle}
           aria-pressed={allVisibleProjectsCollapsed}
