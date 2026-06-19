@@ -4,15 +4,13 @@ import {
   ChevronDown,
   Code2,
   Copy,
-  Maximize2,
   Menu,
   PanelLeftClose,
   Play,
   Plus,
   Send,
   SlidersHorizontal,
-  Square,
-  X
+  Square
 } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import type { FormEvent, KeyboardEvent, ReactNode } from "react"
@@ -63,19 +61,12 @@ type ComposerHandle = {
   focusPrompt: () => boolean
 }
 
-type CodeBlock = {
-  id: string
-  language: string
-  code: string
-  title: string
-}
-
 type ChatMessage = {
   id: string
   title: string
   text: string
+  copyText: string
   time: string
-  codeBlocks: CodeBlock[]
 }
 
 const spring = { type: "spring", stiffness: 340, damping: 34 } as const
@@ -96,52 +87,14 @@ function SessionContentFrame({
   )
 }
 
-function extractCodeBlocks(item: ThreadItem) {
-  const blocks: CodeBlock[] = []
-  const text = item.text ?? ""
-  const fencePattern = /```([a-zA-Z0-9_-]+)?\n([\s\S]*?)```/g
-  let match: RegExpExecArray | null
-  let index = 0
-  while ((match = fencePattern.exec(text)) !== null) {
-    const language = match[1] || "text"
-    const code = match[2]?.trimEnd() ?? ""
-    if (code.trim()) {
-      blocks.push({
-        id: `${item.id}:fence:${index}`,
-        language,
-        code,
-        title: `${itemTitle(item)} ${index + 1}`
-      })
-      index += 1
-    }
-  }
-
-  if (blocks.length === 0 && item.type === "command" && text.trim()) {
-    const command = typeof item.data.command === "string" ? item.data.command : "command output"
-    blocks.push({
-      id: `${item.id}:command`,
-      language: "bash",
-      code: text.trimEnd(),
-      title: command
-    })
-  }
-
-  return blocks
-}
-
-function stripCodeFences(value: string) {
-  return value.replace(/```([a-zA-Z0-9_-]+)?\n[\s\S]*?```/g, "").trim()
-}
-
 function messageFromItem(item: ThreadItem): ChatMessage {
-  const codeBlocks = extractCodeBlocks(item)
-  const stripped = stripCodeFences(item.text)
+  const fallbackText = item.text || "Pending..."
   return {
     id: item.id,
     title: itemTitle(item),
-    text: stripped || item.text || "Pending...",
-    time: item.createdAt,
-    codeBlocks
+    text: fallbackText,
+    copyText: fallbackText,
+    time: item.createdAt
   }
 }
 
@@ -151,25 +104,19 @@ function transcriptEntriesFromDetail(detail: ThreadDetail | null) {
 
 function processPreview(entry: TranscriptProcessEntry) {
   const firstText = entry.items.find((item) => item.text.trim())?.text ?? ""
-  const stripped = stripCodeFences(firstText).trim()
-  return getFirstLineTextPreview(stripped || firstText.trim() || "No output yet")
+  return getFirstLineTextPreview(firstText.trim() || "No output yet")
 }
 
-function codePreview(value: string) {
-  const lines = value.split(/\r?\n/)
-  return lines.slice(0, 12).join("\n")
+function messageMeta(message: ChatMessage) {
+  return formatTime(message.time)
 }
 
-const CodeBlockView = memo(function CodeBlockView({
-  block,
-  active,
-  wrapContent,
-  onOpenCanvas
+const CopyTextButton = memo(function CopyTextButton({
+  value,
+  label = "Copy"
 }: {
-  block: CodeBlock
-  active: boolean
-  wrapContent: boolean
-  onOpenCanvas: (block: CodeBlock) => void
+  value: string
+  label?: string
 }) {
   const [copied, setCopied] = useState(false)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -182,94 +129,65 @@ const CodeBlockView = memo(function CodeBlockView({
     }
   }, [])
 
-  const copyCode = useCallback(() => {
-    void navigator.clipboard?.writeText(block.code)
+  const copyValue = useCallback(() => {
+    void navigator.clipboard?.writeText(value)
     setCopied(true)
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current)
     }
     timeoutRef.current = setTimeout(() => setCopied(false), 1200)
-  }, [block.code])
+  }, [value])
 
   return (
-    <div className={cn("overflow-hidden rounded-md border bg-slate-950/85", active ? "border-emerald-500/45" : "border-slate-800/80")}>
-      <div className="flex h-9 items-center justify-between gap-3 border-b border-slate-800/80 bg-slate-900/70 px-3">
-        <div className="min-w-0">
-          <span className="block truncate font-mono text-[12px] text-slate-300">{block.title}</span>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <button
-            type="button"
-            className="inline-flex h-7 w-7 items-center justify-center rounded text-slate-500 transition duration-150 ease-out hover:bg-slate-800 hover:text-slate-100"
-            title="Copy"
-            aria-label="Copy"
-            onClick={copyCode}
-          >
-            {copied ? <Check size={14} /> : <Copy size={14} />}
-          </button>
-          <button
-            type="button"
-            className={cn(
-              "inline-flex h-7 w-7 items-center justify-center rounded transition duration-150 ease-out hover:bg-slate-800 hover:text-slate-100",
-              active ? "text-emerald-300" : "text-slate-500"
-            )}
-            title="Open in Canvas"
-            aria-label="Open in Canvas"
-            onClick={() => onOpenCanvas(block)}
-          >
-            <Maximize2 size={14} />
-          </button>
-        </div>
-      </div>
-      <pre className={cn(
-        "max-h-[320px] overflow-auto p-3 font-mono text-[12px] leading-5 text-slate-300",
-        wrapContent ? "whitespace-pre-wrap break-words" : "whitespace-pre"
-      )}>
-        <code>{codePreview(block.code)}</code>
-      </pre>
-    </div>
+    <button
+      type="button"
+      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-slate-500 transition duration-150 ease-out hover:bg-slate-800 hover:text-slate-100"
+      title={label}
+      aria-label={label}
+      onClick={copyValue}
+    >
+      {copied ? <Check size={13} /> : <Copy size={13} />}
+    </button>
   )
 })
 
 const MessageBlock = memo(function MessageBlock({
   message,
-  activeBlockId,
-  wrapContent,
-  onOpenCanvas
+  wrapContent
 }: {
   message: ChatMessage
-  activeBlockId: string | null
   wrapContent: boolean
-  onOpenCanvas: (block: CodeBlock) => void
 }) {
   const [expanded, setExpanded] = useState(true)
-  const codeBlockLabel = message.codeBlocks.length > 0
-    ? ` / ${message.codeBlocks.length} ${message.codeBlocks.length === 1 ? "block" : "blocks"}`
-    : ""
   const preview = getFirstLineTextPreview(message.text || "Pending...")
 
   return (
     <article className="group min-w-0 border-b border-slate-800/45 pb-5">
-      <button
-        type="button"
-        className="flex w-full items-start justify-between gap-3 rounded-md px-2 py-1 text-left transition duration-150 ease-out hover:bg-slate-900/35"
-        aria-expanded={expanded}
-        onClick={() => setExpanded((current) => !current)}
-      >
-        <span className="min-w-0">
-          <span className="mb-1 flex min-w-0 items-center gap-2">
-            <span className="truncate text-[13px] font-semibold text-slate-100">{message.title}</span>
-            <time className="shrink-0 text-[11px] text-slate-600">{formatTime(message.time)}{codeBlockLabel}</time>
+      <div className="flex w-full items-center gap-2 rounded-md px-2 py-0.5 transition duration-150 ease-out hover:bg-slate-900/35">
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((current) => !current)}
+        >
+          <span className="min-w-0">
+            <span className="block truncate text-[13px] font-semibold text-slate-100">{message.title}</span>
           </span>
-          {!expanded ? (
-            <span className="block truncate text-[12px] leading-5 text-slate-500">{preview}</span>
-          ) : null}
-        </span>
-        <ChevronDown
-          size={16}
-          className={cn("mt-0.5 shrink-0 text-slate-500 transition-transform duration-150 ease-out", expanded ? "rotate-180" : null)}
-        />
-      </button>
+          <ChevronDown
+            size={14}
+            className={cn("shrink-0 text-slate-500 transition-transform duration-150 ease-out", expanded ? "rotate-180" : null)}
+          />
+        </button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <span className="whitespace-nowrap text-[11px] text-slate-600">{messageMeta(message)}</span>
+          <CopyTextButton value={message.copyText} />
+        </div>
+      </div>
+      {!expanded ? (
+        <div className="px-2">
+          <div className="truncate text-[12px] leading-5 text-slate-500">{preview}</div>
+        </div>
+      ) : null}
 
       {expanded ? (
         <div className="mt-2 min-w-0 px-2">
@@ -277,20 +195,7 @@ const MessageBlock = memo(function MessageBlock({
             <div className={cn(
               "text-[14px] leading-6 text-slate-300",
               wrapContent ? "whitespace-pre-wrap break-words" : "overflow-x-auto whitespace-pre"
-            )}>{message.text}</div>
-          ) : null}
-          {message.codeBlocks.length > 0 ? (
-            <div className="mt-3 grid gap-3">
-              {message.codeBlocks.map((block) => (
-                <CodeBlockView
-                  key={block.id}
-                  block={block}
-                  active={activeBlockId === block.id}
-                  wrapContent={wrapContent}
-                  onOpenCanvas={onOpenCanvas}
-                />
-              ))}
-            </div>
+          )}>{message.text}</div>
           ) : null}
         </div>
       ) : null}
@@ -300,45 +205,42 @@ const MessageBlock = memo(function MessageBlock({
 
 const ProcessItemBlock = memo(function ProcessItemBlock({
   message,
-  activeBlockId,
-  wrapContent,
-  onOpenCanvas
+  wrapContent
 }: {
   message: ChatMessage
-  activeBlockId: string | null
   wrapContent: boolean
-  onOpenCanvas: (block: CodeBlock) => void
 }) {
   const [expanded, setExpanded] = useState(false)
-  const codeBlockLabel = message.codeBlocks.length > 0
-    ? ` / ${message.codeBlocks.length} ${message.codeBlocks.length === 1 ? "block" : "blocks"}`
-    : ""
   const preview = getFirstLineTextPreview(message.text || "Pending...")
 
   return (
     <div className="min-w-0 rounded-md border border-slate-800/75 bg-slate-950/45">
-      <button
-        type="button"
-        className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition duration-150 ease-out hover:bg-slate-900/65"
-        aria-expanded={expanded}
-        onClick={() => setExpanded((current) => !current)}
-      >
-        <span className="flex min-w-0 items-center gap-2">
+      <div className="flex w-full items-center gap-2 px-3 py-1 transition duration-150 ease-out hover:bg-slate-900/65">
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((current) => !current)}
+        >
           <span className="min-w-0">
             <span className="block truncate text-[12px] font-semibold text-slate-200">{message.title}</span>
-            <span className="block truncate text-[11px] text-slate-600">
-              {formatTime(message.time)}{codeBlockLabel}
-            </span>
-            {!expanded ? (
-              <span className="block truncate text-[12px] leading-5 text-slate-500">{preview}</span>
-            ) : null}
           </span>
-        </span>
-        <ChevronDown
-          size={15}
-          className={cn("shrink-0 text-slate-500 transition-transform duration-150 ease-out", expanded ? "rotate-180" : null)}
-        />
-      </button>
+          <ChevronDown
+            size={14}
+            className={cn("shrink-0 text-slate-500 transition-transform duration-150 ease-out", expanded ? "rotate-180" : null)}
+          />
+        </button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <span className="whitespace-nowrap text-[11px] text-slate-600">{messageMeta(message)}</span>
+          <CopyTextButton value={message.copyText} />
+        </div>
+      </div>
+
+      {!expanded ? (
+        <div className="px-3 pb-1.5">
+          <div className="truncate text-[12px] leading-5 text-slate-500">{preview}</div>
+        </div>
+      ) : null}
 
       {expanded ? (
         <div className="min-w-0 border-t border-slate-800/60 p-3">
@@ -346,20 +248,7 @@ const ProcessItemBlock = memo(function ProcessItemBlock({
             <div className={cn(
               "text-[13px] leading-5 text-slate-300",
               wrapContent ? "whitespace-pre-wrap break-words" : "overflow-x-auto whitespace-pre"
-            )}>{message.text}</div>
-          ) : null}
-          {message.codeBlocks.length > 0 ? (
-            <div className="mt-3 grid gap-3">
-              {message.codeBlocks.map((block) => (
-                <CodeBlockView
-                  key={block.id}
-                  block={block}
-                  active={activeBlockId === block.id}
-                  wrapContent={wrapContent}
-                  onOpenCanvas={onOpenCanvas}
-                />
-              ))}
-            </div>
+          )}>{message.text}</div>
           ) : null}
         </div>
       ) : null}
@@ -369,54 +258,52 @@ const ProcessItemBlock = memo(function ProcessItemBlock({
 
 const ProcessOutputBlock = memo(function ProcessOutputBlock({
   entry,
-  activeBlockId,
-  wrapContent,
-  onOpenCanvas
+  wrapContent
 }: {
   entry: TranscriptProcessEntry
-  activeBlockId: string | null
   wrapContent: boolean
-  onOpenCanvas: (block: CodeBlock) => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const messages = useMemo(() => entry.items.map(messageFromItem), [entry.items])
-  const codeBlockCount = messages.reduce((count, message) => count + message.codeBlocks.length, 0)
   const itemCountLabel = `${entry.items.length} ${entry.items.length === 1 ? "event" : "events"}`
-  const codeCountLabel = codeBlockCount > 0 ? ` / ${codeBlockCount} ${codeBlockCount === 1 ? "block" : "blocks"}` : ""
+  const metaLabel = `${itemCountLabel} / ${formatTime(entry.createdAt)}`
   const preview = useMemo(() => processPreview(entry), [entry])
+  const copyText = useMemo(() => entry.items.map((item) => item.text).filter(Boolean).join("\n\n"), [entry.items])
 
   return (
     <article className="group min-w-0 border-b border-slate-800/45 pb-5">
-      <button
-        type="button"
-        className="flex w-full items-center justify-between gap-3 rounded-md border border-slate-800/80 bg-slate-900/35 px-3 py-2.5 text-left transition duration-150 ease-out hover:border-slate-700 hover:bg-slate-800/55"
-        aria-expanded={expanded}
-        onClick={() => setExpanded((current) => !current)}
-      >
-        <span className="min-w-0">
-          <span className="block truncate text-[13px] font-semibold text-slate-100">Intermediate output</span>
-          <span className="block truncate text-[11px] text-slate-500">
-            {itemCountLabel}{codeCountLabel} / {formatTime(entry.createdAt)}
+      <div className="flex w-full items-center gap-2 rounded-md border border-slate-800/80 bg-slate-900/35 px-3 py-1.5 transition duration-150 ease-out hover:border-slate-700 hover:bg-slate-800/55">
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((current) => !current)}
+        >
+          <span className="min-w-0">
+            <span className="block truncate text-[13px] font-semibold text-slate-100">Thoughts</span>
           </span>
-        </span>
-        <ChevronDown
-          size={16}
-          className={cn("shrink-0 text-slate-500 transition-transform duration-150 ease-out", expanded ? "rotate-180" : null)}
-        />
-      </button>
+          <ChevronDown
+            size={14}
+            className={cn("shrink-0 text-slate-500 transition-transform duration-150 ease-out", expanded ? "rotate-180" : null)}
+          />
+        </button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <span className="whitespace-nowrap text-[11px] text-slate-500">{metaLabel}</span>
+          <CopyTextButton value={copyText || preview} />
+        </div>
+      </div>
 
       {!expanded ? (
         <div className="mt-2 truncate px-1 text-[12px] leading-5 text-slate-500">{preview}</div>
       ) : (
-        <div className="mt-3 grid min-w-0 gap-3">
+        <div className="relative mt-3 grid min-w-0 gap-2 pl-6 pr-2 before:absolute before:bottom-5 before:left-2.5 before:top-0 before:w-px before:bg-slate-800/80">
           {messages.map((message) => (
-            <ProcessItemBlock
-              key={message.id}
-              message={message}
-              activeBlockId={activeBlockId}
-              wrapContent={wrapContent}
-              onOpenCanvas={onOpenCanvas}
-            />
+            <div key={message.id} className="relative min-w-0 before:absolute before:left-[-14px] before:top-5 before:h-px before:w-3 before:bg-slate-800/80">
+              <ProcessItemBlock
+                message={message}
+                wrapContent={wrapContent}
+              />
+            </div>
           ))}
         </div>
       )}
@@ -445,49 +332,6 @@ const EmptyTranscript = memo(function EmptyTranscript({
           : `Create a Codex app-server session for ${projectPath} or select an existing thread from the navigator.`}
       </p>
     </div>
-  )
-})
-
-const CanvasPane = memo(function CanvasPane({
-  block,
-  onClose
-}: {
-  block: CodeBlock
-  onClose: () => void
-}) {
-  return (
-    <motion.aside
-      className="hidden min-h-0 border-l border-slate-800/80 bg-slate-950/85 lg:flex lg:flex-col"
-      initial={{ opacity: 0, width: 0 }}
-      animate={{ opacity: 1, width: "50%" }}
-      exit={{ opacity: 0, width: 0 }}
-      transition={spring}
-    >
-      <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-slate-800/80 bg-slate-950/75 px-4 backdrop-blur-md">
-        <div className="min-w-0">
-          <h2 className="truncate text-[13px] font-semibold text-slate-100">{block.title}</h2>
-          <p className="truncate text-[11px] text-slate-500">Transcript source / {block.language}</p>
-        </div>
-        <button
-          type="button"
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition duration-150 ease-out hover:bg-slate-800/60 hover:text-slate-100"
-          title="Close Canvas"
-          aria-label="Close Canvas"
-          onClick={onClose}
-        >
-          <X size={16} />
-        </button>
-      </div>
-      <div className="min-h-0 flex-1 overflow-auto p-4">
-        <div className="mb-3 flex items-center justify-between text-[11px] uppercase tracking-[0.08em] text-slate-600">
-          <span>Source</span>
-          <span>{block.code.split(/\r?\n/).length} lines</span>
-        </div>
-        <pre className="min-h-full rounded-md border border-slate-800/80 bg-[#050608] p-4 font-mono text-[12px] leading-6 text-slate-300 shadow-[0_1px_0_rgba(255,255,255,0.03)_inset]">
-          <code>{block.code}</code>
-        </pre>
-      </div>
-    </motion.aside>
   )
 })
 
@@ -715,7 +559,6 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
   onToggleNavigator,
   onToggleInspector
 }, ref) {
-  const [canvasBlock, setCanvasBlock] = useState<CodeBlock | null>(null)
   const composerRef = useRef<ComposerHandle | null>(null)
   const entries = useMemo(() => transcriptEntriesFromDetail(detail), [detail])
   const title = selectedThread?.title ?? session?.title ?? "New Codex session"
@@ -726,10 +569,6 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
   useImperativeHandle(ref, () => ({
     focusPrompt: () => composerRef.current?.focusPrompt() ?? false
   }), [])
-
-  useEffect(() => {
-    setCanvasBlock(null)
-  }, [selectedThreadId, session?.id])
 
   return (
     <section className={cn("flex h-full min-h-0 min-w-0 flex-col bg-slate-950 text-slate-200", sessionContentWidthClass)}>
@@ -779,7 +618,7 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
       <div className="flex min-h-0 flex-1">
         <motion.div
           className="flex min-h-0 min-w-0 flex-1 flex-col"
-          animate={{ width: canvasBlock ? "50%" : "100%" }}
+          animate={{ width: "100%" }}
           transition={spring}
         >
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 md:px-8">
@@ -817,16 +656,12 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
                     {entry.kind === "process" ? (
                       <ProcessOutputBlock
                         entry={entry}
-                        activeBlockId={canvasBlock?.id ?? null}
                         wrapContent={wrapSessionContent}
-                        onOpenCanvas={setCanvasBlock}
                       />
                     ) : (
                       <MessageBlock
                         message={messageFromItem(entry.item)}
-                        activeBlockId={canvasBlock?.id ?? null}
                         wrapContent={wrapSessionContent}
-                        onOpenCanvas={setCanvasBlock}
                       />
                     )}
                   </motion.div>
@@ -864,9 +699,6 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
           </div>
         </motion.div>
 
-        <AnimatePresence>
-          {canvasBlock ? <CanvasPane key={canvasBlock.id} block={canvasBlock} onClose={() => setCanvasBlock(null)} /> : null}
-        </AnimatePresence>
       </div>
     </section>
   )
