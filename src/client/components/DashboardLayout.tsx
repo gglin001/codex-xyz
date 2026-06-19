@@ -1,4 +1,4 @@
-import { Command, PanelLeftOpen, Plus, Search, SlidersHorizontal, X } from "lucide-react"
+import { Command, PanelLeftOpen, Plus, Search, SlidersHorizontal } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import type { FormEvent, KeyboardEvent } from "react"
 import { memo, useCallback, useEffect, useMemo, useState } from "react"
@@ -327,15 +327,13 @@ export const DashboardLayout = memo(function DashboardLayout({
       selectedProjectId={selectedProjectId}
       selectedSessionId={selectedSessionId}
       sessionQuery={sessionQuery}
-      terminalVisible={terminalVisible}
       onProjectChange={onProjectChange}
       onSessionQueryChange={onSessionQueryChange}
       onSelectSession={onSelectSession}
       onCreateSession={onCreateSession}
+      terminalVisible={terminalVisible}
       onToggleTerminal={onToggleTerminal}
       onOpenCommandPalette={() => setCommandOpen(true)}
-      onOpenSettings={() => onInspectorVisibleChange(true)}
-      onCollapse={() => onNavigatorVisibleChange(false)}
     />
   )
 
@@ -345,15 +343,10 @@ export const DashboardLayout = memo(function DashboardLayout({
       detail={detail}
       selectedThread={selectedThread}
       terminalVisible={terminalVisible}
-      navigatorVisible={navigatorVisible}
-      inspectorVisible={inspectorVisible}
       defaultCwd={defaultCwd}
       onToggleTerminal={onToggleTerminal}
-      onNavigatorVisibleChange={onNavigatorVisibleChange}
-      onInspectorVisibleChange={onInspectorVisibleChange}
       onResume={onResume}
       onInterrupt={onInterrupt}
-      onCollapseToggle={() => onInspectorVisibleChange(false)}
     />
   )
 
@@ -375,18 +368,6 @@ export const DashboardLayout = memo(function DashboardLayout({
           ) : null}
         </AnimatePresence>
 
-        {!navigatorVisible ? (
-          <button
-            type="button"
-            className="absolute left-3 top-3 z-40 inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-800/80 bg-slate-950/85 text-slate-400 shadow-xl backdrop-blur-md transition duration-150 ease-out hover:bg-slate-800/70 hover:text-slate-100"
-            title="Open navigator"
-            aria-label="Open navigator"
-            onClick={() => onNavigatorVisibleChange(true)}
-          >
-            <PanelLeftOpen size={17} />
-          </button>
-        ) : null}
-
         <div className="min-h-0 min-w-0 flex-1">
           <Workspace
             project={selectedProject}
@@ -404,6 +385,8 @@ export const DashboardLayout = memo(function DashboardLayout({
             goalMode={goalMode}
             canUseGoalMode={canUseGoalMode}
             canSubmitPrompt={canSubmitPrompt}
+            navigatorVisible={navigatorVisible}
+            inspectorVisible={inspectorVisible}
             onPromptChange={onPromptChange}
             onPromptKeyDown={onPromptKeyDown}
             onPromptSubmit={onPromptSubmit}
@@ -412,8 +395,8 @@ export const DashboardLayout = memo(function DashboardLayout({
             onGoalModeChange={onGoalModeChange}
             onInterrupt={onInterrupt}
             onResume={onResume}
-            onOpenMobileMenu={() => setMobileNavigatorOpen(true)}
-            onOpenMobileInspector={() => setMobileInspectorOpen(true)}
+            onToggleNavigator={() => onNavigatorVisibleChange(!navigatorVisible)}
+            onToggleInspector={() => onInspectorVisibleChange(!inspectorVisible)}
           />
         </div>
 
@@ -429,33 +412,7 @@ export const DashboardLayout = memo(function DashboardLayout({
             >
               {inspector}
             </motion.div>
-          ) : (
-            <motion.div
-              key="desktop-inspector-collapsed"
-              className="h-full min-h-0 shrink-0 overflow-hidden"
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 56, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={spring}
-            >
-              <ParamPanel
-                collapsed
-                session={session}
-                detail={detail}
-                selectedThread={selectedThread}
-                terminalVisible={terminalVisible}
-                navigatorVisible={navigatorVisible}
-                inspectorVisible={inspectorVisible}
-                defaultCwd={defaultCwd}
-                onToggleTerminal={onToggleTerminal}
-                onNavigatorVisibleChange={onNavigatorVisibleChange}
-                onInspectorVisibleChange={onInspectorVisibleChange}
-                onResume={onResume}
-                onInterrupt={onInterrupt}
-                onCollapseToggle={() => onInspectorVisibleChange(true)}
-              />
-            </motion.div>
-          )}
+          ) : null}
         </AnimatePresence>
       </div>
 
@@ -476,6 +433,8 @@ export const DashboardLayout = memo(function DashboardLayout({
           goalMode={goalMode}
           canUseGoalMode={canUseGoalMode}
           canSubmitPrompt={canSubmitPrompt}
+          navigatorVisible={mobileNavigatorOpen}
+          inspectorVisible={mobileInspectorOpen}
           onPromptChange={onPromptChange}
           onPromptKeyDown={onPromptKeyDown}
           onPromptSubmit={onPromptSubmit}
@@ -484,8 +443,14 @@ export const DashboardLayout = memo(function DashboardLayout({
           onGoalModeChange={onGoalModeChange}
           onInterrupt={onInterrupt}
           onResume={onResume}
-          onOpenMobileMenu={() => setMobileNavigatorOpen(true)}
-          onOpenMobileInspector={() => setMobileInspectorOpen(true)}
+          onToggleNavigator={() => {
+            setMobileInspectorOpen(false)
+            setMobileNavigatorOpen((current) => !current)
+          }}
+          onToggleInspector={() => {
+            setMobileNavigatorOpen(false)
+            setMobileInspectorOpen((current) => !current)
+          }}
         />
       </div>
 
@@ -500,28 +465,18 @@ export const DashboardLayout = memo(function DashboardLayout({
             onMouseDown={() => setMobileNavigatorOpen(false)}
           >
             <motion.div
-              className="relative h-full w-[min(88vw,330px)] overflow-hidden border-r border-slate-800/80 bg-slate-950 shadow-2xl"
+              className="mt-14 h-[calc(100%-3.5rem)] w-[min(88vw,330px)] overflow-hidden border-r border-t border-slate-800/80 bg-slate-950 shadow-2xl"
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
               transition={spring}
               onMouseDown={(event) => event.stopPropagation()}
             >
-              <button
-                type="button"
-                className="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-800/80 bg-slate-950/85 text-slate-400 shadow-xl backdrop-blur-md transition duration-150 ease-out hover:bg-slate-800/70 hover:text-slate-100"
-                title="Close navigator"
-                aria-label="Close navigator"
-                onClick={() => setMobileNavigatorOpen(false)}
-              >
-                <X size={15} />
-              </button>
               <Sidebar
                 projects={projects}
                 selectedProjectId={selectedProjectId}
                 selectedSessionId={selectedSessionId}
                 sessionQuery={sessionQuery}
-                terminalVisible={terminalVisible}
                 onProjectChange={onProjectChange}
                 onSessionQueryChange={onSessionQueryChange}
                 onSelectSession={(nextSession) => {
@@ -532,11 +487,8 @@ export const DashboardLayout = memo(function DashboardLayout({
                   onCreateSession()
                   setMobileNavigatorOpen(false)
                 }}
+                terminalVisible={terminalVisible}
                 onToggleTerminal={onToggleTerminal}
-                onOpenSettings={() => {
-                  setMobileNavigatorOpen(false)
-                  setMobileInspectorOpen(true)
-                }}
                 onOpenCommandPalette={() => {
                   setMobileNavigatorOpen(false)
                   setCommandOpen(true)
@@ -558,7 +510,7 @@ export const DashboardLayout = memo(function DashboardLayout({
             onMouseDown={() => setMobileInspectorOpen(false)}
           >
             <motion.div
-              className="max-h-[86dvh] w-full overflow-hidden rounded-t-xl border-t border-slate-800/80 bg-slate-950 shadow-2xl"
+              className="max-h-[calc(100dvh-3.5rem)] w-full overflow-hidden rounded-t-xl border-t border-slate-800/80 bg-slate-950 shadow-2xl"
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
@@ -570,15 +522,10 @@ export const DashboardLayout = memo(function DashboardLayout({
                 detail={detail}
                 selectedThread={selectedThread}
                 terminalVisible={terminalVisible}
-                navigatorVisible={navigatorVisible}
-                inspectorVisible={inspectorVisible}
                 defaultCwd={defaultCwd}
                 onToggleTerminal={onToggleTerminal}
-                onNavigatorVisibleChange={onNavigatorVisibleChange}
-                onInspectorVisibleChange={onInspectorVisibleChange}
                 onResume={onResume}
                 onInterrupt={onInterrupt}
-                onCollapseToggle={() => setMobileInspectorOpen(false)}
               />
             </motion.div>
           </motion.div>

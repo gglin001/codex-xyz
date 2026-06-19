@@ -1,14 +1,17 @@
 import {
   Bot,
   Check,
+  ChevronDown,
   Code2,
   Copy,
+  ListTree,
   Maximize2,
   Menu,
-  PanelRight,
+  PanelLeftClose,
   Play,
   Plus,
   Send,
+  SlidersHorizontal,
   Square,
   Terminal,
   UserRound,
@@ -19,6 +22,8 @@ import type { FormEvent, KeyboardEvent } from "react"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { ControlThread, ThreadDetail, ThreadItem } from "../../server/domain.js"
 import { cn } from "../classNames.js"
+import { getCollapsedTextPreview } from "../textPreview.js"
+import { getTranscriptEntries, type TranscriptProcessEntry } from "../transcriptEntries.js"
 import { formatDateTime, formatTime, formatTokens, itemTitle, statusLabel } from "../uiFormat.js"
 import type { ComposerMode, WorkbenchProject, WorkbenchSession } from "./workbenchTypes.js"
 
@@ -38,6 +43,8 @@ export type WorkspaceProps = {
   goalMode: boolean
   canUseGoalMode: boolean
   canSubmitPrompt: boolean
+  navigatorVisible: boolean
+  inspectorVisible: boolean
   onPromptChange: (value: string) => void
   onPromptKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void
   onPromptSubmit: (event: FormEvent) => void
@@ -46,8 +53,8 @@ export type WorkspaceProps = {
   onGoalModeChange: (value: boolean) => void
   onInterrupt: () => void
   onResume: () => void
-  onOpenMobileMenu: () => void
-  onOpenMobileInspector: () => void
+  onToggleNavigator: () => void
+  onToggleInspector: () => void
 }
 
 type MessageRole = "system" | "user" | "assistant" | "tool"
@@ -120,24 +127,32 @@ function stripCodeFences(value: string) {
   return value.replace(/```([a-zA-Z0-9_-]+)?\n[\s\S]*?```/g, "").trim()
 }
 
-function messagesFromDetail(detail: ThreadDetail | null) {
-  if (!detail || detail.items.length === 0) {
-    return []
+function messageFromItem(item: ThreadItem): ChatMessage {
+  const role = messageRoleForItem(item)
+  const codeBlocks = extractCodeBlocks(item)
+  const stripped = stripCodeFences(item.text)
+  return {
+    id: item.id,
+    role,
+    title: itemTitle(item),
+    text: stripped || item.text || "Pending...",
+    time: item.createdAt,
+    codeBlocks
   }
+}
 
-  return detail.items.map((item) => {
-    const role = messageRoleForItem(item)
-    const codeBlocks = extractCodeBlocks(item)
-    const stripped = stripCodeFences(item.text)
-    return {
-      id: item.id,
-      role,
-      title: itemTitle(item),
-      text: stripped || item.text || "Pending...",
-      time: item.createdAt,
-      codeBlocks
-    } satisfies ChatMessage
+function transcriptEntriesFromDetail(detail: ThreadDetail | null) {
+  return detail ? getTranscriptEntries(detail.items) : []
+}
+
+function processPreview(entry: TranscriptProcessEntry) {
+  const latestText = [...entry.items].reverse().find((item) => item.text.trim())?.text ?? ""
+  const stripped = stripCodeFences(latestText).trim()
+  const preview = getCollapsedTextPreview(stripped || latestText.trim() || "No output yet", {
+    expanded: false,
+    lineCount: 2
   })
+  return preview.visibleText
 }
 
 function roleIcon(role: MessageRole) {
@@ -271,6 +286,129 @@ const MessageBlock = memo(function MessageBlock({
             ))}
           </div>
         ) : null}
+      </div>
+    </article>
+  )
+})
+
+const ProcessItemBlock = memo(function ProcessItemBlock({
+  message,
+  activeBlockId,
+  onOpenCanvas
+}: {
+  message: ChatMessage
+  activeBlockId: string | null
+  onOpenCanvas: (block: CodeBlock) => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const codeBlockLabel = message.codeBlocks.length > 0
+    ? ` / ${message.codeBlocks.length} ${message.codeBlocks.length === 1 ? "block" : "blocks"}`
+    : ""
+
+  return (
+    <div className="rounded-md border border-slate-800/75 bg-slate-950/45">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition duration-150 ease-out hover:bg-slate-900/65"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((current) => !current)}
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded border", roleTone(message.role))}>
+            {roleIcon(message.role)}
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-[12px] font-semibold text-slate-200">{message.title}</span>
+            <span className="block truncate text-[11px] text-slate-600">
+              {formatTime(message.time)}{codeBlockLabel}
+            </span>
+          </span>
+        </span>
+        <ChevronDown
+          size={15}
+          className={cn("shrink-0 text-slate-500 transition-transform duration-150 ease-out", expanded ? "rotate-180" : null)}
+        />
+      </button>
+
+      {expanded ? (
+        <div className="border-t border-slate-800/60 p-3">
+          {message.text ? (
+            <div className="whitespace-pre-wrap break-words text-[13px] leading-5 text-slate-300">{message.text}</div>
+          ) : null}
+          {message.codeBlocks.length > 0 ? (
+            <div className="mt-3 grid gap-3">
+              {message.codeBlocks.map((block) => (
+                <CodeBlockView
+                  key={block.id}
+                  block={block}
+                  active={activeBlockId === block.id}
+                  onOpenCanvas={onOpenCanvas}
+                />
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  )
+})
+
+const ProcessOutputBlock = memo(function ProcessOutputBlock({
+  entry,
+  activeBlockId,
+  onOpenCanvas
+}: {
+  entry: TranscriptProcessEntry
+  activeBlockId: string | null
+  onOpenCanvas: (block: CodeBlock) => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const messages = useMemo(() => entry.items.map(messageFromItem), [entry.items])
+  const codeBlockCount = messages.reduce((count, message) => count + message.codeBlocks.length, 0)
+  const itemCountLabel = `${entry.items.length} ${entry.items.length === 1 ? "event" : "events"}`
+  const codeCountLabel = codeBlockCount > 0 ? ` / ${codeBlockCount} ${codeBlockCount === 1 ? "block" : "blocks"}` : ""
+  const preview = useMemo(() => processPreview(entry), [entry])
+
+  return (
+    <article className="group grid grid-cols-[32px_minmax(0,1fr)] gap-3">
+      <div className="mt-1 flex h-8 w-8 items-center justify-center rounded-md border border-violet-400/30 bg-violet-400/10 text-violet-100">
+        <ListTree size={15} />
+      </div>
+      <div className="min-w-0 border-b border-slate-800/45 pb-5">
+        <button
+          type="button"
+          className="flex w-full items-center justify-between gap-3 rounded-md border border-slate-800/80 bg-slate-900/35 px-3 py-2.5 text-left transition duration-150 ease-out hover:border-slate-700 hover:bg-slate-800/55"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((current) => !current)}
+        >
+          <span className="min-w-0">
+            <span className="block truncate text-[13px] font-semibold text-slate-100">Intermediate output</span>
+            <span className="block truncate text-[11px] text-slate-500">
+              {itemCountLabel}{codeCountLabel} / {formatTime(entry.createdAt)}
+            </span>
+          </span>
+          <ChevronDown
+            size={16}
+            className={cn("shrink-0 text-slate-500 transition-transform duration-150 ease-out", expanded ? "rotate-180" : null)}
+          />
+        </button>
+
+        {!expanded ? (
+          <div className="mt-2 line-clamp-2 whitespace-pre-wrap break-words px-1 text-[12px] leading-5 text-slate-500">
+            {preview}
+          </div>
+        ) : (
+          <div className="mt-3 grid gap-3">
+            {messages.map((message) => (
+              <ProcessItemBlock
+                key={message.id}
+                message={message}
+                activeBlockId={activeBlockId}
+                onOpenCanvas={onOpenCanvas}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </article>
   )
@@ -521,6 +659,8 @@ export const Workspace = memo(function Workspace({
   prompt,
   promptTarget,
   goalMode,
+  navigatorVisible,
+  inspectorVisible,
   canUseGoalMode,
   canSubmitPrompt,
   onPromptChange,
@@ -531,11 +671,11 @@ export const Workspace = memo(function Workspace({
   onGoalModeChange,
   onInterrupt,
   onResume,
-  onOpenMobileMenu,
-  onOpenMobileInspector
+  onToggleNavigator,
+  onToggleInspector
 }: WorkspaceProps) {
   const [canvasBlock, setCanvasBlock] = useState<CodeBlock | null>(null)
-  const messages = useMemo(() => messagesFromDetail(detail), [detail])
+  const entries = useMemo(() => transcriptEntriesFromDetail(detail), [detail])
   const title = selectedThread?.title ?? session?.title ?? "New Codex session"
   const subtitle = selectedThread?.cwd ?? session?.cwd ?? project?.path ?? "Select a project to begin"
   const tokens = detail?.tokensUsed ?? session?.tokensUsed ?? 0
@@ -547,16 +687,20 @@ export const Workspace = memo(function Workspace({
 
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-col bg-slate-950 text-slate-200">
-      <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-slate-800/80 bg-slate-950/75 px-3 backdrop-blur-md md:px-4">
+      <header className="relative z-[110] flex h-14 shrink-0 items-center justify-between gap-3 border-b border-slate-800/80 bg-slate-950/75 px-3 backdrop-blur-md md:px-4">
         <div className="flex min-w-0 items-center gap-2">
           <button
             type="button"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-800/80 bg-slate-900/50 text-slate-400 transition duration-150 ease-out hover:bg-slate-800/60 hover:text-slate-100 md:hidden"
-            title="Open navigator"
-            aria-label="Open navigator"
-            onClick={onOpenMobileMenu}
+            className={cn(
+              "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-800/80 text-slate-400 transition duration-150 ease-out hover:bg-slate-800/60 hover:text-slate-100",
+              navigatorVisible ? "bg-slate-800/70 text-slate-100" : "bg-slate-900/50"
+            )}
+            title={navigatorVisible ? "Hide sessions" : "Open sessions"}
+            aria-label={navigatorVisible ? "Hide sessions" : "Open sessions"}
+            aria-pressed={navigatorVisible}
+            onClick={onToggleNavigator}
           >
-            <Menu size={17} />
+            {navigatorVisible ? <PanelLeftClose size={17} /> : <Menu size={17} />}
           </button>
           <div className="min-w-0">
             <h1 className="truncate text-[14px] font-semibold text-slate-100">{title}</h1>
@@ -572,12 +716,16 @@ export const Workspace = memo(function Workspace({
           </div>
           <button
             type="button"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-800/80 bg-slate-900/50 text-slate-400 transition duration-150 ease-out hover:bg-slate-800/60 hover:text-slate-100 md:hidden"
-            title="Open inspector"
-            aria-label="Open inspector"
-            onClick={onOpenMobileInspector}
+            className={cn(
+              "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-800/80 text-slate-400 transition duration-150 ease-out hover:bg-slate-800/60 hover:text-slate-100",
+              inspectorVisible ? "bg-slate-800/70 text-slate-100" : "bg-slate-900/50"
+            )}
+            title={inspectorVisible ? "Hide settings" : "Open settings"}
+            aria-label={inspectorVisible ? "Hide settings" : "Open settings"}
+            aria-pressed={inspectorVisible}
+            onClick={onToggleInspector}
           >
-            <PanelRight size={17} />
+            <SlidersHorizontal size={17} />
           </button>
         </div>
       </header>
@@ -602,7 +750,7 @@ export const Workspace = memo(function Workspace({
               </div>
 
               <AnimatePresence initial={false}>
-                {messages.length === 0 ? (
+                {entries.length === 0 ? (
                   <motion.div
                     key="empty-transcript"
                     initial={{ opacity: 0, y: 10 }}
@@ -613,20 +761,28 @@ export const Workspace = memo(function Workspace({
                     <EmptyTranscript hasThread={Boolean(selectedThreadId)} projectPath={project?.path ?? workdir} />
                   </motion.div>
                 ) : null}
-                {messages.map((message) => (
+                {entries.map((entry) => (
                   <motion.div
-                    key={message.id}
+                    key={entry.id}
                     layout
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                     transition={spring}
                   >
-                    <MessageBlock
-                      message={message}
-                      activeBlockId={canvasBlock?.id ?? null}
-                      onOpenCanvas={setCanvasBlock}
-                    />
+                    {entry.kind === "process" ? (
+                      <ProcessOutputBlock
+                        entry={entry}
+                        activeBlockId={canvasBlock?.id ?? null}
+                        onOpenCanvas={setCanvasBlock}
+                      />
+                    ) : (
+                      <MessageBlock
+                        message={messageFromItem(entry.item)}
+                        activeBlockId={canvasBlock?.id ?? null}
+                        onOpenCanvas={setCanvasBlock}
+                      />
+                    )}
                   </motion.div>
                 ))}
               </AnimatePresence>

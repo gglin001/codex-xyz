@@ -7,10 +7,8 @@ import {
   CircleStop,
   Command,
   Loader2,
-  PanelLeftClose,
   Plus,
   Search,
-  Settings,
   Terminal,
   UserRound
 } from "lucide-react"
@@ -26,15 +24,13 @@ export type SidebarProps = {
   selectedProjectId: string
   selectedSessionId: string | null
   sessionQuery: string
-  terminalVisible: boolean
   onProjectChange: (projectId: string) => void
   onSessionQueryChange: (value: string) => void
   onSelectSession: (session: WorkbenchSession) => void
   onCreateSession: () => void
+  terminalVisible: boolean
   onToggleTerminal: () => void
   onOpenCommandPalette: () => void
-  onOpenSettings: () => void
-  onCollapse?: () => void
 }
 
 const bucketOrder: DateBucket[] = ["Today", "Yesterday", "Older"]
@@ -122,15 +118,13 @@ export const Sidebar = memo(function Sidebar({
   selectedProjectId,
   selectedSessionId,
   sessionQuery,
-  terminalVisible,
   onProjectChange,
   onSessionQueryChange,
   onSelectSession,
   onCreateSession,
+  terminalVisible,
   onToggleTerminal,
-  onOpenCommandPalette,
-  onOpenSettings,
-  onCollapse
+  onOpenCommandPalette
 }: SidebarProps) {
   const [projectMenuOpen, setProjectMenuOpen] = useState(false)
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? projects[0]
@@ -284,50 +278,22 @@ export const Sidebar = memo(function Sidebar({
       </div>
 
       <div className="shrink-0 border-t border-slate-800/80 p-3">
-        <div className="mb-2 grid grid-cols-3 gap-1">
-          <button
-            type="button"
-            className={cn(
-              "inline-flex h-8 items-center justify-center rounded-md border border-slate-800/80 text-slate-500 transition duration-150 ease-out hover:bg-slate-800/60 hover:text-slate-100",
-              terminalVisible ? "bg-emerald-500/10 text-emerald-200" : "bg-slate-900/45"
-            )}
-            title="Toggle terminal"
-            aria-label="Toggle terminal"
-            onClick={onToggleTerminal}
-          >
-            <Terminal size={15} />
-          </button>
-          <button
-            type="button"
-            className="inline-flex h-8 items-center justify-center rounded-md border border-slate-800/80 bg-slate-900/45 text-slate-500 transition duration-150 ease-out hover:bg-slate-800/60 hover:text-slate-100"
-            title="Open Codex inspector"
-            aria-label="Open Codex inspector"
-            onClick={onOpenSettings}
-          >
-            <Settings size={15} />
-          </button>
-          {onCollapse ? (
-            <button
-              type="button"
-              className="hidden h-8 items-center justify-center rounded-md border border-slate-800/80 bg-slate-900/45 text-slate-500 transition duration-150 ease-out hover:bg-slate-800/60 hover:text-slate-100 md:inline-flex"
-              title="Collapse sidebar"
-              aria-label="Collapse sidebar"
-              onClick={onCollapse}
-            >
-              <PanelLeftClose size={15} />
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="inline-flex h-8 items-center justify-center rounded-md border border-slate-800/80 bg-slate-900/45 text-slate-500 transition duration-150 ease-out hover:bg-slate-800/60 hover:text-slate-100"
-              title="Command palette"
-              aria-label="Command palette"
-              onClick={onOpenCommandPalette}
-            >
-              <Command size={15} />
-            </button>
+        <button
+          type="button"
+          className={cn(
+            "mb-2 flex h-9 w-full items-center justify-between rounded-md border border-slate-800/80 px-3 text-left text-[12px] font-medium transition duration-150 ease-out hover:bg-slate-800/60 hover:text-slate-100",
+            terminalVisible ? "bg-emerald-500/10 text-emerald-200" : "bg-slate-900/45 text-slate-500"
           )}
-        </div>
+          title="Toggle terminal"
+          aria-label="Toggle terminal"
+          onClick={onToggleTerminal}
+        >
+          <span className="inline-flex items-center gap-2">
+            <Terminal size={15} />
+            Terminal
+          </span>
+          <span className="text-[11px] text-slate-600">{terminalVisible ? "Open" : "Closed"}</span>
+        </button>
 
         <button
           type="button"

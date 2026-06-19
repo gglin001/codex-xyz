@@ -7,8 +7,6 @@ import {
   GitFork,
   Hash,
   ListTree,
-  PanelLeft,
-  PanelsRightBottom,
   Play,
   RotateCcw,
   Server,
@@ -24,20 +22,14 @@ import type { WorkbenchSession } from "./workbenchTypes.js"
 
 export type ParamPanelProps = {
   className?: string
-  collapsed?: boolean
   session: WorkbenchSession | null
   detail: ThreadDetail | null
   selectedThread: ControlThread | null
   terminalVisible: boolean
-  navigatorVisible: boolean
-  inspectorVisible: boolean
   defaultCwd: string
   onToggleTerminal: () => void
-  onNavigatorVisibleChange: (visible: boolean) => void
-  onInspectorVisibleChange: (visible: boolean) => void
   onResume: () => void
   onInterrupt: () => void
-  onCollapseToggle?: () => void
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -90,20 +82,14 @@ const InfoRow = memo(function InfoRow({
 
 export const ParamPanel = memo(function ParamPanel({
   className,
-  collapsed = false,
   session,
   detail,
   selectedThread,
   terminalVisible,
-  navigatorVisible,
-  inspectorVisible,
   defaultCwd,
   onToggleTerminal,
-  onNavigatorVisibleChange,
-  onInspectorVisibleChange,
   onResume,
-  onInterrupt,
-  onCollapseToggle
+  onInterrupt
 }: ParamPanelProps) {
   const thread = selectedThread ?? session?.thread ?? null
   const status = thread?.status ?? "idle"
@@ -118,22 +104,6 @@ export const ParamPanel = memo(function ParamPanel({
   const turnCount = detail?.turns.length ?? 0
   const itemCount = detail?.items.length ?? 0
 
-  if (collapsed) {
-    return (
-      <aside className={cn("hidden h-full border-l border-slate-800/80 bg-slate-950/70 md:flex md:w-[56px] md:flex-col md:items-center md:py-3", className)}>
-        <button
-          type="button"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-800/80 bg-slate-900/70 text-slate-400 transition duration-150 ease-out hover:border-slate-700 hover:bg-slate-800/70 hover:text-slate-100"
-          title="Open inspector"
-          aria-label="Open inspector"
-          onClick={onCollapseToggle}
-        >
-          <SlidersHorizontal size={17} />
-        </button>
-      </aside>
-    )
-  }
-
   return (
     <aside className={cn("flex h-full min-h-0 flex-col border-l border-slate-800/80 bg-slate-950/80 text-slate-200", className)}>
       <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-slate-800/80 bg-slate-950/75 px-4 backdrop-blur-md">
@@ -141,17 +111,6 @@ export const ParamPanel = memo(function ParamPanel({
           <h2 className="truncate text-[13px] font-semibold text-slate-100">Codex Inspector</h2>
           <p className="truncate text-[11px] text-slate-500">app-server session state</p>
         </div>
-        {onCollapseToggle ? (
-          <button
-            type="button"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition duration-150 ease-out hover:bg-slate-800/60 hover:text-slate-100"
-            title="Collapse inspector"
-            aria-label="Collapse inspector"
-            onClick={onCollapseToggle}
-          >
-            <PanelsRightBottom size={16} />
-          </button>
-        ) : null}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -233,14 +192,6 @@ export const ParamPanel = memo(function ParamPanel({
             Controls
           </div>
           <div className="grid gap-2">
-            <button type="button" className={actionClass} onClick={() => onNavigatorVisibleChange(!navigatorVisible)}>
-              <span className="inline-flex items-center gap-2"><PanelLeft size={14} /> Navigator</span>
-              <span className="text-[11px] text-slate-500">{navigatorVisible ? "Visible" : "Hidden"}</span>
-            </button>
-            <button type="button" className={actionClass} onClick={() => onInspectorVisibleChange(!inspectorVisible)}>
-              <span className="inline-flex items-center gap-2"><PanelsRightBottom size={14} /> Inspector</span>
-              <span className="text-[11px] text-slate-500">{inspectorVisible ? "Visible" : "Hidden"}</span>
-            </button>
             <button type="button" className={actionClass} onClick={onToggleTerminal}>
               <span className="inline-flex items-center gap-2"><Terminal size={14} /> Terminal</span>
               <span className="text-[11px] text-slate-500">{terminalVisible ? "Open" : "Closed"}</span>
