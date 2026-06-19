@@ -7,10 +7,10 @@
   "description": "Codex control plane for managing multiple sessions.",
   "scripts": {
     "generate:codex": "node scripts/generate-codex-types.mjs",
-    "dev": "next dev --hostname 127.0.0.1 --port 1123",
+    "dev": "node scripts/run-dev.mjs",
     "prebuild": "pnpm run generate:codex",
     "build": "next build",
-    "start": "next start --hostname 127.0.0.1 --port 1123",
+    "start": "node scripts/run-start.mjs",
     "pretest": "pnpm run generate:codex",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
