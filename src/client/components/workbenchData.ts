@@ -138,16 +138,3 @@ export function findProjectForThread(projects: WorkbenchProject[], threadId: str
   }
   return projects.find((project) => project.sessions.some((session) => session.threadId === threadId)) ?? null
 }
-
-export function findSession(projects: WorkbenchProject[], sessionId: string | null) {
-  if (!sessionId) {
-    return null
-  }
-  for (const project of projects) {
-    const session = project.sessions.find((candidate) => candidate.id === sessionId || candidate.threadId === sessionId)
-    if (session) {
-      return session
-    }
-  }
-  return null
-}

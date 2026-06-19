@@ -35,7 +35,7 @@ export type DashboardLayoutProps = {
   onNavigatorVisibleChange: (visible: boolean) => void
   onInspectorVisibleChange: (visible: boolean) => void
   onProjectChange: (projectId: string) => void
-  onSelectSession: (session: WorkbenchSession) => void
+  onSelectSession: (session: WorkbenchSession, options?: { clearSessionQuery?: boolean }) => void
   onCreateSession: () => void
   onSessionQueryChange: (value: string) => void
   onToggleTerminal: () => void
@@ -296,15 +296,14 @@ export const DashboardLayout = memo(function DashboardLayout({
         icon: "project",
         run: () => onProjectChange(project.id)
       })
-      for (const projectSession of project.sessions.slice(0, 4)) {
+      for (const projectSession of project.sessions) {
         actions.push({
           id: `session:${projectSession.id}`,
           title: projectSession.title,
           detail: `${project.name} / ${projectSession.cwd}`,
           icon: "session",
           run: () => {
-            onProjectChange(project.id)
-            onSelectSession(projectSession)
+            onSelectSession(projectSession, { clearSessionQuery: true })
           }
         })
       }
