@@ -8,11 +8,10 @@ import {
   Hash,
   ListTree,
   Play,
-  RotateCcw,
   Server,
   SlidersHorizontal,
-  Terminal,
-  TimerReset
+  TimerReset,
+  WrapText
 } from "lucide-react"
 import { memo, type ReactNode } from "react"
 import type { ControlThread, ThreadDetail } from "../../server/domain.js"
@@ -25,11 +24,9 @@ export type ParamPanelProps = {
   session: WorkbenchSession | null
   detail: ThreadDetail | null
   selectedThread: ControlThread | null
-  terminalVisible: boolean
+  wrapSessionContent: boolean
   defaultCwd: string
-  onToggleTerminal: () => void
-  onResume: () => void
-  onInterrupt: () => void
+  onWrapSessionContentChange: (value: boolean) => void
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -41,9 +38,6 @@ function formatCompact(value: number) {
 }
 
 const sectionClass = "border-b border-slate-800/60 px-4 py-4 last:border-b-0"
-
-const actionClass =
-  "flex h-9 w-full items-center justify-between rounded-md border border-slate-800/80 bg-slate-900/40 px-3 text-left text-[12px] font-medium text-slate-300 transition duration-150 ease-out hover:border-slate-700 hover:bg-slate-800/55 hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
 
 function runtimeStatusTone(status: string | null | undefined) {
   if (status === "running") {
@@ -85,11 +79,9 @@ export const ParamPanel = memo(function ParamPanel({
   session,
   detail,
   selectedThread,
-  terminalVisible,
+  wrapSessionContent,
   defaultCwd,
-  onToggleTerminal,
-  onResume,
-  onInterrupt
+  onWrapSessionContentChange
 }: ParamPanelProps) {
   const thread = selectedThread ?? session?.thread ?? null
   const status = thread?.status ?? "idle"
@@ -99,8 +91,6 @@ export const ParamPanel = memo(function ParamPanel({
   const contextLimit = tokenBudget ?? Math.max(contextTokens, 1)
   const tokenRatio = tokenBudget ? clamp(contextTokens / tokenBudget, 0, 1) : 0
   const tokenPercent = Math.round(tokenRatio * 100)
-  const canInterrupt = thread?.status === "running"
-  const canResume = thread !== null && thread.status !== "running"
   const turnCount = detail?.turns.length ?? 0
   const itemCount = detail?.items.length ?? 0
 
@@ -189,21 +179,31 @@ export const ParamPanel = memo(function ParamPanel({
         <section className={sectionClass}>
           <div className="mb-3 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-500">
             <SlidersHorizontal size={14} />
-            Controls
+            Settings
           </div>
           <div className="grid gap-2">
-            <button type="button" className={actionClass} onClick={onToggleTerminal}>
-              <span className="inline-flex items-center gap-2"><Terminal size={14} /> Terminal</span>
-              <span className="text-[11px] text-slate-500">{terminalVisible ? "Open" : "Closed"}</span>
+            <button
+              type="button"
+              className={cn(
+                "flex min-h-11 items-center justify-between gap-3 rounded-md border border-slate-800/80 px-3 py-2 text-left text-[12px] font-medium transition duration-150 ease-out hover:bg-slate-800/60 hover:text-slate-100",
+                wrapSessionContent ? "bg-emerald-500/10 text-emerald-200" : "bg-slate-900/40 text-slate-500"
+              )}
+              aria-pressed={wrapSessionContent}
+              onClick={() => onWrapSessionContentChange(!wrapSessionContent)}
+            >
+              <span className="inline-flex min-w-0 items-center gap-2">
+                <WrapText size={14} className={cn("shrink-0", wrapSessionContent ? "text-emerald-200" : "text-slate-500")} />
+                <span className="min-w-0">
+                  <span className={cn("block truncate", wrapSessionContent ? "text-emerald-100" : "text-slate-300")}>Wrap session content</span>
+                  <span className={cn("block truncate text-[11px] font-normal", wrapSessionContent ? "text-emerald-300/75" : "text-slate-500")}>
+                    {wrapSessionContent ? "Long transcript lines wrap" : "Long transcript lines scroll"}
+                  </span>
+                </span>
+              </span>
+              <span className={cn("shrink-0 text-[11px] font-semibold uppercase tracking-[0.08em]", wrapSessionContent ? "text-emerald-200" : "text-slate-600")}>
+                {wrapSessionContent ? "On" : "Off"}
+              </span>
             </button>
-            <div className="grid grid-cols-2 gap-2">
-              <button type="button" className={actionClass} disabled={!canInterrupt} onClick={onInterrupt}>
-                <span className="inline-flex items-center gap-2"><TimerReset size={14} /> Interrupt</span>
-              </button>
-              <button type="button" className={actionClass} disabled={!canResume} onClick={onResume}>
-                <span className="inline-flex items-center gap-2"><RotateCcw size={14} /> Resume</span>
-              </button>
-            </div>
           </div>
         </section>
       </div>

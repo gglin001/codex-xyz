@@ -9,6 +9,7 @@ import {
   Loader2,
   Plus,
   Search,
+  Settings,
   Terminal,
   UserRound
 } from "lucide-react"
@@ -30,6 +31,8 @@ export type SidebarProps = {
   onCreateSession: () => void
   terminalVisible: boolean
   onToggleTerminal: () => void
+  inspectorVisible: boolean
+  onToggleInspector: () => void
   onOpenCommandPalette: () => void
 }
 
@@ -124,6 +127,8 @@ export const Sidebar = memo(function Sidebar({
   onCreateSession,
   terminalVisible,
   onToggleTerminal,
+  inspectorVisible,
+  onToggleInspector,
   onOpenCommandPalette
 }: SidebarProps) {
   const [projectMenuOpen, setProjectMenuOpen] = useState(false)
@@ -278,22 +283,36 @@ export const Sidebar = memo(function Sidebar({
       </div>
 
       <div className="shrink-0 border-t border-slate-800/80 p-3">
-        <button
-          type="button"
-          className={cn(
-            "mb-2 flex h-9 w-full items-center justify-between rounded-md border border-slate-800/80 px-3 text-left text-[12px] font-medium transition duration-150 ease-out hover:bg-slate-800/60 hover:text-slate-100",
-            terminalVisible ? "bg-emerald-500/10 text-emerald-200" : "bg-slate-900/45 text-slate-500"
-          )}
-          title="Toggle terminal"
-          aria-label="Toggle terminal"
-          onClick={onToggleTerminal}
-        >
-          <span className="inline-flex items-center gap-2">
+        <div className="mb-2 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            className={cn(
+              "flex h-9 min-w-0 items-center justify-center gap-2 rounded-md border border-slate-800/80 px-2 text-[12px] font-medium transition duration-150 ease-out hover:bg-slate-800/60 hover:text-slate-100",
+              terminalVisible ? "bg-emerald-500/10 text-emerald-200" : "bg-slate-900/45 text-slate-500"
+            )}
+            title="Toggle terminal"
+            aria-label="Toggle terminal"
+            aria-pressed={terminalVisible}
+            onClick={onToggleTerminal}
+          >
             <Terminal size={15} />
-            Terminal
-          </span>
-          <span className="text-[11px] text-slate-600">{terminalVisible ? "Open" : "Closed"}</span>
-        </button>
+            <span className="truncate">Terminal</span>
+          </button>
+          <button
+            type="button"
+            className={cn(
+              "flex h-9 min-w-0 items-center justify-center gap-2 rounded-md border border-slate-800/80 px-2 text-[12px] font-medium transition duration-150 ease-out hover:bg-slate-800/60 hover:text-slate-100",
+              inspectorVisible ? "bg-emerald-500/10 text-emerald-200" : "bg-slate-900/45 text-slate-500"
+            )}
+            title={inspectorVisible ? "Hide settings" : "Open settings"}
+            aria-label={inspectorVisible ? "Hide settings" : "Open settings"}
+            aria-pressed={inspectorVisible}
+            onClick={onToggleInspector}
+          >
+            <Settings size={15} />
+            <span className="truncate">Settings</span>
+          </button>
+        </div>
 
         <button
           type="button"

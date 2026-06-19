@@ -21,6 +21,7 @@ export type DashboardLayoutProps = {
   navigatorVisible: boolean
   inspectorVisible: boolean
   terminalVisible: boolean
+  wrapSessionContent: boolean
   sessionQuery: string
   defaultCwd: string
   workdir: string
@@ -35,6 +36,7 @@ export type DashboardLayoutProps = {
   canSubmitPrompt: boolean
   onNavigatorVisibleChange: (visible: boolean) => void
   onInspectorVisibleChange: (visible: boolean) => void
+  onWrapSessionContentChange: (value: boolean) => void
   onProjectChange: (projectId: string) => void
   onSelectSession: (session: WorkbenchSession, options?: { clearSessionQuery?: boolean }) => void
   onCreateSession: () => void
@@ -209,6 +211,7 @@ export const DashboardLayout = memo(function DashboardLayout({
   navigatorVisible,
   inspectorVisible,
   terminalVisible,
+  wrapSessionContent,
   sessionQuery,
   defaultCwd,
   workdir,
@@ -223,6 +226,7 @@ export const DashboardLayout = memo(function DashboardLayout({
   canSubmitPrompt,
   onNavigatorVisibleChange,
   onInspectorVisibleChange,
+  onWrapSessionContentChange,
   onProjectChange,
   onSelectSession,
   onCreateSession,
@@ -251,6 +255,11 @@ export const DashboardLayout = memo(function DashboardLayout({
     const workspace = useDesktopWorkspace ? desktopWorkspaceRef.current : mobileWorkspaceRef.current
     return workspace?.focusPrompt() ?? false
   }, [])
+
+  const createSessionAndFocusPrompt = useCallback(() => {
+    onCreateSession()
+    window.requestAnimationFrame(focusVisiblePrompt)
+  }, [focusVisiblePrompt, onCreateSession])
 
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
@@ -288,7 +297,7 @@ export const DashboardLayout = memo(function DashboardLayout({
         title: "Create new session",
         detail: "Start a fresh Codex app-server session",
         icon: "create",
-        run: onCreateSession
+        run: createSessionAndFocusPrompt
       },
       {
         id: "toggle-navigator",
@@ -331,7 +340,7 @@ export const DashboardLayout = memo(function DashboardLayout({
   }, [
     inspectorVisible,
     navigatorVisible,
-    onCreateSession,
+    createSessionAndFocusPrompt,
     onInspectorVisibleChange,
     onNavigatorVisibleChange,
     onProjectChange,
@@ -348,9 +357,11 @@ export const DashboardLayout = memo(function DashboardLayout({
       onProjectChange={onProjectChange}
       onSessionQueryChange={onSessionQueryChange}
       onSelectSession={onSelectSession}
-      onCreateSession={onCreateSession}
+      onCreateSession={createSessionAndFocusPrompt}
       terminalVisible={terminalVisible}
       onToggleTerminal={onToggleTerminal}
+      inspectorVisible={inspectorVisible}
+      onToggleInspector={() => onInspectorVisibleChange(!inspectorVisible)}
       onOpenCommandPalette={() => setCommandOpen(true)}
     />
   )
@@ -360,11 +371,9 @@ export const DashboardLayout = memo(function DashboardLayout({
       session={session}
       detail={detail}
       selectedThread={selectedThread}
-      terminalVisible={terminalVisible}
+      wrapSessionContent={wrapSessionContent}
       defaultCwd={defaultCwd}
-      onToggleTerminal={onToggleTerminal}
-      onResume={onResume}
-      onInterrupt={onInterrupt}
+      onWrapSessionContentChange={onWrapSessionContentChange}
     />
   )
 
@@ -404,6 +413,7 @@ export const DashboardLayout = memo(function DashboardLayout({
             goalMode={goalMode}
             canUseGoalMode={canUseGoalMode}
             canSubmitPrompt={canSubmitPrompt}
+            wrapSessionContent={wrapSessionContent}
             navigatorVisible={navigatorVisible}
             inspectorVisible={inspectorVisible}
             onPromptChange={onPromptChange}
@@ -453,6 +463,7 @@ export const DashboardLayout = memo(function DashboardLayout({
           goalMode={goalMode}
           canUseGoalMode={canUseGoalMode}
           canSubmitPrompt={canSubmitPrompt}
+          wrapSessionContent={wrapSessionContent}
           navigatorVisible={mobileNavigatorOpen}
           inspectorVisible={mobileInspectorOpen}
           onPromptChange={onPromptChange}
@@ -504,11 +515,16 @@ export const DashboardLayout = memo(function DashboardLayout({
                   setMobileNavigatorOpen(false)
                 }}
                 onCreateSession={() => {
-                  onCreateSession()
+                  createSessionAndFocusPrompt()
                   setMobileNavigatorOpen(false)
                 }}
                 terminalVisible={terminalVisible}
                 onToggleTerminal={onToggleTerminal}
+                inspectorVisible={mobileInspectorOpen}
+                onToggleInspector={() => {
+                  setMobileNavigatorOpen(false)
+                  setMobileInspectorOpen((current) => !current)
+                }}
                 onOpenCommandPalette={() => {
                   setMobileNavigatorOpen(false)
                   setCommandOpen(true)
@@ -541,11 +557,9 @@ export const DashboardLayout = memo(function DashboardLayout({
                 session={session}
                 detail={detail}
                 selectedThread={selectedThread}
-                terminalVisible={terminalVisible}
+                wrapSessionContent={wrapSessionContent}
                 defaultCwd={defaultCwd}
-                onToggleTerminal={onToggleTerminal}
-                onResume={onResume}
-                onInterrupt={onInterrupt}
+                onWrapSessionContentChange={onWrapSessionContentChange}
               />
             </motion.div>
           </motion.div>

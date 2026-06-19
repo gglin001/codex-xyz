@@ -43,6 +43,7 @@ export type WorkspaceProps = {
   goalMode: boolean
   canUseGoalMode: boolean
   canSubmitPrompt: boolean
+  wrapSessionContent: boolean
   navigatorVisible: boolean
   inspectorVisible: boolean
   onPromptChange: (value: string) => void
@@ -197,10 +198,12 @@ function codePreview(value: string) {
 const CodeBlockView = memo(function CodeBlockView({
   block,
   active,
+  wrapContent,
   onOpenCanvas
 }: {
   block: CodeBlock
   active: boolean
+  wrapContent: boolean
   onOpenCanvas: (block: CodeBlock) => void
 }) {
   const [copied, setCopied] = useState(false)
@@ -253,7 +256,10 @@ const CodeBlockView = memo(function CodeBlockView({
           </button>
         </div>
       </div>
-      <pre className="max-h-[320px] overflow-auto p-3 font-mono text-[12px] leading-5 text-slate-300">
+      <pre className={cn(
+        "max-h-[320px] overflow-auto p-3 font-mono text-[12px] leading-5 text-slate-300",
+        wrapContent ? "whitespace-pre-wrap break-words" : "whitespace-pre"
+      )}>
         <code>{codePreview(block.code)}</code>
       </pre>
     </div>
@@ -263,10 +269,12 @@ const CodeBlockView = memo(function CodeBlockView({
 const MessageBlock = memo(function MessageBlock({
   message,
   activeBlockId,
+  wrapContent,
   onOpenCanvas
 }: {
   message: ChatMessage
   activeBlockId: string | null
+  wrapContent: boolean
   onOpenCanvas: (block: CodeBlock) => void
 }) {
   return (
@@ -280,7 +288,10 @@ const MessageBlock = memo(function MessageBlock({
           <time className="shrink-0 text-[11px] text-slate-600">{formatTime(message.time)}</time>
         </div>
         {message.text ? (
-          <div className="whitespace-pre-wrap break-words text-[14px] leading-6 text-slate-300">{message.text}</div>
+          <div className={cn(
+            "text-[14px] leading-6 text-slate-300",
+            wrapContent ? "whitespace-pre-wrap break-words" : "overflow-x-auto whitespace-pre"
+          )}>{message.text}</div>
         ) : null}
         {message.codeBlocks.length > 0 ? (
           <div className="mt-3 grid gap-3">
@@ -289,6 +300,7 @@ const MessageBlock = memo(function MessageBlock({
                 key={block.id}
                 block={block}
                 active={activeBlockId === block.id}
+                wrapContent={wrapContent}
                 onOpenCanvas={onOpenCanvas}
               />
             ))}
@@ -302,10 +314,12 @@ const MessageBlock = memo(function MessageBlock({
 const ProcessItemBlock = memo(function ProcessItemBlock({
   message,
   activeBlockId,
+  wrapContent,
   onOpenCanvas
 }: {
   message: ChatMessage
   activeBlockId: string | null
+  wrapContent: boolean
   onOpenCanvas: (block: CodeBlock) => void
 }) {
   const [expanded, setExpanded] = useState(false)
@@ -341,7 +355,10 @@ const ProcessItemBlock = memo(function ProcessItemBlock({
       {expanded ? (
         <div className="border-t border-slate-800/60 p-3">
           {message.text ? (
-            <div className="whitespace-pre-wrap break-words text-[13px] leading-5 text-slate-300">{message.text}</div>
+            <div className={cn(
+              "text-[13px] leading-5 text-slate-300",
+              wrapContent ? "whitespace-pre-wrap break-words" : "overflow-x-auto whitespace-pre"
+            )}>{message.text}</div>
           ) : null}
           {message.codeBlocks.length > 0 ? (
             <div className="mt-3 grid gap-3">
@@ -350,6 +367,7 @@ const ProcessItemBlock = memo(function ProcessItemBlock({
                   key={block.id}
                   block={block}
                   active={activeBlockId === block.id}
+                  wrapContent={wrapContent}
                   onOpenCanvas={onOpenCanvas}
                 />
               ))}
@@ -364,10 +382,12 @@ const ProcessItemBlock = memo(function ProcessItemBlock({
 const ProcessOutputBlock = memo(function ProcessOutputBlock({
   entry,
   activeBlockId,
+  wrapContent,
   onOpenCanvas
 }: {
   entry: TranscriptProcessEntry
   activeBlockId: string | null
+  wrapContent: boolean
   onOpenCanvas: (block: CodeBlock) => void
 }) {
   const [expanded, setExpanded] = useState(false)
@@ -402,7 +422,10 @@ const ProcessOutputBlock = memo(function ProcessOutputBlock({
         </button>
 
         {!expanded ? (
-          <div className="mt-2 line-clamp-2 whitespace-pre-wrap break-words px-1 text-[12px] leading-5 text-slate-500">
+          <div className={cn(
+            "mt-2 line-clamp-2 px-1 text-[12px] leading-5 text-slate-500",
+            wrapContent ? "whitespace-pre-wrap break-words" : "whitespace-pre"
+          )}>
             {preview}
           </div>
         ) : (
@@ -412,6 +435,7 @@ const ProcessOutputBlock = memo(function ProcessOutputBlock({
                 key={message.id}
                 message={message}
                 activeBlockId={activeBlockId}
+                wrapContent={wrapContent}
                 onOpenCanvas={onOpenCanvas}
               />
             ))}
@@ -567,8 +591,20 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
     textarea.style.height = `${Math.min(220, Math.max(52, textarea.scrollHeight))}px`
   }, [prompt])
 
+  const focusPromptOnNextFrame = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      const textarea = textareaRef.current
+      if (!textarea || textarea.disabled) {
+        return
+      }
+      textarea.focus({ preventScroll: true })
+      const caret = textarea.value.length
+      textarea.setSelectionRange(caret, caret)
+    })
+  }, [])
+
   return (
-    <div className="shrink-0 border-t border-slate-800/80 bg-slate-950/75 px-4 py-3 backdrop-blur-md">
+    <div>
       {(busyAction || notice || error) ? (
         <div className="mb-2 grid gap-1.5 text-[12px]">
           {busyAction ? <div className="rounded-md border border-slate-800 bg-slate-900/70 px-3 py-2 text-slate-300">{busyAction}...</div> : null}
@@ -614,7 +650,10 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
                 aria-label="New session"
                 aria-pressed={promptTarget === "new"}
                 disabled={busy}
-                onClick={() => onModeChange(promptTarget === "new" && selectedThreadId ? "thread" : "new")}
+                onClick={() => {
+                  onModeChange(promptTarget === "new" && selectedThreadId ? "thread" : "new")
+                  focusPromptOnNextFrame()
+                }}
               >
                 <Plus size={15} />
               </button>
@@ -682,6 +721,7 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
   prompt,
   promptTarget,
   goalMode,
+  wrapSessionContent,
   navigatorVisible,
   inspectorVisible,
   canUseGoalMode,
@@ -802,12 +842,14 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
                       <ProcessOutputBlock
                         entry={entry}
                         activeBlockId={canvasBlock?.id ?? null}
+                        wrapContent={wrapSessionContent}
                         onOpenCanvas={setCanvasBlock}
                       />
                     ) : (
                       <MessageBlock
                         message={messageFromItem(entry.item)}
                         activeBlockId={canvasBlock?.id ?? null}
+                        wrapContent={wrapSessionContent}
                         onOpenCanvas={setCanvasBlock}
                       />
                     )}
@@ -817,29 +859,33 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
             </div>
           </div>
 
-          <Composer
-            ref={composerRef}
-            workdir={workdir}
-            busy={busy}
-            busyAction={busyAction}
-            notice={notice}
-            error={error}
-            prompt={prompt}
-            promptTarget={promptTarget}
-            goalMode={goalMode}
-            selectedThreadId={selectedThreadId}
-            selectedThread={selectedThread}
-            canUseGoalMode={canUseGoalMode}
-            canSubmitPrompt={canSubmitPrompt}
-            onPromptChange={onPromptChange}
-            onPromptKeyDown={onPromptKeyDown}
-            onPromptSubmit={onPromptSubmit}
-            onModeChange={onModeChange}
-            onWorkdirChange={onWorkdirChange}
-            onGoalModeChange={onGoalModeChange}
-            onInterrupt={onInterrupt}
-            onResume={onResume}
-          />
+          <div className="shrink-0 border-t border-slate-800/80 bg-slate-950/75 px-4 py-3 backdrop-blur-md md:px-8">
+            <div className="mx-auto w-full max-w-[860px]">
+              <Composer
+                ref={composerRef}
+                workdir={workdir}
+                busy={busy}
+                busyAction={busyAction}
+                notice={notice}
+                error={error}
+                prompt={prompt}
+                promptTarget={promptTarget}
+                goalMode={goalMode}
+                selectedThreadId={selectedThreadId}
+                selectedThread={selectedThread}
+                canUseGoalMode={canUseGoalMode}
+                canSubmitPrompt={canSubmitPrompt}
+                onPromptChange={onPromptChange}
+                onPromptKeyDown={onPromptKeyDown}
+                onPromptSubmit={onPromptSubmit}
+                onModeChange={onModeChange}
+                onWorkdirChange={onWorkdirChange}
+                onGoalModeChange={onGoalModeChange}
+                onInterrupt={onInterrupt}
+                onResume={onResume}
+              />
+            </div>
+          </div>
         </motion.div>
 
         <AnimatePresence>

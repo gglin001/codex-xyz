@@ -46,6 +46,7 @@ type DetailSubscription = {
 const terminalVisibleStorageKey = "codex-xyz-terminal-visible";
 const navigatorVisibleStorageKey = "codex-xyz-navigator-visible";
 const inspectorVisibleStorageKey = "codex-xyz-inspector-visible";
+const wrapSessionContentStorageKey = "codex-xyz-wrap-session-content";
 const TerminalDock = lazy(async () => ({
   default: (await import("./TerminalDock.js")).TerminalDock
 }));
@@ -93,6 +94,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
   const [terminalVisible, setTerminalVisible] = useState(false);
   const [navigatorVisible, setNavigatorVisible] = useState(true);
   const [inspectorVisible, setInspectorVisible] = useState(true);
+  const [wrapSessionContent, setWrapSessionContent] = useState(true);
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [preferencesReady, setPreferencesReady] = useState(false);
   const [summaryEventsReady, setSummaryEventsReady] = useState(false);
@@ -278,6 +280,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
     setTerminalVisible(readStoredTerminalVisible());
     setNavigatorVisible(readStoredBoolean(navigatorVisibleStorageKey, true));
     setInspectorVisible(readStoredBoolean(inspectorVisibleStorageKey, true));
+    setWrapSessionContent(readStoredBoolean(wrapSessionContentStorageKey, true));
     setPreferencesReady(true);
   }, []);
 
@@ -313,6 +316,17 @@ export function App({ initialState: serverInitialState }: AppProps) {
       // Keep the in-memory preference even if the browser blocks persistence.
     }
   }, [inspectorVisible, preferencesReady]);
+
+  useEffect(() => {
+    if (!preferencesReady) {
+      return;
+    }
+    try {
+      window.localStorage.setItem(wrapSessionContentStorageKey, wrapSessionContent ? "true" : "false");
+    } catch {
+      // Keep the in-memory preference even if the browser blocks persistence.
+    }
+  }, [preferencesReady, wrapSessionContent]);
 
   useEffect(() => installPageZoomGuards(window), [])
 
@@ -716,6 +730,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
         navigatorVisible={navigatorVisible}
         inspectorVisible={inspectorVisible}
         terminalVisible={terminalVisible}
+        wrapSessionContent={wrapSessionContent}
         sessionQuery={sessionQuery}
         defaultCwd={state.defaultCwd}
         workdir={workdir}
@@ -730,6 +745,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
         canSubmitPrompt={canSubmitPrompt}
         onNavigatorVisibleChange={setNavigatorVisible}
         onInspectorVisibleChange={setInspectorVisible}
+        onWrapSessionContentChange={setWrapSessionContent}
         onProjectChange={changeWorkbenchProject}
         onSelectSession={selectWorkbenchSession}
         onCreateSession={createWorkbenchSession}
