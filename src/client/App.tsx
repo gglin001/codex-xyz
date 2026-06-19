@@ -975,7 +975,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 
   const desktopComposer = !isMobileViewport ? (
     <PromptComposer
-      className="border-t border-border-soft bg-app-detail px-5 py-4"
+      className="border-t border-border-soft bg-app-detail/95 px-5 py-4"
       showStatus
       workdir={workdir}
       busy={busy}
@@ -1015,12 +1015,12 @@ export function App({ initialState: serverInitialState }: AppProps) {
     >
       <div
         className={cn(
-          "relative grid h-full min-h-0 overflow-hidden bg-app-bg text-fg",
+          "relative grid h-full min-h-0 overflow-hidden bg-app-bg text-fg transition-[grid-template-columns,padding] duration-300 ease-snappy",
           isMobileViewport
             ? "grid-cols-1 pb-[calc(var(--mobile-composer-reserved)+env(safe-area-inset-bottom))]"
             : sidebarVisible
-              ? "grid-cols-[minmax(280px,320px)_minmax(0,1fr)]"
-              : "grid-cols-1"
+              ? "grid-cols-[minmax(292px,336px)_minmax(0,1fr)] gap-3 p-3"
+              : "grid-cols-1 p-3"
         )}
         data-theme={theme}
         data-mobile-view={mobileView}
@@ -1050,7 +1050,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
         ) : !isMobileViewport ? (
           <button
             type="button"
-            className={cn(subtleIconButtonClass, "absolute left-3 top-3 z-20 bg-surface/85 backdrop-blur-xl")}
+            className={cn(subtleIconButtonClass, "absolute left-5 top-5 z-20 bg-surface/85 backdrop-blur-xl")}
             title="Show sidebar"
             aria-label="Show sidebar"
             onClick={() => setSidebarVisible(true)}
@@ -1077,7 +1077,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
       </Suspense>
       {isMobileViewport ? (
         <PromptComposer
-          className="fixed inset-x-0 bottom-0 z-[100] max-h-[var(--mobile-composer-max-height)] border-t border-border bg-surface/95 px-[max(var(--mobile-edge-padding),12px)] py-2 shadow-popover backdrop-blur-xl supports-[backdrop-filter]:bg-surface/80"
+          className="fixed bottom-0 left-0 right-0 z-[100] w-full max-h-[var(--mobile-composer-max-height)] border-t border-border bg-surface/95 px-[max(var(--mobile-edge-padding),12px)] py-2 shadow-popover backdrop-blur-xl supports-[backdrop-filter]:bg-surface/88"
           showStatus
           compact
           collapsible

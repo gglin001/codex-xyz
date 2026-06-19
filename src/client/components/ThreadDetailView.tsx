@@ -171,62 +171,66 @@ function goalTone(status: string) {
   return "quiet";
 }
 
+const sessionFactCellClass = "min-w-0 rounded-md border border-border-soft bg-surface px-3 py-2 shadow-control";
+
 const SessionFacts = memo(
   function SessionFacts({ thread }: { thread: ThreadDetail }) {
     const visibleGoalStatus = thread.goalStatus && thread.goalStatus !== "cleared" ? thread.goalStatus : null;
     const visibleGoalObjective = visibleGoalStatus ? thread.goalObjective : null;
 
     return (
-      <div className="grid shrink-0 grid-cols-[repeat(auto-fit,minmax(118px,1fr))] gap-px border-b border-border-soft bg-border-soft">
-        <div className="min-w-0 bg-app-detail px-4 py-2">
-          <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Status</span>
-          <strong className={cn("mt-1 inline-flex rounded-full px-2 py-1 text-[11px] font-semibold leading-none", statusToneClass[statusTone(thread.status)])}>{statusLabel(thread.status)}</strong>
-        </div>
-        {visibleGoalObjective && visibleGoalStatus ? (
-          <div className="min-w-0 bg-app-detail px-4 py-2 sm:col-span-2">
-            <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Goal</span>
-            <strong
-              className={cn(
-                "mt-1 block truncate rounded-full px-2 py-1 text-[11px] font-semibold leading-none",
-                statusToneClass[goalTone(visibleGoalStatus)]
-              )}
-              title={visibleGoalObjective}
-            >
-              {statusLabel(visibleGoalStatus)}: {visibleGoalObjective}
-            </strong>
+      <div className="shrink-0 border-b border-border-soft bg-app-detail/95 px-4 py-3">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(118px,1fr))] gap-2">
+          <div className={sessionFactCellClass}>
+            <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Status</span>
+            <strong className={cn("mt-1 inline-flex rounded-full px-2 py-1 text-[11px] font-semibold leading-none", statusToneClass[statusTone(thread.status)])}>{statusLabel(thread.status)}</strong>
           </div>
-        ) : null}
-        <div className="min-w-0 bg-app-detail px-4 py-2">
-          <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Tokens</span>
-          <strong className="mt-1 block truncate text-[13px] font-semibold leading-5 text-fg-strong">{formatTokens(thread.tokensUsed)}</strong>
-        </div>
-        {thread.goalTokenBudget ? (
-          <div className="min-w-0 bg-app-detail px-4 py-2">
-            <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Budget</span>
-            <strong className="mt-1 block truncate text-[13px] font-semibold leading-5 text-fg-strong">
-              {formatTokens(thread.tokensUsed)} / {formatTokens(thread.goalTokenBudget)}
-            </strong>
+          {visibleGoalObjective && visibleGoalStatus ? (
+            <div className={cn(sessionFactCellClass, "sm:col-span-2")}>
+              <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Goal</span>
+              <strong
+                className={cn(
+                  "mt-1 block truncate rounded-full px-2 py-1 text-[11px] font-semibold leading-none",
+                  statusToneClass[goalTone(visibleGoalStatus)]
+                )}
+                title={visibleGoalObjective}
+              >
+                {statusLabel(visibleGoalStatus)}: {visibleGoalObjective}
+              </strong>
+            </div>
+          ) : null}
+          <div className={sessionFactCellClass}>
+            <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Tokens</span>
+            <strong className="mt-1 block truncate text-[13px] font-semibold leading-5 text-fg-strong">{formatTokens(thread.tokensUsed)}</strong>
           </div>
-        ) : null}
-        <div className="min-w-0 bg-app-detail px-4 py-2">
-          <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Turns</span>
-          <strong className="mt-1 block truncate text-[13px] font-semibold leading-5 text-fg-strong">{thread.turns.length}</strong>
-        </div>
-        <div className="min-w-0 bg-app-detail px-4 py-2">
-          <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Model</span>
-          <strong className="mt-1 block truncate text-[13px] font-semibold leading-5 text-fg-strong">{thread.model ?? "default"}</strong>
-        </div>
-        <div className="min-w-0 bg-app-detail px-4 py-2 sm:col-span-2">
-          <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Workdir</span>
-          <strong className="mt-1 block truncate font-mono text-[12px] font-medium leading-5 text-fg-strong">{thread.cwd}</strong>
-        </div>
-        <div className="min-w-0 bg-app-detail px-4 py-2">
-          <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Session</span>
-          <strong className="mt-1 block truncate font-mono text-[12px] font-medium leading-5 text-fg-strong">{shortId(thread.sessionId)}</strong>
-        </div>
-        <div className="min-w-0 bg-app-detail px-4 py-2">
-          <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Updated</span>
-          <strong className="mt-1 block truncate text-[13px] font-semibold leading-5 text-fg-strong">{formatDateTime(thread.updatedAt)}</strong>
+          {thread.goalTokenBudget ? (
+            <div className={sessionFactCellClass}>
+              <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Budget</span>
+              <strong className="mt-1 block truncate text-[13px] font-semibold leading-5 text-fg-strong">
+                {formatTokens(thread.tokensUsed)} / {formatTokens(thread.goalTokenBudget)}
+              </strong>
+            </div>
+          ) : null}
+          <div className={sessionFactCellClass}>
+            <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Turns</span>
+            <strong className="mt-1 block truncate text-[13px] font-semibold leading-5 text-fg-strong">{thread.turns.length}</strong>
+          </div>
+          <div className={sessionFactCellClass}>
+            <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Model</span>
+            <strong className="mt-1 block truncate text-[13px] font-semibold leading-5 text-fg-strong">{thread.model ?? "default"}</strong>
+          </div>
+          <div className={cn(sessionFactCellClass, "sm:col-span-2")}>
+            <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Workdir</span>
+            <strong className="mt-1 block truncate font-mono text-[12px] font-medium leading-5 text-fg-strong">{thread.cwd}</strong>
+          </div>
+          <div className={sessionFactCellClass}>
+            <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Session</span>
+            <strong className="mt-1 block truncate font-mono text-[12px] font-medium leading-5 text-fg-strong">{shortId(thread.sessionId)}</strong>
+          </div>
+          <div className={sessionFactCellClass}>
+            <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Updated</span>
+            <strong className="mt-1 block truncate text-[13px] font-semibold leading-5 text-fg-strong">{formatDateTime(thread.updatedAt)}</strong>
+          </div>
         </div>
       </div>
     );
@@ -259,10 +263,10 @@ const TranscriptItem = memo(function TranscriptItem({
   const title = itemTitle(item);
 
   return (
-    <article className={cn("rounded-lg border border-border-soft border-l-2 bg-surface shadow-control", itemToneClass[item.type])}>
+    <article className={cn("rounded-lg border border-border-soft border-l-2 bg-surface shadow-control transition duration-200 ease-snappy", itemToneClass[item.type])}>
       <button
         type="button"
-        className="flex min-h-10 w-full items-center gap-3 rounded-t-lg px-3 py-2 text-left transition duration-150 ease-fluid hover:bg-control-hover"
+        className="flex min-h-10 w-full items-center gap-3 rounded-t-lg px-3 py-2 text-left transition duration-200 ease-snappy hover:bg-control-hover"
         aria-expanded={visible}
         aria-label={`${visible ? "Hide" : "Show"} ${title}`}
         onClick={() => onToggleVisible(item.id)}
@@ -306,11 +310,11 @@ const ProcessStep = memo(function ProcessStep({
   const title = itemTitle(item);
 
   return (
-    <div className={cn("rounded-md border border-border-soft border-l-2 bg-surface", itemToneClass[item.type])}>
+    <div className={cn("rounded-md border border-border-soft border-l-2 bg-surface shadow-control", itemToneClass[item.type])}>
       <button
         type="button"
         className={cn(
-          "flex min-h-9 w-full items-center gap-3 rounded-t-md px-3 py-2 text-left transition duration-150 ease-fluid",
+          "flex min-h-9 w-full items-center gap-3 rounded-t-md px-3 py-2 text-left transition duration-200 ease-snappy",
           canCollapse ? "hover:bg-control-hover" : "cursor-default"
         )}
         aria-expanded={canCollapse ? expanded : undefined}
@@ -373,7 +377,7 @@ const ProcessGroup = memo(function ProcessGroup({
     <article className="rounded-lg border border-border-soft bg-surface shadow-control">
       <button
         type="button"
-        className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition duration-150 ease-fluid hover:bg-control-hover"
+        className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition duration-200 ease-snappy hover:bg-control-hover"
         aria-expanded={expanded}
         aria-label={`${expanded ? "Collapse" : "Expand"} ${summary.title}`}
         onClick={() => onToggleExpanded(group.id)}
@@ -467,53 +471,55 @@ const Transcript = memo(function Transcript({
   return (
     <div
       className={cn(
-        "min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden px-5 py-4",
+        "min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-4",
         detailWordWrap ? "[&_pre]:whitespace-pre-wrap" : "[&_pre]:whitespace-pre"
       )}
       aria-label="Session transcript"
     >
-      {!detail ? <div className="flex h-full min-h-48 items-center justify-center rounded-lg border border-dashed border-border-soft text-sm text-muted">{hasSelection ? "Loading session..." : "No session selected"}</div> : null}
-      {detail?.items.length === 0 ? <div className="flex h-full min-h-48 items-center justify-center rounded-lg border border-dashed border-border-soft text-sm text-muted">No transcript items yet</div> : null}
-      {showWindowControls ? (
-        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-lg border border-border-soft bg-app-detail/90 p-2 text-xs text-muted shadow-control backdrop-blur-xl">
-          <span className="px-1">{windowSummary}</span>
-          <div className="flex rounded-md border border-border-soft bg-surface-subtle p-0.5" role="group" aria-label="Transcript range">
-            <button
-              type="button"
-              className={cn("h-7 rounded px-2 text-xs font-medium text-muted-strong transition hover:text-fg-strong", windowMode === "recent" ? "bg-control-hover text-fg-strong" : null)}
-              aria-pressed={windowMode === "recent"}
-              onClick={() => setWindowMode("recent")}
-            >
-              Recent
-            </button>
-            <button
-              type="button"
-              className={cn("h-7 rounded px-2 text-xs font-medium text-muted-strong transition hover:text-fg-strong", windowMode === "all" ? "bg-control-hover text-fg-strong" : null)}
-              aria-pressed={windowMode === "all"}
-              onClick={() => setWindowMode("all")}
-            >
-              All
-            </button>
+      <div className="mx-auto flex min-h-full w-full max-w-[920px] flex-col gap-3">
+        {!detail ? <div className="flex min-h-48 flex-1 items-center justify-center rounded-lg border border-dashed border-border-soft bg-surface-subtle/45 text-sm text-muted">{hasSelection ? "Loading session..." : "No session selected"}</div> : null}
+        {detail?.items.length === 0 ? <div className="flex min-h-48 flex-1 items-center justify-center rounded-lg border border-dashed border-border-soft bg-surface-subtle/45 text-sm text-muted">No transcript items yet</div> : null}
+        {showWindowControls ? (
+          <div className="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-lg border border-border-soft bg-app-detail/90 p-2 text-xs text-muted shadow-control backdrop-blur-xl">
+            <span className="px-1">{windowSummary}</span>
+            <div className="flex rounded-md border border-border-soft bg-surface-subtle p-0.5" role="group" aria-label="Transcript range">
+              <button
+                type="button"
+                className={cn("h-7 rounded px-2 text-xs font-medium text-muted-strong transition duration-200 ease-snappy hover:text-fg-strong", windowMode === "recent" ? "bg-control-hover text-fg-strong" : null)}
+                aria-pressed={windowMode === "recent"}
+                onClick={() => setWindowMode("recent")}
+              >
+                Recent
+              </button>
+              <button
+                type="button"
+                className={cn("h-7 rounded px-2 text-xs font-medium text-muted-strong transition duration-200 ease-snappy hover:text-fg-strong", windowMode === "all" ? "bg-control-hover text-fg-strong" : null)}
+                aria-pressed={windowMode === "all"}
+                onClick={() => setWindowMode("all")}
+              >
+                All
+              </button>
+            </div>
           </div>
-        </div>
-      ) : null}
-      {transcriptEntries.map((entry) =>
-        entry.kind === "process" ? (
-          <ProcessGroup
-            key={entry.id}
-            group={entry}
-            expanded={expandedProcessEntryIds.has(entry.id)}
-            onToggleExpanded={toggleExpandedProcessEntry}
-          />
-        ) : (
-          <TranscriptItem
-            key={entry.id}
-            item={entry.item}
-            visible={!hiddenItemIds.has(entry.item.id)}
-            onToggleVisible={toggleItemVisibility}
-          />
-        )
-      )}
+        ) : null}
+        {transcriptEntries.map((entry) =>
+          entry.kind === "process" ? (
+            <ProcessGroup
+              key={entry.id}
+              group={entry}
+              expanded={expandedProcessEntryIds.has(entry.id)}
+              onToggleExpanded={toggleExpandedProcessEntry}
+            />
+          ) : (
+            <TranscriptItem
+              key={entry.id}
+              item={entry.item}
+              visible={!hiddenItemIds.has(entry.item.id)}
+              onToggleVisible={toggleItemVisibility}
+            />
+          )
+        )}
+      </div>
     </div>
   );
 });
@@ -527,8 +533,8 @@ export const ThreadDetailView = memo(function ThreadDetailView({
   composer = null
 }: ThreadDetailViewProps) {
   return (
-    <section className="flex min-h-0 flex-col bg-app-detail" data-detail-word-wrap={detailWordWrap ? "true" : "false"}>
-      <div className="flex h-14 shrink-0 items-center gap-3 border-b border-border-soft px-4">
+    <section className="flex min-h-0 flex-col bg-app-detail md:rounded-lg md:border md:border-border-soft md:shadow-panel" data-detail-word-wrap={detailWordWrap ? "true" : "false"}>
+      <div className="flex h-14 shrink-0 items-center gap-3 border-b border-border-soft bg-app-detail/95 px-4 md:rounded-t-lg">
         <button
           type="button"
           className={cn(subtleIconButtonClass, "md:hidden")}

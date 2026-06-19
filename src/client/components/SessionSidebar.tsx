@@ -251,7 +251,7 @@ const ProjectGroupHeading = memo(function ProjectGroupHeading({
     <button
       type="button"
       className={cn(
-        "group flex h-full w-full items-center gap-2 rounded-md px-2 text-left transition duration-150 ease-fluid hover:bg-control-hover",
+        "group flex h-full w-full items-center gap-2 rounded-md px-2 text-left transition duration-200 ease-snappy hover:bg-control-hover",
         containsSelected ? "bg-accent-soft text-fg-strong" : "text-muted-strong"
       )}
       aria-expanded={!collapsed}
@@ -261,7 +261,7 @@ const ProjectGroupHeading = memo(function ProjectGroupHeading({
       <span className="flex h-5 w-5 shrink-0 items-center justify-center text-muted transition group-hover:text-fg" aria-hidden="true">
         {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
       </span>
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-border-soft bg-surface-subtle text-muted-strong" aria-hidden="true">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-border-soft bg-surface-subtle text-muted-strong shadow-control" aria-hidden="true">
         <FolderOpen size={15} />
       </span>
       <span className="min-w-0 flex-1">
@@ -299,8 +299,8 @@ const SessionRow = memo(function SessionRow({
   return (
     <button
       className={cn(
-        "group flex h-full w-full flex-col justify-center gap-1 rounded-md px-2.5 py-1.5 text-left transition duration-150 ease-fluid hover:bg-control-hover",
-        selected ? "bg-accent-soft text-fg-strong ring-1 ring-border" : "text-fg"
+        "group flex h-full w-full flex-col justify-center gap-1 rounded-md px-2.5 py-1.5 text-left transition duration-200 ease-snappy hover:bg-control-hover",
+        selected ? "bg-accent-soft text-fg-strong ring-1 ring-border shadow-control" : "text-fg"
       )}
       onClick={() => {
         void onSelectThread(thread.id);
@@ -309,24 +309,24 @@ const SessionRow = memo(function SessionRow({
       title={rowTitle}
     >
       <span className="flex min-w-0 items-start gap-2">
-        <span className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", statusDotClass[thread.status])} />
+        <span className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full ring-2 ring-app-panel", statusDotClass[thread.status])} />
         <span className="min-w-0 flex-1">
           <span className="flex min-w-0 items-center gap-2">
-            <strong className="min-w-0 flex-1 truncate text-[13px] font-medium leading-5 text-fg-strong">{thread.title}</strong>
+            <strong className="min-w-0 flex-1 truncate text-[13px] font-semibold leading-5 text-fg-strong">{thread.title}</strong>
             <time className="shrink-0 text-[11px] leading-4 text-muted" dateTime={thread.updatedAt} title={`Updated ${visibleUpdatedAt}`}>
               {visibleUpdatedAt}
             </time>
           </span>
           <span className="flex min-w-0 items-center gap-2">
             <small className="min-w-0 flex-1 truncate text-[11px] leading-4 text-muted">{visiblePreview}</small>
-            <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-medium leading-none", statusToneClass[statusTone(thread.status)])}>{visibleStatus}</span>
+            <span className={cn("rounded-md px-1.5 py-0.5 text-[10px] font-medium leading-none", statusToneClass[statusTone(thread.status)])}>{visibleStatus}</span>
           </span>
         </span>
       </span>
       {hasGoal ? (
         <span
           className={cn(
-            "flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11px]",
+            "flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] shadow-control",
             thread.goalStatus ? goalClass[thread.goalStatus] : "border-border-soft bg-chip text-chip-fg"
           )}
           title={thread.goalObjective ?? undefined}
@@ -472,7 +472,7 @@ const VirtualSessionList = memo(function VirtualSessionList({
               className="absolute inset-x-0 px-1"
               style={{ height, transform: `translateY(${top}px)` }}
             >
-              {entry.kind === "empty" ? <div className="flex h-full items-center justify-center rounded-md border border-dashed border-border-soft text-sm text-muted">{entry.label}</div> : null}
+              {entry.kind === "empty" ? <div className="flex h-full items-center justify-center rounded-md border border-dashed border-border-soft bg-surface-subtle/45 text-sm text-muted">{entry.label}</div> : null}
               {entry.kind === "project" ? (
                 <ProjectGroupHeading
                   group={entry.group}
@@ -491,7 +491,7 @@ const VirtualSessionList = memo(function VirtualSessionList({
               {entry.kind === "loadMore" ? (
                 <button
                   type="button"
-                  className="h-9 w-full rounded-md border border-border-soft bg-surface-subtle px-3 text-sm text-muted-strong transition hover:border-border hover:bg-control-hover disabled:cursor-wait disabled:opacity-70"
+                  className="h-9 w-full rounded-md border border-border-soft bg-surface-subtle px-3 text-sm text-muted-strong shadow-control transition duration-200 ease-snappy hover:border-border hover:bg-control-hover disabled:cursor-wait disabled:opacity-70"
                   disabled={entry.loading}
                   onClick={onLoadMoreThreads}
                 >
@@ -549,11 +549,11 @@ function SidebarSettingsMenu({
         <Settings size={16} />
       </button>
       {open ? (
-        <div className="absolute right-0 top-10 z-40 w-48 rounded-lg border border-border bg-surface p-1 shadow-popover" role="menu" aria-label="Settings">
+        <div className="absolute right-0 top-10 z-40 w-48 rounded-lg border border-border bg-surface/95 p-1 shadow-popover backdrop-blur-xl" role="menu" aria-label="Settings">
           <button
             type="button"
             className={cn(
-              "flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-muted-strong transition hover:bg-control-hover hover:text-fg-strong",
+              "flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-muted-strong transition duration-200 ease-snappy hover:bg-control-hover hover:text-fg-strong",
               theme === "dark" ? "bg-accent-soft text-fg-strong" : null
             )}
             role="menuitemcheckbox"
@@ -569,7 +569,7 @@ function SidebarSettingsMenu({
           <button
             type="button"
             className={cn(
-              "flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-muted-strong transition hover:bg-control-hover hover:text-fg-strong",
+              "flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-muted-strong transition duration-200 ease-snappy hover:bg-control-hover hover:text-fg-strong",
               detailWordWrap ? "bg-accent-soft text-fg-strong" : null
             )}
             role="menuitemcheckbox"
@@ -686,10 +686,10 @@ export const SessionSidebar = memo(function SessionSidebar({
   const collapseAllTitle = allVisibleProjectsCollapsed ? "Expand workdirs" : "Collapse workdirs";
 
   return (
-    <section className="flex min-h-0 flex-col border-r border-border-soft bg-app-panel">
+    <section className="flex min-h-0 flex-col border-r border-border-soft bg-app-panel md:rounded-lg md:border md:shadow-panel">
       <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border-soft px-3">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border-soft bg-fg-strong text-[11px] font-bold lowercase tracking-normal text-app-panel" aria-hidden="true">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border-strong bg-fg-strong text-[11px] font-bold lowercase tracking-normal text-app-panel shadow-control" aria-hidden="true">
             xyz
           </span>
           <span className="min-w-0">
@@ -733,7 +733,7 @@ export const SessionSidebar = memo(function SessionSidebar({
         </div>
       </div>
 
-      <label className="mx-3 mt-3 flex h-9 shrink-0 items-center gap-2 rounded-md border border-border-soft bg-field px-2.5 text-muted transition duration-150 ease-fluid focus-within:border-border">
+      <label className="mx-3 mt-3 flex h-9 shrink-0 items-center gap-2 rounded-md border border-border-soft bg-field px-2.5 text-muted shadow-control transition duration-200 ease-snappy focus-within:border-border-strong focus-within:bg-surface">
         <Search size={14} className="shrink-0" />
         <input
           className="min-w-0 flex-1 border-0 bg-transparent text-sm text-fg-strong placeholder:text-muted focus:outline-none"

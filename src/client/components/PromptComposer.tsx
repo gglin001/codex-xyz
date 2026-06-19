@@ -49,7 +49,7 @@ type PromptResizeState = {
 const compactPromptMinHeight = 38;
 const defaultPromptMinHeight = 88;
 const toolbarButtonClass =
-  "inline-flex h-8 min-w-8 items-center justify-center rounded-md border border-border-soft text-muted-strong transition duration-150 ease-fluid hover:border-border hover:bg-control-hover hover:text-fg-strong disabled:cursor-not-allowed disabled:opacity-35"
+  "inline-flex h-8 min-w-8 items-center justify-center rounded-md border border-border-soft bg-control/35 text-muted-strong shadow-control transition duration-200 ease-snappy hover:border-border hover:bg-control-hover hover:text-fg-strong disabled:cursor-not-allowed disabled:opacity-35"
 
 function getViewportHeight() {
   return window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 720;
@@ -69,9 +69,9 @@ function getPromptLayoutMaxHeight(textarea: HTMLTextAreaElement, viewportMaxHeig
 
 const WorkdirField = memo(function WorkdirField({ value, disabled, onChange }: WorkdirFieldProps) {
   return (
-    <div className="rounded-lg border border-border-soft bg-surface-subtle p-1">
-      <label className="flex h-9 items-center gap-2 rounded-md px-2 text-muted transition duration-150 ease-fluid focus-within:bg-field focus-within:text-muted-strong">
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-chip text-chip-fg">
+    <div className="rounded-lg border border-border-soft bg-surface-subtle/70 p-1 shadow-control">
+      <label className="flex h-9 items-center gap-2 rounded-md px-2 text-muted transition duration-200 ease-snappy focus-within:bg-field focus-within:text-muted-strong">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-chip text-chip-fg shadow-control">
           <FolderOpen size={14} />
         </span>
         <input
@@ -261,7 +261,7 @@ export const PromptComposer = memo(function PromptComposer({
       {!isExpanded ? (
         <button
           type="button"
-          className="flex h-11 w-full items-center gap-2 rounded-lg border border-border-soft bg-surface px-3 text-left text-sm font-medium text-muted-strong shadow-control transition duration-150 ease-fluid hover:border-border hover:bg-control-hover hover:text-fg-strong"
+          className="flex h-11 w-full items-center gap-2 rounded-lg border border-border-soft bg-surface px-3 text-left text-sm font-medium text-muted-strong shadow-control transition duration-200 ease-snappy hover:border-border hover:bg-control-hover hover:text-fg-strong"
           title={promptPlaceholder}
           aria-label={promptPlaceholder}
           onClick={expandComposer}
@@ -276,7 +276,7 @@ export const PromptComposer = memo(function PromptComposer({
           {promptTarget === "new" ? <WorkdirField value={workdir} disabled={busy} onChange={onWorkdirChange} /> : null}
 
           <form onSubmit={handleSubmit}>
-            <div className="relative overflow-hidden rounded-xl border border-border bg-surface shadow-control transition duration-150 ease-fluid focus-within:border-border-strong focus-within:ring-2 focus-within:ring-focus-ring/60">
+            <div className="relative overflow-hidden rounded-lg border border-border bg-surface shadow-panel transition duration-200 ease-snappy focus-within:border-border-strong focus-within:ring-2 focus-within:ring-focus-ring/60">
               <div
                 className="absolute inset-x-0 top-0 z-10 flex h-3 cursor-ns-resize items-start justify-center"
                 role="separator"
@@ -308,7 +308,7 @@ export const PromptComposer = memo(function PromptComposer({
                     <button
                       type="button"
                       className={cn(
-                        "inline-flex h-7 min-w-7 items-center justify-center rounded text-muted-strong transition hover:bg-control-hover hover:text-fg-strong",
+                        "inline-flex h-7 min-w-7 items-center justify-center rounded text-muted-strong transition duration-200 ease-snappy hover:bg-control-hover hover:text-fg-strong",
                         promptTarget === "new" ? "bg-control-hover text-fg-strong" : null
                       )}
                       title={newModeTitle}
@@ -355,7 +355,7 @@ export const PromptComposer = memo(function PromptComposer({
                 </div>
                 <button
                   className={cn(
-                    "inline-flex h-8 min-w-8 items-center justify-center rounded-md border border-transparent bg-accent px-2 text-accent-fg transition duration-150 ease-fluid hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-35",
+                    "inline-flex h-8 min-w-8 items-center justify-center rounded-md border border-transparent bg-accent px-2 text-accent-fg shadow-control transition duration-200 ease-snappy hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-35 active:scale-[0.98]",
                     canSubmitPrompt ? "shadow-control" : null
                   )}
                   disabled={!canSubmitPrompt}
