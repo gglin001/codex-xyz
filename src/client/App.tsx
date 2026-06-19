@@ -18,7 +18,6 @@ import { applyEventProjectionBatch, incrementalEventNames, type ClientProjection
 import { parseSseJsonEvent, useEventStreamSubscription } from "./eventStream.js";
 import { isMacTerminalToggleShortcut } from "./terminalShortcut.js";
 import { choosePreferredThreadId, shouldLoadThreadSelection, shouldSelectActionResult } from "./threadSelection.js";
-import { installPageZoomGuards } from "./zoomGuards.js"
 import type { DashboardState, ThreadDetail, XyzEvent } from "../server/domain.js";
 
 function initialState(): DashboardState {
@@ -327,8 +326,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
       // Keep the in-memory preference even if the browser blocks persistence.
     }
   }, [preferencesReady, wrapSessionContent]);
-
-  useEffect(() => installPageZoomGuards(window), [])
 
   useEffect(() => {
     const handleTerminalShortcut = (event: globalThis.KeyboardEvent) => {
