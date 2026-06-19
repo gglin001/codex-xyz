@@ -121,7 +121,7 @@ const CommandPalette = memo(function CommandPalette({
     <AnimatePresence>
       {open ? (
         <motion.div
-          className="fixed inset-0 z-[120] flex items-start justify-center bg-black/55 px-3 pt-[12vh] backdrop-blur-sm"
+          className="fixed inset-0 z-[120] flex items-start justify-center bg-black/60 px-3 pt-[12vh] backdrop-blur-sm"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -129,17 +129,17 @@ const CommandPalette = memo(function CommandPalette({
           onMouseDown={onClose}
         >
           <motion.div
-            className="w-full max-w-[640px] overflow-hidden rounded-xl border border-slate-800/90 bg-slate-950/95 shadow-2xl shadow-black/50 backdrop-blur-md"
+            className="w-full max-w-[640px] overflow-hidden rounded-[24px] border border-border bg-detail shadow-popover backdrop-blur-md"
             initial={{ opacity: 0, y: -18, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -18, scale: 0.97 }}
             transition={{ type: "spring", stiffness: 420, damping: 34 }}
             onMouseDown={(event) => event.stopPropagation()}
           >
-            <div className="flex h-13 items-center gap-3 border-b border-slate-800/80 px-4">
-              <Search size={17} className="text-slate-500" />
+            <div className="flex h-16 items-center gap-3 border-b border-border px-5">
+              <Search size={18} className="text-muted" />
               <input
-                className="h-12 min-w-0 flex-1 border-0 bg-transparent text-[15px] text-slate-100 placeholder:text-slate-600 focus:outline-none"
+                className="h-14 min-w-0 flex-1 border-0 bg-transparent text-[16px] text-fg-strong placeholder:text-muted focus:outline-none"
                 autoFocus
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -163,19 +163,19 @@ const CommandPalette = memo(function CommandPalette({
                   }
                 }}
               />
-              <span className="rounded border border-slate-800 bg-slate-900 px-1.5 py-1 font-mono text-[10px] text-slate-500">Esc</span>
+              <span className="rounded-full border border-border bg-control px-2 py-1 font-mono text-[10px] text-muted">Esc</span>
             </div>
-            <div className="max-h-[420px] overflow-y-auto p-1.5">
+            <div className="max-h-[420px] overflow-y-auto p-2">
               {filteredActions.length === 0 ? (
-                <div className="px-3 py-8 text-center text-[13px] text-slate-500">No commands found</div>
+                <div className="px-3 py-8 text-center text-[13px] text-muted">No commands found</div>
               ) : null}
               {filteredActions.map((action, index) => (
                 <button
                   key={action.id}
                   type="button"
                   className={cn(
-                    "flex h-12 w-full items-center gap-3 rounded-md px-3 text-left transition duration-150 ease-out",
-                    index === activeIndex ? "bg-slate-800/70 text-slate-100" : "text-slate-300 hover:bg-slate-800/45"
+                    "flex h-14 w-full items-center gap-3 rounded-[18px] px-3 text-left transition duration-150 ease-out",
+                    index === activeIndex ? "bg-[#383838] text-fg-strong" : "text-fg hover:bg-surface"
                   )}
                   onMouseEnter={() => setActiveIndex(index)}
                   onClick={() => {
@@ -183,12 +183,12 @@ const CommandPalette = memo(function CommandPalette({
                     onClose()
                   }}
                 >
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-800 bg-slate-900 text-slate-400">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border border-border bg-control text-muted-strong">
                     {commandIcon(action.icon)}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] font-medium">{action.title}</span>
-                    <span className="block truncate text-[11px] text-slate-500">{action.detail}</span>
+                    <span className="block truncate text-[14px] font-medium">{action.title}</span>
+                    <span className="block truncate text-[12px] text-muted">{action.detail}</span>
                   </span>
                 </button>
               ))}
@@ -378,7 +378,7 @@ export const DashboardLayout = memo(function DashboardLayout({
   )
 
   return (
-    <main className="h-dvh min-h-0 w-full overflow-hidden bg-slate-950 text-slate-200 antialiased">
+    <main className="h-dvh min-h-0 w-full overflow-hidden bg-app-bg text-fg antialiased">
       <div className="hidden h-full min-h-0 md:flex">
         <AnimatePresence initial={false}>
           {navigatorVisible ? (
@@ -386,7 +386,7 @@ export const DashboardLayout = memo(function DashboardLayout({
               key="desktop-sidebar"
               className="h-full min-h-0 shrink-0 overflow-hidden"
               initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 312, opacity: 1 }}
+              animate={{ width: 336, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={spring}
             >
@@ -435,7 +435,7 @@ export const DashboardLayout = memo(function DashboardLayout({
               key="desktop-inspector"
               className="h-full min-h-0 shrink-0 overflow-hidden"
               initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 308, opacity: 1 }}
+              animate={{ width: 360, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={spring}
             >
@@ -488,7 +488,7 @@ export const DashboardLayout = memo(function DashboardLayout({
       <AnimatePresence>
         {mobileNavigatorOpen ? (
           <motion.div
-            className="fixed inset-0 z-[90] bg-black/55 backdrop-blur-sm md:hidden"
+            className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm md:hidden"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -496,7 +496,7 @@ export const DashboardLayout = memo(function DashboardLayout({
             onMouseDown={() => setMobileNavigatorOpen(false)}
           >
             <motion.div
-              className="mt-14 h-[calc(100%-3.5rem)] w-[min(88vw,330px)] overflow-hidden border-r border-t border-slate-800/80 bg-slate-950 shadow-2xl"
+              className="h-full w-[min(88vw,360px)] overflow-hidden border-r border-border bg-panel shadow-popover"
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
@@ -538,7 +538,7 @@ export const DashboardLayout = memo(function DashboardLayout({
       <AnimatePresence>
         {mobileInspectorOpen ? (
           <motion.div
-            className="fixed inset-0 z-[95] flex items-end bg-black/55 backdrop-blur-sm md:hidden"
+            className="fixed inset-0 z-[95] flex items-end bg-black/60 backdrop-blur-sm md:hidden"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -546,7 +546,7 @@ export const DashboardLayout = memo(function DashboardLayout({
             onMouseDown={() => setMobileInspectorOpen(false)}
           >
             <motion.div
-              className="max-h-[calc(100dvh-3.5rem)] w-full overflow-hidden rounded-t-xl border-t border-slate-800/80 bg-slate-950 shadow-2xl"
+              className="max-h-[calc(100dvh-1.5rem)] w-full overflow-hidden rounded-t-[28px] border-t border-border bg-panel shadow-popover"
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}

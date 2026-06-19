@@ -41,13 +41,13 @@ const resizeFlushMs = 100;
 const metricsCommitMs = 500;
 
 const terminalStatusClass: Record<string, string> = {
-  idle: "bg-slate-800/80 text-slate-300",
-  connected: "bg-emerald-500/10 text-emerald-200",
-  running: "bg-emerald-500/10 text-emerald-200",
-  starting: "bg-violet-500/10 text-violet-200",
-  connecting: "bg-violet-500/10 text-violet-200",
-  reconnecting: "bg-violet-500/10 text-violet-200",
-  exited: "bg-slate-800/80 text-slate-300",
+  idle: "bg-control text-fg",
+  connected: "bg-emerald-400/12 text-emerald-100",
+  running: "bg-emerald-400/12 text-emerald-100",
+  starting: "bg-[#383838] text-fg-strong",
+  connecting: "bg-[#383838] text-fg-strong",
+  reconnecting: "bg-[#383838] text-fg-strong",
+  exited: "bg-control text-fg",
   failed: "bg-rose-500/10 text-rose-100",
   offline: "bg-rose-500/10 text-rose-100"
 };
@@ -66,18 +66,18 @@ const initialTerminalClientMetrics: TerminalClientMetrics = {
 
 function terminalTheme() {
   return {
-    background: "#020617",
-    foreground: "#cbd5e1",
-    cursor: "#34d399",
-    selectionBackground: "#1e293b",
-    black: "#0f172a",
+    background: "#171717",
+    foreground: "#d2d2d2",
+    cursor: "#cfd8ff",
+    selectionBackground: "#343a4d",
+    black: "#1f1f1f",
     red: "#fb7185",
-    green: "#34d399",
+    green: "#67d28f",
     yellow: "#fbbf24",
-    blue: "#93c5fd",
+    blue: "#9fb3ff",
     magenta: "#c4b5fd",
     cyan: "#67e8f9",
-    white: "#f8fafc"
+    white: "#f0f0f0"
   };
 }
 
@@ -471,15 +471,15 @@ export function TerminalDock({ visible, onClose }: TerminalDockProps) {
   }
 
   return (
-    <section className="fixed inset-x-3 bottom-3 z-[80] overflow-hidden rounded-lg border border-slate-800/90 bg-slate-950/95 shadow-2xl shadow-black/45 backdrop-blur-md" aria-label="Terminal">
-      <div className="flex h-11 items-center justify-between gap-3 border-b border-slate-800/80 px-3">
+    <section className="fixed inset-x-4 bottom-4 z-[80] overflow-hidden rounded-[24px] border border-border bg-detail shadow-popover backdrop-blur-md" aria-label="Terminal">
+      <div className="flex h-14 items-center justify-between gap-3 border-b border-border px-4">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-900 text-slate-300">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] bg-control text-fg">
             <TerminalIcon size={15} />
           </span>
-          <strong className="shrink-0 text-sm font-semibold text-slate-100">Terminal</strong>
+          <strong className="shrink-0 text-[15px] font-semibold text-fg-strong">Terminal</strong>
           <span className={cn("rounded-full px-2 py-1 text-[11px] font-semibold leading-none", terminalStatusClass[label] ?? terminalStatusClass.idle)}>{label}</span>
-          {snapshot ? <small className="min-w-0 truncate font-mono text-[11px] text-slate-500">{snapshot.command}</small> : null}
+          {snapshot ? <small className="min-w-0 truncate font-mono text-[11px] text-muted">{snapshot.command}</small> : null}
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <button className={iconButtonClass} type="button" title={startActionLabel} aria-label={startActionLabel} onClick={startOrAttach}>
@@ -500,13 +500,13 @@ export function TerminalDock({ visible, onClose }: TerminalDockProps) {
           </button>
         </div>
       </div>
-      <div className="flex h-8 min-w-0 items-center gap-2 overflow-hidden border-b border-slate-800/80 px-3 text-[11px] text-slate-500">
+      <div className="flex h-9 min-w-0 items-center gap-2 overflow-hidden border-b border-border px-4 text-[11px] text-muted">
         <span className="min-w-0 flex-1 truncate font-mono">{snapshot?.cwd ?? ""}</span>
         {snapshot?.pid ? <span className={pillClass}>pid {snapshot.pid}</span> : null}
         <span className={cn(pillClass, "hidden max-w-[42vw] truncate font-mono xl:inline-flex")} title={metricsTitle}>diagnostics</span>
         {error ? <span className="max-w-[34vw] truncate rounded-full bg-rose-500/10 px-2 py-1 font-medium text-rose-100">{error}</span> : null}
       </div>
-      <div className="h-[min(32dvh,320px)] min-h-[160px] bg-slate-950 p-2 [&_.xterm]:h-full [&_.xterm-screen]:will-change-transform [&_.xterm-viewport]:!bg-transparent" ref={containerRef} />
+      <div className="h-[min(32dvh,320px)] min-h-[160px] bg-[#171717] p-3 [&_.xterm]:h-full [&_.xterm-screen]:will-change-transform [&_.xterm-viewport]:!bg-transparent" ref={containerRef} />
     </section>
   );
 }

@@ -70,8 +70,12 @@ type ChatMessage = {
 }
 
 const spring = { type: "spring", stiffness: 340, damping: 34 } as const
-const sessionContentWidthClass = "[--session-content-width:860px]"
+const sessionContentWidthClass = "[--session-content-width:900px]"
 const sessionContentFrameClass = "mx-auto w-full min-w-0 max-w-[var(--session-content-width)]"
+const roundIconButtonClass =
+  "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] border border-border bg-control text-muted-strong shadow-control transition duration-150 ease-out hover:bg-control-hover hover:text-fg-strong disabled:cursor-not-allowed disabled:opacity-40 active:scale-[0.98]"
+const composerIconButtonClass =
+  "inline-flex h-10 min-w-10 items-center justify-center rounded-[16px] border border-transparent bg-control text-fg transition duration-150 ease-out hover:bg-control-hover hover:text-fg-strong disabled:cursor-not-allowed disabled:opacity-35 active:scale-[0.98]"
 
 function SessionContentFrame({
   children,
@@ -141,7 +145,7 @@ const CopyTextButton = memo(function CopyTextButton({
   return (
     <button
       type="button"
-      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-slate-500 transition duration-150 ease-out hover:bg-slate-800 hover:text-slate-100"
+      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-muted transition duration-150 ease-out hover:bg-control hover:text-fg-strong"
       title={label}
       aria-label={label}
       onClick={copyValue}
@@ -162,38 +166,38 @@ const MessageBlock = memo(function MessageBlock({
   const preview = getFirstLineTextPreview(message.text || "Pending...")
 
   return (
-    <article className="group min-w-0 border-b border-slate-800/45 pb-5">
-      <div className="flex w-full items-center gap-2 rounded-md px-2 py-0.5 transition duration-150 ease-out hover:bg-slate-900/35">
+    <article className="group min-w-0 overflow-hidden rounded-[18px] border border-border bg-detail shadow-control transition duration-150 ease-out hover:border-border-strong">
+      <div className="flex min-h-11 w-full items-center gap-2 border-b border-border bg-detail transition duration-150 ease-out hover:bg-surface">
         <button
           type="button"
-          className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left"
+          className="flex min-h-11 min-w-0 flex-1 items-center justify-between gap-3 px-4 text-left"
           aria-expanded={expanded}
           onClick={() => setExpanded((current) => !current)}
         >
           <span className="min-w-0">
-            <span className="block truncate text-[13px] font-semibold text-slate-100">{message.title}</span>
+            <span className="block truncate text-[14px] font-medium text-fg">{message.title}</span>
           </span>
           <ChevronDown
-            size={14}
-            className={cn("shrink-0 text-slate-500 transition-transform duration-150 ease-out", expanded ? "rotate-180" : null)}
+            size={17}
+            className={cn("shrink-0 text-muted transition-transform duration-150 ease-out", expanded ? "rotate-180" : null)}
           />
         </button>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <span className="whitespace-nowrap text-[11px] text-slate-600">{messageMeta(message)}</span>
+        <div className="flex shrink-0 items-center gap-1.5 pr-2">
+          <span className="whitespace-nowrap text-[12px] text-muted">{messageMeta(message)}</span>
           <CopyTextButton value={message.copyText} />
         </div>
       </div>
       {!expanded ? (
-        <div className="px-2">
-          <div className="truncate text-[12px] leading-5 text-slate-500">{preview}</div>
+        <div className="px-4 py-3">
+          <div className="truncate text-[13px] leading-6 text-muted">{preview}</div>
         </div>
       ) : null}
 
       {expanded ? (
-        <div className="mt-2 min-w-0 px-2">
+        <div className="min-w-0 px-4 py-4">
           {message.text ? (
             <div className={cn(
-              "text-[14px] leading-6 text-slate-300",
+              "text-[16px] leading-8 text-fg",
               wrapContent ? "whitespace-pre-wrap break-words" : "overflow-x-auto whitespace-pre"
           )}>{message.text}</div>
           ) : null}
@@ -214,39 +218,39 @@ const ProcessItemBlock = memo(function ProcessItemBlock({
   const preview = getFirstLineTextPreview(message.text || "Pending...")
 
   return (
-    <div className="min-w-0 rounded-md border border-slate-800/75 bg-slate-950/45">
-      <div className="flex w-full items-center gap-2 px-3 py-1 transition duration-150 ease-out hover:bg-slate-900/65">
+    <div className="min-w-0 overflow-hidden rounded-[14px] border border-border bg-detail">
+      <div className="flex min-h-9 w-full items-center gap-2 transition duration-150 ease-out hover:bg-surface">
         <button
           type="button"
-          className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left"
+          className="flex min-h-9 min-w-0 flex-1 items-center justify-between gap-3 px-3 text-left"
           aria-expanded={expanded}
           onClick={() => setExpanded((current) => !current)}
         >
           <span className="min-w-0">
-            <span className="block truncate text-[12px] font-semibold text-slate-200">{message.title}</span>
+            <span className="block truncate text-[12px] font-medium text-fg">{message.title}</span>
           </span>
           <ChevronDown
             size={14}
-            className={cn("shrink-0 text-slate-500 transition-transform duration-150 ease-out", expanded ? "rotate-180" : null)}
+            className={cn("shrink-0 text-muted transition-transform duration-150 ease-out", expanded ? "rotate-180" : null)}
           />
         </button>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <span className="whitespace-nowrap text-[11px] text-slate-600">{messageMeta(message)}</span>
+        <div className="flex shrink-0 items-center gap-1 pr-1.5">
+          <span className="whitespace-nowrap text-[10px] text-muted">{messageMeta(message)}</span>
           <CopyTextButton value={message.copyText} />
         </div>
       </div>
 
       {!expanded ? (
-        <div className="px-3 pb-1.5">
-          <div className="truncate text-[12px] leading-5 text-slate-500">{preview}</div>
+        <div className="px-3 pb-2">
+          <div className="truncate text-[12px] leading-5 text-muted">{preview}</div>
         </div>
       ) : null}
 
       {expanded ? (
-        <div className="min-w-0 border-t border-slate-800/60 p-3">
+        <div className="min-w-0 border-t border-border p-3">
           {message.text ? (
             <div className={cn(
-              "text-[13px] leading-5 text-slate-300",
+              "text-[14px] leading-6 text-fg",
               wrapContent ? "whitespace-pre-wrap break-words" : "overflow-x-auto whitespace-pre"
           )}>{message.text}</div>
           ) : null}
@@ -271,42 +275,60 @@ const ProcessOutputBlock = memo(function ProcessOutputBlock({
   const copyText = useMemo(() => entry.items.map((item) => item.text).filter(Boolean).join("\n\n"), [entry.items])
 
   return (
-    <article className="group min-w-0 border-b border-slate-800/45 pb-5">
-      <div className="flex w-full items-center gap-2 rounded-md border border-slate-800/80 bg-slate-900/35 px-3 py-1.5 transition duration-150 ease-out hover:border-slate-700 hover:bg-slate-800/55">
+    <article className="group min-w-0">
+      <div className="overflow-hidden rounded-[18px] border border-border bg-detail shadow-panel transition duration-150 ease-out hover:border-border-strong">
+        <div className="flex min-h-12 w-full items-center gap-2 transition duration-150 ease-out hover:bg-surface">
         <button
           type="button"
-          className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left"
+          className="flex min-h-12 min-w-0 flex-1 items-center justify-between gap-3 px-4 text-left"
           aria-expanded={expanded}
           onClick={() => setExpanded((current) => !current)}
         >
           <span className="min-w-0">
-            <span className="block truncate text-[13px] font-semibold text-slate-100">Thoughts</span>
+            <span className="block truncate text-[16px] font-semibold text-fg-strong">Thoughts</span>
           </span>
           <ChevronDown
-            size={14}
-            className={cn("shrink-0 text-slate-500 transition-transform duration-150 ease-out", expanded ? "rotate-180" : null)}
+            size={17}
+            className={cn("shrink-0 text-muted-strong transition-transform duration-150 ease-out", expanded ? "rotate-180" : null)}
           />
         </button>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <span className="whitespace-nowrap text-[11px] text-slate-500">{metaLabel}</span>
+        <div className="flex shrink-0 items-center gap-1.5 pr-2">
+          <span className="hidden whitespace-nowrap text-[11px] text-muted sm:inline">{metaLabel}</span>
           <CopyTextButton value={copyText || preview} />
         </div>
       </div>
 
       {!expanded ? (
-        <div className="mt-2 truncate px-1 text-[12px] leading-5 text-slate-500">{preview}</div>
+          <button
+            type="button"
+            className="flex min-h-11 w-full items-center justify-between gap-4 border-t border-border px-4 py-2.5 text-left text-[14px] text-fg transition duration-150 ease-out hover:bg-surface"
+            onClick={() => setExpanded(true)}
+          >
+            <span className="min-w-0 truncate">Expand to view model thoughts</span>
+            <ChevronDown size={16} className="shrink-0 text-muted-strong" />
+          </button>
       ) : (
-        <div className="relative mt-3 grid min-w-0 gap-2 pl-6 pr-2 before:absolute before:bottom-5 before:left-2.5 before:top-0 before:w-px before:bg-slate-800/80">
-          {messages.map((message) => (
-            <div key={message.id} className="relative min-w-0 before:absolute before:left-[-14px] before:top-5 before:h-px before:w-3 before:bg-slate-800/80">
-              <ProcessItemBlock
-                message={message}
-                wrapContent={wrapContent}
-              />
+          <>
+            <div className="grid min-w-0 gap-2 px-4 pb-4">
+              {messages.map((message) => (
+                <ProcessItemBlock
+                  key={message.id}
+                  message={message}
+                  wrapContent={wrapContent}
+                />
+              ))}
             </div>
-          ))}
-        </div>
+            <button
+              type="button"
+              className="flex min-h-11 w-full items-center justify-between gap-4 border-t border-border px-4 py-2.5 text-left text-[14px] text-fg transition duration-150 ease-out hover:bg-surface"
+              onClick={() => setExpanded(false)}
+            >
+              <span className="min-w-0 truncate">Collapse to hide model thoughts</span>
+              <ChevronDown size={16} className="shrink-0 rotate-180 text-muted-strong" />
+            </button>
+          </>
       )}
+      </div>
     </article>
   )
 })
@@ -319,14 +341,14 @@ const EmptyTranscript = memo(function EmptyTranscript({
   projectPath: string
 }) {
   return (
-    <div className="rounded-lg border border-dashed border-slate-800/80 bg-slate-900/25 px-4 py-10 text-center">
-      <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-md border border-slate-800 bg-slate-950 text-slate-500">
+    <div className="rounded-[24px] border border-dashed border-border bg-detail px-5 py-12 text-center shadow-control">
+      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-[18px] border border-border bg-control text-muted-strong">
         <Bot size={18} />
       </div>
-      <h2 className="text-[14px] font-semibold text-slate-200">
+      <h2 className="text-[16px] font-semibold text-fg-strong">
         {hasThread ? "Waiting for Codex transcript" : "No Codex session selected"}
       </h2>
-      <p className="mx-auto mt-2 max-w-md text-[13px] leading-5 text-slate-500">
+      <p className="mx-auto mt-2 max-w-md text-[14px] leading-6 text-muted">
         {hasThread
           ? "This app-server thread has no persisted transcript items yet. Send a prompt or resume the session to continue."
           : `Create a Codex app-server session for ${projectPath} or select an existing thread from the navigator.`}
@@ -388,7 +410,7 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
   const placeholder = goalMode
     ? "Describe the goal objective"
     : promptTarget === "thread"
-      ? "Ask Codex to continue this session"
+      ? "Start typing a prompt"
       : "Start a new Codex session"
 
   useImperativeHandle(ref, () => ({
@@ -410,7 +432,7 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
       return
     }
     textarea.style.height = "0px"
-    textarea.style.height = `${Math.min(220, Math.max(52, textarea.scrollHeight))}px`
+    textarea.style.height = `${Math.min(180, Math.max(32, textarea.scrollHeight))}px`
   }, [prompt])
 
   const focusPromptOnNextFrame = useCallback(() => {
@@ -428,18 +450,18 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
   return (
     <div>
       {(busyAction || notice || error) ? (
-        <div className="mb-2 grid gap-1.5 text-[12px]">
-          {busyAction ? <div className="rounded-md border border-slate-800 bg-slate-900/70 px-3 py-2 text-slate-300">{busyAction}...</div> : null}
-          {notice ? <div className="rounded-md border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-emerald-100">{notice}</div> : null}
-          {error ? <div className="rounded-md border border-rose-500/25 bg-rose-500/10 px-3 py-2 text-rose-100">{error}</div> : null}
+        <div className="mb-3 grid gap-2 text-[13px]">
+          {busyAction ? <div className="rounded-[18px] border border-border bg-detail px-4 py-3 text-fg">{busyAction}...</div> : null}
+          {notice ? <div className="rounded-[18px] border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-emerald-100">{notice}</div> : null}
+          {error ? <div className="rounded-[18px] border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-rose-100">{error}</div> : null}
         </div>
       ) : null}
 
       {promptTarget === "new" ? (
-        <label className="mb-2 flex h-9 items-center gap-2 rounded-md border border-slate-800/80 bg-slate-950/70 px-3 text-slate-500 transition duration-150 ease-out focus-within:border-slate-700 focus-within:text-slate-300">
+        <label className="mb-3 flex h-11 items-center gap-3 rounded-[18px] border border-border bg-field px-4 text-muted transition duration-150 ease-out focus-within:border-border-strong focus-within:text-fg">
           <Code2 size={15} />
           <input
-            className="min-w-0 flex-1 border-0 bg-transparent font-mono text-[12px] text-slate-200 placeholder:text-slate-600 focus:outline-none"
+            className="min-w-0 flex-1 border-0 bg-transparent font-mono text-[13px] text-fg placeholder:text-muted focus:outline-none"
             value={workdir}
             onChange={(event) => onWorkdirChange(event.target.value)}
             placeholder="/path/to/repo"
@@ -450,23 +472,23 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
       ) : null}
 
       <form onSubmit={onPromptSubmit}>
-        <div className="overflow-hidden rounded-lg border border-slate-800/90 bg-slate-900/55 shadow-2xl shadow-black/20 transition duration-150 ease-out focus-within:border-slate-700 focus-within:ring-2 focus-within:ring-emerald-500/10">
+        <div className="grid min-h-[112px] gap-2 rounded-[24px] border border-border-strong bg-surface px-4 py-3 shadow-panel transition duration-150 ease-out focus-within:border-white/20 focus-within:ring-2 focus-within:ring-focus-ring">
           <textarea
             ref={textareaRef}
-            className="block max-h-[220px] min-h-[52px] w-full resize-none border-0 bg-transparent px-4 py-3 text-[14px] leading-6 text-slate-100 placeholder:text-slate-600 focus:outline-none disabled:opacity-60"
+            className="block max-h-[180px] min-h-8 w-full resize-none border-0 bg-transparent px-1 py-1 text-[20px] leading-8 text-fg-strong placeholder:text-muted focus:outline-none disabled:opacity-60"
             value={prompt}
             onChange={(event) => onPromptChange(event.target.value)}
             onKeyDown={onPromptKeyDown}
             placeholder={placeholder}
             disabled={busy}
           />
-          <div className="flex items-center justify-between gap-2 border-t border-slate-800/70 bg-slate-950/40 px-2 py-2">
-            <div className="flex min-w-0 items-center gap-1.5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
               <button
                 type="button"
                 className={cn(
-                  "inline-flex h-8 min-w-8 items-center justify-center rounded-md text-slate-500 transition duration-150 ease-out hover:bg-slate-800/70 hover:text-slate-100",
-                  promptTarget === "new" ? "bg-slate-800/70 text-slate-100" : null
+                  composerIconButtonClass,
+                  promptTarget === "new" ? "border-white/15 bg-[#444444] text-fg-strong shadow-[0_0_0_1px_rgba(255,255,255,0.08)]" : null
                 )}
                 title="New session"
                 aria-label="New session"
@@ -482,8 +504,8 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
               <button
                 type="button"
                 className={cn(
-                  "inline-flex h-8 min-w-8 items-center justify-center rounded-md text-slate-500 transition duration-150 ease-out hover:bg-slate-800/70 hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-35",
-                  goalMode ? "bg-emerald-500/10 text-emerald-200" : null
+                  composerIconButtonClass,
+                  goalMode ? "border-white/15 bg-[#444444] text-fg-strong shadow-[0_0_0_1px_rgba(255,255,255,0.08)]" : null
                 )}
                 title="Goal mode"
                 aria-label="Goal mode"
@@ -495,7 +517,7 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
               </button>
               <button
                 type="button"
-                className="inline-flex h-8 min-w-8 items-center justify-center rounded-md text-slate-500 transition duration-150 ease-out hover:bg-slate-800/70 hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-35"
+                className={composerIconButtonClass}
                 title="Interrupt"
                 aria-label="Interrupt"
                 disabled={!canInterrupt}
@@ -505,7 +527,7 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
               </button>
               <button
                 type="button"
-                className="inline-flex h-8 min-w-8 items-center justify-center rounded-md text-slate-500 transition duration-150 ease-out hover:bg-slate-800/70 hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-35"
+                className={composerIconButtonClass}
                 title="Resume"
                 aria-label="Resume"
                 disabled={!canResume}
@@ -515,11 +537,12 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
               </button>
             </div>
             <button
-              className="inline-flex h-8 min-w-8 items-center justify-center rounded-md bg-emerald-500 px-2 text-slate-950 transition duration-150 ease-out hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-600"
+              className="inline-flex h-10 min-w-[86px] shrink-0 items-center justify-center gap-2 rounded-[18px] border border-border bg-[#303030] px-4 text-[15px] font-semibold text-fg transition duration-150 ease-out hover:bg-[#3a3a3a] hover:text-fg-strong disabled:cursor-not-allowed disabled:border-border-soft disabled:bg-[#222222] disabled:text-[#4f4f4f]"
               disabled={!canSubmitPrompt}
               title={submitTitle}
               aria-label={submitTitle}
             >
+              <span>Run</span>
               <Send size={15} />
             </button>
           </div>
@@ -571,14 +594,14 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
   }), [])
 
   return (
-    <section className={cn("flex h-full min-h-0 min-w-0 flex-col bg-slate-950 text-slate-200", sessionContentWidthClass)}>
-      <header className="relative z-[110] flex h-14 shrink-0 items-center justify-between gap-3 border-b border-slate-800/80 bg-slate-950/75 px-3 backdrop-blur-md md:px-4">
-        <div className="flex min-w-0 items-center gap-2">
+    <section className={cn("flex h-full min-h-0 min-w-0 flex-col bg-app-bg text-fg", sessionContentWidthClass)}>
+      <header className="relative z-[110] flex h-[72px] shrink-0 items-center justify-between gap-4 bg-app-bg px-4 md:px-6">
+        <div className="flex min-w-0 items-center gap-4">
           <button
             type="button"
             className={cn(
-              "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-800/80 text-slate-400 transition duration-150 ease-out hover:bg-slate-800/60 hover:text-slate-100",
-              navigatorVisible ? "bg-slate-800/70 text-slate-100" : "bg-slate-900/50"
+              roundIconButtonClass,
+              navigatorVisible ? "bg-control-hover text-fg-strong" : null
             )}
             title={navigatorVisible ? "Hide sessions" : "Open sessions"}
             aria-label={navigatorVisible ? "Hide sessions" : "Open sessions"}
@@ -588,22 +611,20 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
             {navigatorVisible ? <PanelLeftClose size={17} /> : <Menu size={17} />}
           </button>
           <div className="min-w-0">
-            <h1 className="truncate text-[14px] font-semibold text-slate-100">{title}</h1>
-            <p className="truncate text-[11px] text-slate-500">{subtitle}</p>
+            <h1 className="truncate text-[22px] font-semibold text-fg-strong">{title}</h1>
+            <p className="truncate text-[14px] text-muted">{formatTokens(tokens)} tokens / {subtitle}</p>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <div className="hidden items-center gap-2 rounded-md border border-slate-800/80 bg-slate-900/45 px-2.5 py-1.5 text-[11px] text-slate-500 sm:flex">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+        <div className="flex shrink-0 items-center gap-3">
+          <div className="hidden h-10 items-center gap-2 rounded-full border border-border bg-detail px-3 text-[12px] text-muted sm:flex">
+            <span className="h-2 w-2 rounded-full bg-running-dot" />
             <span>{statusLabel(status)}</span>
-            <span className="text-slate-700">/</span>
-            <span>{formatTokens(tokens)} tokens</span>
           </div>
           <button
             type="button"
             className={cn(
-              "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-800/80 text-slate-400 transition duration-150 ease-out hover:bg-slate-800/60 hover:text-slate-100",
-              inspectorVisible ? "bg-slate-800/70 text-slate-100" : "bg-slate-900/50"
+              roundIconButtonClass,
+              inspectorVisible ? "bg-control-hover text-fg-strong" : null
             )}
             title={inspectorVisible ? "Hide settings" : "Open settings"}
             aria-label={inspectorVisible ? "Hide settings" : "Open settings"}
@@ -622,9 +643,9 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
           transition={spring}
         >
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 md:px-8">
-            <SessionContentFrame className="grid gap-5">
-              <div className="grid gap-2 border-b border-slate-800/50 pb-4">
-                <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.08em] text-slate-600">
+            <SessionContentFrame className="grid gap-8">
+              <div className="grid gap-2 pb-2">
+                <div className="flex flex-wrap items-center gap-2 text-[13px] text-muted">
                   <span>{project?.name ?? "Workspace"}</span>
                   <span>/</span>
                   <span>{detail ? formatDateTime(detail.updatedAt) : "app-server"}</span>
@@ -670,7 +691,7 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
             </SessionContentFrame>
           </div>
 
-          <div className="shrink-0 border-t border-slate-800/80 bg-slate-950/75 px-4 py-3 backdrop-blur-md md:px-8">
+          <div className="shrink-0 bg-app-bg px-4 pb-4 pt-3 md:px-8">
             <SessionContentFrame>
               <Composer
                 ref={composerRef}
