@@ -1,6 +1,5 @@
 import {
   Check,
-  ChevronDown,
   ChevronRight,
   FolderOpen,
   Loader2,
@@ -12,6 +11,7 @@ import {
   Terminal,
   WrapText
 } from "lucide-react";
+import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 import type { FocusEvent, KeyboardEvent } from "react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ControlThread } from "../../server/domain.js";
@@ -24,6 +24,7 @@ import {
   statusToneClass,
   subtleIconButtonClass
 } from "../classNames.js";
+import { fadePresence, quickEase, smoothSpring, softSpring } from "../motion.js";
 import type { SessionListModel, SessionProjectGroup } from "../sessionList.js";
 import { formatDateTime, formatTokens, statusLabel, statusTone } from "../uiFormat.js";
 import type { ThemeMode } from "./types.js";
@@ -246,7 +247,7 @@ const ProjectGroupHeading = memo(function ProjectGroupHeading({
   const updatedAt = formatDateTime(group.updatedAt);
 
   return (
-    <button
+    <motion.button
       type="button"
       className={cn(
         "group flex h-full w-full items-center gap-2 rounded-md px-2 text-left transition duration-200 ease-snappy hover:bg-control-hover",
@@ -254,10 +255,15 @@ const ProjectGroupHeading = memo(function ProjectGroupHeading({
       )}
       aria-expanded={!collapsed}
       title={projectHeadingTitle(group)}
+      whileHover={{ x: 1 }}
+      whileTap={{ scale: 0.99 }}
+      transition={quickEase}
       onClick={() => onToggleProject(group.id)}
     >
       <span className="flex h-5 w-5 shrink-0 items-center justify-center text-muted transition group-hover:text-fg" aria-hidden="true">
-        {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+        <motion.span animate={{ rotate: collapsed ? 0 : 90 }} transition={quickEase}>
+          <ChevronRight size={14} />
+        </motion.span>
       </span>
       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-border-soft bg-surface-subtle text-muted-strong shadow-control" aria-hidden="true">
         <FolderOpen size={15} />
@@ -274,7 +280,7 @@ const ProjectGroupHeading = memo(function ProjectGroupHeading({
           {updatedAt}
         </time>
       </span>
-    </button>
+    </motion.button>
   );
 });
 
@@ -295,19 +301,35 @@ const SessionRow = memo(function SessionRow({
   const rowTitle = `${thread.preview || thread.cwd || thread.title}\nUpdated ${visibleUpdatedAt}`;
 
   return (
-    <button
+    <motion.button
+      type="button"
       className={cn(
-        "group flex h-full w-full flex-col justify-center gap-1 rounded-md px-2.5 py-1.5 text-left transition duration-200 ease-snappy hover:bg-control-hover",
-        selected ? "bg-accent-soft text-fg-strong ring-1 ring-border shadow-control" : "text-fg"
+        "group relative flex h-full w-full flex-col justify-center gap-1 overflow-hidden rounded-md px-2.5 py-1.5 text-left transition duration-200 ease-snappy hover:bg-control-hover",
+        selected ? "text-fg-strong ring-1 ring-border shadow-control" : "text-fg"
       )}
+      whileHover={{ x: 1 }}
+      whileTap={{ scale: 0.992 }}
+      transition={quickEase}
       onClick={() => {
         void onSelectThread(thread.id);
       }}
       aria-pressed={selected}
       title={rowTitle}
     >
-      <span className="flex min-w-0 items-start gap-2">
-        <span className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full ring-2 ring-app-panel", statusDotClass[thread.status])} />
+      {selected ? (
+        <motion.span
+          layoutId="selected-session-row"
+          className="absolute inset-0 rounded-md bg-accent-soft"
+          transition={smoothSpring}
+          aria-hidden="true"
+        />
+      ) : null}
+      <span className="relative z-10 flex min-w-0 items-start gap-2">
+        <motion.span
+          className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full ring-2 ring-app-panel", statusDotClass[thread.status])}
+          animate={thread.status === "running" ? { scale: [1, 1.28, 1], opacity: [0.78, 1, 0.78] } : { scale: 1, opacity: 1 }}
+          transition={thread.status === "running" ? { duration: 1.35, repeat: Infinity, ease: "easeInOut" } : quickEase}
+        />
         <span className="min-w-0 flex-1">
           <span className="flex min-w-0 items-center gap-2">
             <strong className="min-w-0 flex-1 truncate text-[13px] font-semibold leading-5 text-fg-strong">{thread.title}</strong>
@@ -324,7 +346,7 @@ const SessionRow = memo(function SessionRow({
       {hasGoal ? (
         <span
           className={cn(
-            "flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] shadow-control",
+            "relative z-10 flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] shadow-control",
             thread.goalStatus ? goalClass[thread.goalStatus] : "border-border-soft bg-chip text-chip-fg"
           )}
           title={thread.goalObjective ?? undefined}
@@ -341,7 +363,7 @@ const SessionRow = memo(function SessionRow({
           ) : null}
         </span>
       ) : null}
-    </button>
+    </motion.button>
   );
 });
 
@@ -470,32 +492,37 @@ const VirtualSessionList = memo(function VirtualSessionList({
               className="absolute inset-x-0 px-1"
               style={{ height, transform: `translateY(${top}px)` }}
             >
-              {entry.kind === "empty" ? <div className="flex h-full items-center justify-center rounded-md border border-dashed border-border-soft bg-surface-subtle/45 text-sm text-muted">{entry.label}</div> : null}
-              {entry.kind === "project" ? (
-                <ProjectGroupHeading
-                  group={entry.group}
-                  collapsed={entry.collapsed}
-                  containsSelected={entry.containsSelected}
-                  onToggleProject={onToggleProject}
-                />
-              ) : null}
-              {entry.kind === "thread" ? (
-                <SessionRow
-                  thread={entry.thread}
-                  selected={entry.thread.id === selectedThreadId}
-                  onSelectThread={onSelectThread}
-                />
-              ) : null}
-              {entry.kind === "loadMore" ? (
-                <button
-                  type="button"
-                  className="h-9 w-full rounded-md border border-border-soft bg-surface-subtle px-3 text-sm text-muted-strong shadow-control transition duration-200 ease-snappy hover:border-border hover:bg-control-hover disabled:cursor-wait disabled:opacity-70"
-                  disabled={entry.loading}
-                  onClick={onLoadMoreThreads}
-                >
-                  {entry.loading ? "Loading more sessions..." : "Load more sessions"}
-                </button>
-              ) : null}
+              <motion.div className="h-full" variants={fadePresence} initial="initial" animate="animate" transition={quickEase}>
+                {entry.kind === "empty" ? <div className="flex h-full items-center justify-center rounded-md border border-dashed border-border-soft bg-surface-subtle/45 text-sm text-muted">{entry.label}</div> : null}
+                {entry.kind === "project" ? (
+                  <ProjectGroupHeading
+                    group={entry.group}
+                    collapsed={entry.collapsed}
+                    containsSelected={entry.containsSelected}
+                    onToggleProject={onToggleProject}
+                  />
+                ) : null}
+                {entry.kind === "thread" ? (
+                  <SessionRow
+                    thread={entry.thread}
+                    selected={entry.thread.id === selectedThreadId}
+                    onSelectThread={onSelectThread}
+                  />
+                ) : null}
+                {entry.kind === "loadMore" ? (
+                  <motion.button
+                    type="button"
+                    className="h-9 w-full rounded-md border border-border-soft bg-surface-subtle px-3 text-sm text-muted-strong shadow-control transition duration-200 ease-snappy hover:border-border hover:bg-control-hover disabled:cursor-wait disabled:opacity-70"
+                    disabled={entry.loading}
+                    whileHover={{ y: -1 }}
+                    whileTap={{ scale: 0.99 }}
+                    transition={quickEase}
+                    onClick={onLoadMoreThreads}
+                  >
+                    {entry.loading ? "Loading more sessions..." : "Load more sessions"}
+                  </motion.button>
+                ) : null}
+              </motion.div>
             </div>
           );
         })}
@@ -546,9 +573,18 @@ function SidebarSettingsMenu({
       >
         <Settings size={16} />
       </button>
-      {open ? (
-        <div className="absolute right-0 top-10 z-40 w-48 rounded-lg border border-border bg-surface/95 p-1 shadow-popover backdrop-blur-xl" role="menu" aria-label="Settings">
-          <button
+      <AnimatePresence>
+        {open ? (
+          <motion.div
+            className="absolute right-0 top-10 z-40 w-48 origin-top-right rounded-lg border border-border bg-surface/95 p-1 shadow-popover backdrop-blur-xl"
+            role="menu"
+            aria-label="Settings"
+            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            transition={quickEase}
+          >
+          <motion.button
             type="button"
             className={cn(
               "flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-muted-strong transition duration-200 ease-snappy hover:bg-control-hover hover:text-fg-strong",
@@ -556,6 +592,9 @@ function SidebarSettingsMenu({
             )}
             role="menuitemcheckbox"
             aria-checked={theme === "dark"}
+            whileHover={{ x: 1 }}
+            whileTap={{ scale: 0.99 }}
+            transition={quickEase}
             onClick={() => onThemeChange(nextTheme)}
           >
             <Moon size={15} />
@@ -563,8 +602,8 @@ function SidebarSettingsMenu({
             <span className="ml-auto flex h-5 w-5 items-center justify-center" aria-hidden="true">
               {theme === "dark" ? <Check size={15} /> : null}
             </span>
-          </button>
-          <button
+          </motion.button>
+          <motion.button
             type="button"
             className={cn(
               "flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-muted-strong transition duration-200 ease-snappy hover:bg-control-hover hover:text-fg-strong",
@@ -572,6 +611,9 @@ function SidebarSettingsMenu({
             )}
             role="menuitemcheckbox"
             aria-checked={detailWordWrap}
+            whileHover={{ x: 1 }}
+            whileTap={{ scale: 0.99 }}
+            transition={quickEase}
             onClick={() => onDetailWordWrapChange(!detailWordWrap)}
           >
             <WrapText size={15} />
@@ -579,9 +621,10 @@ function SidebarSettingsMenu({
             <span className="ml-auto flex h-5 w-5 items-center justify-center" aria-hidden="true">
               {detailWordWrap ? <Check size={15} /> : null}
             </span>
-          </button>
-        </div>
-      ) : null}
+          </motion.button>
+        </motion.div>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 }
@@ -683,7 +726,12 @@ export const SessionSidebar = memo(function SessionSidebar({
   const collapseAllTitle = allVisibleProjectsCollapsed ? "Expand workdirs" : "Collapse workdirs";
 
   return (
-    <section className="flex min-h-0 flex-col border-r border-border-soft bg-app-panel md:rounded-lg md:border md:shadow-panel">
+    <LayoutGroup id="session-sidebar">
+      <motion.section
+        layout
+        className="flex h-full min-h-0 flex-col border-r border-border-soft bg-app-panel md:rounded-lg md:border md:shadow-panel"
+        transition={softSpring}
+      >
       <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border-soft px-3">
         <div className="flex min-w-0 items-center gap-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border-strong bg-fg-strong text-[11px] font-bold lowercase tracking-normal text-app-panel shadow-control" aria-hidden="true">
@@ -754,7 +802,9 @@ export const SessionSidebar = memo(function SessionSidebar({
           disabled={sessionList.hasQuery || collapsibleProjectCount === 0}
           onClick={toggleAllProjects}
         >
-          {allVisibleProjectsCollapsed ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          <motion.span animate={{ rotate: allVisibleProjectsCollapsed ? 90 : 0 }} transition={quickEase}>
+            <ChevronRight size={14} />
+          </motion.span>
         </button>
       </div>
 
@@ -768,6 +818,7 @@ export const SessionSidebar = memo(function SessionSidebar({
         onLoadMoreThreads={onLoadMoreThreads}
         onSelectThread={onSelectThread}
       />
-    </section>
+      </motion.section>
+    </LayoutGroup>
   );
 });

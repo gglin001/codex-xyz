@@ -2,6 +2,7 @@
 
 import type { CSSProperties, FormEvent, KeyboardEvent } from "react";
 import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { SidebarOpen } from "lucide-react";
 import {
   apiUrl,
@@ -21,6 +22,7 @@ import { ThreadDetailView } from "./components/ThreadDetailView.js";
 import type { ComposerMode, MobileView, ThemeMode } from "./components/types.js";
 import { applyEventProjectionBatch, incrementalEventNames, type ClientProjection } from "./eventProjection.js";
 import { getSessionListModel } from "./sessionList.js";
+import { panelPresence, quickEase, softSpring } from "./motion.js";
 import { isMacTerminalToggleShortcut } from "./terminalShortcut.js";
 import { choosePreferredThreadId, shouldLoadThreadSelection, shouldSelectActionResult } from "./threadSelection.js";
 import { installPageZoomGuards } from "./zoomGuards.js"
@@ -988,107 +990,155 @@ export function App({ initialState: serverInitialState }: AppProps) {
   ) : null;
 
   return (
-    <main
-      className="grid h-dvh min-h-0 w-full grid-rows-[minmax(0,1fr)_auto] overflow-hidden bg-app-bg text-fg antialiased"
-      data-theme={theme}
-      data-mobile-view={mobileView}
-      data-terminal-visible={terminalVisible}
-      data-viewport-width={viewportProfile.widthProfile}
-      data-viewport-height={viewportProfile.heightProfile}
-      data-ui-density={viewportProfile.density}
-      data-keyboard-visible={viewportProfile.keyboardVisible}
-      data-sidebar-visible={sidebarVisible}
-      style={viewportProfile.style}
-    >
-      <div
-        className={cn(
-          "relative grid h-full min-h-0 overflow-hidden bg-app-bg text-fg transition-[grid-template-columns,padding] duration-300 ease-snappy",
-          isMobileViewport
-            ? "grid-cols-1 pb-[calc(var(--mobile-composer-reserved)+env(safe-area-inset-bottom))]"
-            : sidebarVisible
-              ? "grid-cols-[minmax(292px,336px)_minmax(0,1fr)] gap-3 p-3"
-              : "grid-cols-1 p-3"
-        )}
+    <MotionConfig reducedMotion="user" transition={softSpring}>
+      <main
+        className="grid h-dvh min-h-0 w-full grid-rows-[minmax(0,1fr)_auto] overflow-hidden bg-app-bg text-fg antialiased"
         data-theme={theme}
         data-mobile-view={mobileView}
+        data-terminal-visible={terminalVisible}
+        data-viewport-width={viewportProfile.widthProfile}
+        data-viewport-height={viewportProfile.heightProfile}
+        data-ui-density={viewportProfile.density}
+        data-keyboard-visible={viewportProfile.keyboardVisible}
         data-sidebar-visible={sidebarVisible}
+        style={viewportProfile.style}
       >
-        {(sidebarVisible || isMobileViewport) && (!isMobileViewport || mobileView === "sessions") ? (
-          <SessionSidebar
-            density={isMobileViewport ? "compact" : "regular"}
-            busy={busy}
-            theme={theme}
-            nextTheme={nextTheme}
-            detailWordWrap={detailWordWrap}
-            terminalVisible={terminalVisible}
-            sessionQuery={sessionQuery}
-            sessionList={sessionList}
-            selectedThreadId={selectedThreadId}
-            loadingMoreThreads={loadingMoreThreads}
-            onSidebarToggle={isMobileViewport ? undefined : () => setSidebarVisible(false)}
-            onTerminalToggle={() => setTerminalVisible((current) => !current)}
-            onThemeChange={setTheme}
-            onDetailWordWrapChange={setDetailWordWrap}
-            onLoadMoreThreads={() => void loadMoreThreads()}
-            onSessionQueryChange={setSessionQuery}
-            onSelectThread={selectThread}
-          />
-        ) : !isMobileViewport ? (
-          <button
-            type="button"
-            className={cn(subtleIconButtonClass, "absolute left-5 top-5 z-20 bg-surface/85 backdrop-blur-xl")}
-            title="Show sidebar"
-            aria-label="Show sidebar"
-            onClick={() => setSidebarVisible(true)}
-          >
-            <SidebarOpen size={18} />
-          </button>
-        ) : null}
+        <motion.div
+          layout
+          className={cn(
+            "relative grid h-full min-h-0 overflow-hidden bg-app-bg text-fg transition-[grid-template-columns,padding] duration-300 ease-snappy",
+            isMobileViewport
+              ? "grid-cols-1 pb-[calc(var(--mobile-composer-reserved)+env(safe-area-inset-bottom))]"
+              : sidebarVisible
+                ? "grid-cols-[minmax(292px,336px)_minmax(0,1fr)] gap-3 p-3"
+                : "grid-cols-1 p-3"
+          )}
+          data-theme={theme}
+          data-mobile-view={mobileView}
+          data-sidebar-visible={sidebarVisible}
+        >
+          <AnimatePresence initial={false} mode={isMobileViewport ? "wait" : "sync"}>
+            {(sidebarVisible || isMobileViewport) && (!isMobileViewport || mobileView === "sessions") ? (
+              <motion.div
+                key="session-sidebar"
+                className="min-h-0 h-full"
+                variants={panelPresence}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                transition={softSpring}
+                layout={!isMobileViewport}
+              >
+                <SessionSidebar
+                  density={isMobileViewport ? "compact" : "regular"}
+                  busy={busy}
+                  theme={theme}
+                  nextTheme={nextTheme}
+                  detailWordWrap={detailWordWrap}
+                  terminalVisible={terminalVisible}
+                  sessionQuery={sessionQuery}
+                  sessionList={sessionList}
+                  selectedThreadId={selectedThreadId}
+                  loadingMoreThreads={loadingMoreThreads}
+                  onSidebarToggle={isMobileViewport ? undefined : () => setSidebarVisible(false)}
+                  onTerminalToggle={() => setTerminalVisible((current) => !current)}
+                  onThemeChange={setTheme}
+                  onDetailWordWrapChange={setDetailWordWrap}
+                  onLoadMoreThreads={() => void loadMoreThreads()}
+                  onSessionQueryChange={setSessionQuery}
+                  onSelectThread={selectThread}
+                />
+              </motion.div>
+            ) : !isMobileViewport ? (
+              <motion.button
+                key="show-sidebar"
+                type="button"
+                className={cn(subtleIconButtonClass, "absolute left-5 top-5 z-20 bg-surface/85 backdrop-blur-xl")}
+                title="Show sidebar"
+                aria-label="Show sidebar"
+                initial={{ opacity: 0, scale: 0.92, x: -8 }}
+                animate={{ opacity: 1, scale: 1, x: 0 }}
+                exit={{ opacity: 0, scale: 0.92, x: -8 }}
+                transition={quickEase}
+                whileHover={{ y: -1 }}
+                whileTap={{ scale: 0.96 }}
+                onClick={() => setSidebarVisible(true)}
+              >
+                <SidebarOpen size={18} />
+              </motion.button>
+            ) : null}
+          </AnimatePresence>
 
-        {!isMobileViewport || mobileView === "detail" ? (
-          <ThreadDetailView
-            detail={selectedDetail}
-            selectedThread={selectedThread}
-            selectedThreadId={selectedThreadId}
-            detailWordWrap={detailWordWrap}
-            onBack={() => setMobileView("sessions")}
-            composer={desktopComposer}
-          />
-        ) : null}
-      </div>
-      <Suspense fallback={null}>
-        {terminalVisible ? (
-          <TerminalDock visible={terminalVisible} theme={theme} onClose={() => setTerminalVisible(false)} />
-        ) : null}
-      </Suspense>
-      {isMobileViewport ? (
-        <PromptComposer
-          className="fixed bottom-0 left-0 right-0 z-[100] w-full max-h-[var(--mobile-composer-max-height)] border-t border-border bg-surface/95 px-[max(var(--mobile-edge-padding),12px)] py-2 shadow-popover backdrop-blur-xl supports-[backdrop-filter]:bg-surface/88"
-          showStatus
-          compact
-          collapsible
-          workdir={workdir}
-          busy={busy}
-          busyAction={busyAction}
-          notice={notice}
-          error={error}
-          prompt={prompt}
-          promptTarget={promptTarget}
-          goalMode={goalMode}
-          selectedThread={selectedThread}
-          selectedThreadId={selectedThreadId}
-          canUseGoalMode={canUseGoalMode}
-          canSubmitPrompt={canSubmitPrompt}
-          onModeChange={setComposerMode}
-          onWorkdirChange={updateWorkdir}
-          onPromptChange={setPrompt}
-          onPromptKeyDown={handlePromptKeyDown}
-          onPromptSubmit={submitPrompt}
-          onGoalModeChange={updateGoalMode}
-          onInterrupt={interruptSelectedThread}
-          onResume={resumeSelectedThread}
-        />
-      ) : null}
-    </main>
+          <AnimatePresence initial={false} mode={isMobileViewport ? "wait" : "sync"}>
+            {!isMobileViewport || mobileView === "detail" ? (
+              <motion.div
+                key={isMobileViewport ? `thread-detail:${selectedThreadId ?? "empty"}` : "thread-detail"}
+                className="min-h-0 h-full"
+                variants={panelPresence}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                transition={softSpring}
+                layout={!isMobileViewport}
+              >
+                <ThreadDetailView
+                  detail={selectedDetail}
+                  selectedThread={selectedThread}
+                  selectedThreadId={selectedThreadId}
+                  detailWordWrap={detailWordWrap}
+                  onBack={() => setMobileView("sessions")}
+                  composer={desktopComposer}
+                />
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+        </motion.div>
+        <Suspense fallback={null}>
+          <AnimatePresence initial={false}>
+            {terminalVisible ? (
+              <motion.div
+                key="terminal-dock"
+                initial={{ opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 18 }}
+                transition={softSpring}
+              >
+                <TerminalDock visible={terminalVisible} theme={theme} onClose={() => setTerminalVisible(false)} />
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+        </Suspense>
+        <AnimatePresence initial={false}>
+          {isMobileViewport ? (
+            <PromptComposer
+              className="fixed bottom-0 left-0 right-0 z-[100] w-full max-h-[var(--mobile-composer-max-height)] border-t border-border bg-surface/95 px-[max(var(--mobile-edge-padding),12px)] py-2 shadow-popover backdrop-blur-xl supports-[backdrop-filter]:bg-surface/88"
+              showStatus
+              compact
+              collapsible
+              workdir={workdir}
+              busy={busy}
+              busyAction={busyAction}
+              notice={notice}
+              error={error}
+              prompt={prompt}
+              promptTarget={promptTarget}
+              goalMode={goalMode}
+              selectedThread={selectedThread}
+              selectedThreadId={selectedThreadId}
+              canUseGoalMode={canUseGoalMode}
+              canSubmitPrompt={canSubmitPrompt}
+              onModeChange={setComposerMode}
+              onWorkdirChange={updateWorkdir}
+              onPromptChange={setPrompt}
+              onPromptKeyDown={handlePromptKeyDown}
+              onPromptSubmit={submitPrompt}
+              onGoalModeChange={updateGoalMode}
+              onInterrupt={interruptSelectedThread}
+              onResume={resumeSelectedThread}
+            />
+          ) : null}
+        </AnimatePresence>
+      </main>
+    </MotionConfig>
   );
 }
