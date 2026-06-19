@@ -7,7 +7,7 @@ import { cn } from "../classNames.js"
 import { ParamPanel } from "./ParamPanel.js"
 import { Sidebar } from "./Sidebar.js"
 import { Workspace } from "./Workspace.js"
-import type { ComposerMode, ParameterState, WorkbenchProject, WorkbenchSession } from "./workbenchTypes.js"
+import type { ComposerMode, WorkbenchProject, WorkbenchSession } from "./workbenchTypes.js"
 
 export type DashboardLayoutProps = {
   projects: WorkbenchProject[]
@@ -21,9 +21,7 @@ export type DashboardLayoutProps = {
   inspectorVisible: boolean
   terminalVisible: boolean
   sessionQuery: string
-  params: ParameterState
-  contextTokens: number
-  contextLimit: number
+  defaultCwd: string
   workdir: string
   busy: boolean
   busyAction: string | null
@@ -41,7 +39,6 @@ export type DashboardLayoutProps = {
   onCreateSession: () => void
   onSessionQueryChange: (value: string) => void
   onToggleTerminal: () => void
-  onParamChange: (params: ParameterState) => void
   onPromptChange: (value: string) => void
   onPromptKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void
   onPromptSubmit: (event: FormEvent) => void
@@ -212,9 +209,7 @@ export const DashboardLayout = memo(function DashboardLayout({
   inspectorVisible,
   terminalVisible,
   sessionQuery,
-  params,
-  contextTokens,
-  contextLimit,
+  defaultCwd,
   workdir,
   busy,
   busyAction,
@@ -232,7 +227,6 @@ export const DashboardLayout = memo(function DashboardLayout({
   onCreateSession,
   onSessionQueryChange,
   onToggleTerminal,
-  onParamChange,
   onPromptChange,
   onPromptKeyDown,
   onPromptSubmit,
@@ -274,7 +268,7 @@ export const DashboardLayout = memo(function DashboardLayout({
       {
         id: "create-session",
         title: "Create new session",
-        detail: "Start a fresh Codex playground in the composer",
+        detail: "Start a fresh Codex app-server session",
         icon: "create",
         run: onCreateSession
       },
@@ -288,7 +282,7 @@ export const DashboardLayout = memo(function DashboardLayout({
       {
         id: "toggle-inspector",
         title: inspectorVisible ? "Hide inspector" : "Show inspector",
-        detail: "Toggle model parameters and context metrics",
+        detail: "Toggle app-server thread and goal state",
         icon: "panel",
         run: () => onInspectorVisibleChange(!inspectorVisible)
       }
@@ -341,6 +335,7 @@ export const DashboardLayout = memo(function DashboardLayout({
       onCreateSession={onCreateSession}
       onToggleTerminal={onToggleTerminal}
       onOpenCommandPalette={() => setCommandOpen(true)}
+      onOpenSettings={() => onInspectorVisibleChange(true)}
       onCollapse={() => onNavigatorVisibleChange(false)}
     />
   )
@@ -348,10 +343,17 @@ export const DashboardLayout = memo(function DashboardLayout({
   const inspector = (
     <ParamPanel
       session={session}
-      params={params}
-      contextTokens={contextTokens}
-      contextLimit={contextLimit}
-      onParamChange={onParamChange}
+      detail={detail}
+      selectedThread={selectedThread}
+      terminalVisible={terminalVisible}
+      navigatorVisible={navigatorVisible}
+      inspectorVisible={inspectorVisible}
+      defaultCwd={defaultCwd}
+      onToggleTerminal={onToggleTerminal}
+      onNavigatorVisibleChange={onNavigatorVisibleChange}
+      onInspectorVisibleChange={onInspectorVisibleChange}
+      onResume={onResume}
+      onInterrupt={onInterrupt}
       onCollapseToggle={() => onInspectorVisibleChange(false)}
     />
   )
@@ -440,10 +442,17 @@ export const DashboardLayout = memo(function DashboardLayout({
               <ParamPanel
                 collapsed
                 session={session}
-                params={params}
-                contextTokens={contextTokens}
-                contextLimit={contextLimit}
-                onParamChange={onParamChange}
+                detail={detail}
+                selectedThread={selectedThread}
+                terminalVisible={terminalVisible}
+                navigatorVisible={navigatorVisible}
+                inspectorVisible={inspectorVisible}
+                defaultCwd={defaultCwd}
+                onToggleTerminal={onToggleTerminal}
+                onNavigatorVisibleChange={onNavigatorVisibleChange}
+                onInspectorVisibleChange={onInspectorVisibleChange}
+                onResume={onResume}
+                onInterrupt={onInterrupt}
                 onCollapseToggle={() => onInspectorVisibleChange(true)}
               />
             </motion.div>
@@ -525,6 +534,10 @@ export const DashboardLayout = memo(function DashboardLayout({
                   setMobileNavigatorOpen(false)
                 }}
                 onToggleTerminal={onToggleTerminal}
+                onOpenSettings={() => {
+                  setMobileNavigatorOpen(false)
+                  setMobileInspectorOpen(true)
+                }}
                 onOpenCommandPalette={() => {
                   setMobileNavigatorOpen(false)
                   setCommandOpen(true)
@@ -555,10 +568,17 @@ export const DashboardLayout = memo(function DashboardLayout({
             >
               <ParamPanel
                 session={session}
-                params={params}
-                contextTokens={contextTokens}
-                contextLimit={contextLimit}
-                onParamChange={onParamChange}
+                detail={detail}
+                selectedThread={selectedThread}
+                terminalVisible={terminalVisible}
+                navigatorVisible={navigatorVisible}
+                inspectorVisible={inspectorVisible}
+                defaultCwd={defaultCwd}
+                onToggleTerminal={onToggleTerminal}
+                onNavigatorVisibleChange={onNavigatorVisibleChange}
+                onInspectorVisibleChange={onInspectorVisibleChange}
+                onResume={onResume}
+                onInterrupt={onInterrupt}
                 onCollapseToggle={() => setMobileInspectorOpen(false)}
               />
             </motion.div>

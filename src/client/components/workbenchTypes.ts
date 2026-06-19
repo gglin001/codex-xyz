@@ -1,23 +1,29 @@
-import type { ControlThread, RuntimeStatus } from "../../server/domain.js"
+import type { ControlThread, GoalStatus, RuntimeStatus } from "../../server/domain.js"
 
 export type DateBucket = "Today" | "Yesterday" | "Older"
 export type ComposerMode = "thread" | "new"
 
-export type ProjectAccent = "emerald" | "violet" | "sky"
+export type ProjectAccent = "emerald" | "violet" | "sky" | "slate"
 
 export type WorkbenchSession = {
   id: string
-  threadId: string | null
+  threadId: string
+  sessionId: string
+  forkedFromId: string | null
   title: string
   preview: string
   cwd: string
   model: string | null
   status: RuntimeStatus
+  activeTurnId: string | null
+  goalObjective: string | null
+  goalStatus: GoalStatus | null
+  goalTokenBudget: number | null
   tokensUsed: number
+  createdAt: string
   updatedAt: string
   dateBucket: DateBucket
-  mock: boolean
-  thread: ControlThread | null
+  thread: ControlThread
 }
 
 export type WorkbenchProject = {
@@ -30,15 +36,4 @@ export type WorkbenchProject = {
   totalSessions: number
   runningSessions: number
   tokenTotal: number
-}
-
-export type RuntimeEnvironment = "Python" | "Node" | "Bash"
-
-export type ParameterState = {
-  model: string
-  runtime: RuntimeEnvironment
-  temperature: number
-  maxTokens: number
-  reasoning: number
-  autoRun: boolean
 }

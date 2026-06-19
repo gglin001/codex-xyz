@@ -14,7 +14,7 @@ import {
 } from "./api.js";
 import { DashboardLayout } from "./components/DashboardLayout.js";
 import { buildWorkbenchProjects, findProjectForThread, findSession } from "./components/workbenchData.js";
-import type { ComposerMode, ParameterState, WorkbenchSession } from "./components/workbenchTypes.js";
+import type { ComposerMode, WorkbenchSession } from "./components/workbenchTypes.js";
 import { applyEventProjectionBatch, incrementalEventNames, type ClientProjection } from "./eventProjection.js";
 import { isMacTerminalToggleShortcut } from "./terminalShortcut.js";
 import { choosePreferredThreadId, shouldLoadThreadSelection, shouldSelectActionResult } from "./threadSelection.js";
@@ -93,15 +93,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
   const [terminalVisible, setTerminalVisible] = useState(false);
   const [navigatorVisible, setNavigatorVisible] = useState(true);
   const [inspectorVisible, setInspectorVisible] = useState(true);
-  const [selectedProjectId, setSelectedProjectId] = useState("project-alpha");
-  const [params, setParams] = useState<ParameterState>({
-    model: "codex",
-    runtime: "Node",
-    temperature: 0.28,
-    maxTokens: 64000,
-    reasoning: 62,
-    autoRun: false
-  });
+  const [selectedProjectId, setSelectedProjectId] = useState("");
   const [preferencesReady, setPreferencesReady] = useState(false);
   const [summaryEventsReady, setSummaryEventsReady] = useState(false);
   const [detailSubscription, setDetailSubscription] = useState<DetailSubscription | null>(null);
@@ -502,7 +494,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
     [selectedThreadId, state.threads]
   );
   const selectedDetail = detail?.id === selectedThreadId ? detail : null;
-  const workbenchProjects = useMemo(() => buildWorkbenchProjects(state.threads), [state.threads]);
+  const workbenchProjects = useMemo(() => buildWorkbenchProjects(state.threads, state.defaultCwd), [state.defaultCwd, state.threads]);
   const selectedProject = workbenchProjects.find((project) => project.id === selectedProjectId) ?? workbenchProjects[0] ?? null;
   const selectedWorkbenchSession = useMemo(() => {
     const selectedByThread = findSession(workbenchProjects, selectedThreadId);
@@ -511,8 +503,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
     }
     return selectedProject?.sessions[0] ?? null;
   }, [selectedProject, selectedThreadId, workbenchProjects]);
-  const contextTokens = selectedDetail?.tokensUsed ?? selectedWorkbenchSession?.tokensUsed ?? 0;
-  const contextLimit = params.maxTokens;
   const promptTarget = composerMode === "thread" && selectedThread ? "thread" : "new";
   const trimmedWorkdir = workdir.trim();
   const canUseGoalMode =
@@ -539,6 +529,12 @@ export function App({ initialState: serverInitialState }: AppProps) {
   }, [selectedProjectId, selectedThreadId, workbenchProjects]);
 
   useEffect(() => {
+    if (!selectedProjectId && workbenchProjects[0]) {
+      setSelectedProjectId(workbenchProjects[0].id);
+    }
+  }, [selectedProjectId, workbenchProjects]);
+
+  useEffect(() => {
     setGoalMode(false);
   }, [selectedThreadId, promptTarget]);
 
@@ -562,14 +558,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
       setComposerMode("thread");
       setError(null);
       setNotice(null);
-      if (!session.threadId) {
-        beginManualSelection();
-        setSelectedThreadId(null);
-        selectedThreadIdRef.current = null;
-        beginDetailLoad();
-        clearDetail();
-        return;
-      }
       void selectThread(session.threadId);
     },
     [selectThread]
@@ -656,7 +644,12 @@ export function App({ initialState: serverInitialState }: AppProps) {
     void runAction(
       goalMode ? "Creating goal session" : "Creating session",
       async () => {
-        const result = await createSession({ cwd: trimmedWorkdir, prompt: currentPrompt, goalMode });
+        const result = await createSession({
+          cwd: trimmedWorkdir,
+          prompt: currentPrompt,
+          goalMode,
+          model: selectedThread?.model ?? selectedWorkbenchSession?.model ?? null
+        });
         if (result.thread?.cwd) {
           setWorkdir(result.thread.cwd);
         }
@@ -720,9 +713,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
         inspectorVisible={inspectorVisible}
         terminalVisible={terminalVisible}
         sessionQuery={sessionQuery}
-        params={params}
-        contextTokens={contextTokens}
-        contextLimit={contextLimit}
+        defaultCwd={state.defaultCwd}
         workdir={workdir}
         busy={busy}
         busyAction={busyAction}
@@ -740,7 +731,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
         onCreateSession={createWorkbenchSession}
         onSessionQueryChange={setSessionQuery}
         onToggleTerminal={() => setTerminalVisible((current) => !current)}
-        onParamChange={setParams}
         onPromptChange={setPrompt}
         onPromptKeyDown={handlePromptKeyDown}
         onPromptSubmit={submitPrompt}

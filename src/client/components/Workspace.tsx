@@ -3,7 +3,6 @@ import {
   Check,
   Code2,
   Copy,
-  FileUp,
   Maximize2,
   Menu,
   PanelRight,
@@ -71,51 +70,6 @@ type ChatMessage = {
 
 const spring = { type: "spring", stiffness: 340, damping: 34 } as const
 
-const sampleCode = `export async function runCodexSession(project) {
-  const session = await createSession({
-    cwd: project.path,
-    prompt: "Inspect the current diff and propose the next step"
-  })
-
-  return streamSessionEvents(session.id)
-}`
-
-function fallbackMessages(session: WorkbenchSession | null): ChatMessage[] {
-  return [
-    {
-      id: "system-preview",
-      role: "system",
-      title: "System",
-      text: "Codex session manager is ready. Select a project, open a session, or create a new playground.",
-      time: new Date().toISOString(),
-      codeBlocks: []
-    },
-    {
-      id: "user-preview",
-      role: "user",
-      title: "You",
-      text: session?.preview ?? "Refactor the workspace into a three-pane coding session manager.",
-      time: session?.updatedAt ?? new Date().toISOString(),
-      codeBlocks: []
-    },
-    {
-      id: "assistant-preview",
-      role: "assistant",
-      title: "Codex",
-      text: "I will keep the control plane data flow intact and replace the visual layer with a fluid workbench shell. The code block below can be expanded into Canvas mode.",
-      time: session?.updatedAt ?? new Date().toISOString(),
-      codeBlocks: [
-        {
-          id: "sample-code",
-          language: "ts",
-          title: "session-runner.ts",
-          code: sampleCode
-        }
-      ]
-    }
-  ]
-}
-
 function messageRoleForItem(item: ThreadItem): MessageRole {
   if (item.type === "user") {
     return "user"
@@ -166,9 +120,9 @@ function stripCodeFences(value: string) {
   return value.replace(/```([a-zA-Z0-9_-]+)?\n[\s\S]*?```/g, "").trim()
 }
 
-function messagesFromDetail(detail: ThreadDetail | null, session: WorkbenchSession | null) {
+function messagesFromDetail(detail: ThreadDetail | null) {
   if (!detail || detail.items.length === 0) {
-    return fallbackMessages(session)
+    return []
   }
 
   return detail.items.map((item) => {
@@ -264,14 +218,6 @@ const CodeBlockView = memo(function CodeBlockView({
           </button>
           <button
             type="button"
-            className="inline-flex h-7 w-7 items-center justify-center rounded text-slate-500 transition duration-150 ease-out hover:bg-slate-800 hover:text-slate-100"
-            title="Run"
-            aria-label="Run"
-          >
-            <Play size={14} />
-          </button>
-          <button
-            type="button"
             className={cn(
               "inline-flex h-7 w-7 items-center justify-center rounded transition duration-150 ease-out hover:bg-slate-800 hover:text-slate-100",
               active ? "text-emerald-300" : "text-slate-500"
@@ -330,6 +276,30 @@ const MessageBlock = memo(function MessageBlock({
   )
 })
 
+const EmptyTranscript = memo(function EmptyTranscript({
+  hasThread,
+  projectPath
+}: {
+  hasThread: boolean
+  projectPath: string
+}) {
+  return (
+    <div className="rounded-lg border border-dashed border-slate-800/80 bg-slate-900/25 px-4 py-10 text-center">
+      <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-md border border-slate-800 bg-slate-950 text-slate-500">
+        <Bot size={18} />
+      </div>
+      <h2 className="text-[14px] font-semibold text-slate-200">
+        {hasThread ? "Waiting for Codex transcript" : "No Codex session selected"}
+      </h2>
+      <p className="mx-auto mt-2 max-w-md text-[13px] leading-5 text-slate-500">
+        {hasThread
+          ? "This app-server thread has no persisted transcript items yet. Send a prompt or resume the session to continue."
+          : `Create a Codex app-server session for ${projectPath} or select an existing thread from the navigator.`}
+      </p>
+    </div>
+  )
+})
+
 const CanvasPane = memo(function CanvasPane({
   block,
   onClose
@@ -348,7 +318,7 @@ const CanvasPane = memo(function CanvasPane({
       <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-slate-800/80 bg-slate-950/75 px-4 backdrop-blur-md">
         <div className="min-w-0">
           <h2 className="truncate text-[13px] font-semibold text-slate-100">{block.title}</h2>
-          <p className="truncate text-[11px] text-slate-500">Canvas editor / {block.language}</p>
+          <p className="truncate text-[11px] text-slate-500">Transcript source / {block.language}</p>
         </div>
         <button
           type="button"
@@ -362,7 +332,7 @@ const CanvasPane = memo(function CanvasPane({
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-4">
         <div className="mb-3 flex items-center justify-between text-[11px] uppercase tracking-[0.08em] text-slate-600">
-          <span>Live preview</span>
+          <span>Source</span>
           <span>{block.code.split(/\r?\n/).length} lines</span>
         </div>
         <pre className="min-h-full rounded-md border border-slate-800/80 bg-[#050608] p-4 font-mono text-[12px] leading-6 text-slate-300 shadow-[0_1px_0_rgba(255,255,255,0.03)_inset]">
@@ -489,14 +459,6 @@ const Composer = memo(function Composer({
               </button>
               <button
                 type="button"
-                className="inline-flex h-8 min-w-8 items-center justify-center rounded-md text-slate-500 transition duration-150 ease-out hover:bg-slate-800/70 hover:text-slate-100"
-                title="Attach context"
-                aria-label="Attach context"
-              >
-                <FileUp size={15} />
-              </button>
-              <button
-                type="button"
                 className={cn(
                   "inline-flex h-8 min-w-8 items-center justify-center rounded-md text-slate-500 transition duration-150 ease-out hover:bg-slate-800/70 hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-35",
                   goalMode ? "bg-emerald-500/10 text-emerald-200" : null
@@ -573,7 +535,7 @@ export const Workspace = memo(function Workspace({
   onOpenMobileInspector
 }: WorkspaceProps) {
   const [canvasBlock, setCanvasBlock] = useState<CodeBlock | null>(null)
-  const messages = useMemo(() => messagesFromDetail(detail, session), [detail, session])
+  const messages = useMemo(() => messagesFromDetail(detail), [detail])
   const title = selectedThread?.title ?? session?.title ?? "New Codex session"
   const subtitle = selectedThread?.cwd ?? session?.cwd ?? project?.path ?? "Select a project to begin"
   const tokens = detail?.tokensUsed ?? session?.tokensUsed ?? 0
@@ -632,14 +594,25 @@ export const Workspace = memo(function Workspace({
                 <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.08em] text-slate-600">
                   <span>{project?.name ?? "Workspace"}</span>
                   <span>/</span>
-                  <span>{detail ? formatDateTime(detail.updatedAt) : "Preview stream"}</span>
+                  <span>{detail ? formatDateTime(detail.updatedAt) : "app-server"}</span>
                 </div>
                 <p className="max-w-2xl text-[13px] leading-5 text-slate-500">
-                  Distraction-free Codex stream with runnable code blocks, project-aware context, and a split Canvas for deeper inspection.
+                  Codex app-server transcript for the selected local thread. Fenced code and command output can be copied or opened in Canvas.
                 </p>
               </div>
 
               <AnimatePresence initial={false}>
+                {messages.length === 0 ? (
+                  <motion.div
+                    key="empty-transcript"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={spring}
+                  >
+                    <EmptyTranscript hasThread={Boolean(selectedThreadId)} projectPath={project?.path ?? workdir} />
+                  </motion.div>
+                ) : null}
                 {messages.map((message) => (
                   <motion.div
                     key={message.id}

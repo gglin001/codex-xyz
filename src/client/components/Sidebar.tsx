@@ -33,6 +33,7 @@ export type SidebarProps = {
   onCreateSession: () => void
   onToggleTerminal: () => void
   onOpenCommandPalette: () => void
+  onOpenSettings: () => void
   onCollapse?: () => void
 }
 
@@ -41,7 +42,8 @@ const bucketOrder: DateBucket[] = ["Today", "Yesterday", "Older"]
 const accentClass: Record<ProjectAccent, string> = {
   emerald: "border-emerald-400/30 bg-emerald-400/12 text-emerald-100",
   violet: "border-violet-400/30 bg-violet-400/12 text-violet-100",
-  sky: "border-sky-400/30 bg-sky-400/12 text-sky-100"
+  sky: "border-sky-400/30 bg-sky-400/12 text-sky-100",
+  slate: "border-slate-600/70 bg-slate-800/70 text-slate-100"
 }
 
 const statusClass = {
@@ -127,6 +129,7 @@ export const Sidebar = memo(function Sidebar({
   onCreateSession,
   onToggleTerminal,
   onOpenCommandPalette,
+  onOpenSettings,
   onCollapse
 }: SidebarProps) {
   const [projectMenuOpen, setProjectMenuOpen] = useState(false)
@@ -235,7 +238,7 @@ export const Sidebar = memo(function Sidebar({
           >
             {sessionGroups.length === 0 ? (
               <div className="mx-1 rounded-md border border-dashed border-slate-800/80 bg-slate-900/30 px-3 py-8 text-center text-[13px] text-slate-500">
-                No matching sessions
+                {sessionQuery.trim() ? "No matching sessions" : "No Codex sessions yet"}
               </div>
             ) : null}
             {sessionGroups.map((group) => (
@@ -297,8 +300,9 @@ export const Sidebar = memo(function Sidebar({
           <button
             type="button"
             className="inline-flex h-8 items-center justify-center rounded-md border border-slate-800/80 bg-slate-900/45 text-slate-500 transition duration-150 ease-out hover:bg-slate-800/60 hover:text-slate-100"
-            title="Settings"
-            aria-label="Settings"
+            title="Open Codex inspector"
+            aria-label="Open Codex inspector"
+            onClick={onOpenSettings}
           >
             <Settings size={15} />
           </button>
