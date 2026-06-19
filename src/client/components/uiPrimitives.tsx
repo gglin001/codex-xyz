@@ -277,6 +277,7 @@ export const CollapsibleCard = memo(function CollapsibleCard({
   preview,
   children,
   size = "regular",
+  surface = "outline",
   className,
   bodyClassName,
   previewClassName
@@ -289,6 +290,7 @@ export const CollapsibleCard = memo(function CollapsibleCard({
   preview?: ReactNode
   children?: ReactNode
   size?: "compact" | "regular" | "prominent"
+  surface?: "filled" | "outline"
   className?: string
   bodyClassName?: string
   previewClassName?: string
@@ -301,13 +303,20 @@ export const CollapsibleCard = memo(function CollapsibleCard({
       : "text-[14px] font-medium text-fg"
   const bodyPadding = size === "compact" ? "p-3" : "px-4 py-4"
   const previewPadding = size === "compact" ? "px-3 pb-2" : "px-4 py-3"
+  const cardClass = surface === "outline" ? ui.outlineCard : ui.card
+  const headerClass = surface === "outline"
+    ? "flex w-full items-center gap-2 bg-app-bg"
+    : "flex w-full items-center gap-2 border-b border-border bg-control/35"
+  const headerButtonClass = surface === "outline"
+    ? "group flex min-w-0 flex-1 items-center justify-between gap-3 text-left hover:bg-control/35"
+    : "group flex min-w-0 flex-1 items-center justify-between gap-3 text-left hover:bg-control-hover"
 
   return (
-    <article className={cn(ui.card, className)}>
-      <div className={cn("flex w-full items-center gap-2 border-b border-border bg-control/35", headerHeight)}>
+    <article className={cn(cardClass, className)}>
+      <div className={cn(headerClass, headerHeight)}>
         <button
           type="button"
-          className={cn("group flex min-w-0 flex-1 items-center justify-between gap-3 text-left hover:bg-control-hover", headerHeight, size === "compact" ? "px-3" : "px-4")}
+          className={cn(headerButtonClass, headerHeight, size === "compact" ? "px-3" : "px-4")}
           aria-expanded={expanded}
           title={expanded ? `Collapse ${title}` : `Expand ${title}`}
           onClick={onToggle}
@@ -368,17 +377,24 @@ export function DisclosureRow({
   expanded,
   children,
   onClick,
-  className
+  className,
+  divided = true
 }: {
   expanded?: boolean
   children: ReactNode
   onClick: () => void
   className?: string
+  divided?: boolean
 }) {
   return (
     <button
       type="button"
-      className={cn("flex min-h-11 w-full items-center justify-between gap-4 border-t border-border px-4 py-2.5 text-left text-[14px] text-fg", ui.row, className)}
+      className={cn(
+        "flex min-h-11 w-full items-center justify-between gap-4 px-4 py-2.5 text-left text-[14px] text-fg",
+        divided ? "border-t border-border" : null,
+        ui.row,
+        className
+      )}
       onClick={onClick}
     >
       <span className="min-w-0 truncate">{children}</span>

@@ -214,7 +214,6 @@ const ProcessItemBlock = memo(function ProcessItemBlock({
       preview={<div className="truncate text-[12px] leading-5 text-muted">{preview}</div>}
       size="compact"
       className="rounded-[14px] shadow-none"
-      bodyClassName="border-t border-border"
     >
       {message.text ? (
         <div className={cn(
@@ -249,8 +248,7 @@ const ProcessOutputBlock = memo(function ProcessOutputBlock({
         meta={<span className="hidden whitespace-nowrap text-[11px] text-muted sm:inline">{metaLabel}</span>}
         actions={<CopyTextButton value={copyText || preview} />}
         size="prominent"
-        className="shadow-panel"
-        preview={<DisclosureRow onClick={() => setExpanded(true)} className="-mx-4 -my-3">Expand to view model thoughts</DisclosureRow>}
+        preview={<DisclosureRow onClick={() => setExpanded(true)} divided={false} className="-mx-4 -my-3">Expand to view model thoughts</DisclosureRow>}
         previewClassName="p-0"
         bodyClassName="grid gap-2 px-4 pb-4 pt-0"
       >
@@ -261,7 +259,7 @@ const ProcessOutputBlock = memo(function ProcessOutputBlock({
             wrapContent={wrapContent}
           />
         ))}
-        <DisclosureRow expanded onClick={() => setExpanded(false)} className="-mx-4 -mb-4 mt-2">
+        <DisclosureRow expanded onClick={() => setExpanded(false)} divided={false} className="-mx-4 -mb-4 mt-2">
           Collapse to hide model thoughts
         </DisclosureRow>
       </CollapsibleCard>

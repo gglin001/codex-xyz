@@ -57,6 +57,7 @@ export const ui = {
   sidePanel: "border-border bg-panel text-fg",
   topBar: "h-[72px] shrink-0 bg-app-bg",
   card: `overflow-hidden ${radius.card} border border-border bg-detail shadow-control ${interactiveTransition} hover:border-border-strong`,
+  outlineCard: `overflow-hidden ${radius.card} border border-border-strong bg-app-bg shadow-none ${interactiveTransition} hover:border-border-strong`,
   cardLarge: `overflow-hidden ${radius.cardLg} border border-border bg-detail shadow-control ${interactiveTransition} hover:border-border-strong`,
   panelCard: `overflow-hidden ${radius.panel} border border-border bg-detail shadow-panel ${interactiveTransition} hover:border-border-strong`,
   popover: `overflow-hidden ${radius.panel} border border-border bg-detail shadow-popover backdrop-blur-md`,
