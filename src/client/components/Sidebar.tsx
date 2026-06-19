@@ -50,18 +50,18 @@ const statusClass = {
 
 function statusIcon(session: WorkbenchSession) {
   if (session.status === "running") {
-    return <Loader2 size={15} className={cn("animate-spin", tone.running.icon)} />
+    return <Loader2 size={14} className={cn("animate-spin", tone.running.icon)} />
   }
   if (session.status === "idle") {
-    return <CirclePause size={15} className={tone.completed.icon} />
+    return <CirclePause size={14} className={tone.completed.icon} />
   }
   if (session.status === "completed") {
-    return <CircleStop size={15} className={tone.completed.icon} />
+    return <CircleStop size={14} className={tone.completed.icon} />
   }
   if (session.status === "stale") {
-    return <CircleDotDashed size={15} className={tone.stale.icon} />
+    return <CircleDotDashed size={14} className={tone.stale.icon} />
   }
-  return <Circle size={15} className={tone.error.icon} />
+  return <Circle size={14} className={tone.error.icon} />
 }
 
 function projectTitle(project: WorkbenchProject) {
@@ -135,28 +135,28 @@ export const Sidebar = memo(function Sidebar({
 
   return (
     <aside className={cn("flex h-full min-h-0 flex-col border-r", ui.sidePanel, className)}>
-      <div className="relative shrink-0 p-4 pb-3">
+      <div className="relative shrink-0 p-4 pb-2.5">
         <SurfaceAction
-          className="h-14 w-full gap-3 px-3"
+          className="h-12 w-full gap-2.5 px-3"
           title={selectedProject ? projectTitle(selectedProject) : "Switch project"}
           aria-haspopup="menu"
           aria-expanded={projectMenuOpen}
           onClick={() => setProjectMenuOpen((current) => !current)}
         >
-          <AvatarBadge className="h-9 w-9" aria-hidden="true">
+          <AvatarBadge className="h-8 w-8" aria-hidden="true">
             {selectedProject?.initials ?? "CX"}
           </AvatarBadge>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[17px] font-semibold text-fg-strong">{selectedProject?.name ?? "Project"}</span>
-            <span className="block truncate text-[12px] text-muted">{selectedProject?.path ?? "No project selected"}</span>
+            <span className="block truncate text-[15px] font-semibold text-fg-strong">{selectedProject?.name ?? "Project"}</span>
+            <span className="block truncate text-[11px] text-muted">{selectedProject?.path ?? "No project selected"}</span>
           </span>
-          <ChevronDown size={18} className="shrink-0 text-muted" />
+          <ChevronDown size={15} className="shrink-0 text-muted" />
         </SurfaceAction>
 
         <AnimatePresence>
           {projectMenuOpen ? (
             <motion.div
-              className={cn("absolute left-4 right-4 top-[76px] z-30 p-2", ui.popover)}
+              className={cn("absolute left-4 right-4 top-[68px] z-30 p-2", ui.popover)}
               initial={{ opacity: 0, y: -8, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -8, scale: 0.98 }}
@@ -166,7 +166,7 @@ export const Sidebar = memo(function Sidebar({
               {projects.map((project) => (
                 <MenuItemButton
                   key={project.id}
-                  className="h-12 w-full gap-3 px-2.5"
+                  className="h-11 w-full gap-2.5 px-2.5"
                   role="menuitem"
                   selected={project.id === selectedProjectId}
                   onClick={() => {
@@ -174,16 +174,16 @@ export const Sidebar = memo(function Sidebar({
                     setProjectMenuOpen(false)
                   }}
                 >
-                  <AvatarBadge className="h-8 w-8 text-[11px]">
+                  <AvatarBadge className="h-7 w-7 text-[10px]">
                     {project.initials}
                   </AvatarBadge>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[14px] font-medium text-fg-strong">{project.name}</span>
-                    <span className="block truncate text-[11px] text-muted">
+                    <span className="block truncate text-[13px] font-medium text-fg-strong">{project.name}</span>
+                    <span className="block truncate text-[10px] text-muted">
                       {project.totalSessions} sessions / {formatTokens(project.tokenTotal)} tokens
                     </span>
                   </span>
-                  {project.id === selectedProjectId ? <Check size={16} className="text-fg-strong" /> : null}
+                  {project.id === selectedProjectId ? <Check size={14} className="text-fg-strong" /> : null}
                 </MenuItemButton>
               ))}
             </motion.div>
@@ -191,10 +191,10 @@ export const Sidebar = memo(function Sidebar({
         </AnimatePresence>
       </div>
 
-      <div className="shrink-0 px-4 py-3">
-        <FieldShell icon={<Search size={15} />}>
+      <div className="shrink-0 px-4 py-2.5">
+        <FieldShell icon={<Search size={14} />}>
           <input
-            className={cn(ui.input, "text-[14px]")}
+            className={cn(ui.input, "text-[13px]")}
             value={sessionQuery}
             onChange={(event) => onSessionQueryChange(event.target.value)}
             placeholder="Search sessions"
@@ -202,15 +202,15 @@ export const Sidebar = memo(function Sidebar({
           />
         </FieldShell>
         <ControlButton
-          className="mt-3 h-12 w-full gap-2 text-[14px] font-medium"
+          className="mt-3 h-11 w-full gap-2 text-[13px] font-medium"
           onClick={onCreateSession}
         >
-          <Plus size={15} />
+          <Plus size={14} />
           New session
         </ControlButton>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-2.5">
         <AnimatePresence mode="popLayout">
           <motion.div
             key={selectedProject?.id ?? "empty"}
@@ -218,16 +218,16 @@ export const Sidebar = memo(function Sidebar({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 10 }}
             transition={{ type: "spring", stiffness: 360, damping: 34 }}
-            className="grid gap-6"
+            className="grid gap-5"
           >
             {sessionGroups.length === 0 ? (
-              <ControlCard className="border-dashed px-3 py-8 text-center text-[13px] text-muted">
+              <ControlCard className="border-dashed px-3 py-7 text-center text-[12px] text-muted">
                 {sessionQuery.trim() ? "No matching sessions" : "No Codex sessions yet"}
               </ControlCard>
             ) : null}
             {sessionGroups.map((group) => (
               <section key={group.bucket} className="grid gap-1">
-                <div className="px-3 pb-2 text-[12px] font-medium uppercase tracking-normal text-muted">
+                <div className="px-3 pb-1.5 text-[11px] font-medium uppercase tracking-normal text-muted">
                   {group.bucket}
                 </div>
                 {group.sessions.map((session) => {
@@ -236,23 +236,23 @@ export const Sidebar = memo(function Sidebar({
                     <NavAction
                       key={session.id}
                       className={cn(
-                        "group w-full items-start gap-3 px-3 py-3",
+                        "group w-full items-start gap-2.5 px-3 py-2.5",
                         selected ? null : "bg-transparent"
                       )}
                       selected={selected}
                       title={`${session.title}\n${session.cwd}`}
                       onClick={() => onSelectSession(session)}
                     >
-                      <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center" aria-hidden="true">
+                      <span className="mt-1 flex h-4 w-4 shrink-0 items-center justify-center" aria-hidden="true">
                         {statusIcon(session)}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="flex min-w-0 items-center gap-2">
-                          <span className="truncate text-[14px] font-medium leading-5">{session.title}</span>
+                          <span className="truncate text-[13px] font-medium leading-5">{session.title}</span>
                           <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", statusClass[session.status])} />
                         </span>
-                        <span className="mt-1 line-clamp-2 text-[12px] leading-5 text-muted">{session.preview}</span>
-                        <span className="mt-1.5 flex min-w-0 items-center gap-2 text-[10px] uppercase text-muted">
+                        <span className="mt-0.5 line-clamp-2 text-[11px] leading-5 text-muted">{session.preview}</span>
+                        <span className="mt-1 flex min-w-0 items-center gap-2 text-[10px] uppercase text-muted">
                           <span>{formatTime(session.updatedAt)}</span>
                           <span>{statusLabel(session.status)}</span>
                           <span>{formatTokens(session.tokensUsed)}</span>
@@ -267,11 +267,11 @@ export const Sidebar = memo(function Sidebar({
         </AnimatePresence>
       </div>
 
-      <div className="shrink-0 p-4 pt-3">
+      <div className="shrink-0 p-4 pt-2.5">
         <div className="mb-3 grid grid-cols-2 gap-3">
           <SurfaceAction
             className={cn(
-              "h-12 justify-center gap-2 px-2 text-[12px] font-medium",
+              "h-11 justify-center gap-2 px-2 text-[12px] font-medium",
               terminalVisible ? null : "text-muted-strong"
             )}
             title="Toggle terminal"
@@ -279,12 +279,12 @@ export const Sidebar = memo(function Sidebar({
             selected={terminalVisible}
             onClick={onToggleTerminal}
           >
-            <Terminal size={15} />
+            <Terminal size={14} />
             <span className="truncate">Terminal</span>
           </SurfaceAction>
           <SurfaceAction
             className={cn(
-              "h-12 justify-center gap-2 px-2 text-[12px] font-medium",
+              "h-11 justify-center gap-2 px-2 text-[12px] font-medium",
               inspectorVisible ? null : "text-muted-strong"
             )}
             title={inspectorVisible ? "Hide settings" : "Open settings"}
@@ -292,23 +292,23 @@ export const Sidebar = memo(function Sidebar({
             selected={inspectorVisible}
             onClick={onToggleInspector}
           >
-            <SlidersHorizontal size={15} />
+            <SlidersHorizontal size={14} />
             <span className="truncate">Settings</span>
           </SurfaceAction>
         </div>
 
         <SurfaceAction
-          className="h-14 w-full gap-3 px-3"
+          className="h-12 w-full gap-2.5 px-3"
           onClick={onOpenCommandPalette}
         >
-          <span className={cn("h-9 w-9", ui.iconBox)}>
-            <UserRound size={15} />
+          <span className={cn("h-8 w-8", ui.iconBox)}>
+            <UserRound size={14} />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[13px] font-medium text-fg-strong">Local operator</span>
-            <span className="block text-[11px] text-muted">Press ⌘K</span>
+            <span className="block truncate text-[12px] font-medium text-fg-strong">Local operator</span>
+            <span className="block text-[10px] text-muted">Press ⌘K</span>
           </span>
-          <Command size={15} className="text-muted" />
+          <Command size={14} className="text-muted" />
         </SurfaceAction>
       </div>
     </aside>

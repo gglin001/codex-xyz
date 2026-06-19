@@ -130,7 +130,7 @@ function messageCardTitle(message: ChatMessage) {
 
 function headerMeta(value: string) {
   return (
-    <span className="max-w-[34vw] truncate whitespace-nowrap text-[11px] text-muted sm:max-w-none">
+    <span className="max-w-[34vw] truncate whitespace-nowrap text-[10px] text-muted sm:max-w-none">
       {value}
     </span>
   )
@@ -165,7 +165,7 @@ const CopyTextButton = memo(function CopyTextButton({
 
   return (
     <CopyIconButton label={label} onClick={copyValue}>
-      {copied ? <Check size={13} /> : <Copy size={13} />}
+      {copied ? <Check size={12} /> : <Copy size={12} />}
     </CopyIconButton>
   )
 })
@@ -187,11 +187,11 @@ const MessageBlock = memo(function MessageBlock({
       onToggle={() => setExpanded((current) => !current)}
       meta={headerMeta(messageMeta(message))}
       actions={<CopyTextButton value={message.copyText} />}
-      preview={<div className="truncate text-[13px] leading-6 text-muted">{preview}</div>}
+      preview={<div className="truncate text-[12px] leading-5 text-muted">{preview}</div>}
     >
       {message.text ? (
         <div className={cn(
-          "text-[16px] leading-8 text-fg",
+          "text-[15px] leading-7 text-fg",
           wrapContent ? "whitespace-pre-wrap break-words" : "overflow-x-auto whitespace-pre"
         )}>{message.text}</div>
       ) : null}
@@ -216,13 +216,13 @@ const ProcessItemBlock = memo(function ProcessItemBlock({
       onToggle={() => setExpanded((current) => !current)}
       meta={headerMeta(messageMeta(message))}
       actions={<CopyTextButton value={message.copyText} />}
-      preview={<div className="truncate text-[12px] leading-5 text-muted">{preview}</div>}
+      preview={<div className="truncate text-[11px] leading-5 text-muted">{preview}</div>}
       size="compact"
       className="rounded-[14px] shadow-none"
     >
       {message.text ? (
         <div className={cn(
-          "text-[14px] leading-6 text-fg",
+          "text-[13px] leading-6 text-fg",
           wrapContent ? "whitespace-pre-wrap break-words" : "overflow-x-auto whitespace-pre"
         )}>{message.text}</div>
       ) : null}
@@ -252,7 +252,7 @@ const ProcessOutputBlock = memo(function ProcessOutputBlock({
       meta={headerMeta(metaLabel)}
       actions={<CopyTextButton value={copyText || preview} />}
       size="prominent"
-      preview={<div className="truncate text-[13px] leading-6 text-muted">{preview}</div>}
+      preview={<div className="truncate text-[12px] leading-5 text-muted">{preview}</div>}
       bodyClassName="grid gap-2 px-4 pb-4 pt-0"
     >
       {messages.map((message) => (
@@ -275,13 +275,13 @@ const EmptyTranscript = memo(function EmptyTranscript({
 }) {
   return (
     <ControlCard className="border-dashed px-5 py-12 text-center">
-      <div className={cn("mx-auto mb-4 h-12 w-12 border border-border text-muted-strong", ui.iconBox)}>
-        <Bot size={18} />
+      <div className={cn("mx-auto mb-4 h-10 w-10 border border-border text-muted-strong", ui.iconBox)}>
+        <Bot size={16} />
       </div>
-      <h2 className="text-[16px] font-semibold text-fg-strong">
+      <h2 className="text-[15px] font-semibold text-fg-strong">
         {hasThread ? "Waiting for Codex transcript" : "No Codex session selected"}
       </h2>
-      <p className="mx-auto mt-2 max-w-md text-[14px] leading-6 text-muted">
+      <p className="mx-auto mt-2 max-w-md text-[13px] leading-6 text-muted">
         {hasThread
           ? "This app-server thread has no persisted transcript items yet. Send a prompt or resume the session to continue."
           : `Create a Codex app-server session for ${projectPath} or select an existing thread from the navigator.`}
@@ -365,7 +365,7 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
       return
     }
     textarea.style.height = "0px"
-    textarea.style.height = `${Math.min(180, Math.max(32, textarea.scrollHeight))}px`
+    textarea.style.height = `${Math.min(160, Math.max(30, textarea.scrollHeight))}px`
   }, [prompt])
 
   const focusPromptOnNextFrame = useCallback(() => {
@@ -383,7 +383,7 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
   return (
     <div>
       {(busyAction || notice || error) ? (
-        <div className="mb-3 grid gap-2 text-[13px]">
+        <div className="mb-3 grid gap-2 text-[12px]">
           {busyAction ? <div className={cn(ui.alert, tone.neutral.alert)}>{busyAction}...</div> : null}
           {notice ? <div className={cn(ui.alert, tone.running.alert)}>{notice}</div> : null}
           {error ? <div className={cn(ui.alert, tone.error.alert)}>{error}</div> : null}
@@ -391,9 +391,9 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
       ) : null}
 
       {promptTarget === "new" ? (
-        <FieldShell className="mb-3 h-11 px-4" icon={<Code2 size={15} />}>
+        <FieldShell className="mb-3 h-10 px-3.5" icon={<Code2 size={14} />}>
           <input
-            className={cn(ui.input, "font-mono text-[13px] text-fg")}
+            className={cn(ui.input, "font-mono text-[12px] text-fg")}
             value={workdir}
             onChange={(event) => onWorkdirChange(event.target.value)}
             placeholder="/path/to/repo"
@@ -407,7 +407,7 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
         <div className={ui.composerShell}>
           <textarea
             ref={textareaRef}
-            className={cn(ui.textarea, "max-h-[180px] min-h-8 px-1 py-1 text-[20px] leading-8")}
+            className={cn(ui.textarea, "max-h-[160px] min-h-[30px] px-1 py-1 text-[17px] leading-7")}
             value={prompt}
             onChange={(event) => onPromptChange(event.target.value)}
             onKeyDown={onPromptKeyDown}
@@ -426,7 +426,7 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
                   focusPromptOnNextFrame()
                 }}
               >
-                <Plus size={15} />
+                <Plus size={14} />
               </ComposerIconButton>
               <ComposerIconButton
                 title="Goal mode"
@@ -435,7 +435,7 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
                 disabled={!canUseGoalMode || busy}
                 onClick={() => onGoalModeChange(!goalMode)}
               >
-                <Code2 size={15} />
+                <Code2 size={14} />
               </ComposerIconButton>
               <ComposerIconButton
                 title="Interrupt"
@@ -443,7 +443,7 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
                 disabled={!canInterrupt}
                 onClick={onInterrupt}
               >
-                <Square size={15} />
+                <Square size={14} />
               </ComposerIconButton>
               <ComposerIconButton
                 title="Resume"
@@ -451,7 +451,7 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
                 disabled={!canResume}
                 onClick={onResume}
               >
-                <Play size={15} />
+                <Play size={14} />
               </ComposerIconButton>
             </div>
             <button
@@ -461,7 +461,7 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
               aria-label={submitTitle}
             >
               <span>Run</span>
-              <Send size={15} />
+              <Send size={14} />
             </button>
           </div>
         </div>
@@ -512,30 +512,30 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
   }), [])
 
   return (
-  <section className={cn("flex h-full min-h-0 min-w-0 flex-col bg-app-bg text-fg", sessionContentWidthClass)}>
-      <header className="relative z-[110] flex h-[72px] shrink-0 items-center justify-between gap-4 bg-app-bg px-4 md:px-6">
-        <div className="flex min-w-0 items-center gap-4">
+    <section className={cn("flex h-full min-h-0 min-w-0 flex-col bg-app-bg text-fg", sessionContentWidthClass)}>
+      <header className="relative z-[110] flex h-16 shrink-0 items-center justify-between gap-3 bg-app-bg px-4 md:px-5">
+        <div className="flex min-w-0 items-center gap-3">
           <LargeIconButton
             title={navigatorVisible ? "Hide sessions" : "Open sessions"}
             aria-label={navigatorVisible ? "Hide sessions" : "Open sessions"}
             pressed={navigatorVisible}
             onClick={onToggleNavigator}
           >
-            {navigatorVisible ? <PanelLeftClose size={17} /> : <Menu size={17} />}
+            {navigatorVisible ? <PanelLeftClose size={15} /> : <Menu size={15} />}
           </LargeIconButton>
-          <div className="flex min-w-0 items-baseline gap-5">
+          <div className="flex min-w-0 items-baseline gap-4">
             <div className="min-w-0">
-              <h1 className="truncate text-[20px] font-semibold text-fg-strong">{title}</h1>
-              <p className="truncate text-[13px] text-muted">{subtitle}</p>
+              <h1 className="truncate text-[17px] font-semibold text-fg-strong">{title}</h1>
+              <p className="truncate text-[12px] text-muted">{subtitle}</p>
             </div>
-            <span className="hidden shrink-0 text-[13px] font-medium text-muted lg:inline">
+            <span className="hidden shrink-0 text-[12px] font-medium text-muted lg:inline">
               {formatTokens(tokens)} tokens
             </span>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-3">
-          <div className="hidden h-10 items-center gap-2 rounded-full border border-border bg-detail px-3 text-[12px] text-muted sm:flex">
-            <span className="h-2 w-2 rounded-full bg-running-dot" />
+        <div className="flex shrink-0 items-center gap-2">
+          <div className="hidden h-9 items-center gap-2 rounded-full border border-border bg-detail px-3 text-[11px] text-muted sm:flex">
+            <span className="h-1.5 w-1.5 rounded-full bg-running-dot" />
             <span>{statusLabel(status)}</span>
           </div>
           <LargeIconButton
@@ -544,7 +544,7 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
             pressed={inspectorVisible}
             onClick={onToggleInspector}
           >
-            <SlidersHorizontal size={17} />
+            <SlidersHorizontal size={15} />
           </LargeIconButton>
         </div>
       </header>
@@ -555,8 +555,8 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
           animate={{ width: "100%" }}
           transition={spring}
         >
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8 pt-5 md:px-8">
-            <SessionContentFrame className="grid gap-8">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-7 pt-4 md:px-8">
+            <SessionContentFrame className="grid gap-6">
               <AnimatePresence initial={false}>
                 {entries.length === 0 ? (
                   <motion.div
@@ -596,7 +596,7 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
             </SessionContentFrame>
           </div>
 
-          <div className="shrink-0 bg-app-bg/95 px-4 pb-4 pt-3 md:px-8">
+          <div className="shrink-0 bg-app-bg/95 px-4 pb-3 pt-2.5 md:px-8">
             <SessionContentFrame>
               <Composer
                 ref={composerRef}

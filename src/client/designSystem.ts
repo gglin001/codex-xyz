@@ -55,7 +55,7 @@ export const ui = {
   appShell: "bg-app-bg text-fg antialiased",
   workspaceCanvas: "bg-app-bg text-fg",
   sidePanel: "border-border bg-panel text-fg",
-  topBar: "h-[72px] shrink-0 bg-app-bg",
+  topBar: "h-16 shrink-0 bg-app-bg",
   card: `overflow-hidden ${radius.card} border border-border bg-detail shadow-control ${interactiveTransition} hover:border-border-strong`,
   outlineCard: `overflow-hidden ${radius.card} border border-border-strong bg-app-bg shadow-none ${interactiveTransition} hover:border-border-strong`,
   cardLarge: `overflow-hidden ${radius.cardLg} border border-border bg-detail shadow-control ${interactiveTransition} hover:border-border-strong`,
@@ -65,15 +65,15 @@ export const ui = {
   backdropPanel: "border-border bg-panel shadow-popover",
   controlBase,
   iconButton:
-    `inline-flex h-10 min-w-10 items-center justify-center ${radius.control} border border-border bg-control text-muted-strong shadow-control ${interactiveTransition} hover:bg-control-hover hover:text-fg-strong ${disabledState} ${pressState}`,
+    `inline-flex h-9 min-w-9 items-center justify-center ${radius.control} border border-border bg-control text-muted-strong shadow-control ${interactiveTransition} hover:bg-control-hover hover:text-fg-strong ${disabledState} ${pressState}`,
   largeIconButton:
-    `inline-flex h-12 w-12 shrink-0 items-center justify-center ${radius.nav} border border-border bg-control text-muted-strong shadow-control ${interactiveTransition} hover:bg-control-hover hover:text-fg-strong ${disabledState} ${pressState}`,
+    `inline-flex h-10 w-10 shrink-0 items-center justify-center ${radius.nav} border border-border bg-control text-muted-strong shadow-control ${interactiveTransition} hover:bg-control-hover hover:text-fg-strong ${disabledState} ${pressState}`,
   composerIconButton:
-    `inline-flex h-10 min-w-10 items-center justify-center ${radius.control} border border-transparent bg-control text-fg ${interactiveTransition} hover:bg-control-hover hover:text-fg-strong disabled:cursor-not-allowed disabled:opacity-35 ${pressState}`,
+    `inline-flex h-9 min-w-9 items-center justify-center ${radius.control} border border-transparent bg-control text-fg ${interactiveTransition} hover:bg-control-hover hover:text-fg-strong disabled:cursor-not-allowed disabled:opacity-35 ${pressState}`,
   composerShell:
-    `grid min-h-[112px] gap-2 ${radius.panel} border border-border-strong bg-surface px-4 py-3 shadow-panel ${interactiveTransition} focus-within:border-white/20 focus-within:ring-2 focus-within:ring-focus-ring`,
+    `grid min-h-[96px] gap-2 ${radius.panel} border border-border-strong bg-surface px-3.5 py-2.5 shadow-panel ${interactiveTransition} focus-within:border-white/20 focus-within:ring-2 focus-within:ring-focus-ring`,
   submitButton:
-    `inline-flex h-10 min-w-[86px] shrink-0 items-center justify-center gap-2 ${radius.controlLg} border border-border bg-control px-4 text-[15px] font-semibold text-fg ${interactiveTransition} hover:bg-control-hover hover:text-fg-strong disabled:cursor-not-allowed disabled:border-border-soft disabled:bg-surface-subtle disabled:text-[#4f4f4f]`,
+    `inline-flex h-9 min-w-[76px] shrink-0 items-center justify-center gap-1.5 ${radius.controlLg} border border-border bg-control px-3 text-[13px] font-semibold text-fg ${interactiveTransition} hover:bg-control-hover hover:text-fg-strong disabled:cursor-not-allowed disabled:border-border-soft disabled:bg-surface-subtle disabled:text-[#4f4f4f]`,
   buttonControl:
     `inline-flex items-center justify-center ${controlBase}`,
   surfaceButton:
@@ -84,10 +84,10 @@ export const ui = {
   segmented:
     `inline-flex items-center ${radius.panel} border border-border bg-surface-subtle p-1 text-muted shadow-control`,
   segment:
-    `inline-flex h-10 items-center justify-center ${radius.controlLg} px-4 text-[14px] font-medium ${interactiveTransition} hover:text-fg-strong`,
+    `inline-flex h-9 items-center justify-center ${radius.controlLg} px-3.5 text-[13px] font-medium ${interactiveTransition} hover:text-fg-strong`,
   menuItem:
     `flex min-w-0 items-center text-left ${radius.control} ${interactiveRow}`,
-  alert: `${radius.controlLg} border px-4 py-3 text-[13px]`,
+  alert: `${radius.controlLg} border px-3.5 py-2.5 text-[12px]`,
   iconBox: `flex shrink-0 items-center justify-center ${radius.control} bg-control text-fg`,
   avatar: `flex shrink-0 items-center justify-center ${radius.control} border border-border bg-control text-[12px] font-semibold text-fg`,
   selected: "bg-selected text-fg-strong ring-1 ring-white/10",
@@ -99,7 +99,7 @@ export const ui = {
   row: interactiveRow,
   meta: "text-muted",
   subtleMeta: "text-[12px] text-muted",
-  sectionLabel: "flex items-center gap-2 text-[13px] font-medium text-muted",
+  sectionLabel: "flex items-center gap-2 text-[12px] font-medium text-muted",
   pill:
-    "inline-flex h-6 shrink-0 items-center justify-center gap-1 rounded-full border border-border bg-control px-2 text-[11px] font-medium leading-none text-fg"
+    "inline-flex h-5 shrink-0 items-center justify-center gap-1 rounded-full border border-border bg-control px-1.5 text-[10px] font-medium leading-none text-fg"
 } as const

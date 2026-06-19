@@ -166,7 +166,7 @@ export function FieldShell({
   children: ReactNode
 }) {
   return (
-    <label className={cn("flex h-12 items-center gap-3 px-3.5", ui.field, className)} {...props}>
+    <label className={cn("flex h-11 items-center gap-2.5 px-3", ui.field, className)} {...props}>
       {icon ? <span className="flex shrink-0 items-center justify-center">{icon}</span> : null}
       {children}
     </label>
@@ -258,7 +258,7 @@ export const CopyIconButton = memo(function CopyIconButton({
   return (
     <button
       type="button"
-      className={cn("inline-flex h-8 w-8 shrink-0 items-center justify-center text-muted hover:bg-control hover:text-fg-strong", radius.control, ui.row)}
+      className={cn("inline-flex h-7 w-7 shrink-0 items-center justify-center text-muted hover:bg-control hover:text-fg-strong", radius.control, ui.row)}
       title={label}
       aria-label={label}
       onClick={onClick}
@@ -295,14 +295,14 @@ export const CollapsibleCard = memo(function CollapsibleCard({
   bodyClassName?: string
   previewClassName?: string
 }) {
-  const headerHeight = size === "compact" ? "min-h-8" : size === "prominent" ? "min-h-11" : "min-h-10"
+  const headerHeight = size === "compact" ? "min-h-8" : size === "prominent" ? "min-h-10" : "min-h-9"
   const titleClass = size === "compact"
     ? "text-[12px] font-medium text-fg"
     : size === "prominent"
-      ? "text-[16px] font-semibold text-fg-strong"
-      : "text-[14px] font-medium text-fg"
+      ? "text-[14px] font-semibold text-fg-strong"
+      : "text-[13px] font-medium text-fg"
   const bodyPadding = size === "compact" ? "p-3" : "px-4 py-4"
-  const previewPadding = size === "compact" ? "px-3 pb-2" : "px-4 py-3"
+  const previewPadding = size === "compact" ? "px-3 pb-2" : "px-4 pb-3 pt-2"
   const cardClass = surface === "outline" ? ui.outlineCard : ui.card
   const headerClass = surface === "outline"
     ? "group/card-header flex w-full items-center gap-2 bg-app-bg transition duration-150 ease-out hover:bg-control/35 focus-within:bg-control/35"
@@ -330,14 +330,14 @@ export const CollapsibleCard = memo(function CollapsibleCard({
             {meta}
             <button
               type="button"
-              className={cn("inline-flex h-8 w-8 shrink-0 items-center justify-center text-muted transition duration-150 ease-out hover:text-fg-strong", radius.control)}
+              className={cn("inline-flex h-7 w-7 shrink-0 items-center justify-center text-muted transition duration-150 ease-out hover:text-fg-strong", radius.control)}
               aria-label={expanded ? `Collapse ${title}` : `Expand ${title}`}
               aria-expanded={expanded}
               title={expanded ? `Collapse ${title}` : `Expand ${title}`}
               onClick={onToggle}
             >
               <ChevronDown
-                size={size === "compact" ? 14 : 17}
+                size={size === "compact" ? 13 : 15}
                 className={cn("shrink-0 transition-transform duration-150 ease-out", expanded ? "rotate-180" : null)}
               />
             </button>
@@ -346,14 +346,14 @@ export const CollapsibleCard = memo(function CollapsibleCard({
         ) : (
           <button
             type="button"
-            className={cn("mr-2 inline-flex h-8 w-8 shrink-0 items-center justify-center text-muted transition duration-150 ease-out hover:text-fg-strong", radius.control)}
+            className={cn("mr-2 inline-flex h-7 w-7 shrink-0 items-center justify-center text-muted transition duration-150 ease-out hover:text-fg-strong", radius.control)}
             aria-label={expanded ? `Collapse ${title}` : `Expand ${title}`}
             aria-expanded={expanded}
             title={expanded ? `Collapse ${title}` : `Expand ${title}`}
             onClick={onToggle}
           >
             <ChevronDown
-              size={size === "compact" ? 14 : 17}
+              size={size === "compact" ? 13 : 15}
               className={cn("shrink-0 transition-transform duration-150 ease-out", expanded ? "rotate-180" : null)}
             />
           </button>
@@ -390,7 +390,7 @@ export function DisclosureRow({
     <button
       type="button"
       className={cn(
-        "flex min-h-11 w-full items-center justify-between gap-4 px-4 py-2.5 text-left text-[14px] text-fg",
+        "flex min-h-10 w-full items-center justify-between gap-3 px-4 py-2 text-left text-[13px] text-fg",
         divided ? "border-t border-border" : null,
         ui.row,
         className
@@ -398,7 +398,7 @@ export function DisclosureRow({
       onClick={onClick}
     >
       <span className="min-w-0 truncate">{children}</span>
-      <ChevronDown size={16} className={cn("shrink-0 text-muted-strong", expanded ? "rotate-180" : null)} />
+      <ChevronDown size={15} className={cn("shrink-0 text-muted-strong", expanded ? "rotate-180" : null)} />
     </button>
   )
 }
@@ -413,7 +413,7 @@ export function SettingsSection({
   children: ReactNode
 }) {
   return (
-    <section className="border-b border-border px-5 py-6 last:border-b-0">
+    <section className="border-b border-border px-5 py-5 last:border-b-0">
       <div className={cn(ui.sectionLabel, "mb-4")}>
         {icon}
         {title}
@@ -437,11 +437,11 @@ export const InfoTile = memo(function InfoTile({
   className?: string
 }) {
   return (
-    <div className={cn("flex items-start gap-3 border border-border bg-detail px-3 py-3", radius.controlLg, className)}>
-      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center text-muted">{icon}</span>
+    <div className={cn("flex items-start gap-2.5 border border-border bg-detail px-3 py-2.5", radius.controlLg, className)}>
+      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-muted">{icon}</span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[11px] font-medium uppercase text-muted">{label}</span>
-        <span className={cn("block truncate text-[13px] text-fg", mono ? "font-mono" : "font-medium")}>{value}</span>
+        <span className="block text-[10px] font-medium uppercase text-muted">{label}</span>
+        <span className={cn("block truncate text-[12px] text-fg", mono ? "font-mono" : "font-medium")}>{value}</span>
       </span>
     </div>
   )
@@ -455,15 +455,15 @@ export function SwitchControl({
   return (
     <span
       className={cn(
-        "relative h-8 w-14 shrink-0 rounded-full border border-border transition duration-150 ease-out",
+        "relative h-7 w-12 shrink-0 rounded-full border border-border transition duration-150 ease-out",
         checked ? "bg-neutral-100" : "bg-control"
       )}
       aria-hidden="true"
     >
       <span
         className={cn(
-          "absolute top-1 h-6 w-6 rounded-full transition duration-150 ease-out",
-          checked ? "left-7 bg-app-bg" : "left-1 bg-muted"
+          "absolute top-1 h-5 w-5 rounded-full transition duration-150 ease-out",
+          checked ? "left-6 bg-app-bg" : "left-1 bg-muted"
         )}
       />
     </span>

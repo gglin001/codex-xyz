@@ -67,7 +67,7 @@ function SettingsToggleRow({
 }) {
   return (
     <SurfaceAction
-      className={cn("min-h-14 w-full justify-between gap-3 px-4 py-3 text-[14px] font-medium", checked ? null : "text-muted-strong")}
+      className={cn("min-h-12 w-full justify-between gap-3 px-3.5 py-2.5 text-[13px] font-medium", checked ? null : "text-muted-strong")}
       selected={checked}
       onClick={onClick}
     >
@@ -75,7 +75,7 @@ function SettingsToggleRow({
         <span className={cn("shrink-0", checked ? "text-accent" : "text-muted")}>{icon}</span>
         <span className="min-w-0">
           <span className={cn("block truncate", checked ? "text-fg-strong" : "text-fg")}>{title}</span>
-          <span className="block truncate text-[12px] font-normal text-muted">
+          <span className="block truncate text-[11px] font-normal text-muted">
             {description}
           </span>
         </span>
@@ -107,42 +107,42 @@ export const ParamPanel = memo(function ParamPanel({
 
   return (
     <aside className={cn("flex h-full min-h-0 flex-col border-l border-border bg-panel text-fg", className)}>
-      <div className="flex h-[72px] shrink-0 items-center justify-between gap-3 px-5">
+      <div className="flex h-16 shrink-0 items-center justify-between gap-3 px-5">
         <div className="min-w-0">
-          <h2 className="truncate text-[19px] font-semibold text-fg-strong">Run settings</h2>
-          <p className="truncate text-[12px] text-muted">Thread and goal state</p>
+          <h2 className="truncate text-[17px] font-semibold text-fg-strong">Run settings</h2>
+          <p className="truncate text-[11px] text-muted">Thread and goal state</p>
         </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <SettingsSection icon={<Server size={14} />} title="Runtime">
-          <div className="grid gap-3">
-            <ControlCard className="flex items-center justify-between px-4 py-3">
+        <SettingsSection icon={<Server size={13} />} title="Runtime">
+          <div className="grid gap-2.5">
+            <ControlCard className="flex items-center justify-between px-3.5 py-2.5">
               <span className="inline-flex min-w-0 items-center gap-2">
                 <span className={cn("h-2 w-2 shrink-0 rounded-full", runtimeStatusTone(status))} />
-                <span className="truncate text-[14px] font-medium text-fg">{statusLabel(status)}</span>
+                <span className="truncate text-[13px] font-medium text-fg">{statusLabel(status)}</span>
               </span>
               <Pill className="font-mono text-[10px] text-muted">app-server</Pill>
             </ControlCard>
-            <InfoTile icon={<Bot size={14} />} label="Model" value={model} mono />
-            <InfoTile icon={<Cpu size={14} />} label="Adapter" value="codex app-server --stdio" mono />
+            <InfoTile icon={<Bot size={13} />} label="Model" value={model} mono />
+            <InfoTile icon={<Cpu size={13} />} label="Adapter" value="codex app-server --stdio" mono />
           </div>
         </SettingsSection>
 
-        <SettingsSection icon={<ListTree size={14} />} title="Session">
-          <div className="grid gap-3">
-            <InfoTile icon={<Hash size={14} />} label="Thread" value={thread ? shortId(thread.id) : "No thread selected"} mono />
-            <InfoTile icon={<Hash size={14} />} label="Session" value={thread ? shortId(thread.sessionId) : "New session draft"} mono />
-            <InfoTile icon={<Activity size={14} />} label="Active turn" value={thread?.activeTurnId ? shortId(thread.activeTurnId) : "None"} mono />
-            <InfoTile icon={<FolderGit2 size={14} />} label="Working directory" value={thread?.cwd ?? session?.cwd ?? defaultCwd} mono />
-            {thread?.forkedFromId ? <InfoTile icon={<GitFork size={14} />} label="Continued from" value={shortId(thread.forkedFromId)} mono /> : null}
+        <SettingsSection icon={<ListTree size={13} />} title="Session">
+          <div className="grid gap-2.5">
+            <InfoTile icon={<Hash size={13} />} label="Thread" value={thread ? shortId(thread.id) : "No thread selected"} mono />
+            <InfoTile icon={<Hash size={13} />} label="Session" value={thread ? shortId(thread.sessionId) : "New session draft"} mono />
+            <InfoTile icon={<Activity size={13} />} label="Active turn" value={thread?.activeTurnId ? shortId(thread.activeTurnId) : "None"} mono />
+            <InfoTile icon={<FolderGit2 size={13} />} label="Working directory" value={thread?.cwd ?? session?.cwd ?? defaultCwd} mono />
+            {thread?.forkedFromId ? <InfoTile icon={<GitFork size={13} />} label="Continued from" value={shortId(thread.forkedFromId)} mono /> : null}
           </div>
         </SettingsSection>
 
-        <SettingsSection icon={<TimerReset size={14} />} title="Goal and Tokens">
-          <div className="grid gap-3">
-            <ControlCard size="large" className="p-4">
-              <div className="mb-3 flex items-center justify-between text-[13px]">
+        <SettingsSection icon={<TimerReset size={13} />} title="Goal and Tokens">
+          <div className="grid gap-2.5">
+            <ControlCard size="large" className="p-3.5">
+              <div className="mb-3 flex items-center justify-between text-[12px]">
                 <span className="font-medium text-fg">{tokenBudget ? "Goal budget" : "Tokens used"}</span>
                 <span className="font-mono text-[11px] text-muted">
                   {tokenBudget ? `${formatCompact(contextTokens)} / ${formatCompact(contextLimit)}` : formatCompact(contextTokens)}
@@ -158,28 +158,28 @@ export const ParamPanel = memo(function ParamPanel({
                   style={{ width: tokenBudget ? `${tokenPercent}%` : "0%" }}
                 />
               </div>
-              <div className="mt-3 flex items-center justify-between text-[11px] text-muted">
+              <div className="mt-3 flex items-center justify-between text-[10px] text-muted">
                 <span>{thread?.goalStatus ? statusLabel(thread.goalStatus) : "No active goal"}</span>
                 <span>{tokenBudget ? `${tokenPercent}%` : `${formatTokens(contextTokens)} total`}</span>
               </div>
             </ControlCard>
             {thread?.goalObjective ? (
-              <ControlCard className="px-4 py-3 text-[13px] leading-6 text-fg">
+              <ControlCard className="px-3.5 py-2.5 text-[12px] leading-5 text-fg">
                 {thread.goalObjective}
               </ControlCard>
             ) : null}
             <div className="grid grid-cols-2 gap-2">
-              <InfoTile icon={<Play size={14} />} label="Turns" value={String(turnCount)} />
-              <InfoTile icon={<CircleDotDashed size={14} />} label="Items" value={String(itemCount)} />
+              <InfoTile icon={<Play size={13} />} label="Turns" value={String(turnCount)} />
+              <InfoTile icon={<CircleDotDashed size={13} />} label="Items" value={String(itemCount)} />
             </div>
           </div>
         </SettingsSection>
 
-        <SettingsSection icon={<SlidersHorizontal size={14} />} title="Transcript View">
+        <SettingsSection icon={<SlidersHorizontal size={13} />} title="Transcript View">
           <div className="grid gap-2">
             <SettingsToggleRow
               checked={wrapSessionContent}
-              icon={<WrapText size={16} />}
+              icon={<WrapText size={14} />}
               title="Wrap session content"
               description={wrapSessionContent ? "Long transcript lines wrap" : "Long transcript lines scroll"}
               onClick={() => onWrapSessionContentChange(!wrapSessionContent)}

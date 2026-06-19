@@ -65,15 +65,15 @@ const spring = { type: "spring", stiffness: 360, damping: 36 } as const
 
 function commandIcon(icon: CommandAction["icon"]) {
   if (icon === "project") {
-    return <PanelLeftOpen size={15} />
+    return <PanelLeftOpen size={14} />
   }
   if (icon === "panel") {
-    return <SlidersHorizontal size={15} />
+    return <SlidersHorizontal size={14} />
   }
   if (icon === "create") {
-    return <Plus size={15} />
+    return <Plus size={14} />
   }
-  return <Command size={15} />
+  return <Command size={14} />
 }
 
 const CommandPalette = memo(function CommandPalette({
@@ -137,10 +137,10 @@ const CommandPalette = memo(function CommandPalette({
             transition={{ type: "spring", stiffness: 420, damping: 34 }}
             onMouseDown={(event) => event.stopPropagation()}
           >
-            <div className="flex h-16 items-center gap-3 border-b border-border px-5">
-              <Search size={18} className="text-muted" />
+            <div className="flex h-14 items-center gap-3 border-b border-border px-4">
+              <Search size={16} className="text-muted" />
               <input
-                className={cn(ui.input, "h-14 text-[16px]")}
+                className={cn(ui.input, "h-12 text-[14px]")}
                 autoFocus
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -174,7 +174,7 @@ const CommandPalette = memo(function CommandPalette({
                 <MenuItemButton
                   key={action.id}
                   className={cn(
-                    "h-14 w-full gap-3 px-3",
+                    "h-12 w-full gap-2.5 px-3",
                     index === activeIndex ? null : "bg-transparent"
                   )}
                   selected={index === activeIndex}
@@ -184,12 +184,12 @@ const CommandPalette = memo(function CommandPalette({
                     onClose()
                   }}
                 >
-                  <span className={cn("h-9 w-9 border border-border text-muted-strong", ui.iconBox)}>
+                  <span className={cn("h-8 w-8 border border-border text-muted-strong", ui.iconBox)}>
                     {commandIcon(action.icon)}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[14px] font-medium">{action.title}</span>
-                    <span className="block truncate text-[12px] text-muted">{action.detail}</span>
+                    <span className="block truncate text-[13px] font-medium">{action.title}</span>
+                    <span className="block truncate text-[11px] text-muted">{action.detail}</span>
                   </span>
                 </MenuItemButton>
               ))}
@@ -387,7 +387,7 @@ export const DashboardLayout = memo(function DashboardLayout({
               key="desktop-sidebar"
               className="h-full min-h-0 shrink-0 overflow-hidden"
               initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 336, opacity: 1 }}
+              animate={{ width: 320, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={spring}
             >
@@ -436,7 +436,7 @@ export const DashboardLayout = memo(function DashboardLayout({
               key="desktop-inspector"
               className="h-full min-h-0 shrink-0 overflow-hidden"
               initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 360, opacity: 1 }}
+              animate={{ width: 328, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={spring}
             >

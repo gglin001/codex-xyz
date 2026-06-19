@@ -473,18 +473,18 @@ export function TerminalDock({ visible, onClose }: TerminalDockProps) {
 
   return (
     <section className={cn("fixed inset-x-4 bottom-4 z-[80]", ui.popover)} aria-label="Terminal">
-      <div className="flex h-14 items-center justify-between gap-3 border-b border-border px-4">
+      <div className="flex h-12 items-center justify-between gap-3 border-b border-border px-3.5">
         <div className="flex min-w-0 items-center gap-2">
-          <span className={cn("h-9 w-9", ui.iconBox)}>
-            <TerminalIcon size={15} />
+          <span className={cn("h-8 w-8", ui.iconBox)}>
+            <TerminalIcon size={14} />
           </span>
-          <strong className="shrink-0 text-[15px] font-semibold text-fg-strong">Terminal</strong>
-          <span className={cn("rounded-full px-2 py-1 text-[11px] font-semibold leading-none", terminalStatusClass[label] ?? terminalStatusClass.idle)}>{label}</span>
-          {snapshot ? <small className="min-w-0 truncate font-mono text-[11px] text-muted">{snapshot.command}</small> : null}
+          <strong className="shrink-0 text-[14px] font-semibold text-fg-strong">Terminal</strong>
+          <span className={cn("rounded-full px-1.5 py-1 text-[10px] font-semibold leading-none", terminalStatusClass[label] ?? terminalStatusClass.idle)}>{label}</span>
+          {snapshot ? <small className="min-w-0 truncate font-mono text-[10px] text-muted">{snapshot.command}</small> : null}
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <IconButton title={startActionLabel} aria-label={startActionLabel} onClick={startOrAttach}>
-            {canStop ? <RotateCw size={15} /> : <Play size={15} />}
+            {canStop ? <RotateCw size={14} /> : <Play size={14} />}
           </IconButton>
           <IconButton
             title="Stop terminal process"
@@ -492,14 +492,14 @@ export function TerminalDock({ visible, onClose }: TerminalDockProps) {
             disabled={!canStop}
             onClick={stopTerminal}
           >
-            <Square size={15} />
+            <Square size={14} />
           </IconButton>
           <IconButton title="Hide terminal" aria-label="Hide terminal" onClick={onClose}>
-            <X size={16} />
+            <X size={14} />
           </IconButton>
         </div>
       </div>
-      <div className="flex h-9 min-w-0 items-center gap-2 overflow-hidden border-b border-border px-4 text-[11px] text-muted">
+      <div className="flex h-8 min-w-0 items-center gap-2 overflow-hidden border-b border-border px-3.5 text-[10px] text-muted">
         <span className="min-w-0 flex-1 truncate font-mono">{snapshot?.cwd ?? ""}</span>
         {snapshot?.pid ? <Pill>pid {snapshot.pid}</Pill> : null}
         <Pill className="hidden max-w-[42vw] truncate font-mono xl:inline-flex" title={metricsTitle}>diagnostics</Pill>
