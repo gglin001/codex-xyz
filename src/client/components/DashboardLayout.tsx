@@ -3,11 +3,12 @@ import { AnimatePresence, motion } from "framer-motion"
 import type { FormEvent, KeyboardEvent } from "react"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { ControlThread, ThreadDetail } from "../../server/domain.js"
-import { cn } from "../classNames.js"
+import { cn, ui } from "../designSystem.js"
 import { isPromptFocusShortcut } from "../promptShortcut.js"
 import { ParamPanel } from "./ParamPanel.js"
 import { Sidebar } from "./Sidebar.js"
 import { Workspace, type WorkspaceHandle } from "./Workspace.js"
+import { Keycap, MenuItemButton } from "./uiPrimitives.js"
 import type { ComposerMode, WorkbenchProject, WorkbenchSession } from "./workbenchTypes.js"
 
 export type DashboardLayoutProps = {
@@ -121,7 +122,7 @@ const CommandPalette = memo(function CommandPalette({
     <AnimatePresence>
       {open ? (
         <motion.div
-          className="fixed inset-0 z-[120] flex items-start justify-center bg-black/60 px-3 pt-[12vh] backdrop-blur-sm"
+          className={cn("fixed inset-0 z-[120] flex items-start justify-center px-3 pt-[12vh]", ui.overlay)}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -129,7 +130,7 @@ const CommandPalette = memo(function CommandPalette({
           onMouseDown={onClose}
         >
           <motion.div
-            className="w-full max-w-[640px] overflow-hidden rounded-[24px] border border-border bg-detail shadow-popover backdrop-blur-md"
+            className={cn("w-full max-w-[640px]", ui.popover)}
             initial={{ opacity: 0, y: -18, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -18, scale: 0.97 }}
@@ -139,7 +140,7 @@ const CommandPalette = memo(function CommandPalette({
             <div className="flex h-16 items-center gap-3 border-b border-border px-5">
               <Search size={18} className="text-muted" />
               <input
-                className="h-14 min-w-0 flex-1 border-0 bg-transparent text-[16px] text-fg-strong placeholder:text-muted focus:outline-none"
+                className={cn(ui.input, "h-14 text-[16px]")}
                 autoFocus
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -163,34 +164,34 @@ const CommandPalette = memo(function CommandPalette({
                   }
                 }}
               />
-              <span className="rounded-full border border-border bg-control px-2 py-1 font-mono text-[10px] text-muted">Esc</span>
+              <Keycap>Esc</Keycap>
             </div>
             <div className="max-h-[420px] overflow-y-auto p-2">
               {filteredActions.length === 0 ? (
                 <div className="px-3 py-8 text-center text-[13px] text-muted">No commands found</div>
               ) : null}
               {filteredActions.map((action, index) => (
-                <button
+                <MenuItemButton
                   key={action.id}
-                  type="button"
                   className={cn(
-                    "flex h-14 w-full items-center gap-3 rounded-[18px] px-3 text-left transition duration-150 ease-out",
-                    index === activeIndex ? "bg-[#383838] text-fg-strong" : "text-fg hover:bg-surface"
+                    "h-14 w-full gap-3 px-3",
+                    index === activeIndex ? null : "bg-transparent"
                   )}
+                  selected={index === activeIndex}
                   onMouseEnter={() => setActiveIndex(index)}
                   onClick={() => {
                     action.run()
                     onClose()
                   }}
                 >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border border-border bg-control text-muted-strong">
+                  <span className={cn("h-9 w-9 border border-border text-muted-strong", ui.iconBox)}>
                     {commandIcon(action.icon)}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[14px] font-medium">{action.title}</span>
                     <span className="block truncate text-[12px] text-muted">{action.detail}</span>
                   </span>
-                </button>
+                </MenuItemButton>
               ))}
             </div>
           </motion.div>
@@ -378,7 +379,7 @@ export const DashboardLayout = memo(function DashboardLayout({
   )
 
   return (
-    <main className="h-dvh min-h-0 w-full overflow-hidden bg-app-bg text-fg antialiased">
+    <main className={cn("h-dvh min-h-0 w-full overflow-hidden", ui.appShell)}>
       <div className="hidden h-full min-h-0 md:flex">
         <AnimatePresence initial={false}>
           {navigatorVisible ? (
@@ -488,7 +489,7 @@ export const DashboardLayout = memo(function DashboardLayout({
       <AnimatePresence>
         {mobileNavigatorOpen ? (
           <motion.div
-            className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm md:hidden"
+            className={cn("fixed inset-0 z-[90] md:hidden", ui.overlay)}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -496,7 +497,7 @@ export const DashboardLayout = memo(function DashboardLayout({
             onMouseDown={() => setMobileNavigatorOpen(false)}
           >
             <motion.div
-              className="h-full w-[min(88vw,360px)] overflow-hidden border-r border-border bg-panel shadow-popover"
+              className={cn("h-full w-[min(88vw,360px)] overflow-hidden border-r", ui.backdropPanel)}
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
@@ -538,7 +539,7 @@ export const DashboardLayout = memo(function DashboardLayout({
       <AnimatePresence>
         {mobileInspectorOpen ? (
           <motion.div
-            className="fixed inset-0 z-[95] flex items-end bg-black/60 backdrop-blur-sm md:hidden"
+            className={cn("fixed inset-0 z-[95] flex items-end md:hidden", ui.overlay)}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -546,7 +547,7 @@ export const DashboardLayout = memo(function DashboardLayout({
             onMouseDown={() => setMobileInspectorOpen(false)}
           >
             <motion.div
-              className="max-h-[calc(100dvh-1.5rem)] w-full overflow-hidden rounded-t-[28px] border-t border-border bg-panel shadow-popover"
+              className={cn("max-h-[calc(100dvh-1.5rem)] w-full overflow-hidden rounded-t-[28px] border-t", ui.backdropPanel)}
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}

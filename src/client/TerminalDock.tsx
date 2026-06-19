@@ -10,7 +10,8 @@ import {
   terminateTerminal,
   writeTerminalInput
 } from "./api.js";
-import { cn, iconButtonClass, pillClass } from "./classNames.js";
+import { cn, tone, ui } from "./designSystem.js";
+import { IconButton, Pill } from "./components/uiPrimitives.js";
 import { openEventStream, parseSseJsonEvent } from "./eventStream.js";
 import type { TerminalEvent, TerminalSnapshot } from "../server/domain.js";
 
@@ -41,15 +42,15 @@ const resizeFlushMs = 100;
 const metricsCommitMs = 500;
 
 const terminalStatusClass: Record<string, string> = {
-  idle: "bg-control text-fg",
-  connected: "bg-emerald-400/12 text-emerald-100",
-  running: "bg-emerald-400/12 text-emerald-100",
-  starting: "bg-[#383838] text-fg-strong",
-  connecting: "bg-[#383838] text-fg-strong",
-  reconnecting: "bg-[#383838] text-fg-strong",
-  exited: "bg-control text-fg",
-  failed: "bg-rose-500/10 text-rose-100",
-  offline: "bg-rose-500/10 text-rose-100"
+  idle: tone.neutral.badge,
+  connected: tone.running.badge,
+  running: tone.running.badge,
+  starting: tone.selected.badge,
+  connecting: tone.selected.badge,
+  reconnecting: tone.selected.badge,
+  exited: tone.neutral.badge,
+  failed: tone.error.badge,
+  offline: tone.error.badge
 };
 
 const initialTerminalClientMetrics: TerminalClientMetrics = {
@@ -471,10 +472,10 @@ export function TerminalDock({ visible, onClose }: TerminalDockProps) {
   }
 
   return (
-    <section className="fixed inset-x-4 bottom-4 z-[80] overflow-hidden rounded-[24px] border border-border bg-detail shadow-popover backdrop-blur-md" aria-label="Terminal">
+    <section className={cn("fixed inset-x-4 bottom-4 z-[80]", ui.popover)} aria-label="Terminal">
       <div className="flex h-14 items-center justify-between gap-3 border-b border-border px-4">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] bg-control text-fg">
+          <span className={cn("h-9 w-9", ui.iconBox)}>
             <TerminalIcon size={15} />
           </span>
           <strong className="shrink-0 text-[15px] font-semibold text-fg-strong">Terminal</strong>
@@ -482,31 +483,29 @@ export function TerminalDock({ visible, onClose }: TerminalDockProps) {
           {snapshot ? <small className="min-w-0 truncate font-mono text-[11px] text-muted">{snapshot.command}</small> : null}
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <button className={iconButtonClass} type="button" title={startActionLabel} aria-label={startActionLabel} onClick={startOrAttach}>
+          <IconButton title={startActionLabel} aria-label={startActionLabel} onClick={startOrAttach}>
             {canStop ? <RotateCw size={15} /> : <Play size={15} />}
-          </button>
-          <button
-            type="button"
-            className={iconButtonClass}
+          </IconButton>
+          <IconButton
             title="Stop terminal process"
             aria-label="Stop terminal process"
             disabled={!canStop}
             onClick={stopTerminal}
           >
             <Square size={15} />
-          </button>
-          <button className={iconButtonClass} type="button" title="Hide terminal" aria-label="Hide terminal" onClick={onClose}>
+          </IconButton>
+          <IconButton title="Hide terminal" aria-label="Hide terminal" onClick={onClose}>
             <X size={16} />
-          </button>
+          </IconButton>
         </div>
       </div>
       <div className="flex h-9 min-w-0 items-center gap-2 overflow-hidden border-b border-border px-4 text-[11px] text-muted">
         <span className="min-w-0 flex-1 truncate font-mono">{snapshot?.cwd ?? ""}</span>
-        {snapshot?.pid ? <span className={pillClass}>pid {snapshot.pid}</span> : null}
-        <span className={cn(pillClass, "hidden max-w-[42vw] truncate font-mono xl:inline-flex")} title={metricsTitle}>diagnostics</span>
-        {error ? <span className="max-w-[34vw] truncate rounded-full bg-rose-500/10 px-2 py-1 font-medium text-rose-100">{error}</span> : null}
+        {snapshot?.pid ? <Pill>pid {snapshot.pid}</Pill> : null}
+        <Pill className="hidden max-w-[42vw] truncate font-mono xl:inline-flex" title={metricsTitle}>diagnostics</Pill>
+        {error ? <span className={cn("max-w-[34vw] truncate rounded-full px-2 py-1 font-medium", tone.error.badge)}>{error}</span> : null}
       </div>
-      <div className="h-[min(32dvh,320px)] min-h-[160px] bg-[#171717] p-3 [&_.xterm]:h-full [&_.xterm-screen]:will-change-transform [&_.xterm-viewport]:!bg-transparent" ref={containerRef} />
+      <div className="h-[min(32dvh,320px)] min-h-[160px] bg-terminal p-3 [&_.xterm]:h-full [&_.xterm-screen]:will-change-transform [&_.xterm-viewport]:!bg-transparent" ref={containerRef} />
     </section>
   );
 }

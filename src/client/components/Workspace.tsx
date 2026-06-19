@@ -1,7 +1,6 @@
 import {
   Bot,
   Check,
-  ChevronDown,
   Code2,
   Copy,
   Menu,
@@ -16,10 +15,20 @@ import { AnimatePresence, motion } from "framer-motion"
 import type { FormEvent, KeyboardEvent, ReactNode } from "react"
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
 import type { ControlThread, ThreadDetail, ThreadItem } from "../../server/domain.js"
-import { cn } from "../classNames.js"
+import { cn, tone, ui } from "../designSystem.js"
 import { getFirstLineTextPreview } from "../textPreview.js"
 import { getTranscriptEntries, type TranscriptProcessEntry } from "../transcriptEntries.js"
 import { formatDateTime, formatTime, formatTokens, itemTitle, statusLabel } from "../uiFormat.js"
+import {
+  CollapsibleCard,
+  ComposerIconButton,
+  ControlCard,
+  CopyIconButton,
+  DisclosureRow,
+  FieldShell,
+  LargeIconButton,
+  MessageGroup
+} from "./uiPrimitives.js"
 import type { ComposerMode, WorkbenchProject, WorkbenchSession } from "./workbenchTypes.js"
 
 export type WorkspaceProps = {
@@ -72,10 +81,6 @@ type ChatMessage = {
 const spring = { type: "spring", stiffness: 340, damping: 34 } as const
 const sessionContentWidthClass = "[--session-content-width:900px]"
 const sessionContentFrameClass = "mx-auto w-full min-w-0 max-w-[var(--session-content-width)]"
-const roundIconButtonClass =
-  "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] border border-border bg-control text-muted-strong shadow-control transition duration-150 ease-out hover:bg-control-hover hover:text-fg-strong disabled:cursor-not-allowed disabled:opacity-40 active:scale-[0.98]"
-const composerIconButtonClass =
-  "inline-flex h-10 min-w-10 items-center justify-center rounded-[16px] border border-transparent bg-control text-fg transition duration-150 ease-out hover:bg-control-hover hover:text-fg-strong disabled:cursor-not-allowed disabled:opacity-35 active:scale-[0.98]"
 
 function SessionContentFrame({
   children,
@@ -115,6 +120,16 @@ function messageMeta(message: ChatMessage) {
   return formatTime(message.time)
 }
 
+function messageCardTitle(message: ChatMessage) {
+  if (message.title === "User" || message.title === "Steer") {
+    return "Prompt"
+  }
+  if (message.title === "Codex") {
+    return "Response"
+  }
+  return message.title
+}
+
 const CopyTextButton = memo(function CopyTextButton({
   value,
   label = "Copy"
@@ -143,15 +158,9 @@ const CopyTextButton = memo(function CopyTextButton({
   }, [value])
 
   return (
-    <button
-      type="button"
-      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-muted transition duration-150 ease-out hover:bg-control hover:text-fg-strong"
-      title={label}
-      aria-label={label}
-      onClick={copyValue}
-    >
+    <CopyIconButton label={label} onClick={copyValue}>
       {copied ? <Check size={13} /> : <Copy size={13} />}
-    </button>
+    </CopyIconButton>
   )
 })
 
@@ -166,44 +175,22 @@ const MessageBlock = memo(function MessageBlock({
   const preview = getFirstLineTextPreview(message.text || "Pending...")
 
   return (
-    <article className="group min-w-0 overflow-hidden rounded-[18px] border border-border bg-detail shadow-control transition duration-150 ease-out hover:border-border-strong">
-      <div className="flex min-h-11 w-full items-center gap-2 border-b border-border bg-detail transition duration-150 ease-out hover:bg-surface">
-        <button
-          type="button"
-          className="flex min-h-11 min-w-0 flex-1 items-center justify-between gap-3 px-4 text-left"
-          aria-expanded={expanded}
-          onClick={() => setExpanded((current) => !current)}
-        >
-          <span className="min-w-0">
-            <span className="block truncate text-[14px] font-medium text-fg">{message.title}</span>
-          </span>
-          <ChevronDown
-            size={17}
-            className={cn("shrink-0 text-muted transition-transform duration-150 ease-out", expanded ? "rotate-180" : null)}
-          />
-        </button>
-        <div className="flex shrink-0 items-center gap-1.5 pr-2">
-          <span className="whitespace-nowrap text-[12px] text-muted">{messageMeta(message)}</span>
-          <CopyTextButton value={message.copyText} />
-        </div>
-      </div>
-      {!expanded ? (
-        <div className="px-4 py-3">
-          <div className="truncate text-[13px] leading-6 text-muted">{preview}</div>
-        </div>
-      ) : null}
-
-      {expanded ? (
-        <div className="min-w-0 px-4 py-4">
-          {message.text ? (
-            <div className={cn(
-              "text-[16px] leading-8 text-fg",
-              wrapContent ? "whitespace-pre-wrap break-words" : "overflow-x-auto whitespace-pre"
+    <MessageGroup role={message.title} time={messageMeta(message)}>
+      <CollapsibleCard
+        title={messageCardTitle(message)}
+        expanded={expanded}
+        onToggle={() => setExpanded((current) => !current)}
+        actions={<CopyTextButton value={message.copyText} />}
+        preview={<div className="truncate text-[13px] leading-6 text-muted">{preview}</div>}
+      >
+        {message.text ? (
+          <div className={cn(
+            "text-[16px] leading-8 text-fg",
+            wrapContent ? "whitespace-pre-wrap break-words" : "overflow-x-auto whitespace-pre"
           )}>{message.text}</div>
-          ) : null}
-        </div>
-      ) : null}
-    </article>
+        ) : null}
+      </CollapsibleCard>
+    </MessageGroup>
   )
 })
 
@@ -218,45 +205,24 @@ const ProcessItemBlock = memo(function ProcessItemBlock({
   const preview = getFirstLineTextPreview(message.text || "Pending...")
 
   return (
-    <div className="min-w-0 overflow-hidden rounded-[14px] border border-border bg-detail">
-      <div className="flex min-h-9 w-full items-center gap-2 transition duration-150 ease-out hover:bg-surface">
-        <button
-          type="button"
-          className="flex min-h-9 min-w-0 flex-1 items-center justify-between gap-3 px-3 text-left"
-          aria-expanded={expanded}
-          onClick={() => setExpanded((current) => !current)}
-        >
-          <span className="min-w-0">
-            <span className="block truncate text-[12px] font-medium text-fg">{message.title}</span>
-          </span>
-          <ChevronDown
-            size={14}
-            className={cn("shrink-0 text-muted transition-transform duration-150 ease-out", expanded ? "rotate-180" : null)}
-          />
-        </button>
-        <div className="flex shrink-0 items-center gap-1 pr-1.5">
-          <span className="whitespace-nowrap text-[10px] text-muted">{messageMeta(message)}</span>
-          <CopyTextButton value={message.copyText} />
-        </div>
-      </div>
-
-      {!expanded ? (
-        <div className="px-3 pb-2">
-          <div className="truncate text-[12px] leading-5 text-muted">{preview}</div>
-        </div>
+    <CollapsibleCard
+      title={message.title}
+      expanded={expanded}
+      onToggle={() => setExpanded((current) => !current)}
+      meta={<span className="whitespace-nowrap text-[10px] text-muted">{messageMeta(message)}</span>}
+      actions={<CopyTextButton value={message.copyText} />}
+      preview={<div className="truncate text-[12px] leading-5 text-muted">{preview}</div>}
+      size="compact"
+      className="rounded-[14px] shadow-none"
+      bodyClassName="border-t border-border"
+    >
+      {message.text ? (
+        <div className={cn(
+          "text-[14px] leading-6 text-fg",
+          wrapContent ? "whitespace-pre-wrap break-words" : "overflow-x-auto whitespace-pre"
+        )}>{message.text}</div>
       ) : null}
-
-      {expanded ? (
-        <div className="min-w-0 border-t border-border p-3">
-          {message.text ? (
-            <div className={cn(
-              "text-[14px] leading-6 text-fg",
-              wrapContent ? "whitespace-pre-wrap break-words" : "overflow-x-auto whitespace-pre"
-          )}>{message.text}</div>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
+    </CollapsibleCard>
   )
 })
 
@@ -275,61 +241,31 @@ const ProcessOutputBlock = memo(function ProcessOutputBlock({
   const copyText = useMemo(() => entry.items.map((item) => item.text).filter(Boolean).join("\n\n"), [entry.items])
 
   return (
-    <article className="group min-w-0">
-      <div className="overflow-hidden rounded-[18px] border border-border bg-detail shadow-panel transition duration-150 ease-out hover:border-border-strong">
-        <div className="flex min-h-12 w-full items-center gap-2 transition duration-150 ease-out hover:bg-surface">
-        <button
-          type="button"
-          className="flex min-h-12 min-w-0 flex-1 items-center justify-between gap-3 px-4 text-left"
-          aria-expanded={expanded}
-          onClick={() => setExpanded((current) => !current)}
-        >
-          <span className="min-w-0">
-            <span className="block truncate text-[16px] font-semibold text-fg-strong">Thoughts</span>
-          </span>
-          <ChevronDown
-            size={17}
-            className={cn("shrink-0 text-muted-strong transition-transform duration-150 ease-out", expanded ? "rotate-180" : null)}
+    <MessageGroup role="Model" time={formatTime(entry.createdAt)}>
+      <CollapsibleCard
+        title="Thoughts"
+        expanded={expanded}
+        onToggle={() => setExpanded((current) => !current)}
+        meta={<span className="hidden whitespace-nowrap text-[11px] text-muted sm:inline">{metaLabel}</span>}
+        actions={<CopyTextButton value={copyText || preview} />}
+        size="prominent"
+        className="shadow-panel"
+        preview={<DisclosureRow onClick={() => setExpanded(true)} className="-mx-4 -my-3">Expand to view model thoughts</DisclosureRow>}
+        previewClassName="p-0"
+        bodyClassName="grid gap-2 px-4 pb-4 pt-0"
+      >
+        {messages.map((message) => (
+          <ProcessItemBlock
+            key={message.id}
+            message={message}
+            wrapContent={wrapContent}
           />
-        </button>
-        <div className="flex shrink-0 items-center gap-1.5 pr-2">
-          <span className="hidden whitespace-nowrap text-[11px] text-muted sm:inline">{metaLabel}</span>
-          <CopyTextButton value={copyText || preview} />
-        </div>
-      </div>
-
-      {!expanded ? (
-          <button
-            type="button"
-            className="flex min-h-11 w-full items-center justify-between gap-4 border-t border-border px-4 py-2.5 text-left text-[14px] text-fg transition duration-150 ease-out hover:bg-surface"
-            onClick={() => setExpanded(true)}
-          >
-            <span className="min-w-0 truncate">Expand to view model thoughts</span>
-            <ChevronDown size={16} className="shrink-0 text-muted-strong" />
-          </button>
-      ) : (
-          <>
-            <div className="grid min-w-0 gap-2 px-4 pb-4">
-              {messages.map((message) => (
-                <ProcessItemBlock
-                  key={message.id}
-                  message={message}
-                  wrapContent={wrapContent}
-                />
-              ))}
-            </div>
-            <button
-              type="button"
-              className="flex min-h-11 w-full items-center justify-between gap-4 border-t border-border px-4 py-2.5 text-left text-[14px] text-fg transition duration-150 ease-out hover:bg-surface"
-              onClick={() => setExpanded(false)}
-            >
-              <span className="min-w-0 truncate">Collapse to hide model thoughts</span>
-              <ChevronDown size={16} className="shrink-0 rotate-180 text-muted-strong" />
-            </button>
-          </>
-      )}
-      </div>
-    </article>
+        ))}
+        <DisclosureRow expanded onClick={() => setExpanded(false)} className="-mx-4 -mb-4 mt-2">
+          Collapse to hide model thoughts
+        </DisclosureRow>
+      </CollapsibleCard>
+    </MessageGroup>
   )
 })
 
@@ -341,8 +277,8 @@ const EmptyTranscript = memo(function EmptyTranscript({
   projectPath: string
 }) {
   return (
-    <div className="rounded-[24px] border border-dashed border-border bg-detail px-5 py-12 text-center shadow-control">
-      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-[18px] border border-border bg-control text-muted-strong">
+    <ControlCard className="border-dashed px-5 py-12 text-center">
+      <div className={cn("mx-auto mb-4 h-12 w-12 border border-border text-muted-strong", ui.iconBox)}>
         <Bot size={18} />
       </div>
       <h2 className="text-[16px] font-semibold text-fg-strong">
@@ -353,7 +289,7 @@ const EmptyTranscript = memo(function EmptyTranscript({
           ? "This app-server thread has no persisted transcript items yet. Send a prompt or resume the session to continue."
           : `Create a Codex app-server session for ${projectPath} or select an existing thread from the navigator.`}
       </p>
-    </div>
+    </ControlCard>
   )
 })
 
@@ -451,31 +387,30 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
     <div>
       {(busyAction || notice || error) ? (
         <div className="mb-3 grid gap-2 text-[13px]">
-          {busyAction ? <div className="rounded-[18px] border border-border bg-detail px-4 py-3 text-fg">{busyAction}...</div> : null}
-          {notice ? <div className="rounded-[18px] border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-emerald-100">{notice}</div> : null}
-          {error ? <div className="rounded-[18px] border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-rose-100">{error}</div> : null}
+          {busyAction ? <div className={cn(ui.alert, tone.neutral.alert)}>{busyAction}...</div> : null}
+          {notice ? <div className={cn(ui.alert, tone.running.alert)}>{notice}</div> : null}
+          {error ? <div className={cn(ui.alert, tone.error.alert)}>{error}</div> : null}
         </div>
       ) : null}
 
       {promptTarget === "new" ? (
-        <label className="mb-3 flex h-11 items-center gap-3 rounded-[18px] border border-border bg-field px-4 text-muted transition duration-150 ease-out focus-within:border-border-strong focus-within:text-fg">
-          <Code2 size={15} />
+        <FieldShell className="mb-3 h-11 px-4" icon={<Code2 size={15} />}>
           <input
-            className="min-w-0 flex-1 border-0 bg-transparent font-mono text-[13px] text-fg placeholder:text-muted focus:outline-none"
+            className={cn(ui.input, "font-mono text-[13px] text-fg")}
             value={workdir}
             onChange={(event) => onWorkdirChange(event.target.value)}
             placeholder="/path/to/repo"
             disabled={busy}
             aria-label="Working directory"
           />
-        </label>
+        </FieldShell>
       ) : null}
 
       <form onSubmit={onPromptSubmit}>
-        <div className="grid min-h-[112px] gap-2 rounded-[24px] border border-border-strong bg-surface px-4 py-3 shadow-panel transition duration-150 ease-out focus-within:border-white/20 focus-within:ring-2 focus-within:ring-focus-ring">
+        <div className={ui.composerShell}>
           <textarea
             ref={textareaRef}
-            className="block max-h-[180px] min-h-8 w-full resize-none border-0 bg-transparent px-1 py-1 text-[20px] leading-8 text-fg-strong placeholder:text-muted focus:outline-none disabled:opacity-60"
+            className={cn(ui.textarea, "max-h-[180px] min-h-8 px-1 py-1 text-[20px] leading-8")}
             value={prompt}
             onChange={(event) => onPromptChange(event.target.value)}
             onKeyDown={onPromptKeyDown}
@@ -484,15 +419,10 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
           />
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
-              <button
-                type="button"
-                className={cn(
-                  composerIconButtonClass,
-                  promptTarget === "new" ? "border-white/15 bg-[#444444] text-fg-strong shadow-[0_0_0_1px_rgba(255,255,255,0.08)]" : null
-                )}
+              <ComposerIconButton
                 title="New session"
                 aria-label="New session"
-                aria-pressed={promptTarget === "new"}
+                pressed={promptTarget === "new"}
                 disabled={busy}
                 onClick={() => {
                   onModeChange(promptTarget === "new" && selectedThreadId ? "thread" : "new")
@@ -500,44 +430,35 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
                 }}
               >
                 <Plus size={15} />
-              </button>
-              <button
-                type="button"
-                className={cn(
-                  composerIconButtonClass,
-                  goalMode ? "border-white/15 bg-[#444444] text-fg-strong shadow-[0_0_0_1px_rgba(255,255,255,0.08)]" : null
-                )}
+              </ComposerIconButton>
+              <ComposerIconButton
                 title="Goal mode"
                 aria-label="Goal mode"
-                aria-pressed={goalMode}
+                pressed={goalMode}
                 disabled={!canUseGoalMode || busy}
                 onClick={() => onGoalModeChange(!goalMode)}
               >
                 <Code2 size={15} />
-              </button>
-              <button
-                type="button"
-                className={composerIconButtonClass}
+              </ComposerIconButton>
+              <ComposerIconButton
                 title="Interrupt"
                 aria-label="Interrupt"
                 disabled={!canInterrupt}
                 onClick={onInterrupt}
               >
                 <Square size={15} />
-              </button>
-              <button
-                type="button"
-                className={composerIconButtonClass}
+              </ComposerIconButton>
+              <ComposerIconButton
                 title="Resume"
                 aria-label="Resume"
                 disabled={!canResume}
                 onClick={onResume}
               >
                 <Play size={15} />
-              </button>
+              </ComposerIconButton>
             </div>
             <button
-              className="inline-flex h-10 min-w-[86px] shrink-0 items-center justify-center gap-2 rounded-[18px] border border-border bg-[#303030] px-4 text-[15px] font-semibold text-fg transition duration-150 ease-out hover:bg-[#3a3a3a] hover:text-fg-strong disabled:cursor-not-allowed disabled:border-border-soft disabled:bg-[#222222] disabled:text-[#4f4f4f]"
+              className={ui.submitButton}
               disabled={!canSubmitPrompt}
               title={submitTitle}
               aria-label={submitTitle}
@@ -594,25 +515,25 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
   }), [])
 
   return (
-    <section className={cn("flex h-full min-h-0 min-w-0 flex-col bg-app-bg text-fg", sessionContentWidthClass)}>
+  <section className={cn("flex h-full min-h-0 min-w-0 flex-col bg-app-bg text-fg", sessionContentWidthClass)}>
       <header className="relative z-[110] flex h-[72px] shrink-0 items-center justify-between gap-4 bg-app-bg px-4 md:px-6">
         <div className="flex min-w-0 items-center gap-4">
-          <button
-            type="button"
-            className={cn(
-              roundIconButtonClass,
-              navigatorVisible ? "bg-control-hover text-fg-strong" : null
-            )}
+          <LargeIconButton
             title={navigatorVisible ? "Hide sessions" : "Open sessions"}
             aria-label={navigatorVisible ? "Hide sessions" : "Open sessions"}
-            aria-pressed={navigatorVisible}
+            pressed={navigatorVisible}
             onClick={onToggleNavigator}
           >
             {navigatorVisible ? <PanelLeftClose size={17} /> : <Menu size={17} />}
-          </button>
-          <div className="min-w-0">
-            <h1 className="truncate text-[22px] font-semibold text-fg-strong">{title}</h1>
-            <p className="truncate text-[14px] text-muted">{formatTokens(tokens)} tokens / {subtitle}</p>
+          </LargeIconButton>
+          <div className="flex min-w-0 items-baseline gap-5">
+            <div className="min-w-0">
+              <h1 className="truncate text-[20px] font-semibold text-fg-strong">{title}</h1>
+              <p className="truncate text-[13px] text-muted">{subtitle}</p>
+            </div>
+            <span className="hidden shrink-0 text-[13px] font-medium text-muted lg:inline">
+              {formatTokens(tokens)} tokens
+            </span>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-3">
@@ -620,19 +541,14 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
             <span className="h-2 w-2 rounded-full bg-running-dot" />
             <span>{statusLabel(status)}</span>
           </div>
-          <button
-            type="button"
-            className={cn(
-              roundIconButtonClass,
-              inspectorVisible ? "bg-control-hover text-fg-strong" : null
-            )}
+          <LargeIconButton
             title={inspectorVisible ? "Hide settings" : "Open settings"}
             aria-label={inspectorVisible ? "Hide settings" : "Open settings"}
-            aria-pressed={inspectorVisible}
+            pressed={inspectorVisible}
             onClick={onToggleInspector}
           >
             <SlidersHorizontal size={17} />
-          </button>
+          </LargeIconButton>
         </div>
       </header>
 
@@ -642,7 +558,7 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
           animate={{ width: "100%" }}
           transition={spring}
         >
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 md:px-8">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8 pt-5 md:px-8">
             <SessionContentFrame className="grid gap-8">
               <div className="grid gap-2 pb-2">
                 <div className="flex flex-wrap items-center gap-2 text-[13px] text-muted">
@@ -691,7 +607,7 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
             </SessionContentFrame>
           </div>
 
-          <div className="shrink-0 bg-app-bg px-4 pb-4 pt-3 md:px-8">
+          <div className="shrink-0 bg-app-bg/95 px-4 pb-4 pt-3 md:px-8">
             <SessionContentFrame>
               <Composer
                 ref={composerRef}
