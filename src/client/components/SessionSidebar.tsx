@@ -5,7 +5,6 @@ import {
   FolderOpen,
   Loader2,
   Moon,
-  RefreshCw,
   Search,
   Settings,
   SidebarClose,
@@ -46,7 +45,6 @@ export type SessionSidebarProps = {
   onTerminalToggle: () => void;
   onThemeChange: (theme: ThemeMode) => void;
   onDetailWordWrapChange: (enabled: boolean) => void;
-  onRefresh: () => void;
   onLoadMoreThreads: () => void;
   onSessionQueryChange: (value: string) => void;
   onSelectThread: SelectThreadHandler;
@@ -603,7 +601,6 @@ export const SessionSidebar = memo(function SessionSidebar({
   onTerminalToggle,
   onThemeChange,
   onDetailWordWrapChange,
-  onRefresh,
   onLoadMoreThreads,
   onSessionQueryChange,
   onSelectThread
@@ -719,9 +716,6 @@ export const SessionSidebar = memo(function SessionSidebar({
             onClick={onTerminalToggle}
           >
             <Terminal size={16} />
-          </button>
-          <button className={iconButtonClass} title="Refresh" aria-label="Refresh" onClick={onRefresh} disabled={busy}>
-            <RefreshCw size={16} className={busy ? "animate-spin" : ""} />
           </button>
           <SidebarSettingsMenu
             theme={theme}

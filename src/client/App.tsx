@@ -456,19 +456,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
     }
   }
 
-  async function refreshSessions() {
-    setBusyAction("Refreshing sessions");
-    setError(null);
-    setNotice(null);
-    try {
-      await refresh(undefined, { loadDetail: Boolean(selectedThreadIdRef.current) });
-    } catch (refreshError) {
-      setError(refreshError instanceof Error ? refreshError.message : "Failed to refresh sessions");
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
   async function loadMoreThreads() {
     const current = projectionRef.current.state;
     if (!current.threadHasMore || loadingMoreThreadsRef.current) {
@@ -1042,7 +1029,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
             onTerminalToggle={() => setTerminalVisible((current) => !current)}
             onThemeChange={setTheme}
             onDetailWordWrapChange={setDetailWordWrap}
-            onRefresh={() => void refreshSessions()}
             onLoadMoreThreads={() => void loadMoreThreads()}
             onSessionQueryChange={setSessionQuery}
             onSelectThread={selectThread}

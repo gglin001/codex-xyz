@@ -171,7 +171,8 @@ function goalTone(status: string) {
   return "quiet";
 }
 
-const sessionFactCellClass = "min-w-0 rounded-md border border-border-soft bg-surface px-3 py-2 shadow-control";
+const sessionFactCellClass = "w-max min-w-28 shrink-0 rounded-md border border-border-soft bg-surface px-3 py-2 shadow-control";
+const sessionFactValueClass = "mt-1 block whitespace-nowrap text-[13px] font-semibold leading-5 text-fg-strong";
 
 const SessionFacts = memo(
   function SessionFacts({ thread }: { thread: ThreadDetail }) {
@@ -180,17 +181,17 @@ const SessionFacts = memo(
 
     return (
       <div className="shrink-0 border-b border-border-soft bg-app-detail/95 px-4 py-3">
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(118px,1fr))] gap-2">
+        <div className="flex flex-nowrap gap-2 overflow-x-auto overflow-y-hidden pb-1" aria-label="Session status summary">
           <div className={sessionFactCellClass}>
             <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Status</span>
             <strong className={cn("mt-1 inline-flex rounded-full px-2 py-1 text-[11px] font-semibold leading-none", statusToneClass[statusTone(thread.status)])}>{statusLabel(thread.status)}</strong>
           </div>
           {visibleGoalObjective && visibleGoalStatus ? (
-            <div className={cn(sessionFactCellClass, "sm:col-span-2")}>
+            <div className={sessionFactCellClass}>
               <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Goal</span>
               <strong
                 className={cn(
-                  "mt-1 block truncate rounded-full px-2 py-1 text-[11px] font-semibold leading-none",
+                  "mt-1 block whitespace-nowrap rounded-full px-2 py-1 text-[11px] font-semibold leading-none",
                   statusToneClass[goalTone(visibleGoalStatus)]
                 )}
                 title={visibleGoalObjective}
@@ -201,35 +202,35 @@ const SessionFacts = memo(
           ) : null}
           <div className={sessionFactCellClass}>
             <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Tokens</span>
-            <strong className="mt-1 block truncate text-[13px] font-semibold leading-5 text-fg-strong">{formatTokens(thread.tokensUsed)}</strong>
+            <strong className={sessionFactValueClass}>{formatTokens(thread.tokensUsed)}</strong>
           </div>
           {thread.goalTokenBudget ? (
             <div className={sessionFactCellClass}>
               <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Budget</span>
-              <strong className="mt-1 block truncate text-[13px] font-semibold leading-5 text-fg-strong">
+              <strong className={sessionFactValueClass}>
                 {formatTokens(thread.tokensUsed)} / {formatTokens(thread.goalTokenBudget)}
               </strong>
             </div>
           ) : null}
           <div className={sessionFactCellClass}>
             <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Turns</span>
-            <strong className="mt-1 block truncate text-[13px] font-semibold leading-5 text-fg-strong">{thread.turns.length}</strong>
+            <strong className={sessionFactValueClass}>{thread.turns.length}</strong>
           </div>
           <div className={sessionFactCellClass}>
             <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Model</span>
-            <strong className="mt-1 block truncate text-[13px] font-semibold leading-5 text-fg-strong">{thread.model ?? "default"}</strong>
+            <strong className={sessionFactValueClass}>{thread.model ?? "default"}</strong>
           </div>
-          <div className={cn(sessionFactCellClass, "sm:col-span-2")}>
+          <div className={sessionFactCellClass}>
             <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Workdir</span>
-            <strong className="mt-1 block truncate font-mono text-[12px] font-medium leading-5 text-fg-strong">{thread.cwd}</strong>
+            <strong className="mt-1 block whitespace-nowrap font-mono text-[12px] font-medium leading-5 text-fg-strong">{thread.cwd}</strong>
           </div>
           <div className={sessionFactCellClass}>
             <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Session</span>
-            <strong className="mt-1 block truncate font-mono text-[12px] font-medium leading-5 text-fg-strong">{shortId(thread.sessionId)}</strong>
+            <strong className="mt-1 block whitespace-nowrap font-mono text-[12px] font-medium leading-5 text-fg-strong">{shortId(thread.sessionId)}</strong>
           </div>
           <div className={sessionFactCellClass}>
             <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Updated</span>
-            <strong className="mt-1 block truncate text-[13px] font-semibold leading-5 text-fg-strong">{formatDateTime(thread.updatedAt)}</strong>
+            <strong className={sessionFactValueClass}>{formatDateTime(thread.updatedAt)}</strong>
           </div>
         </div>
       </div>
