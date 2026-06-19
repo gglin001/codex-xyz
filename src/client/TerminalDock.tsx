@@ -41,15 +41,15 @@ const resizeFlushMs = 100;
 const metricsCommitMs = 500;
 
 const terminalStatusClass: Record<string, string> = {
-  idle: "bg-chip text-chip-fg",
-  connected: "bg-running text-running-fg",
-  running: "bg-running text-running-fg",
-  starting: "bg-stale text-stale-fg",
-  connecting: "bg-stale text-stale-fg",
-  reconnecting: "bg-stale text-stale-fg",
-  exited: "bg-chip text-chip-fg",
-  failed: "bg-attention text-attention-fg",
-  offline: "bg-attention text-attention-fg"
+  idle: "bg-slate-800/80 text-slate-300",
+  connected: "bg-emerald-500/10 text-emerald-200",
+  running: "bg-emerald-500/10 text-emerald-200",
+  starting: "bg-violet-500/10 text-violet-200",
+  connecting: "bg-violet-500/10 text-violet-200",
+  reconnecting: "bg-violet-500/10 text-violet-200",
+  exited: "bg-slate-800/80 text-slate-300",
+  failed: "bg-rose-500/10 text-rose-100",
+  offline: "bg-rose-500/10 text-rose-100"
 };
 
 const initialTerminalClientMetrics: TerminalClientMetrics = {
@@ -91,27 +91,11 @@ function statusLabel(snapshot: TerminalSnapshot | null, connection: ConnectionSt
   return snapshot.status;
 }
 
-function formatCompactNumber(value: number) {
-  if (value >= 1024 * 1024) {
-    return `${(value / 1024 / 1024).toFixed(1)}m`;
-  }
-  if (value >= 1024) {
-    return `${(value / 1024).toFixed(1)}k`;
-  }
-  return String(Math.round(value));
-}
-
 function formatMs(value: number) {
   if (!Number.isFinite(value) || value <= 0) {
     return "0ms";
   }
   return `${value.toFixed(value >= 10 ? 0 : 1)}ms`;
-}
-
-function terminalMetricsLabel(metrics: TerminalClientMetrics, snapshot: TerminalSnapshot | null) {
-  const averageWriteMs = metrics.outputFrames > 0 ? metrics.outputWriteMs / metrics.outputFrames : 0;
-  const serverQueue = snapshot?.stats.modelPendingWrites ?? 0;
-  return `${metrics.transport} | ${metrics.renderer} | rx ${formatCompactNumber(metrics.outputChars)} | write ${formatMs(averageWriteMs)} | q ${serverQueue}`;
 }
 
 function terminalMetricsTitle(metrics: TerminalClientMetrics, snapshot: TerminalSnapshot | null) {
@@ -145,7 +129,6 @@ export function TerminalDock({ visible, onClose }: TerminalDockProps) {
   const themeOptions = useMemo(() => terminalTheme(), []);
   const canStop = snapshot?.status === "running" || snapshot?.status === "starting";
   const label = statusLabel(snapshot, connection);
-  const metricsLabel = terminalMetricsLabel(metrics, snapshot);
   const metricsTitle = terminalMetricsTitle(metrics, snapshot);
   const startActionLabel = canStop ? "Reconnect terminal" : "Start terminal";
 
@@ -489,14 +472,14 @@ export function TerminalDock({ visible, onClose }: TerminalDockProps) {
 
   return (
     <section className="fixed inset-x-3 bottom-3 z-[80] overflow-hidden rounded-lg border border-slate-800/90 bg-slate-950/95 shadow-2xl shadow-black/45 backdrop-blur-md" aria-label="Terminal">
-      <div className="flex h-11 items-center justify-between gap-3 border-b border-border-soft px-3">
+      <div className="flex h-11 items-center justify-between gap-3 border-b border-slate-800/80 px-3">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-chip text-chip-fg">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-900 text-slate-300">
             <TerminalIcon size={15} />
           </span>
-          <strong className="shrink-0 text-sm font-semibold text-fg-strong">Terminal</strong>
+          <strong className="shrink-0 text-sm font-semibold text-slate-100">Terminal</strong>
           <span className={cn("rounded-full px-2 py-1 text-[11px] font-semibold leading-none", terminalStatusClass[label] ?? terminalStatusClass.idle)}>{label}</span>
-          {snapshot ? <small className="min-w-0 truncate font-mono text-[11px] text-muted">{snapshot.command}</small> : null}
+          {snapshot ? <small className="min-w-0 truncate font-mono text-[11px] text-slate-500">{snapshot.command}</small> : null}
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <button className={iconButtonClass} type="button" title={startActionLabel} aria-label={startActionLabel} onClick={startOrAttach}>
@@ -517,11 +500,11 @@ export function TerminalDock({ visible, onClose }: TerminalDockProps) {
           </button>
         </div>
       </div>
-      <div className="flex h-8 min-w-0 items-center gap-2 overflow-hidden border-b border-border-soft px-3 text-[11px] text-muted">
+      <div className="flex h-8 min-w-0 items-center gap-2 overflow-hidden border-b border-slate-800/80 px-3 text-[11px] text-slate-500">
         <span className="min-w-0 flex-1 truncate font-mono">{snapshot?.cwd ?? ""}</span>
         {snapshot?.pid ? <span className={pillClass}>pid {snapshot.pid}</span> : null}
-        <span className={cn(pillClass, "hidden max-w-[42vw] truncate font-mono lg:inline-flex")} title={metricsTitle}>{metricsLabel}</span>
-        {error ? <span className="max-w-[34vw] truncate rounded-full bg-error px-2 py-1 font-medium text-error-fg">{error}</span> : null}
+        <span className={cn(pillClass, "hidden max-w-[42vw] truncate font-mono xl:inline-flex")} title={metricsTitle}>diagnostics</span>
+        {error ? <span className="max-w-[34vw] truncate rounded-full bg-rose-500/10 px-2 py-1 font-medium text-rose-100">{error}</span> : null}
       </div>
       <div className="h-[min(32dvh,320px)] min-h-[160px] bg-slate-950 p-2 [&_.xterm]:h-full [&_.xterm-screen]:will-change-transform [&_.xterm-viewport]:!bg-transparent" ref={containerRef} />
     </section>

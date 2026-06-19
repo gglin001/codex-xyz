@@ -1,20 +1,7 @@
-import type { RuntimeStatus, ThreadItem } from "../server/domain.js";
+import type { ThreadItem } from "../server/domain.js";
 
 export function statusLabel(status: string) {
   return status.replace(/_/g, " ");
-}
-
-export function statusTone(status: RuntimeStatus) {
-  if (status === "running") {
-    return "running";
-  }
-  if (status === "failed" || status === "interrupted") {
-    return "attention";
-  }
-  if (status === "stale") {
-    return "stale";
-  }
-  return "quiet";
 }
 
 const timeFormatter = new Intl.DateTimeFormat(undefined, {
@@ -91,9 +78,4 @@ export function itemTitle(item: ThreadItem) {
     return "Files";
   }
   return "System";
-}
-
-export function itemDefaultsCollapsed(item: ThreadItem) {
-  const sourceType = typeof item.data.sourceType === "string" ? item.data.sourceType : null;
-  return sourceType === "reasoning" || item.type === "command";
 }

@@ -98,8 +98,8 @@ export const ParamPanel = memo(function ParamPanel({
     <aside className={cn("flex h-full min-h-0 flex-col border-l border-slate-800/80 bg-slate-950/80 text-slate-200", className)}>
       <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-slate-800/80 bg-slate-950/75 px-4 backdrop-blur-md">
         <div className="min-w-0">
-          <h2 className="truncate text-[13px] font-semibold text-slate-100">Codex Inspector</h2>
-          <p className="truncate text-[11px] text-slate-500">app-server session state</p>
+          <h2 className="truncate text-[13px] font-semibold text-slate-100">Settings</h2>
+          <p className="truncate text-[11px] text-slate-500">Thread and goal state</p>
         </div>
       </div>
 
@@ -179,7 +179,7 @@ export const ParamPanel = memo(function ParamPanel({
         <section className={sectionClass}>
           <div className="mb-3 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-500">
             <SlidersHorizontal size={14} />
-            Settings
+            Transcript View
           </div>
           <div className="grid gap-2">
             <button

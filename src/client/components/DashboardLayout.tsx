@@ -308,7 +308,7 @@ export const DashboardLayout = memo(function DashboardLayout({
       },
       {
         id: "toggle-inspector",
-        title: inspectorVisible ? "Hide inspector" : "Show inspector",
+        title: inspectorVisible ? "Hide settings" : "Show settings",
         detail: "Toggle app-server thread and goal state",
         icon: "panel",
         run: () => onInspectorVisibleChange(!inspectorVisible)

@@ -9,7 +9,7 @@ import {
   Loader2,
   Plus,
   Search,
-  Settings,
+  SlidersHorizontal,
   Terminal,
   UserRound
 } from "lucide-react"
@@ -309,7 +309,7 @@ export const Sidebar = memo(function Sidebar({
             aria-pressed={inspectorVisible}
             onClick={onToggleInspector}
           >
-            <Settings size={15} />
+            <SlidersHorizontal size={15} />
             <span className="truncate">Settings</span>
           </button>
         </div>
