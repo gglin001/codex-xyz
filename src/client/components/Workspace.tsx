@@ -4,7 +4,6 @@ import {
   ChevronDown,
   Code2,
   Copy,
-  ListTree,
   Maximize2,
   Menu,
   PanelLeftClose,
@@ -13,16 +12,14 @@ import {
   Send,
   SlidersHorizontal,
   Square,
-  Terminal,
-  UserRound,
   X
 } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
-import type { FormEvent, KeyboardEvent } from "react"
+import type { FormEvent, KeyboardEvent, ReactNode } from "react"
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
 import type { ControlThread, ThreadDetail, ThreadItem } from "../../server/domain.js"
 import { cn } from "../classNames.js"
-import { getCollapsedTextPreview } from "../textPreview.js"
+import { getFirstLineTextPreview } from "../textPreview.js"
 import { getTranscriptEntries, type TranscriptProcessEntry } from "../transcriptEntries.js"
 import { formatDateTime, formatTime, formatTokens, itemTitle, statusLabel } from "../uiFormat.js"
 import type { ComposerMode, WorkbenchProject, WorkbenchSession } from "./workbenchTypes.js"
@@ -66,8 +63,6 @@ type ComposerHandle = {
   focusPrompt: () => boolean
 }
 
-type MessageRole = "system" | "user" | "assistant" | "tool"
-
 type CodeBlock = {
   id: string
   language: string
@@ -77,7 +72,6 @@ type CodeBlock = {
 
 type ChatMessage = {
   id: string
-  role: MessageRole
   title: string
   text: string
   time: string
@@ -85,18 +79,21 @@ type ChatMessage = {
 }
 
 const spring = { type: "spring", stiffness: 340, damping: 34 } as const
+const sessionContentWidthClass = "[--session-content-width:860px]"
+const sessionContentFrameClass = "mx-auto w-full min-w-0 max-w-[var(--session-content-width)]"
 
-function messageRoleForItem(item: ThreadItem): MessageRole {
-  if (item.type === "user") {
-    return "user"
-  }
-  if (item.type === "agent" || item.type === "plan") {
-    return "assistant"
-  }
-  if (item.type === "command" || item.type === "file") {
-    return "tool"
-  }
-  return "system"
+function SessionContentFrame({
+  children,
+  className
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <div className={cn(sessionContentFrameClass, className)}>
+      {children}
+    </div>
+  )
 }
 
 function extractCodeBlocks(item: ThreadItem) {
@@ -137,12 +134,10 @@ function stripCodeFences(value: string) {
 }
 
 function messageFromItem(item: ThreadItem): ChatMessage {
-  const role = messageRoleForItem(item)
   const codeBlocks = extractCodeBlocks(item)
   const stripped = stripCodeFences(item.text)
   return {
     id: item.id,
-    role,
     title: itemTitle(item),
     text: stripped || item.text || "Pending...",
     time: item.createdAt,
@@ -155,39 +150,9 @@ function transcriptEntriesFromDetail(detail: ThreadDetail | null) {
 }
 
 function processPreview(entry: TranscriptProcessEntry) {
-  const latestText = [...entry.items].reverse().find((item) => item.text.trim())?.text ?? ""
-  const stripped = stripCodeFences(latestText).trim()
-  const preview = getCollapsedTextPreview(stripped || latestText.trim() || "No output yet", {
-    expanded: false,
-    lineCount: 2
-  })
-  return preview.visibleText
-}
-
-function roleIcon(role: MessageRole) {
-  if (role === "user") {
-    return <UserRound size={15} />
-  }
-  if (role === "assistant") {
-    return <Bot size={15} />
-  }
-  if (role === "tool") {
-    return <Terminal size={15} />
-  }
-  return <Code2 size={15} />
-}
-
-function roleTone(role: MessageRole) {
-  if (role === "user") {
-    return "border-slate-700 bg-slate-800 text-slate-100"
-  }
-  if (role === "assistant") {
-    return "border-emerald-400/30 bg-emerald-400/10 text-emerald-100"
-  }
-  if (role === "tool") {
-    return "border-violet-400/30 bg-violet-400/10 text-violet-100"
-  }
-  return "border-slate-800 bg-slate-900 text-slate-300"
+  const firstText = entry.items.find((item) => item.text.trim())?.text ?? ""
+  const stripped = stripCodeFences(firstText).trim()
+  return getFirstLineTextPreview(stripped || firstText.trim() || "No output yet")
 }
 
 function codePreview(value: string) {
@@ -277,36 +242,58 @@ const MessageBlock = memo(function MessageBlock({
   wrapContent: boolean
   onOpenCanvas: (block: CodeBlock) => void
 }) {
+  const [expanded, setExpanded] = useState(true)
+  const codeBlockLabel = message.codeBlocks.length > 0
+    ? ` / ${message.codeBlocks.length} ${message.codeBlocks.length === 1 ? "block" : "blocks"}`
+    : ""
+  const preview = getFirstLineTextPreview(message.text || "Pending...")
+
   return (
-    <article className="group grid grid-cols-[32px_minmax(0,1fr)] gap-3">
-      <div className={cn("mt-1 flex h-8 w-8 items-center justify-center rounded-md border", roleTone(message.role))}>
-        {roleIcon(message.role)}
-      </div>
-      <div className="min-w-0 border-b border-slate-800/45 pb-5">
-        <div className="mb-2 flex min-w-0 items-center gap-2">
-          <h3 className="truncate text-[13px] font-semibold text-slate-100">{message.title}</h3>
-          <time className="shrink-0 text-[11px] text-slate-600">{formatTime(message.time)}</time>
+    <article className="group min-w-0 border-b border-slate-800/45 pb-5">
+      <button
+        type="button"
+        className="flex w-full items-start justify-between gap-3 rounded-md px-2 py-1 text-left transition duration-150 ease-out hover:bg-slate-900/35"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((current) => !current)}
+      >
+        <span className="min-w-0">
+          <span className="mb-1 flex min-w-0 items-center gap-2">
+            <span className="truncate text-[13px] font-semibold text-slate-100">{message.title}</span>
+            <time className="shrink-0 text-[11px] text-slate-600">{formatTime(message.time)}{codeBlockLabel}</time>
+          </span>
+          {!expanded ? (
+            <span className="block truncate text-[12px] leading-5 text-slate-500">{preview}</span>
+          ) : null}
+        </span>
+        <ChevronDown
+          size={16}
+          className={cn("mt-0.5 shrink-0 text-slate-500 transition-transform duration-150 ease-out", expanded ? "rotate-180" : null)}
+        />
+      </button>
+
+      {expanded ? (
+        <div className="mt-2 min-w-0 px-2">
+          {message.text ? (
+            <div className={cn(
+              "text-[14px] leading-6 text-slate-300",
+              wrapContent ? "whitespace-pre-wrap break-words" : "overflow-x-auto whitespace-pre"
+            )}>{message.text}</div>
+          ) : null}
+          {message.codeBlocks.length > 0 ? (
+            <div className="mt-3 grid gap-3">
+              {message.codeBlocks.map((block) => (
+                <CodeBlockView
+                  key={block.id}
+                  block={block}
+                  active={activeBlockId === block.id}
+                  wrapContent={wrapContent}
+                  onOpenCanvas={onOpenCanvas}
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
-        {message.text ? (
-          <div className={cn(
-            "text-[14px] leading-6 text-slate-300",
-            wrapContent ? "whitespace-pre-wrap break-words" : "overflow-x-auto whitespace-pre"
-          )}>{message.text}</div>
-        ) : null}
-        {message.codeBlocks.length > 0 ? (
-          <div className="mt-3 grid gap-3">
-            {message.codeBlocks.map((block) => (
-              <CodeBlockView
-                key={block.id}
-                block={block}
-                active={activeBlockId === block.id}
-                wrapContent={wrapContent}
-                onOpenCanvas={onOpenCanvas}
-              />
-            ))}
-          </div>
-        ) : null}
-      </div>
+      ) : null}
     </article>
   )
 })
@@ -326,9 +313,10 @@ const ProcessItemBlock = memo(function ProcessItemBlock({
   const codeBlockLabel = message.codeBlocks.length > 0
     ? ` / ${message.codeBlocks.length} ${message.codeBlocks.length === 1 ? "block" : "blocks"}`
     : ""
+  const preview = getFirstLineTextPreview(message.text || "Pending...")
 
   return (
-    <div className="rounded-md border border-slate-800/75 bg-slate-950/45">
+    <div className="min-w-0 rounded-md border border-slate-800/75 bg-slate-950/45">
       <button
         type="button"
         className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition duration-150 ease-out hover:bg-slate-900/65"
@@ -336,14 +324,14 @@ const ProcessItemBlock = memo(function ProcessItemBlock({
         onClick={() => setExpanded((current) => !current)}
       >
         <span className="flex min-w-0 items-center gap-2">
-          <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded border", roleTone(message.role))}>
-            {roleIcon(message.role)}
-          </span>
           <span className="min-w-0">
             <span className="block truncate text-[12px] font-semibold text-slate-200">{message.title}</span>
             <span className="block truncate text-[11px] text-slate-600">
               {formatTime(message.time)}{codeBlockLabel}
             </span>
+            {!expanded ? (
+              <span className="block truncate text-[12px] leading-5 text-slate-500">{preview}</span>
+            ) : null}
           </span>
         </span>
         <ChevronDown
@@ -353,7 +341,7 @@ const ProcessItemBlock = memo(function ProcessItemBlock({
       </button>
 
       {expanded ? (
-        <div className="border-t border-slate-800/60 p-3">
+        <div className="min-w-0 border-t border-slate-800/60 p-3">
           {message.text ? (
             <div className={cn(
               "text-[13px] leading-5 text-slate-300",
@@ -398,50 +386,40 @@ const ProcessOutputBlock = memo(function ProcessOutputBlock({
   const preview = useMemo(() => processPreview(entry), [entry])
 
   return (
-    <article className="group grid grid-cols-[32px_minmax(0,1fr)] gap-3">
-      <div className="mt-1 flex h-8 w-8 items-center justify-center rounded-md border border-violet-400/30 bg-violet-400/10 text-violet-100">
-        <ListTree size={15} />
-      </div>
-      <div className="min-w-0 border-b border-slate-800/45 pb-5">
-        <button
-          type="button"
-          className="flex w-full items-center justify-between gap-3 rounded-md border border-slate-800/80 bg-slate-900/35 px-3 py-2.5 text-left transition duration-150 ease-out hover:border-slate-700 hover:bg-slate-800/55"
-          aria-expanded={expanded}
-          onClick={() => setExpanded((current) => !current)}
-        >
-          <span className="min-w-0">
-            <span className="block truncate text-[13px] font-semibold text-slate-100">Intermediate output</span>
-            <span className="block truncate text-[11px] text-slate-500">
-              {itemCountLabel}{codeCountLabel} / {formatTime(entry.createdAt)}
-            </span>
+    <article className="group min-w-0 border-b border-slate-800/45 pb-5">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-3 rounded-md border border-slate-800/80 bg-slate-900/35 px-3 py-2.5 text-left transition duration-150 ease-out hover:border-slate-700 hover:bg-slate-800/55"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((current) => !current)}
+      >
+        <span className="min-w-0">
+          <span className="block truncate text-[13px] font-semibold text-slate-100">Intermediate output</span>
+          <span className="block truncate text-[11px] text-slate-500">
+            {itemCountLabel}{codeCountLabel} / {formatTime(entry.createdAt)}
           </span>
-          <ChevronDown
-            size={16}
-            className={cn("shrink-0 text-slate-500 transition-transform duration-150 ease-out", expanded ? "rotate-180" : null)}
-          />
-        </button>
+        </span>
+        <ChevronDown
+          size={16}
+          className={cn("shrink-0 text-slate-500 transition-transform duration-150 ease-out", expanded ? "rotate-180" : null)}
+        />
+      </button>
 
-        {!expanded ? (
-          <div className={cn(
-            "mt-2 line-clamp-2 px-1 text-[12px] leading-5 text-slate-500",
-            wrapContent ? "whitespace-pre-wrap break-words" : "whitespace-pre"
-          )}>
-            {preview}
-          </div>
-        ) : (
-          <div className="mt-3 grid gap-3">
-            {messages.map((message) => (
-              <ProcessItemBlock
-                key={message.id}
-                message={message}
-                activeBlockId={activeBlockId}
-                wrapContent={wrapContent}
-                onOpenCanvas={onOpenCanvas}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+      {!expanded ? (
+        <div className="mt-2 truncate px-1 text-[12px] leading-5 text-slate-500">{preview}</div>
+      ) : (
+        <div className="mt-3 grid min-w-0 gap-3">
+          {messages.map((message) => (
+            <ProcessItemBlock
+              key={message.id}
+              message={message}
+              activeBlockId={activeBlockId}
+              wrapContent={wrapContent}
+              onOpenCanvas={onOpenCanvas}
+            />
+          ))}
+        </div>
+      )}
     </article>
   )
 })
@@ -754,7 +732,7 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
   }, [selectedThreadId, session?.id])
 
   return (
-    <section className="flex h-full min-h-0 min-w-0 flex-col bg-slate-950 text-slate-200">
+    <section className={cn("flex h-full min-h-0 min-w-0 flex-col bg-slate-950 text-slate-200", sessionContentWidthClass)}>
       <header className="relative z-[110] flex h-14 shrink-0 items-center justify-between gap-3 border-b border-slate-800/80 bg-slate-950/75 px-3 backdrop-blur-md md:px-4">
         <div className="flex min-w-0 items-center gap-2">
           <button
@@ -805,16 +783,13 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
           transition={spring}
         >
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 md:px-8">
-            <div className="mx-auto grid w-full max-w-[860px] gap-5">
+            <SessionContentFrame className="grid gap-5">
               <div className="grid gap-2 border-b border-slate-800/50 pb-4">
                 <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.08em] text-slate-600">
                   <span>{project?.name ?? "Workspace"}</span>
                   <span>/</span>
                   <span>{detail ? formatDateTime(detail.updatedAt) : "app-server"}</span>
                 </div>
-                <p className="max-w-2xl text-[13px] leading-5 text-slate-500">
-                  Codex app-server transcript for the selected local thread. Fenced code and command output can be copied or opened in Canvas.
-                </p>
               </div>
 
               <AnimatePresence initial={false}>
@@ -833,6 +808,7 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
                   <motion.div
                     key={entry.id}
                     layout
+                    className="min-w-0"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
@@ -856,11 +832,11 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
                   </motion.div>
                 ))}
               </AnimatePresence>
-            </div>
+            </SessionContentFrame>
           </div>
 
           <div className="shrink-0 border-t border-slate-800/80 bg-slate-950/75 px-4 py-3 backdrop-blur-md md:px-8">
-            <div className="mx-auto w-full max-w-[860px]">
+            <SessionContentFrame>
               <Composer
                 ref={composerRef}
                 workdir={workdir}
@@ -884,7 +860,7 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
                 onInterrupt={onInterrupt}
                 onResume={onResume}
               />
-            </div>
+            </SessionContentFrame>
           </div>
         </motion.div>
 

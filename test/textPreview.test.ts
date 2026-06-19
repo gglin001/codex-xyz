@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getCollapsedTextPreview } from "../src/client/textPreview.js";
+import { getCollapsedTextPreview, getFirstLineTextPreview } from "../src/client/textPreview.js";
 
 describe("collapsed text preview", () => {
   it("does not collapse text within the line limit", () => {
@@ -48,5 +48,13 @@ describe("collapsed text preview", () => {
       canCollapse: true,
       visibleText: "one\ntwo"
     });
+  });
+
+  it("returns the normalized first line for collapsed row summaries", () => {
+    expect(getFirstLineTextPreview("  first   line  \nsecond line")).toBe("first line");
+  });
+
+  it("truncates long collapsed row summaries with an ellipsis", () => {
+    expect(getFirstLineTextPreview("abcdefghij", 7)).toBe("abcd...");
   });
 });
