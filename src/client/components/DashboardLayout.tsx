@@ -1,12 +1,13 @@
 import { Command, PanelLeftOpen, Plus, Search, SlidersHorizontal } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import type { FormEvent, KeyboardEvent } from "react"
-import { memo, useCallback, useEffect, useMemo, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { ControlThread, ThreadDetail } from "../../server/domain.js"
 import { cn } from "../classNames.js"
+import { isPromptFocusShortcut } from "../promptShortcut.js"
 import { ParamPanel } from "./ParamPanel.js"
 import { Sidebar } from "./Sidebar.js"
-import { Workspace } from "./Workspace.js"
+import { Workspace, type WorkspaceHandle } from "./Workspace.js"
 import type { ComposerMode, WorkbenchProject, WorkbenchSession } from "./workbenchTypes.js"
 
 export type DashboardLayoutProps = {
@@ -239,7 +240,17 @@ export const DashboardLayout = memo(function DashboardLayout({
   const [mobileNavigatorOpen, setMobileNavigatorOpen] = useState(false)
   const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false)
   const [commandOpen, setCommandOpen] = useState(false)
+  const desktopWorkspaceRef = useRef<WorkspaceHandle | null>(null)
+  const mobileWorkspaceRef = useRef<WorkspaceHandle | null>(null)
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? projects[0] ?? null
+
+  const focusVisiblePrompt = useCallback(() => {
+    const useDesktopWorkspace = typeof window.matchMedia === "function"
+      ? window.matchMedia("(min-width: 768px)").matches
+      : true
+    const workspace = useDesktopWorkspace ? desktopWorkspaceRef.current : mobileWorkspaceRef.current
+    return workspace?.focusPrompt() ?? false
+  }, [])
 
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
@@ -247,6 +258,13 @@ export const DashboardLayout = memo(function DashboardLayout({
         setCommandOpen(false)
         setMobileNavigatorOpen(false)
         setMobileInspectorOpen(false)
+        return
+      }
+      if (!commandOpen && isPromptFocusShortcut(event)) {
+        event.preventDefault()
+        setMobileNavigatorOpen(false)
+        setMobileInspectorOpen(false)
+        window.requestAnimationFrame(focusVisiblePrompt)
         return
       }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
@@ -261,7 +279,7 @@ export const DashboardLayout = memo(function DashboardLayout({
     return () => {
       window.removeEventListener("keydown", handleKeyDown, true)
     }
-  }, [])
+  }, [commandOpen, focusVisiblePrompt])
 
   const commandActions = useMemo<CommandAction[]>(() => {
     const actions: CommandAction[] = [
@@ -370,6 +388,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 
         <div className="min-h-0 min-w-0 flex-1">
           <Workspace
+            ref={desktopWorkspaceRef}
             project={selectedProject}
             session={session}
             detail={detail}
@@ -418,6 +437,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 
       <div className="h-full min-h-0 md:hidden">
         <Workspace
+          ref={mobileWorkspaceRef}
           project={selectedProject}
           session={session}
           detail={detail}

@@ -19,7 +19,7 @@ import {
 } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import type { FormEvent, KeyboardEvent } from "react"
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
 import type { ControlThread, ThreadDetail, ThreadItem } from "../../server/domain.js"
 import { cn } from "../classNames.js"
 import { getCollapsedTextPreview } from "../textPreview.js"
@@ -55,6 +55,14 @@ export type WorkspaceProps = {
   onResume: () => void
   onToggleNavigator: () => void
   onToggleInspector: () => void
+}
+
+export type WorkspaceHandle = {
+  focusPrompt: () => boolean
+}
+
+type ComposerHandle = {
+  focusPrompt: () => boolean
 }
 
 type MessageRole = "system" | "user" | "assistant" | "tool"
@@ -481,28 +489,7 @@ const CanvasPane = memo(function CanvasPane({
   )
 })
 
-const Composer = memo(function Composer({
-  workdir,
-  busy,
-  busyAction,
-  notice,
-  error,
-  prompt,
-  promptTarget,
-  goalMode,
-  selectedThreadId,
-  canUseGoalMode,
-  canSubmitPrompt,
-  selectedThread,
-  onPromptChange,
-  onPromptKeyDown,
-  onPromptSubmit,
-  onModeChange,
-  onWorkdirChange,
-  onGoalModeChange,
-  onInterrupt,
-  onResume
-}: Pick<
+type ComposerProps = Pick<
   WorkspaceProps,
   | "workdir"
   | "busy"
@@ -524,7 +511,30 @@ const Composer = memo(function Composer({
   | "onGoalModeChange"
   | "onInterrupt"
   | "onResume"
->) {
+>
+
+const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Composer({
+  workdir,
+  busy,
+  busyAction,
+  notice,
+  error,
+  prompt,
+  promptTarget,
+  goalMode,
+  selectedThreadId,
+  canUseGoalMode,
+  canSubmitPrompt,
+  selectedThread,
+  onPromptChange,
+  onPromptKeyDown,
+  onPromptSubmit,
+  onModeChange,
+  onWorkdirChange,
+  onGoalModeChange,
+  onInterrupt,
+  onResume
+}, ref) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const canInterrupt = selectedThread?.status === "running" && !busy
   const canResume = Boolean(selectedThreadId) && selectedThread?.status !== "running" && !busy
@@ -534,6 +544,19 @@ const Composer = memo(function Composer({
     : promptTarget === "thread"
       ? "Ask Codex to continue this session"
       : "Start a new Codex session"
+
+  useImperativeHandle(ref, () => ({
+    focusPrompt: () => {
+      const textarea = textareaRef.current
+      if (!textarea || textarea.disabled) {
+        return false
+      }
+      textarea.focus({ preventScroll: true })
+      const caret = textarea.value.length
+      textarea.setSelectionRange(caret, caret)
+      return true
+    }
+  }), [])
 
   useEffect(() => {
     const textarea = textareaRef.current
@@ -643,9 +666,9 @@ const Composer = memo(function Composer({
       </form>
     </div>
   )
-})
+}))
 
-export const Workspace = memo(function Workspace({
+export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(function Workspace({
   project,
   session,
   detail,
@@ -673,13 +696,18 @@ export const Workspace = memo(function Workspace({
   onResume,
   onToggleNavigator,
   onToggleInspector
-}: WorkspaceProps) {
+}, ref) {
   const [canvasBlock, setCanvasBlock] = useState<CodeBlock | null>(null)
+  const composerRef = useRef<ComposerHandle | null>(null)
   const entries = useMemo(() => transcriptEntriesFromDetail(detail), [detail])
   const title = selectedThread?.title ?? session?.title ?? "New Codex session"
   const subtitle = selectedThread?.cwd ?? session?.cwd ?? project?.path ?? "Select a project to begin"
   const tokens = detail?.tokensUsed ?? session?.tokensUsed ?? 0
   const status = selectedThread?.status ?? session?.status ?? "idle"
+
+  useImperativeHandle(ref, () => ({
+    focusPrompt: () => composerRef.current?.focusPrompt() ?? false
+  }), [])
 
   useEffect(() => {
     setCanvasBlock(null)
@@ -790,6 +818,7 @@ export const Workspace = memo(function Workspace({
           </div>
 
           <Composer
+            ref={composerRef}
             workdir={workdir}
             busy={busy}
             busyAction={busyAction}
@@ -819,4 +848,4 @@ export const Workspace = memo(function Workspace({
       </div>
     </section>
   )
-})
+}))
