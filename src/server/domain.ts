@@ -6,8 +6,6 @@ export type RuntimeStatus =
   | "failed"
   | "completed";
 
-export type TaskStatus = "queued" | "running" | "completed" | "failed" | "interrupted";
-
 export type GoalStatus =
   | "in_progress"
   | "paused"
@@ -26,22 +24,10 @@ export type ItemType =
   | "file"
   | "system";
 
-export type Project = {
-  id: string;
-  name: string;
-  path: string;
-  gitRemote: string | null;
-  defaultBranch: string | null;
-  tags: string[];
-  createdAt: string;
-  updatedAt: string;
-};
-
 export type ControlThread = {
   id: string;
   sessionId: string;
   forkedFromId: string | null;
-  projectId: string;
   title: string;
   preview: string;
   cwd: string;
@@ -76,43 +62,6 @@ export type ThreadItem = {
   createdAt: string;
 };
 
-export type QueuedPrompt = {
-  id: string;
-  threadId: string;
-  prompt: string;
-  createdAt: string;
-};
-
-export type Task = {
-  id: string;
-  projectId: string;
-  threadId: string | null;
-  title: string;
-  prompt: string;
-  recipeId: string | null;
-  status: TaskStatus;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type PromptRecipe = {
-  id: string;
-  name: string;
-  prompt: string;
-  variables: string[];
-  createdAt: string;
-};
-
-export type EvalRun = {
-  id: string;
-  taskId: string;
-  command: string;
-  status: "pending" | "running" | "passed" | "failed";
-  output: string | null;
-  createdAt: string;
-  completedAt: string | null;
-};
-
 export type XyzEvent = {
   id: number;
   type: string;
@@ -122,41 +71,16 @@ export type XyzEvent = {
   createdAt: string;
 };
 
-export type RuntimeSyncSeverity = "warning" | "error";
-
-export type RuntimeSyncIssue = {
-  threadId: string;
-  title: string;
-  localStatus: RuntimeStatus;
-  runtimeStatus: RuntimeStatus | null;
-  severity: RuntimeSyncSeverity;
-  message: string;
-};
-
-export type RuntimeSyncResult = {
-  checkedThreadCount: number;
-  skippedThreadCount: number;
-  updatedThreadCount: number;
-  warningCount: number;
-  errorCount: number;
-  issues: RuntimeSyncIssue[];
-  latestEventId: number;
-};
-
 export const summaryEventTypes = [
-  "project.upserted",
-  "task.created",
   "turn.started",
   "turn.status",
   "turn.steered",
   "turn.interrupt.requested",
-  "thread.queue.updated",
   "thread.started",
   "thread.resumed",
   "thread.status",
   "thread.runtime_lost",
   "thread.continued",
-  "thread.forked",
   "thread.renamed",
   "thread.goal.updated",
   "thread.goal.cleared",
@@ -170,7 +94,6 @@ export function isSummaryEventType(type: string) {
 export type ThreadDetail = ControlThread & {
   turns: Turn[];
   items: ThreadItem[];
-  queuedPrompts: QueuedPrompt[];
   latestEventId: number;
 };
 
@@ -184,14 +107,12 @@ export type ThreadPage = {
 };
 
 export type DashboardState = {
-  projects: Project[];
-  tasks: Task[];
   threads: ControlThread[];
   threadTotalCount: number;
   threadPageSize: number;
   threadNextOffset: number;
   threadHasMore: boolean;
-  recipes: PromptRecipe[];
+  defaultCwd: string;
   latestEventId: number;
 };
 
@@ -250,11 +171,10 @@ export type TerminalStatusEvent = {
 
 export type TerminalEvent = TerminalOutputEvent | TerminalStatusEvent;
 
-export type CreateTaskInput = {
-  projectId: string;
+export type CreateSessionInput = {
+  cwd: string;
   prompt: string;
   goalMode?: boolean | null;
-  recipeId?: string | null;
   title?: string | null;
   model?: string | null;
 };
@@ -263,11 +183,6 @@ export type StartTurnInput = {
   threadId: string;
   prompt: string;
   model?: string | null;
-};
-
-export type RenameThreadInput = {
-  threadId: string;
-  title: string;
 };
 
 export type SetGoalInput = {
@@ -288,7 +203,7 @@ export function nowIso() {
 export function titleFromPrompt(prompt: string) {
   const collapsed = prompt.trim().replace(/\s+/g, " ");
   if (collapsed.length <= 72) {
-    return collapsed || "Untitled task";
+    return collapsed || "Untitled session";
   }
   return `${collapsed.slice(0, 69)}...`;
 }

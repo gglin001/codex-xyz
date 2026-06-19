@@ -7,8 +7,6 @@ import {
 import type {
   ControlThread,
   DashboardState,
-  Project,
-  Task,
   ThreadDetail,
   ThreadItem,
   Turn,
@@ -18,25 +16,11 @@ import type {
 const createdAt = "2026-06-13T00:00:00.000Z";
 const updatedAt = "2026-06-13T00:01:00.000Z";
 
-function project(): Project {
-  return {
-    id: "project-1",
-    name: "codex-xyz",
-    path: "/tmp/codex-xyz",
-    gitRemote: null,
-    defaultBranch: null,
-    tags: [],
-    createdAt,
-    updatedAt: createdAt
-  };
-}
-
 function thread(overrides: Partial<ControlThread> = {}): ControlThread {
   return {
     id: "thread-1",
     sessionId: "session-1",
     forkedFromId: null,
-    projectId: "project-1",
     title: "Improve the console",
     preview: "Initial prompt",
     cwd: "/tmp/codex-xyz",
@@ -47,21 +31,6 @@ function thread(overrides: Partial<ControlThread> = {}): ControlThread {
     goalStatus: null,
     goalTokenBudget: null,
     tokensUsed: 0,
-    createdAt,
-    updatedAt: createdAt,
-    ...overrides
-  };
-}
-
-function task(overrides: Partial<Task> = {}): Task {
-  return {
-    id: "task-1",
-    projectId: "project-1",
-    threadId: "thread-1",
-    title: "Improve the console",
-    prompt: "Initial prompt",
-    recipeId: null,
-    status: "running",
     createdAt,
     updatedAt: createdAt,
     ...overrides
@@ -97,14 +66,23 @@ function item(overrides: Partial<ThreadItem> = {}): ThreadItem {
 function state(overrides: Partial<DashboardState> = {}): DashboardState {
   const threads = overrides.threads ?? [thread()];
   return {
-    projects: [project()],
-    tasks: [task()],
     threads,
-    recipes: [],
     threadTotalCount: threads.length,
     threadPageSize: 50,
     threadNextOffset: threads.length,
     threadHasMore: false,
+    defaultCwd: "/tmp/codex-xyz",
+    latestEventId: 0,
+    ...overrides
+  };
+}
+
+function detail(overrides: Partial<ThreadDetail> = {}): ThreadDetail {
+  const baseThread = thread();
+  return {
+    ...baseThread,
+    turns: [turn()],
+    items: [item()],
     latestEventId: 0,
     ...overrides
   };
@@ -114,13 +92,7 @@ function projection(): ClientProjection {
   const baseThread = thread();
   return {
     state: state({ threads: [baseThread] }),
-    detail: {
-      ...baseThread,
-      turns: [turn()],
-      items: [item()],
-      queuedPrompts: [],
-      latestEventId: 0
-    }
+    detail: detail(baseThread)
   };
 }
 
@@ -179,27 +151,6 @@ describe("client event projection", () => {
     expect(result.detail).toBe(current.detail);
   });
 
-  it("updates queued prompts for the selected session", () => {
-    const result = applyEventProjection(
-      projection(),
-      event("thread.queue.updated", {
-        queuedPrompts: [
-          {
-            id: "queued-1",
-            threadId: "thread-1",
-            prompt: "Run after the active turn.",
-            createdAt
-          }
-        ]
-      })
-    );
-
-    expect(result.changed).toBe(true);
-    expect(result.handled).toBe(true);
-    expect(result.needsRefresh).toBe(false);
-    expect(result.detail?.queuedPrompts.map((prompt) => prompt.prompt)).toEqual(["Run after the active turn."]);
-  });
-
   it("updates the latest transcript item without reordering existing items", () => {
     const firstItem = item({ id: "item-1", text: "First" });
     const latestItem = item({ id: "item-2", text: "Latest" });
@@ -226,19 +177,7 @@ describe("client event projection", () => {
     });
   });
 
-  it("keeps projection identity for duplicate thread payloads", () => {
-    const current = projection();
-    const duplicateThread = thread();
-    const result = applyEventProjection(current, event("thread.token_usage", { thread: duplicateThread }));
-
-    expect(result.changed).toBe(false);
-    expect(result.handled).toBe(true);
-    expect(result.needsRefresh).toBe(false);
-    expect(result.state).toBe(current.state);
-    expect(result.detail).toBe(current.detail);
-  });
-
-  it("projects turn completion into thread, task, and selected detail state", () => {
+  it("projects turn completion into thread and selected detail state", () => {
     const result = applyEventProjection(
       projection(),
       event("turn.status", {
@@ -254,36 +193,13 @@ describe("client event projection", () => {
       activeTurnId: null,
       updatedAt
     });
-    expect(result.state.tasks[0]).toMatchObject({
-      status: "completed",
-      updatedAt
-    });
     expect(result.detail?.turns[0]).toMatchObject({
       status: "completed",
       completedAt: updatedAt
     });
   });
 
-  it("clears the active turn when runtime thread status becomes idle", () => {
-    const result = applyEventProjection(
-      projection(),
-      event("thread.status", {
-        status: "idle"
-      })
-    );
-
-    expect(result.changed).toBe(true);
-    expect(result.state.threads[0]).toMatchObject({
-      status: "idle",
-      activeTurnId: null
-    });
-    expect(result.detail).toMatchObject({
-      status: "idle",
-      activeTurnId: null
-    });
-  });
-
-  it("preserves thread content time from runtime sync status payloads", () => {
+  it("preserves thread content time from thread status payloads", () => {
     const contentUpdatedAt = "2026-06-13T00:00:30.000Z";
     const syncedThread = thread({
       status: "idle",

@@ -1,15 +1,12 @@
-import { FolderOpen, ListPlus, Plus, Send, Target } from "lucide-react";
+import { FolderOpen, Plus, Send, Square, Target } from "lucide-react";
 import type { FormEvent, KeyboardEvent, PointerEvent } from "react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import type { ControlThread, Project } from "../../server/domain.js";
-import { PromptControlMenu } from "./PromptControlMenu.js";
+import type { ControlThread } from "../../server/domain.js";
 import type { ComposerMode } from "./types.js";
 import { StatusBanners } from "./StatusBanners.js";
 
 type WorkdirFieldProps = {
-  projects: Project[];
   value: string;
-  matchingProject: Project | null;
   disabled: boolean;
   onChange: (value: string) => void;
 };
@@ -19,9 +16,7 @@ export type PromptComposerProps = {
   showStatus?: boolean;
   compact?: boolean;
   collapsible?: boolean;
-  projects: Project[];
   workdir: string;
-  matchingProject: Project | null;
   busy: boolean;
   busyAction: string | null;
   notice: string | null;
@@ -30,8 +25,6 @@ export type PromptComposerProps = {
   promptTarget: ComposerMode;
   goalMode: boolean;
   selectedThreadId: string | null;
-  queueMode: boolean;
-  canUseQueueMode: boolean;
   canUseGoalMode: boolean;
   canSubmitPrompt: boolean;
   onModeChange: (mode: ComposerMode) => void;
@@ -39,16 +32,10 @@ export type PromptComposerProps = {
   onPromptChange: (value: string) => void;
   onPromptKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
   onPromptSubmit: (event: FormEvent) => void;
-  onQueueModeChange: (value: boolean) => void;
   onGoalModeChange: (value: boolean) => void;
   selectedThread: ControlThread | null;
   onInterrupt: () => void;
   onResume: () => void;
-  onFork: () => void;
-  onPauseGoal: () => void;
-  onResumeGoal: () => void;
-  onCompleteGoal: () => void;
-  onClearGoal: () => void;
 };
 
 type PromptResizeState = {
@@ -77,13 +64,7 @@ function getPromptLayoutMaxHeight(textarea: HTMLTextAreaElement, viewportMaxHeig
   return textarea.getBoundingClientRect().height + availableComposerGrowth;
 }
 
-const WorkdirField = memo(function WorkdirField({
-  projects,
-  value,
-  disabled,
-  onChange
-}: WorkdirFieldProps) {
-
+const WorkdirField = memo(function WorkdirField({ value, disabled, onChange }: WorkdirFieldProps) {
   return (
     <div className="workdir-panel">
       <label className="workdir-field">
@@ -92,20 +73,12 @@ const WorkdirField = memo(function WorkdirField({
         </span>
         <input
           value={value}
-          list="project-workdirs"
           onChange={(event) => onChange(event.target.value)}
           placeholder="/path/to/repo"
           disabled={disabled}
           aria-label="Working directory"
         />
       </label>
-      <datalist id="project-workdirs">
-        {projects.map((project) => (
-          <option key={project.id} value={project.path}>
-            {project.name}
-          </option>
-        ))}
-      </datalist>
     </div>
   );
 });
@@ -115,9 +88,7 @@ export const PromptComposer = memo(function PromptComposer({
   showStatus = false,
   compact = false,
   collapsible = false,
-  projects,
   workdir,
-  matchingProject,
   busy,
   busyAction,
   notice,
@@ -126,8 +97,6 @@ export const PromptComposer = memo(function PromptComposer({
   promptTarget,
   goalMode,
   selectedThreadId,
-  queueMode,
-  canUseQueueMode,
   canUseGoalMode,
   canSubmitPrompt,
   selectedThread,
@@ -136,55 +105,39 @@ export const PromptComposer = memo(function PromptComposer({
   onPromptChange,
   onPromptKeyDown,
   onPromptSubmit,
-  onQueueModeChange,
   onGoalModeChange,
   onInterrupt,
-  onResume,
-  onFork,
-  onPauseGoal,
-  onResumeGoal,
-  onCompleteGoal,
-  onClearGoal
+  onResume
 }: PromptComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const resizeStateRef = useRef<PromptResizeState | null>(null);
   const focusOnExpandRef = useRef(false);
   const [promptHeight, setPromptHeight] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(!collapsible);
-  const [controlsOpen, setControlsOpen] = useState(false);
-  const promptPlaceholder = queueMode
-    ? "Queue next turn"
-    : goalMode
-      ? "Describe the goal objective"
-      : promptTarget === "thread"
-        ? "Send prompt"
-        : "Create a task";
-  const submitTitle = queueMode
-    ? "Queue next turn"
-    : goalMode
-      ? "Start goal mode"
-      : promptTarget === "thread"
-        ? "Send prompt"
-        : "Create session";
-  const queueModeTitle = canUseQueueMode
-    ? "Queue prompt after the active turn"
-    : "Queue mode requires a running selected session";
+  const promptPlaceholder = goalMode
+    ? "Describe the goal objective"
+    : promptTarget === "thread"
+      ? "Send prompt"
+      : "Create session";
+  const submitTitle = goalMode ? "Start goal mode" : promptTarget === "thread" ? "Send prompt" : "Create session";
   const goalModeTitle = canUseGoalMode
     ? "Use the prompt as the goal objective"
     : promptTarget === "thread"
       ? "Goal mode requires an idle selected session"
       : "Goal mode requires a working directory";
   const newModeTitle = promptTarget === "new" && selectedThreadId ? "Use selected session" : "New session";
-  const PromptIcon = queueMode ? ListPlus : goalMode ? Target : promptTarget === "thread" ? Send : Plus;
+  const PromptIcon = goalMode ? Target : promptTarget === "thread" ? Send : Plus;
   const hasPrompt = prompt.trim().length > 0;
   const hasStatus = Boolean(busy || busyAction || notice || error);
   const isExpanded = !collapsible || expanded || hasPrompt || hasStatus;
+  const hasSelectedThread = Boolean(selectedThreadId);
+  const canInterrupt = selectedThread?.status === "running" && !busy;
+  const canResume = hasSelectedThread && selectedThread?.status !== "running" && !busy;
   const classes = [
     "prompt-composer",
     className,
     collapsible ? "collapsible" : null,
-    isExpanded ? "expanded" : "collapsed",
-    isExpanded && controlsOpen ? "controls-open" : null
+    isExpanded ? "expanded" : "collapsed"
   ]
     .filter(Boolean)
     .join(" ");
@@ -315,15 +268,7 @@ export const PromptComposer = memo(function PromptComposer({
 
       {isExpanded ? (
         <div className="composer-stack">
-          {promptTarget === "new" ? (
-            <WorkdirField
-              projects={projects}
-              value={workdir}
-              matchingProject={matchingProject}
-              disabled={busy}
-              onChange={onWorkdirChange}
-            />
-          ) : null}
+          {promptTarget === "new" ? <WorkdirField value={workdir} disabled={busy} onChange={onWorkdirChange} /> : null}
 
           <form className="task-form" onSubmit={handleSubmit}>
             <div className="prompt-shell">
@@ -372,28 +317,24 @@ export const PromptComposer = memo(function PromptComposer({
                     </button>
                     <button
                       type="button"
-                      className={`prompt-option ${queueMode ? "active" : ""} ${!canUseQueueMode || busy ? "disabled" : ""}`}
-                      title={queueModeTitle}
-                      aria-label={queueModeTitle}
-                      aria-pressed={queueMode}
-                      disabled={!canUseQueueMode || busy}
-                      onClick={() => onQueueModeChange(!queueMode)}
+                      className="prompt-option"
+                      title="Interrupt"
+                      aria-label="Interrupt"
+                      disabled={!canInterrupt}
+                      onClick={onInterrupt}
                     >
-                      <ListPlus size={15} />
+                      <Square size={15} />
                     </button>
-                    <PromptControlMenu
-                      selectedThread={selectedThread}
-                      selectedThreadId={selectedThreadId}
-                      busy={busy}
-                      onInterrupt={onInterrupt}
-                      onResume={onResume}
-                      onFork={onFork}
-                      onPauseGoal={onPauseGoal}
-                      onResumeGoal={onResumeGoal}
-                      onCompleteGoal={onCompleteGoal}
-                      onClearGoal={onClearGoal}
-                      onOpenChange={setControlsOpen}
-                    />
+                    <button
+                      type="button"
+                      className="prompt-option"
+                      title="Resume"
+                      aria-label="Resume"
+                      disabled={!canResume}
+                      onClick={onResume}
+                    >
+                      <Send size={15} />
+                    </button>
                   </div>
                 </div>
                 <button

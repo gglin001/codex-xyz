@@ -1,10 +1,7 @@
 import type {
   ControlThread,
   DashboardState,
-  Project,
-  QueuedPrompt,
   RuntimeStatus,
-  Task,
   ThreadDetail,
   ThreadItem,
   Turn,
@@ -23,8 +20,6 @@ export type ProjectionResult = ClientProjection & {
 };
 
 export const incrementalEventNames = [
-  "project.upserted",
-  "task.created",
   "item.created",
   "item.updated",
   "item.delta",
@@ -32,13 +27,11 @@ export const incrementalEventNames = [
   "turn.status",
   "turn.steered",
   "turn.interrupt.requested",
-  "thread.queue.updated",
   "thread.started",
   "thread.resumed",
   "thread.status",
   "thread.runtime_lost",
   "thread.continued",
-  "thread.forked",
   "thread.renamed",
   "thread.goal.updated",
   "thread.goal.cleared",
@@ -81,6 +74,23 @@ function shallowEqualObject<T extends object>(a: T, b: T) {
   return aEntries.every(([key, value]) => shallowEqualValue(value, b[key]));
 }
 
+function findIndexById<T extends { id: string }>(items: T[], itemId: string, searchFromEnd: boolean) {
+  if (searchFromEnd) {
+    for (let index = items.length - 1; index >= 0; index -= 1) {
+      if (items[index].id === itemId) {
+        return index;
+      }
+    }
+    return -1;
+  }
+  for (let index = 0; index < items.length; index += 1) {
+    if (items[index].id === itemId) {
+      return index;
+    }
+  }
+  return -1;
+}
+
 function upsertById<T extends { id: string }>(
   items: T[],
   item: T,
@@ -100,23 +110,6 @@ function upsertById<T extends { id: string }>(
   const next = [...items];
   next[index] = item;
   return next;
-}
-
-function findIndexById<T extends { id: string }>(items: T[], itemId: string, searchFromEnd: boolean) {
-  if (searchFromEnd) {
-    for (let index = items.length - 1; index >= 0; index -= 1) {
-      if (items[index].id === itemId) {
-        return index;
-      }
-    }
-    return -1;
-  }
-  for (let index = 0; index < items.length; index += 1) {
-    if (items[index].id === itemId) {
-      return index;
-    }
-  }
-  return -1;
 }
 
 function mergeIfChanged<T extends object>(item: T, updates: Partial<T>) {
@@ -146,19 +139,6 @@ function updateById<T extends { id: string }>(items: T[], itemId: string, update
 
 function runtimeStatusFromTurnStatus(status: RuntimeStatus): RuntimeStatus {
   return status === "completed" ? "idle" : status;
-}
-
-function taskStatusFromRuntime(status: RuntimeStatus): Task["status"] {
-  if (status === "completed" || status === "idle") {
-    return "completed";
-  }
-  if (status === "failed" || status === "stale") {
-    return "failed";
-  }
-  if (status === "interrupted") {
-    return "interrupted";
-  }
-  return "running";
 }
 
 function withThread(
@@ -295,81 +275,6 @@ function withThreadItem(projection: ClientProjection, item: ThreadItem): ClientP
   };
 }
 
-function withProject(projection: ClientProjection, project: Project): ClientProjection {
-  const projects = upsertById(projection.state.projects, project, { equal: shallowEqualObject });
-  if (projects === projection.state.projects) {
-    return projection;
-  }
-  return {
-    ...projection,
-    state: {
-      ...projection.state,
-      projects
-    }
-  };
-}
-
-function withTask(projection: ClientProjection, task: Task, options: { prepend?: boolean } = {}): ClientProjection {
-  const tasks = upsertById(projection.state.tasks, task, {
-    ...options,
-    equal: shallowEqualObject
-  });
-  if (tasks === projection.state.tasks) {
-    return projection;
-  }
-  return {
-    ...projection,
-    state: {
-      ...projection.state,
-      tasks
-    }
-  };
-}
-
-function withTaskFieldsByThread(
-  projection: ClientProjection,
-  threadId: string,
-  updates: Partial<Task>
-): ClientProjection {
-  let changed = false;
-  const tasks = projection.state.tasks.map((task) => {
-    if (task.threadId !== threadId) {
-      return task;
-    }
-    const nextTask = mergeIfChanged<Task>(task, updates);
-    changed = changed || nextTask !== task;
-    return nextTask;
-  });
-  if (!changed) {
-    return projection;
-  }
-  return {
-    ...projection,
-    state: {
-      ...projection.state,
-      tasks
-    }
-  };
-}
-
-function withQueuedPrompts(
-  projection: ClientProjection,
-  threadId: string,
-  queuedPrompts: QueuedPrompt[]
-): ClientProjection {
-  if (projection.detail?.id !== threadId) {
-    return projection;
-  }
-  const detail = mergeIfChanged<ThreadDetail>(projection.detail, { queuedPrompts });
-  if (detail === projection.detail) {
-    return projection;
-  }
-  return {
-    ...projection,
-    detail
-  };
-}
-
 function result(
   previous: ClientProjection,
   projection: ClientProjection,
@@ -393,15 +298,13 @@ export function applyEventProjection(projection: ClientProjection, event: XyzEve
       "thread.resumed",
       "thread.runtime_lost",
       "thread.continued",
-      "thread.forked",
       "thread.renamed",
       "thread.goal.updated",
       "thread.goal.cleared",
       "thread.token_usage"
     ].includes(event.type)
   ) {
-    const isNewThreadEvent =
-      event.type === "thread.started" || event.type === "thread.continued" || event.type === "thread.forked";
+    const isNewThreadEvent = event.type === "thread.started" || event.type === "thread.continued";
     return result(
       projection,
       withThread(projection, thread, {
@@ -411,22 +314,6 @@ export function applyEventProjection(projection: ClientProjection, event: XyzEve
       true,
       event
     );
-  }
-
-  if (event.type === "project.upserted") {
-    const project = payloadValue<Project>(event, "project");
-    if (!project) {
-      return result(projection, projection, false, event);
-    }
-    return result(projection, withProject(projection, project), true, event);
-  }
-
-  if (event.type === "task.created") {
-    const task = payloadValue<Task>(event, "task");
-    if (!task) {
-      return result(projection, projection, false, event);
-    }
-    return result(projection, withTask(projection, task, { prepend: true }), true, event);
   }
 
   if (event.type === "turn.started") {
@@ -442,14 +329,7 @@ export function applyEventProjection(projection: ClientProjection, event: XyzEve
     if (turn.prompt) {
       updates.preview = turn.prompt;
     }
-    const next = withTaskFieldsByThread(
-      withThreadFields(withTurn(projection, turn), turn.threadId, updates),
-      turn.threadId,
-      {
-        status: "running",
-        updatedAt: turn.startedAt
-      }
-    );
+    const next = withThreadFields(withTurn(projection, turn), turn.threadId, updates);
     return result(projection, next, true, event);
   }
 
@@ -468,28 +348,7 @@ export function applyEventProjection(projection: ClientProjection, event: XyzEve
         updatedAt: event.createdAt
       }
     );
-    return result(
-      projection,
-      withTaskFieldsByThread(next, event.threadId, {
-        status: taskStatusFromRuntime(status),
-        updatedAt: event.createdAt
-      }),
-      true,
-      event
-    );
-  }
-
-  if (event.type === "thread.queue.updated") {
-    const queuedPrompts = payloadRecord(event).queuedPrompts;
-    if (!event.threadId || !Array.isArray(queuedPrompts)) {
-      return result(projection, projection, false, event);
-    }
-    return result(
-      projection,
-      withQueuedPrompts(projection, event.threadId, queuedPrompts as QueuedPrompt[]),
-      true,
-      event
-    );
+    return result(projection, next, true, event);
   }
 
   if (event.type === "thread.status") {
@@ -499,12 +358,7 @@ export function applyEventProjection(projection: ClientProjection, event: XyzEve
     }
     const thread = payloadValue<ControlThread>(event, "thread");
     if (thread) {
-      return result(
-        projection,
-        withThread(projection, thread, { insertIfMissing: false }),
-        true,
-        event
-      );
+      return result(projection, withThread(projection, thread, { insertIfMissing: false }), true, event);
     }
     const updates: Partial<ControlThread> = {
       status,
@@ -513,12 +367,7 @@ export function applyEventProjection(projection: ClientProjection, event: XyzEve
     if (status !== "running") {
       updates.activeTurnId = null;
     }
-    return result(
-      projection,
-      withThreadFields(projection, event.threadId, updates),
-      true,
-      event
-    );
+    return result(projection, withThreadFields(projection, event.threadId, updates), true, event);
   }
 
   if (event.type === "item.created" || event.type === "item.updated" || event.type === "item.delta") {

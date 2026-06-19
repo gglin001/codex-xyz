@@ -1,21 +1,15 @@
 import { statSync } from "node:fs";
-import { basename, resolve } from "node:path";
-import { randomUUID } from "node:crypto";
+import { resolve } from "node:path";
 import {
   type ControlThread,
-  type CreateTaskInput,
+  type CreateSessionInput,
   type DashboardState,
   type GoalStatus,
   nowIso,
-  type Project,
-  type RenameThreadInput,
-  type RuntimeSyncIssue,
-  type RuntimeSyncResult,
   type RuntimeStatus,
   type SetGoalInput,
   type SetGoalStatusInput,
   type StartTurnInput,
-  type Task,
   type ThreadDetail,
   type ThreadItem,
   type ThreadPage,
@@ -34,19 +28,6 @@ import {
 } from "./codex/adapter.js";
 import { TerminalController } from "./terminal.js";
 
-function taskStatusFromRuntime(status: RuntimeStatus): Task["status"] {
-  if (status === "completed" || status === "idle") {
-    return "completed";
-  }
-  if (status === "failed" || status === "stale") {
-    return "failed";
-  }
-  if (status === "interrupted") {
-    return "interrupted";
-  }
-  return "running";
-}
-
 function goalStatusFromAdapter(goal: AdapterGoal | null): GoalStatus | null {
   return goal ? goal.status : null;
 }
@@ -57,10 +38,6 @@ function threadStatusFromTurnStatus(status: RuntimeStatus): RuntimeStatus {
 
 function normalizeThreadRuntimeStatus(status: RuntimeStatus): RuntimeStatus {
   return status === "completed" ? "idle" : status;
-}
-
-function isRuntimeCheckCandidate(thread: ControlThread) {
-  return thread.status === "idle" || thread.status === "running" || Boolean(thread.activeTurnId);
 }
 
 function isNoActiveTurnError(error: unknown) {
@@ -79,10 +56,6 @@ function normalizeWorkingDirectory(path: string) {
     throw new Error(`Working directory is not a directory: ${resolved}`);
   }
   return resolved;
-}
-
-function projectNameFromPath(path: string, name?: string | null) {
-  return name?.trim() || basename(path) || path;
 }
 
 function parseShellCommandPrompt(prompt: string) {
@@ -115,7 +88,7 @@ function normalizePageOffset(value?: number | null) {
 }
 
 export class ControlService {
-  private readonly drainingQueues = new Set<string>();
+  private defaultCwd = process.cwd();
 
   constructor(
     readonly store: Store,
@@ -128,23 +101,15 @@ export class ControlService {
 
   seedLocalState(input: { cwd: string; adapterName: string; cliVersion?: string | null }) {
     const cwd = normalizeWorkingDirectory(input.cwd);
+    this.defaultCwd = cwd;
     this.terminal.configure({ cwd });
     this.store.upsertHost({
       id: "local",
       name: "Local host",
       adapter: input.adapterName,
-      version: input.cliVersion ?? null
+      version: input.cliVersion ?? null,
+      defaultCwd: cwd
     });
-    const existing = this.store.getProjectByPath(cwd);
-    if (!existing) {
-      this.store.createProject({
-        id: "local",
-        name: projectNameFromPath(cwd),
-        path: cwd,
-        tags: ["local"]
-      });
-    }
-    this.seedRecipes();
   }
 
   dashboard(): DashboardState {
@@ -156,74 +121,33 @@ export class ControlService {
         ? this.store.listThreads()
         : this.store.listThreads({ limit: defaultThreadPageSize, offset: 0 });
     return {
-      projects: this.store.listProjects(),
-      tasks: this.store.listTasks(),
       threads,
       threadTotalCount: totalCount,
       threadPageSize: limit,
       threadNextOffset: threads.length,
       threadHasMore: threads.length < totalCount,
-      recipes: this.store.listRecipes(),
+      defaultCwd: this.store.getDefaultCwd() ?? this.defaultCwd,
       latestEventId
     };
   }
 
-  listProjects() {
-    return this.store.listProjects();
-  }
-
-  createProject(input: { name?: string | null; path: string; tags?: string[] }) {
-    const path = normalizeWorkingDirectory(input.path);
-    const project = this.store.createProject({
-      id: randomUUID(),
-      name: projectNameFromPath(path, input.name),
-      path,
-      tags: input.tags ?? []
-    });
-    if (!project) {
-      throw new Error(`Failed to create project for ${path}`);
-    }
-    this.publish("project.upserted", null, null, { project });
-    return project;
-  }
-
-  listTasks() {
-    return this.store.listTasks();
-  }
-
-  async createTask(input: CreateTaskInput) {
-    const project = this.requireProject(input.projectId);
-    const now = nowIso();
-    const task: Task = {
-      id: randomUUID(),
-      projectId: project.id,
-      threadId: null,
-      title: input.title?.trim() || titleFromPrompt(input.prompt),
-      prompt: input.prompt,
-      recipeId: input.recipeId ?? null,
-      status: "queued",
-      createdAt: now,
-      updatedAt: now
-    };
-    this.store.createTask(task);
-    this.publish("task.created", null, null, { task });
-
+  async createSession(input: CreateSessionInput) {
+    const cwd = normalizeWorkingDirectory(input.cwd);
+    const title = input.title?.trim() || titleFromPrompt(input.prompt);
     const adapterThread = await this.adapter.startThread({
-      cwd: project.path,
+      cwd,
       promptPreview: titleFromPrompt(input.prompt),
       model: input.model ?? null
     });
     const thread = this.createThreadProjection({
       adapterThread,
-      projectId: project.id,
-      title: task.title,
+      title,
       goalObjective: null,
       goalStatus: null,
       goalTokenBudget: null,
-      preview: task.title,
+      preview: title,
       tokensUsed: 0
     });
-    this.store.updateTask(task.id, { threadId: thread.id, status: "running" });
     this.publish("thread.started", thread.id, null, { thread });
 
     if (input.goalMode) {
@@ -233,7 +157,6 @@ export class ControlService {
         tokenBudget: null
       });
       return {
-        task: this.store.getTask(task.id),
         thread: goalStart.thread,
         turn: goalStart.turn,
         goal: goalStart.goal
@@ -245,11 +168,7 @@ export class ControlService {
       prompt: input.prompt,
       model: input.model ?? null
     });
-    if (turn.threadId !== thread.id) {
-      this.store.updateTask(task.id, { threadId: turn.threadId, status: "running" });
-    }
     return {
-      task: this.store.getTask(task.id),
       thread: this.store.getThread(turn.threadId),
       turn,
       goal: null
@@ -283,34 +202,6 @@ export class ControlService {
     return this.recordTurn(runtimeThread, input.prompt, adapterTurn);
   }
 
-  async steerTurn(threadId: string, prompt: string) {
-    const thread = this.requireThread(threadId);
-    if (!thread.activeTurnId) {
-      throw new Error("Thread has no active turn to steer");
-    }
-    try {
-      await this.steerActiveTurn(thread, prompt);
-    } catch (error) {
-      if (isNoActiveTurnError(error)) {
-        this.clearLostActiveTurn(thread);
-      }
-      throw error;
-    }
-  }
-
-  async queueTurn(threadId: string, prompt: string) {
-    const thread = this.requireThread(threadId);
-    if (!thread.activeTurnId || thread.status !== "running") {
-      throw new Error("Queue mode requires a running thread");
-    }
-    const queuedPrompt = this.store.createQueuedPrompt({
-      id: randomUUID(),
-      threadId,
-      prompt
-    });
-    return this.publishQueueUpdated(threadId, { queuedPrompt });
-  }
-
   async interruptTurn(threadId: string) {
     const thread = this.requireThread(threadId);
     if (!thread.activeTurnId) {
@@ -337,42 +228,6 @@ export class ControlService {
       throw new Error(`Thread ${thread.id} is not loaded by Codex and could not be resumed`);
     }
     return this.store.getThread(threadId);
-  }
-
-  async forkThread(threadId: string) {
-    const source = this.requireThread(threadId);
-    const adapterThread = await this.withRuntimeThread(source, (runtimeThread) =>
-      this.adapter.forkThread({
-        sourceThreadId: runtimeThread.id,
-        cwd: source.cwd,
-        model: source.model
-      })
-    );
-    const thread = this.createThreadProjection({
-      adapterThread,
-      projectId: source.projectId,
-      title: `${source.title} fork`,
-      forkedFromId: adapterThread.forkedFromId ?? threadId,
-      goalObjective: source.goalObjective,
-      goalStatus: source.goalStatus,
-      goalTokenBudget: source.goalTokenBudget,
-      preview: `Fork of ${source.preview}`,
-      tokensUsed: 0
-    });
-    this.publish("thread.forked", thread.id, null, { thread, sourceThreadId: threadId });
-    return thread;
-  }
-
-  async renameThread(input: RenameThreadInput) {
-    const source = this.requireThread(input.threadId);
-    const title = input.title.trim();
-    if (!title) {
-      throw new Error("Thread title cannot be empty");
-    }
-    await this.withRuntimeThread(source, (runtimeThread) => this.adapter.renameThread({ threadId: runtimeThread.id, title }));
-    const thread = this.store.updateThread(input.threadId, { title });
-    this.publish("thread.renamed", input.threadId, null, { title, thread });
-    return thread;
   }
 
   async setGoal(input: SetGoalInput) {
@@ -479,73 +334,6 @@ export class ControlService {
     };
   }
 
-  async syncRuntimeThreads(threadIds: string[]): Promise<RuntimeSyncResult> {
-    const uniqueThreadIds = [...new Set(threadIds)];
-    const issues: RuntimeSyncIssue[] = [];
-    let checkedThreadCount = 0;
-    let skippedThreadCount = 0;
-    let updatedThreadCount = 0;
-
-    for (const threadId of uniqueThreadIds) {
-      const thread = this.store.getThread(threadId);
-      if (!thread) {
-        continue;
-      }
-      if (!isRuntimeCheckCandidate(thread)) {
-        skippedThreadCount += 1;
-        continue;
-      }
-
-      checkedThreadCount += 1;
-      try {
-        const adapterThread = await this.adapter.resumeThread({
-          threadId: thread.id,
-          cwd: thread.cwd,
-          model: thread.model
-        });
-        const result = this.applyRuntimeThreadSnapshot(thread, adapterThread);
-        if (result.updated) {
-          updatedThreadCount += 1;
-        }
-        issues.push(...result.issues);
-      } catch (error) {
-        if (isAdapterThreadNotFoundError(error)) {
-          this.markRuntimeThreadLost(thread);
-          updatedThreadCount += 1;
-          issues.push({
-            threadId: thread.id,
-            title: thread.title,
-            localStatus: thread.status,
-            runtimeStatus: "stale",
-            severity: "error",
-            message: "Session is not loaded by Codex and could not be resumed."
-          });
-          continue;
-        }
-        issues.push({
-          threadId: thread.id,
-          title: thread.title,
-          localStatus: thread.status,
-          runtimeStatus: null,
-          severity: "error",
-          message: error instanceof Error ? error.message : String(error)
-        });
-      }
-    }
-
-    const warningCount = issues.filter((issue) => issue.severity === "warning").length;
-    const errorCount = issues.filter((issue) => issue.severity === "error").length;
-    return {
-      checkedThreadCount,
-      skippedThreadCount,
-      updatedThreadCount,
-      warningCount,
-      errorCount,
-      issues,
-      latestEventId: this.store.getLatestEventId()
-    };
-  }
-
   getThreadDetail(threadId: string): ThreadDetail {
     const detail = this.store.getThreadDetail(threadId);
     if (!detail) {
@@ -621,13 +409,7 @@ export class ControlService {
         status: threadStatusFromTurnStatus(event.status),
         activeTurnId: event.status === "running" ? event.turnId : null
       });
-      this.store.updateTasksForThread(event.threadId, taskStatusFromRuntime(event.status));
       this.publish("turn.status", event.threadId, event.turnId, { status: event.status });
-      if (event.status === "completed") {
-        void this.maybeDrainQueuedPrompt(event.threadId).catch((error: unknown) => {
-          this.publishQueueFailed(event.threadId, error);
-        });
-      }
       return;
     }
 
@@ -650,10 +432,8 @@ export class ControlService {
       if (event.status !== "running") {
         updates.activeTurnId = null;
       }
-      this.store.updateThread(event.threadId, {
-        ...updates
-      });
-      this.publish("thread.status", event.threadId, null, { status: event.status });
+      const thread = this.store.updateThread(event.threadId, updates);
+      this.publish("thread.status", event.threadId, null, { status: event.status, thread });
       return;
     }
 
@@ -711,22 +491,6 @@ export class ControlService {
     return event;
   }
 
-  private publishQueueUpdated(threadId: string, extra: Record<string, unknown> = {}) {
-    const queuedPrompts = this.store.listQueuedPrompts(threadId);
-    this.publish("thread.queue.updated", threadId, null, {
-      queuedPrompts,
-      ...extra
-    });
-    return queuedPrompts;
-  }
-
-  private publishQueueFailed(threadId: string, error: unknown) {
-    this.publish("thread.queue.updated", threadId, null, {
-      queuedPrompts: this.store.listQueuedPrompts(threadId),
-      error: error instanceof Error ? error.message : String(error)
-    });
-  }
-
   private ensureTurnForEvent(threadId: string, turnId: string | null, prompt = "") {
     const thread = this.store.getThread(threadId);
     if (!thread) {
@@ -761,7 +525,6 @@ export class ControlService {
 
   private createThreadProjection(input: {
     adapterThread: AdapterThread;
-    projectId: string;
     title: string;
     forkedFromId?: string | null;
     goalObjective: string | null;
@@ -776,7 +539,6 @@ export class ControlService {
       id: input.adapterThread.id,
       sessionId: input.adapterThread.sessionId,
       forkedFromId: input.forkedFromId ?? input.adapterThread.forkedFromId,
-      projectId: input.projectId,
       title: input.title,
       preview: input.adapterThread.preview || input.preview || input.title,
       cwd: input.adapterThread.cwd,
@@ -820,7 +582,7 @@ export class ControlService {
     this.store.updateThread(thread.id, {
       status: "running",
       activeTurnId: turn.id,
-      preview: prompt
+      preview: prompt || thread.preview
     });
     this.publish("turn.started", thread.id, turn.id, { turn });
     return turn;
@@ -847,44 +609,6 @@ export class ControlService {
       return runtimeThread.activeTurnId;
     });
     this.publish("turn.steered", thread.id, activeTurnId, { prompt });
-  }
-
-  private async maybeDrainQueuedPrompt(threadId: string) {
-    if (this.drainingQueues.has(threadId)) {
-      return;
-    }
-    const thread = this.store.getThread(threadId);
-    if (!thread || thread.activeTurnId || thread.status === "running") {
-      return;
-    }
-    const queuedPrompt = this.store.peekQueuedPrompt(threadId);
-    if (!queuedPrompt) {
-      return;
-    }
-
-    this.drainingQueues.add(threadId);
-    let started = false;
-    try {
-      await this.startTurn({
-        threadId,
-        prompt: queuedPrompt.prompt,
-        model: thread.model
-      });
-      started = true;
-      this.store.deleteQueuedPrompt(queuedPrompt.id);
-      this.publishQueueUpdated(threadId, { drainedPrompt: queuedPrompt });
-    } finally {
-      this.drainingQueues.delete(threadId);
-    }
-
-    if (started) {
-      const current = this.store.getThread(threadId);
-      if (current && !current.activeTurnId && current.status !== "running" && this.store.peekQueuedPrompt(threadId)) {
-        void this.maybeDrainQueuedPrompt(threadId).catch((error: unknown) => {
-          this.publishQueueFailed(threadId, error);
-        });
-      }
-    }
   }
 
   private async startRuntimeTurn(thread: ControlThread, input: StartTurnInput) {
@@ -1037,7 +761,6 @@ export class ControlService {
       thread.preview !== updates.preview;
     const updatedAtChanged = Boolean(adapterThread.updatedAt && adapterThread.updatedAt !== thread.updatedAt);
     const changed = fieldsChanged || updatedAtChanged;
-    const issues: RuntimeSyncIssue[] = [];
 
     if (runtimeStatus !== "running" && thread.activeTurnId) {
       const activeTurn = this.store.getTurn(thread.activeTurnId);
@@ -1050,26 +773,6 @@ export class ControlService {
       }
     }
 
-    if (runtimeStatus === "running" && !nextActiveTurnId) {
-      issues.push({
-        threadId: thread.id,
-        title: thread.title,
-        localStatus: thread.status,
-        runtimeStatus,
-        severity: "error",
-        message: "Codex reports the session is active, but no active turn id is available for controls."
-      });
-    } else if (thread.status !== runtimeStatus || thread.activeTurnId !== nextActiveTurnId) {
-      issues.push({
-        threadId: thread.id,
-        title: thread.title,
-        localStatus: thread.status,
-        runtimeStatus,
-        severity: runtimeStatus === "stale" || runtimeStatus === "failed" ? "error" : "warning",
-        message: `Session state was aligned from ${thread.status} to ${runtimeStatus}.`
-      });
-    }
-
     const updated = changed
       ? this.store.updateThread(
           thread.id,
@@ -1078,17 +781,12 @@ export class ControlService {
         )
       : thread;
     if (fieldsChanged) {
-      this.store.updateTasksForThread(
-        thread.id,
-        runtimeStatus !== "running" && thread.activeTurnId ? "interrupted" : taskStatusFromRuntime(runtimeStatus)
-      );
       this.publish("thread.status", thread.id, null, { status: runtimeStatus, thread: updated });
     }
 
     return {
       thread: updated,
-      updated: changed,
-      issues
+      updated: changed
     };
   }
 
@@ -1102,7 +800,6 @@ export class ControlService {
           durationMs: null
         });
       }
-      this.store.updateTasksForThread(thread.id, "interrupted");
     }
     const updated = this.store.updateThread(thread.id, {
       status: "idle",
@@ -1121,7 +818,6 @@ export class ControlService {
     });
     const thread = this.createThreadProjection({
       adapterThread,
-      projectId: source.projectId,
       title: source.title,
       forkedFromId: source.id,
       goalObjective: source.goalObjective,
@@ -1142,7 +838,6 @@ export class ControlService {
         completedAt: nowIso(),
         durationMs: null
       });
-      this.store.updateTasksForThread(thread.id, "interrupted");
     }
     const updated = this.store.updateThread(thread.id, {
       status: "stale",
@@ -1151,44 +846,11 @@ export class ControlService {
     this.publish("thread.runtime_lost", thread.id, null, { thread: updated });
   }
 
-  private requireProject(projectId: string): Project {
-    const project = this.store.getProject(projectId);
-    if (!project) {
-      throw new Error(`Project ${projectId} does not exist`);
-    }
-    return project;
-  }
-
   private requireThread(threadId: string): ControlThread {
     const thread = this.store.getThread(threadId);
     if (!thread) {
       throw new Error(`Thread ${threadId} does not exist`);
     }
     return thread;
-  }
-
-  private seedRecipes() {
-    const createdAt = nowIso();
-    this.store.upsertRecipe({
-      id: "implement",
-      name: "Implement",
-      prompt: "Implement the requested change, run focused local verification, and summarize the result.",
-      variables: ["request"],
-      createdAt
-    });
-    this.store.upsertRecipe({
-      id: "review",
-      name: "Review",
-      prompt: "Review the current changes for bugs, regressions, missing tests, and risky assumptions.",
-      variables: ["scope"],
-      createdAt
-    });
-    this.store.upsertRecipe({
-      id: "test",
-      name: "Local test",
-      prompt: "Run the relevant local test command, inspect failures, and fix the issue if it is in scope.",
-      variables: ["command"],
-      createdAt
-    });
   }
 }

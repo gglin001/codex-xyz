@@ -5,21 +5,14 @@ import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useR
 import { SidebarOpen } from "lucide-react";
 import {
   apiUrl,
-  clearGoal,
-  createProject,
-  createTask,
-  forkThread,
+  createSession,
   getState,
   getThread,
   getThreadsPage,
   interruptTurn,
-  queueTurn,
-  renameThread,
   resumeThread,
-  setGoalStatus,
   startGoal,
-  startTurn,
-  syncThreadRuntime
+  startTurn
 } from "./api.js";
 import { PromptComposer } from "./components/PromptComposer.js";
 import { SessionSidebar } from "./components/SessionSidebar.js";
@@ -30,18 +23,16 @@ import { getSessionListModel } from "./sessionList.js";
 import { isMacTerminalToggleShortcut } from "./terminalShortcut.js";
 import { choosePreferredThreadId, shouldLoadThreadSelection, shouldSelectActionResult } from "./threadSelection.js";
 import { installPageZoomGuards } from "./zoomGuards.js"
-import type { DashboardState, RuntimeSyncIssue, RuntimeSyncResult, ThreadDetail, XyzEvent } from "../server/domain.js";
+import type { DashboardState, ThreadDetail, XyzEvent } from "../server/domain.js";
 
 function initialState(): DashboardState {
   return {
-    projects: [],
-    tasks: [],
     threads: [],
     threadTotalCount: 0,
     threadPageSize: 50,
     threadNextOffset: 0,
     threadHasMore: false,
-    recipes: [],
+    defaultCwd: "",
     latestEventId: 0
   };
 }
@@ -317,13 +308,11 @@ export function App({ initialState: serverInitialState }: AppProps) {
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ThreadDetail | null>(null);
   const [prompt, setPrompt] = useState("");
-  const [queueMode, setQueueMode] = useState(false);
   const [goalMode, setGoalMode] = useState(false);
   const [workdir, setWorkdir] = useState("");
   const [workdirTouched, setWorkdirTouched] = useState(false);
   const [sessionQuery, setSessionQuery] = useState("");
   const [composerMode, setComposerMode] = useState<ComposerMode>("thread");
-  const [renameTitle, setRenameTitle] = useState("");
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -335,7 +324,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
   const [summaryEventsReady, setSummaryEventsReady] = useState(false);
   const [detailSubscription, setDetailSubscription] = useState<DetailSubscription | null>(null);
   const [loadingMoreThreads, setLoadingMoreThreads] = useState(false);
-  const [runtimeSyncResult, setRuntimeSyncResult] = useState<RuntimeSyncResult | null>(null);
   const isMobileViewport = useMediaQuery(mobileViewportQuery);
   const viewportProfile = useViewportProfile();
   const isMobileViewportRef = useRef(isMobileViewport);
@@ -469,17 +457,14 @@ export function App({ initialState: serverInitialState }: AppProps) {
     }
   }
 
-  async function refreshWithRuntimeSync() {
-    setBusyAction("Checking sessions");
+  async function refreshSessions() {
+    setBusyAction("Refreshing sessions");
     setError(null);
     setNotice(null);
     try {
-      const threadIds = projectionRef.current.state.threads.map((thread) => thread.id);
-      const result = await syncThreadRuntime(threadIds);
-      setRuntimeSyncResult(result);
       await refresh(undefined, { loadDetail: Boolean(selectedThreadIdRef.current) });
-    } catch (syncError) {
-      setError(syncError instanceof Error ? syncError.message : "Failed to refresh sessions");
+    } catch (refreshError) {
+      setError(refreshError instanceof Error ? refreshError.message : "Failed to refresh sessions");
     } finally {
       setBusyAction(null);
     }
@@ -797,38 +782,13 @@ export function App({ initialState: serverInitialState }: AppProps) {
   );
   const selectedDetail = detail?.id === selectedThreadId ? detail : null;
   const deferredSessionQuery = useDeferredValue(sessionQuery);
-  const matchingWorkdirProject = useMemo(() => {
-    const trimmed = workdir.trim();
-    return state.projects.find((project) => project.path === trimmed) ?? null;
-  }, [state.projects, workdir]);
-
-  const runtimeIssuesByThreadId = useMemo(() => {
-    const issuesByThreadId = new Map<string, RuntimeSyncIssue>();
-    for (const issue of runtimeSyncResult?.issues ?? []) {
-      const current = issuesByThreadId.get(issue.threadId);
-      if (!current || (current.severity === "warning" && issue.severity === "error")) {
-        issuesByThreadId.set(issue.threadId, issue);
-      }
-    }
-    return issuesByThreadId;
-  }, [runtimeSyncResult]);
   const sessionList = useMemo(
     () =>
-      getSessionListModel(state.threads, state.tasks, deferredSessionQuery, {
-        projects: state.projects,
+      getSessionListModel(state.threads, deferredSessionQuery, {
         totalThreadCount: state.threadTotalCount,
-        hasMoreThreads: state.threadHasMore,
-        runtimeIssuesByThreadId
+        hasMoreThreads: state.threadHasMore
       }),
-    [
-      deferredSessionQuery,
-      runtimeIssuesByThreadId,
-      state.projects,
-      state.tasks,
-      state.threadHasMore,
-      state.threadTotalCount,
-      state.threads
-    ]
+    [deferredSessionQuery, state.threadHasMore, state.threadTotalCount, state.threads]
   );
   const promptTarget = composerMode === "thread" && selectedThread ? "thread" : "new";
   const trimmedWorkdir = workdir.trim();
@@ -836,41 +796,21 @@ export function App({ initialState: serverInitialState }: AppProps) {
     promptTarget === "new"
       ? Boolean(trimmedWorkdir)
       : Boolean(selectedThreadId) && selectedThread?.status === "idle";
-  const canUseQueueMode = promptTarget === "thread" && Boolean(selectedThreadId) && selectedThread?.status === "running";
   const canSubmitTurnPrompt = goalMode
     ? canUseGoalMode
     : promptTarget === "thread"
       ? Boolean(selectedThreadId)
       : Boolean(trimmedWorkdir);
-  const canSubmitPrompt =
-    Boolean(prompt.trim()) &&
-    !busy &&
-    (queueMode ? canUseQueueMode : canSubmitTurnPrompt);
-  const canRename =
-    Boolean(selectedThreadId) &&
-    Boolean(renameTitle.trim()) &&
-    renameTitle.trim() !== selectedThread?.title &&
-    !busy;
+  const canSubmitPrompt = Boolean(prompt.trim()) && !busy && canSubmitTurnPrompt;
   useEffect(() => {
-    if (!workdirTouched && workdir.length === 0 && state.projects[0]) {
-      setWorkdir(state.projects[0].path);
+    if (!workdirTouched && workdir.length === 0 && state.defaultCwd) {
+      setWorkdir(state.defaultCwd);
     }
-  }, [state.projects, workdir, workdirTouched]);
+  }, [state.defaultCwd, workdir, workdirTouched]);
 
   useEffect(() => {
-    setRenameTitle(selectedThread?.title ?? "");
-  }, [selectedThread?.id, selectedThread?.title]);
-
-  useEffect(() => {
-    setQueueMode(false);
     setGoalMode(false);
   }, [selectedThreadId, promptTarget]);
-
-  useEffect(() => {
-    if (!canUseQueueMode) {
-      setQueueMode(false);
-    }
-  }, [canUseQueueMode]);
 
   useEffect(() => {
     if (!canUseGoalMode) {
@@ -883,18 +823,8 @@ export function App({ initialState: serverInitialState }: AppProps) {
     setWorkdirTouched(true);
   }, []);
 
-  const updateQueueMode = useCallback((value: boolean) => {
-    setQueueMode(value);
-    if (value) {
-      setGoalMode(false);
-    }
-  }, []);
-
   const updateGoalMode = useCallback((value: boolean) => {
     setGoalMode(value);
-    if (value) {
-      setQueueMode(false);
-    }
   }, []);
 
   async function runAction(
@@ -938,21 +868,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
     }
     const currentPrompt = prompt;
 
-    if (queueMode) {
-      if (!selectedThreadId || !canUseQueueMode) {
-        return;
-      }
-      const threadId = selectedThreadId;
-      setPrompt("");
-      void runAction(
-        "Queueing prompt",
-        async () => {
-          await queueTurn(threadId, currentPrompt);
-        }
-      );
-      return;
-    }
-
     if (goalMode && promptTarget === "thread") {
       if (!selectedThreadId || !canUseGoalMode) {
         return;
@@ -989,13 +904,11 @@ export function App({ initialState: serverInitialState }: AppProps) {
     void runAction(
       goalMode ? "Creating goal session" : "Creating session",
       async () => {
-        let project = matchingWorkdirProject;
-        if (!project) {
-          project = await createProject({ path: trimmedWorkdir });
+        const result = await createSession({ cwd: trimmedWorkdir, prompt: currentPrompt, goalMode });
+        if (result.thread?.cwd) {
+          setWorkdir(result.thread.cwd);
         }
-        setWorkdir(project.path);
         setWorkdirTouched(false);
-        const result = await createTask({ projectId: project.id, prompt: currentPrompt, goalMode });
         const thread = result.thread;
         setComposerMode("thread");
         return thread?.id;
@@ -1014,22 +927,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
       event.preventDefault();
       executePrompt();
     }
-  }
-
-  function submitRename(event: FormEvent) {
-    event.preventDefault();
-    if (!selectedThreadId || !canRename) {
-      return;
-    }
-    const threadId = selectedThreadId;
-    const title = renameTitle.trim();
-    void runAction(
-      "Renaming session",
-      async () => {
-        await renameThread(threadId, title);
-      },
-      { successMessage: "Session renamed" }
-    );
   }
 
   function interruptSelectedThread() {
@@ -1057,70 +954,11 @@ export function App({ initialState: serverInitialState }: AppProps) {
     );
   }
 
-  function forkSelectedThread() {
-    if (!selectedThreadId) {
-      return;
-    }
-    const threadId = selectedThreadId;
-    void runAction(
-      "Forking session",
-      async () => {
-        const thread = await forkThread(threadId);
-        return thread.id;
-      },
-      { selectResult: true, mobileViewOnSuccess: "detail" }
-    );
-  }
-
-  function setSelectedGoalStatus(status: "active" | "paused" | "complete", label: string) {
-    if (!selectedThreadId) {
-      return;
-    }
-    const threadId = selectedThreadId;
-    void runAction(
-      label,
-      async () => {
-        const result = await setGoalStatus(threadId, status);
-        return result.thread?.id ?? threadId;
-      },
-      { mobileViewOnSuccess: "detail" }
-    );
-  }
-
-  function pauseSelectedGoal() {
-    setSelectedGoalStatus("paused", "Pausing goal");
-  }
-
-  function resumeSelectedGoal() {
-    setSelectedGoalStatus("active", "Resuming goal");
-  }
-
-  function completeSelectedGoal() {
-    setSelectedGoalStatus("complete", "Completing goal");
-  }
-
-  function clearSelectedGoal() {
-    if (!selectedThreadId) {
-      return;
-    }
-    const threadId = selectedThreadId;
-    void runAction(
-      "Clearing goal",
-      async () => {
-        const thread = await clearGoal(threadId);
-        return thread?.id ?? threadId;
-      },
-      { mobileViewOnSuccess: "detail" }
-    );
-  }
-
   const desktopComposer = !isMobileViewport ? (
     <PromptComposer
       className="desktop-composer detail-composer"
       showStatus
-      projects={state.projects}
       workdir={workdir}
-      matchingProject={matchingWorkdirProject}
       busy={busy}
       busyAction={busyAction}
       notice={notice}
@@ -1130,8 +968,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
       goalMode={goalMode}
       selectedThread={selectedThread}
       selectedThreadId={selectedThreadId}
-      queueMode={queueMode}
-      canUseQueueMode={canUseQueueMode}
       canUseGoalMode={canUseGoalMode}
       canSubmitPrompt={canSubmitPrompt}
       onModeChange={setComposerMode}
@@ -1139,15 +975,9 @@ export function App({ initialState: serverInitialState }: AppProps) {
       onPromptChange={setPrompt}
       onPromptKeyDown={handlePromptKeyDown}
       onPromptSubmit={submitPrompt}
-      onQueueModeChange={updateQueueMode}
       onGoalModeChange={updateGoalMode}
       onInterrupt={interruptSelectedThread}
       onResume={resumeSelectedThread}
-      onFork={forkSelectedThread}
-      onPauseGoal={pauseSelectedGoal}
-      onResumeGoal={resumeSelectedGoal}
-      onCompleteGoal={completeSelectedGoal}
-      onClearGoal={clearSelectedGoal}
     />
   ) : null;
 
@@ -1175,14 +1005,13 @@ export function App({ initialState: serverInitialState }: AppProps) {
             terminalVisible={terminalVisible}
             sessionQuery={sessionQuery}
             sessionList={sessionList}
-            runtimeIssuesByThreadId={runtimeIssuesByThreadId}
             selectedThreadId={selectedThreadId}
             loadingMoreThreads={loadingMoreThreads}
             onSidebarToggle={isMobileViewport ? undefined : () => setSidebarVisible(false)}
             onTerminalToggle={() => setTerminalVisible((current) => !current)}
             onThemeChange={setTheme}
             onDetailWordWrapChange={setDetailWordWrap}
-            onRefresh={() => void refreshWithRuntimeSync()}
+            onRefresh={() => void refreshSessions()}
             onLoadMoreThreads={() => void loadMoreThreads()}
             onSessionQueryChange={setSessionQuery}
             onSelectThread={selectThread}
@@ -1203,13 +1032,8 @@ export function App({ initialState: serverInitialState }: AppProps) {
           detail={selectedDetail}
           selectedThread={selectedThread}
           selectedThreadId={selectedThreadId}
-          busy={busy}
-          renameTitle={renameTitle}
-          canRename={canRename}
           detailWordWrap={detailWordWrap}
           onBack={() => setMobileView("sessions")}
-          onRenameTitleChange={setRenameTitle}
-          onRenameSubmit={submitRename}
           composer={desktopComposer}
         />
       </div>
@@ -1224,9 +1048,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
           showStatus
           compact
           collapsible
-          projects={state.projects}
           workdir={workdir}
-          matchingProject={matchingWorkdirProject}
           busy={busy}
           busyAction={busyAction}
           notice={notice}
@@ -1236,8 +1058,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
           goalMode={goalMode}
           selectedThread={selectedThread}
           selectedThreadId={selectedThreadId}
-          queueMode={queueMode}
-          canUseQueueMode={canUseQueueMode}
           canUseGoalMode={canUseGoalMode}
           canSubmitPrompt={canSubmitPrompt}
           onModeChange={setComposerMode}
@@ -1245,15 +1065,9 @@ export function App({ initialState: serverInitialState }: AppProps) {
           onPromptChange={setPrompt}
           onPromptKeyDown={handlePromptKeyDown}
           onPromptSubmit={submitPrompt}
-          onQueueModeChange={updateQueueMode}
           onGoalModeChange={updateGoalMode}
           onInterrupt={interruptSelectedThread}
           onResume={resumeSelectedThread}
-          onFork={forkSelectedThread}
-          onPauseGoal={pauseSelectedGoal}
-          onResumeGoal={resumeSelectedGoal}
-          onCompleteGoal={completeSelectedGoal}
-          onClearGoal={clearSelectedGoal}
         />
       ) : null}
     </main>

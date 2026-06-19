@@ -3,18 +3,12 @@ import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import {
   type ControlThread,
-  type EvalRun,
   type GoalStatus,
   type ItemType,
   isSummaryEventType,
   nowIso,
-  type Project,
-  type QueuedPrompt,
-  type PromptRecipe,
   type RuntimeStatus,
   summaryEventTypes,
-  type Task,
-  type TaskStatus,
   type ThreadDetail,
   type ThreadItem,
   type Turn,
@@ -63,25 +57,11 @@ function nullableString(value: unknown) {
   return typeof value === "string" ? value : null;
 }
 
-function projectFromRow(row: Row): Project {
-  return {
-    id: scalarString(row.id),
-    name: scalarString(row.name),
-    path: scalarString(row.path),
-    gitRemote: nullableString(row.git_remote),
-    defaultBranch: nullableString(row.default_branch),
-    tags: readJson<string[]>(row.tags_json, []),
-    createdAt: scalarString(row.created_at),
-    updatedAt: scalarString(row.updated_at)
-  };
-}
-
 function threadFromRow(row: Row): ControlThread {
   return {
     id: scalarString(row.id),
     sessionId: scalarString(row.session_id),
     forkedFromId: nullableString(row.forked_from_id),
-    projectId: scalarString(row.project_id),
     title: scalarString(row.title),
     preview: scalarString(row.preview),
     cwd: scalarString(row.cwd),
@@ -121,39 +101,6 @@ function itemFromRow(row: Row): ThreadItem {
   };
 }
 
-function queuedPromptFromRow(row: Row): QueuedPrompt {
-  return {
-    id: scalarString(row.id),
-    threadId: scalarString(row.thread_id),
-    prompt: scalarString(row.prompt),
-    createdAt: scalarString(row.created_at)
-  };
-}
-
-function taskFromRow(row: Row): Task {
-  return {
-    id: scalarString(row.id),
-    projectId: scalarString(row.project_id),
-    threadId: nullableString(row.thread_id),
-    title: scalarString(row.title),
-    prompt: scalarString(row.prompt),
-    recipeId: nullableString(row.recipe_id),
-    status: scalarString(row.status) as TaskStatus,
-    createdAt: scalarString(row.created_at),
-    updatedAt: scalarString(row.updated_at)
-  };
-}
-
-function recipeFromRow(row: Row): PromptRecipe {
-  return {
-    id: scalarString(row.id),
-    name: scalarString(row.name),
-    prompt: scalarString(row.prompt),
-    variables: readJson<string[]>(row.variables_json, []),
-    createdAt: scalarString(row.created_at)
-  };
-}
-
 function eventFromRow(row: Row): XyzEvent {
   return {
     id: scalarNumber(row.id),
@@ -189,31 +136,21 @@ export class Store {
   }
 
   migrate() {
+    this.dropLegacyProjectionTablesIfNeeded();
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS hosts (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         adapter TEXT NOT NULL,
         version TEXT,
+        default_cwd TEXT,
         last_seen_at TEXT NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS projects (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        path TEXT NOT NULL UNIQUE,
-        git_remote TEXT,
-        default_branch TEXT,
-        tags_json TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
       );
 
       CREATE TABLE IF NOT EXISTS threads (
         id TEXT PRIMARY KEY,
         session_id TEXT NOT NULL,
         forked_from_id TEXT,
-        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
         title TEXT NOT NULL,
         preview TEXT NOT NULL,
         cwd TEXT NOT NULL,
@@ -248,13 +185,6 @@ export class Store {
         created_at TEXT NOT NULL
       );
 
-      CREATE TABLE IF NOT EXISTS queued_prompts (
-        id TEXT PRIMARY KEY,
-        thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
-        prompt TEXT NOT NULL,
-        created_at TEXT NOT NULL
-      );
-
       CREATE TABLE IF NOT EXISTS events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         type TEXT NOT NULL,
@@ -264,50 +194,23 @@ export class Store {
         created_at TEXT NOT NULL
       );
 
-      CREATE TABLE IF NOT EXISTS tasks (
-        id TEXT PRIMARY KEY,
-        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-        thread_id TEXT REFERENCES threads(id) ON DELETE SET NULL,
-        title TEXT NOT NULL,
-        prompt TEXT NOT NULL,
-        recipe_id TEXT,
-        status TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS prompt_recipes (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        prompt TEXT NOT NULL,
-        variables_json TEXT NOT NULL,
-        created_at TEXT NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS eval_runs (
-        id TEXT PRIMARY KEY,
-        task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-        command TEXT NOT NULL,
-        status TEXT NOT NULL,
-        output TEXT,
-        created_at TEXT NOT NULL,
-        completed_at TEXT
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_threads_project ON threads(project_id);
       CREATE INDEX IF NOT EXISTS idx_threads_updated ON threads(updated_at DESC);
       CREATE INDEX IF NOT EXISTS idx_turns_thread ON turns(thread_id);
       CREATE INDEX IF NOT EXISTS idx_turns_thread_started ON turns(thread_id, started_at);
       CREATE INDEX IF NOT EXISTS idx_items_thread ON items(thread_id);
       CREATE INDEX IF NOT EXISTS idx_items_thread_created ON items(thread_id, created_at);
-      CREATE INDEX IF NOT EXISTS idx_queued_prompts_thread_created ON queued_prompts(thread_id, created_at, id);
       CREATE INDEX IF NOT EXISTS idx_events_thread ON events(thread_id);
       CREATE INDEX IF NOT EXISTS idx_events_thread_id ON events(thread_id, id);
       CREATE INDEX IF NOT EXISTS idx_events_type_id ON events(type, id);
-      CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
-      CREATE INDEX IF NOT EXISTS idx_tasks_updated ON tasks(updated_at DESC);
+
       DROP TABLE IF EXISTS approvals;
+      DROP TABLE IF EXISTS queued_prompts;
+      DROP TABLE IF EXISTS tasks;
+      DROP TABLE IF EXISTS prompt_recipes;
+      DROP TABLE IF EXISTS eval_runs;
+      DROP TABLE IF EXISTS projects;
     `);
+    this.addColumnIfMissing("hosts", "default_cwd", "TEXT");
     this.addColumnIfMissing("threads", "goal_token_budget", "INTEGER");
   }
 
@@ -318,73 +221,45 @@ export class Store {
     }
   }
 
-  upsertHost(input: { id: string; name: string; adapter: string; version?: string | null }) {
+  private dropLegacyProjectionTablesIfNeeded() {
+    const columns = this.db.prepare("PRAGMA table_info(threads)").all() as Array<{ name?: unknown }>;
+    if (!columns.some((row) => row.name === "project_id")) {
+      return;
+    }
+    this.db.exec(`
+      DROP TABLE IF EXISTS items;
+      DROP TABLE IF EXISTS turns;
+      DROP TABLE IF EXISTS events;
+      DROP TABLE IF EXISTS threads;
+      DROP TABLE IF EXISTS queued_prompts;
+      DROP TABLE IF EXISTS tasks;
+      DROP TABLE IF EXISTS prompt_recipes;
+      DROP TABLE IF EXISTS eval_runs;
+      DROP TABLE IF EXISTS projects;
+    `);
+  }
+
+  upsertHost(input: { id: string; name: string; adapter: string; version?: string | null; defaultCwd?: string | null }) {
     const seen = nowIso();
     this.db
       .prepare(
         `
-          INSERT INTO hosts (id, name, adapter, version, last_seen_at)
-          VALUES (?, ?, ?, ?, ?)
+          INSERT INTO hosts (id, name, adapter, version, default_cwd, last_seen_at)
+          VALUES (?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
             name = excluded.name,
             adapter = excluded.adapter,
             version = excluded.version,
+            default_cwd = excluded.default_cwd,
             last_seen_at = excluded.last_seen_at
         `
       )
-      .run(input.id, input.name, input.adapter, input.version ?? null, seen);
+      .run(input.id, input.name, input.adapter, input.version ?? null, input.defaultCwd ?? null, seen);
   }
 
-  createProject(input: {
-    id: string;
-    name: string;
-    path: string;
-    gitRemote?: string | null;
-    defaultBranch?: string | null;
-    tags?: string[];
-  }) {
-    const now = nowIso();
-    this.db
-      .prepare(
-        `
-          INSERT INTO projects (id, name, path, git_remote, default_branch, tags_json, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(path) DO UPDATE SET
-            name = excluded.name,
-            git_remote = excluded.git_remote,
-            default_branch = excluded.default_branch,
-            tags_json = excluded.tags_json,
-            updated_at = excluded.updated_at
-        `
-      )
-      .run(
-        input.id,
-        input.name,
-        input.path,
-        input.gitRemote ?? null,
-        input.defaultBranch ?? null,
-        JSON.stringify(input.tags ?? []),
-        now,
-        now
-      );
-    return this.getProjectByPath(input.path);
-  }
-
-  listProjects() {
-    return this.db
-      .prepare("SELECT * FROM projects ORDER BY name ASC")
-      .all()
-      .map((row) => projectFromRow(row as Row));
-  }
-
-  getProject(id: string) {
-    const row = this.db.prepare("SELECT * FROM projects WHERE id = ?").get(id);
-    return row ? projectFromRow(row as Row) : null;
-  }
-
-  getProjectByPath(path: string) {
-    const row = this.db.prepare("SELECT * FROM projects WHERE path = ?").get(path);
-    return row ? projectFromRow(row as Row) : null;
+  getDefaultCwd() {
+    const row = this.db.prepare("SELECT default_cwd FROM hosts WHERE id = ?").get("local") as Row | undefined;
+    return row ? nullableString(row.default_cwd) : null;
   }
 
   createThread(thread: ControlThread) {
@@ -392,18 +267,17 @@ export class Store {
       .prepare(
         `
           INSERT INTO threads (
-            id, session_id, forked_from_id, project_id, title, preview, cwd, model,
+            id, session_id, forked_from_id, title, preview, cwd, model,
             status, active_turn_id, goal_objective, goal_status, goal_token_budget,
             tokens_used, created_at, updated_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `
       )
       .run(
         thread.id,
         thread.sessionId,
         thread.forkedFromId,
-        thread.projectId,
         thread.title,
         thread.preview,
         thread.cwd,
@@ -502,7 +376,6 @@ export class Store {
       ...thread,
       turns: this.listTurns(id),
       items: this.listItems(id),
-      queuedPrompts: this.listQueuedPrompts(id),
       latestEventId
     };
   }
@@ -604,124 +477,6 @@ export class Store {
       .prepare("SELECT * FROM items WHERE thread_id = ? ORDER BY created_at ASC")
       .all(threadId)
       .map((row) => itemFromRow(row as Row));
-  }
-
-  createQueuedPrompt(input: { id: string; threadId: string; prompt: string; createdAt?: string }) {
-    const queuedPrompt: QueuedPrompt = {
-      id: input.id,
-      threadId: input.threadId,
-      prompt: input.prompt,
-      createdAt: input.createdAt ?? nowIso()
-    };
-    this.db
-      .prepare("INSERT INTO queued_prompts (id, thread_id, prompt, created_at) VALUES (?, ?, ?, ?)")
-      .run(queuedPrompt.id, queuedPrompt.threadId, queuedPrompt.prompt, queuedPrompt.createdAt);
-    return queuedPrompt;
-  }
-
-  listQueuedPrompts(threadId: string) {
-    return this.db
-      .prepare("SELECT * FROM queued_prompts WHERE thread_id = ? ORDER BY created_at ASC, rowid ASC")
-      .all(threadId)
-      .map((row) => queuedPromptFromRow(row as Row));
-  }
-
-  peekQueuedPrompt(threadId: string) {
-    const row = this.db
-      .prepare("SELECT * FROM queued_prompts WHERE thread_id = ? ORDER BY created_at ASC, rowid ASC LIMIT 1")
-      .get(threadId);
-    return row ? queuedPromptFromRow(row as Row) : null;
-  }
-
-  deleteQueuedPrompt(id: string) {
-    this.db.prepare("DELETE FROM queued_prompts WHERE id = ?").run(id);
-  }
-
-  createTask(task: Task) {
-    this.db
-      .prepare(
-        `
-          INSERT INTO tasks (id, project_id, thread_id, title, prompt, recipe_id, status, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `
-      )
-      .run(
-        task.id,
-        task.projectId,
-        task.threadId,
-        task.title,
-        task.prompt,
-        task.recipeId,
-        task.status,
-        task.createdAt,
-        task.updatedAt
-      );
-    return this.getTask(task.id);
-  }
-
-  updateTask(id: string, updates: Partial<Pick<Task, "threadId" | "status">>) {
-    const existing = this.getTask(id);
-    if (!existing) {
-      throw new Error(`Task ${id} does not exist`);
-    }
-    const next = { ...existing, ...updates, updatedAt: nowIso() };
-    this.db
-      .prepare("UPDATE tasks SET thread_id = ?, status = ?, updated_at = ? WHERE id = ?")
-      .run(next.threadId, next.status, next.updatedAt, id);
-    return this.getTask(id);
-  }
-
-  updateTasksForThread(threadId: string, status: Task["status"]) {
-    const now = nowIso();
-    this.db
-      .prepare("UPDATE tasks SET status = ?, updated_at = ? WHERE thread_id = ?")
-      .run(status, now, threadId);
-  }
-
-  getTask(id: string) {
-    const row = this.db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
-    return row ? taskFromRow(row as Row) : null;
-  }
-
-  listTasks() {
-    return this.db
-      .prepare("SELECT * FROM tasks ORDER BY updated_at DESC")
-      .all()
-      .map((row) => taskFromRow(row as Row));
-  }
-
-  upsertRecipe(recipe: PromptRecipe) {
-    this.db
-      .prepare(
-        `
-          INSERT INTO prompt_recipes (id, name, prompt, variables_json, created_at)
-          VALUES (?, ?, ?, ?, ?)
-          ON CONFLICT(id) DO UPDATE SET
-            name = excluded.name,
-            prompt = excluded.prompt,
-            variables_json = excluded.variables_json
-        `
-      )
-      .run(recipe.id, recipe.name, recipe.prompt, JSON.stringify(recipe.variables), recipe.createdAt);
-  }
-
-  listRecipes() {
-    return this.db
-      .prepare("SELECT * FROM prompt_recipes ORDER BY name ASC")
-      .all()
-      .map((row) => recipeFromRow(row as Row));
-  }
-
-  createEvalRun(run: EvalRun) {
-    this.db
-      .prepare(
-        `
-          INSERT INTO eval_runs (id, task_id, command, status, output, created_at, completed_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `
-      )
-      .run(run.id, run.taskId, run.command, run.status, run.output, run.createdAt, run.completedAt);
-    return run;
   }
 
   appendEvent(input: Omit<XyzEvent, "id">) {

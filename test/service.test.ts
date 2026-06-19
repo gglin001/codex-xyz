@@ -267,9 +267,8 @@ class EagerEventCodexAdapter implements CodexAdapter {
     return thread;
   }
 
-  async renameThread(input: { threadId: string; title: string }) {
-    const thread = this.requireThread(input.threadId);
-    thread.preview = input.title;
+  async renameThread(input: { threadId: string }) {
+    this.requireThread(input.threadId);
   }
 
   async setGoal(input: { threadId: string; objective: string; tokenBudget?: number | null }): Promise<AdapterGoal> {
@@ -341,12 +340,9 @@ afterEach(async () => {
 });
 
 describe("ControlService", () => {
-  it("creates a task, thread, turn, transcript items, and completion projection", async () => {
-    const project = service.listProjects()[0];
-    expect(project).toBeDefined();
-
-    const result = await service.createTask({
-      projectId: project.id,
+  it("creates a session, starts a turn, records transcript items, and completes", async () => {
+    const result = await service.createSession({
+      cwd: tempDir,
       prompt: "Implement local test support"
     });
     expect(result.thread?.status).toBe("running");
@@ -361,13 +357,11 @@ describe("ControlService", () => {
     expect(detail.turns).toHaveLength(1);
     expect(detail.turns[0].status).toBe("completed");
     expect(detail.items.some((item) => item.type === "agent" && item.text.includes("Test run started"))).toBe(true);
-    expect(service.listTasks()[0].status).toBe("completed");
   });
 
   it("creates a goal session and starts the first goal turn", async () => {
-    const project = service.listProjects()[0];
-    const result = await service.createTask({
-      projectId: project.id,
+    const result = await service.createSession({
+      cwd: tempDir,
       prompt: "Finish the first-version MVP",
       goalMode: true
     });
@@ -386,7 +380,6 @@ describe("ControlService", () => {
     expect(result.thread?.goalObjective).toBe("Finish the first-version MVP");
     expect(result.thread?.goalStatus).toBe("in_progress");
     expect(result.thread?.status).toBe("running");
-    expect(service.listTasks()[0].status).toBe("running");
 
     await waitForEvents();
 
@@ -398,13 +391,11 @@ describe("ControlService", () => {
     });
     expect(detail.goalObjective).toBe("Finish the first-version MVP");
     expect(detail.items.some((item) => item.type === "agent" && item.text.includes("Goal work started"))).toBe(true);
-    expect(service.listTasks()[0].status).toBe("completed");
   });
 
   it("keeps dashboard snapshots and summary event replay separate from transcript detail", async () => {
-    const project = service.listProjects()[0];
-    const result = await service.createTask({
-      projectId: project.id,
+    const result = await service.createSession({
+      cwd: tempDir,
       prompt: "Exercise summary replay"
     });
     await waitForEvents();
@@ -420,6 +411,7 @@ describe("ControlService", () => {
     const summaryReplay = service.replayEvents(0, { summaryOnly: true });
 
     expect(dashboard.latestEventId).toBeGreaterThan(0);
+    expect(dashboard.defaultCwd).toBe(tempDir);
     expect(dashboard.threads[0]).not.toHaveProperty("items");
     expect(detail.latestEventId).toBeGreaterThan(0);
     expect(detail.items.some((item) => item.text.includes("Test run started"))).toBe(true);
@@ -438,17 +430,13 @@ describe("ControlService", () => {
       cliVersion: adapter.version
     });
 
-    const project = service.listProjects()[0];
-    const result = await service.createTask({
-      projectId: project.id,
+    const result = await service.createSession({
+      cwd: tempDir,
       prompt: "Prompt with eager adapter events"
     });
     const threadId = result.thread?.id;
-    if (!threadId) {
-      throw new Error("Expected created thread id");
-    }
-    if (!result.turn) {
-      throw new Error("Expected created turn");
+    if (!threadId || !result.turn) {
+      throw new Error("Expected created thread and turn");
     }
 
     const detail = service.getThreadDetail(threadId);
@@ -458,13 +446,11 @@ describe("ControlService", () => {
     expect(detail.turns[0].prompt).toBe("Prompt with eager adapter events");
     expect(detail.turns[0].status).toBe("completed");
     expect(detail.items.some((item) => item.text.includes("Answered before return"))).toBe(true);
-    expect(service.listTasks()[0].status).toBe("completed");
   });
 
-  it("runs bang-prefixed prompts as shell commands instead of model turns", async () => {
-    const project = service.listProjects()[0];
-    const result = await service.createTask({
-      projectId: project.id,
+  it("runs bang-prefixed prompts as app-server shell commands", async () => {
+    const result = await service.createSession({
+      cwd: tempDir,
       prompt: "!pwd"
     });
     await waitForEvents();
@@ -480,42 +466,11 @@ describe("ControlService", () => {
     expect(detail.turns[0].status).toBe("completed");
     expect(detail.items.some((item) => item.type === "command" && item.text.includes(`$ pwd\n${tempDir}`))).toBe(true);
     expect(detail.items.some((item) => item.type === "agent" && item.text.includes("Prompt preview: !pwd"))).toBe(false);
-    expect(service.listTasks()[0].status).toBe("completed");
-  });
-
-  it("runs bang-prefixed prompts on the active turn when one is running", async () => {
-    const project = service.listProjects()[0];
-    const result = await service.createTask({
-      projectId: project.id,
-      prompt: "Keep this turn open for steering approval"
-    });
-    await waitForEvents();
-
-    const threadId = result.thread?.id;
-    if (!threadId) {
-      throw new Error("Expected created thread id");
-    }
-    if (!result.turn) {
-      throw new Error("Expected created turn");
-    }
-    const turnId = result.turn.id;
-
-    const shellTurn = await service.startTurn({
-      threadId,
-      prompt: "   !pwd"
-    });
-    await waitForEvents();
-
-    const detail = service.getThreadDetail(threadId);
-    expect(shellTurn.id).toBe(turnId);
-    expect(detail.status).toBe("running");
-    expect(detail.items.some((item) => item.type === "command" && item.turnId === turnId && item.text.includes(tempDir))).toBe(true);
   });
 
   it("steers the active turn for default submissions while a session is running", async () => {
-    const project = service.listProjects()[0];
-    const result = await service.createTask({
-      projectId: project.id,
+    const result = await service.createSession({
+      cwd: tempDir,
       prompt: "Keep this turn open for steering approval"
     });
     await waitForEvents();
@@ -536,85 +491,9 @@ describe("ControlService", () => {
     expect(detail.items.some((item) => item.type === "agent" && item.text.includes("Steer received"))).toBe(true);
   });
 
-  it("syncs a stale local active turn back to the runtime idle state", async () => {
-    const project = service.listProjects()[0];
-    const result = await service.createTask({
-      projectId: project.id,
-      prompt: "Keep this turn open for steering approval"
-    });
-    await waitForEvents();
-
-    const threadId = result.thread?.id;
-    if (!threadId || !result.turn) {
-      throw new Error("Expected created running thread and turn");
-    }
-
-    testAdapter.dropActiveTurn(threadId);
-    const updatedAtBeforeSync = service.getThreadDetail(threadId).updatedAt;
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    const sync = await service.syncRuntimeThreads([threadId]);
-    const detail = service.getThreadDetail(threadId);
-
-    expect(sync).toMatchObject({
-      checkedThreadCount: 1,
-      updatedThreadCount: 1,
-      warningCount: 1,
-      errorCount: 0
-    });
-    expect(detail).toMatchObject({
-      status: "idle",
-      activeTurnId: null,
-      updatedAt: updatedAtBeforeSync
-    });
-    expect(detail.turns[0]).toMatchObject({
-      id: result.turn.id,
-      status: "interrupted"
-    });
-    expect(service.listTasks()[0].status).toBe("interrupted");
-  });
-
-  it("keeps session ordering stable when refresh only aligns runtime state", async () => {
-    const project = service.listProjects()[0];
-    const older = await service.createTask({
-      projectId: project.id,
-      prompt: "Keep this turn open for runtime ordering"
-    });
-    await waitForEvents();
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    const newer = await service.createTask({
-      projectId: project.id,
-      prompt: "Complete after the open session"
-    });
-    await waitForEvents();
-
-    const olderThreadId = older.thread?.id;
-    const newerThreadId = newer.thread?.id;
-    if (!olderThreadId || !newerThreadId) {
-      throw new Error("Expected created thread ids");
-    }
-
-    expect(service.listThreads().slice(0, 2).map((thread) => thread.id)).toEqual([newerThreadId, olderThreadId]);
-
-    const olderUpdatedAt = service.getThreadDetail(olderThreadId).updatedAt;
-    const newerUpdatedAt = service.getThreadDetail(newerThreadId).updatedAt;
-    testAdapter.dropActiveTurn(olderThreadId);
-    await new Promise((resolve) => setTimeout(resolve, 10));
-
-    const sync = await service.syncRuntimeThreads([olderThreadId, newerThreadId]);
-
-    expect(sync).toMatchObject({
-      checkedThreadCount: 2,
-      updatedThreadCount: 1
-    });
-    expect(service.getThreadDetail(olderThreadId).updatedAt).toBe(olderUpdatedAt);
-    expect(service.getThreadDetail(newerThreadId).updatedAt).toBe(newerUpdatedAt);
-    expect(service.listThreads().slice(0, 2).map((thread) => thread.id)).toEqual([newerThreadId, olderThreadId]);
-  });
-
   it("starts a new turn when default submission finds no runtime active turn", async () => {
-    const project = service.listProjects()[0];
-    const result = await service.createTask({
-      projectId: project.id,
+    const result = await service.createSession({
+      cwd: tempDir,
       prompt: "Keep this turn open for steering approval"
     });
     await waitForEvents();
@@ -638,11 +517,10 @@ describe("ControlService", () => {
     expect(detail.items.some((item) => item.text.includes("Prompt preview: Start after runtime drift."))).toBe(true);
   });
 
-  it("queues prompts and starts them after the active turn completes", async () => {
-    const project = service.listProjects()[0];
-    const result = await service.createTask({
-      projectId: project.id,
-      prompt: "Keep this turn open for steering approval"
+  it("supports the core goal controls on an existing idle session", async () => {
+    const result = await service.createSession({
+      cwd: tempDir,
+      prompt: "Finish setup before goal controls"
     });
     await waitForEvents();
 
@@ -650,43 +528,6 @@ describe("ControlService", () => {
     if (!threadId) {
       throw new Error("Expected created thread id");
     }
-
-    const firstQueue = await service.queueTurn(threadId, "Queued follow-up one.");
-    const secondQueue = await service.queueTurn(threadId, "Queued follow-up two.");
-    expect(firstQueue).toHaveLength(1);
-    expect(secondQueue).toHaveLength(2);
-    expect(service.getThreadDetail(threadId).queuedPrompts.map((queued) => queued.prompt)).toEqual([
-      "Queued follow-up one.",
-      "Queued follow-up two."
-    ]);
-
-    testAdapter.completeActiveTurn(threadId);
-    await waitForEvents();
-
-    const detail = service.getThreadDetail(threadId);
-    expect(detail.queuedPrompts).toHaveLength(0);
-    expect(detail.turns).toHaveLength(3);
-    expect(detail.items.some((item) => item.text.includes("Prompt preview: Queued follow-up one."))).toBe(true);
-    expect(detail.items.some((item) => item.text.includes("Prompt preview: Queued follow-up two."))).toBe(true);
-  });
-
-  it("supports goal, fork, and steer controls", async () => {
-    const project = service.listProjects()[0];
-    const result = await service.createTask({
-      projectId: project.id,
-      prompt: "Keep this turn open for steering approval"
-    });
-    await waitForEvents();
-
-    const threadId = result.thread?.id;
-    if (!threadId) {
-      throw new Error("Expected created thread id");
-    }
-    const renamed = await service.renameThread({
-      threadId,
-      title: "Steering session"
-    });
-    expect(renamed?.title).toBe("Steering session");
 
     const goal = await service.setGoal({
       threadId,
@@ -710,11 +551,8 @@ describe("ControlService", () => {
     expect(resumedGoal.goal.status).toBe("in_progress");
     expect(service.getThreadDetail(threadId).goalStatus).toBe("in_progress");
 
-    await service.steerTurn(threadId, "Narrow the response to local testing.");
-    expect(service.getThreadDetail(threadId).items.some((item) => item.text.includes("Steer received"))).toBe(true);
-
-    const fork = await service.forkThread(threadId);
-    expect(fork.forkedFromId).toBe(threadId);
+    const cleared = await service.clearGoal(threadId);
+    expect(cleared?.goalStatus).toBe("cleared");
   });
 
   it("continues on a new thread when the persisted runtime thread is missing", async () => {
@@ -727,9 +565,8 @@ describe("ControlService", () => {
       cliVersion: adapter.version
     });
 
-    const project = service.listProjects()[0];
-    const result = await service.createTask({
-      projectId: project.id,
+    const result = await service.createSession({
+      cwd: tempDir,
       prompt: "Initial runtime thread"
     });
     await waitForEvents();
@@ -738,7 +575,6 @@ describe("ControlService", () => {
     if (!oldThreadId) {
       throw new Error("Expected created thread id");
     }
-    expect(service.listTasks().find((task) => task.threadId === oldThreadId)?.status).toBe("completed");
 
     adapter.forgetThread(oldThreadId);
     const turn = await service.startTurn({
@@ -750,6 +586,5 @@ describe("ControlService", () => {
     expect(turn.threadId).not.toBe(oldThreadId);
     expect(service.getThreadDetail(oldThreadId).status).toBe("stale");
     expect(service.getThreadDetail(turn.threadId).forkedFromId).toBe(oldThreadId);
-    expect(service.listTasks().find((task) => task.threadId === oldThreadId)?.status).toBe("completed");
   });
 });

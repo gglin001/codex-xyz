@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import type { FocusEvent, KeyboardEvent } from "react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ControlThread, RuntimeSyncIssue } from "../../server/domain.js";
+import type { ControlThread } from "../../server/domain.js";
 import type { SessionListModel, SessionProjectGroup } from "../sessionList.js";
 import { formatDateTime, formatTokens, statusLabel, statusTone } from "../uiFormat.js";
 import type { ThemeMode } from "./types.js";
@@ -31,7 +31,6 @@ export type SessionSidebarProps = {
   terminalVisible: boolean;
   sessionQuery: string;
   sessionList: SessionListModel;
-  runtimeIssuesByThreadId: ReadonlyMap<string, RuntimeSyncIssue>;
   selectedThreadId: string | null;
   loadingMoreThreads: boolean;
   onSidebarToggle?: () => void;
@@ -246,7 +245,6 @@ const ProjectGroupHeading = memo(function ProjectGroupHeading({
       <span className="session-project-meta">
         {group.runningCount > 0 ? <span className="session-project-chip running">{group.runningCount}</span> : null}
         {group.attentionCount > 0 ? <span className="session-project-chip attention">{group.attentionCount}</span> : null}
-        {group.issueCount > 0 ? <span className="session-project-chip issue">{group.issueCount}</span> : null}
         <span className="session-project-chip count">{group.threadCount}</span>
         <time dateTime={group.updatedAt} title={`Updated ${updatedAt}`}>
           {updatedAt}
@@ -258,30 +256,23 @@ const ProjectGroupHeading = memo(function ProjectGroupHeading({
 
 const SessionRow = memo(function SessionRow({
   thread,
-  runtimeIssue,
   selected,
   onSelectThread
 }: {
   thread: ControlThread;
-  runtimeIssue: RuntimeSyncIssue | null;
   selected: boolean;
   onSelectThread: SelectThreadHandler;
 }) {
   const hasGoal = threadHasGoal(thread);
   const goalStatus = thread.goalStatus ? `Goal ${statusLabel(thread.goalStatus)}` : "Goal";
-  const runtimeTone = runtimeIssue?.severity ?? null;
-  const visibleStatus = runtimeIssue ? `runtime ${runtimeIssue.severity}` : statusLabel(thread.status);
-  const visiblePreview = runtimeIssue?.message ?? (thread.preview || thread.model || thread.cwd);
+  const visibleStatus = statusLabel(thread.status);
+  const visiblePreview = thread.preview || thread.model || thread.cwd;
   const visibleUpdatedAt = formatDateTime(thread.updatedAt);
-  const rowTitle = runtimeIssue
-    ? `${thread.title}\n${runtimeIssue.message}\nUpdated ${visibleUpdatedAt}`
-    : `${thread.preview || thread.cwd || thread.title}\nUpdated ${visibleUpdatedAt}`;
+  const rowTitle = `${thread.preview || thread.cwd || thread.title}\nUpdated ${visibleUpdatedAt}`;
 
   return (
     <button
-      className={`session-row ${hasGoal ? "with-goal" : "compact"} ${runtimeTone ? `runtime-${runtimeTone}` : ""} ${
-        selected ? "selected" : ""
-      }`}
+      className={`session-row ${hasGoal ? "with-goal" : "compact"} ${selected ? "selected" : ""}`}
       onClick={() => {
         void onSelectThread(thread.id);
       }}
@@ -289,7 +280,7 @@ const SessionRow = memo(function SessionRow({
       title={rowTitle}
     >
       <span className="session-row-main">
-        <span className={`status-dot ${runtimeTone ? `runtime-${runtimeTone}` : thread.status}`} />
+        <span className={`status-dot ${thread.status}`} />
         <span className="session-copy">
           <span className="session-title-line">
             <strong>{thread.title}</strong>
@@ -299,7 +290,7 @@ const SessionRow = memo(function SessionRow({
           </span>
           <span className="session-meta-line">
             <small>{visiblePreview}</small>
-            <span className={`session-status ${runtimeTone ?? statusTone(thread.status)}`}>{visibleStatus}</span>
+            <span className={`session-status ${statusTone(thread.status)}`}>{visibleStatus}</span>
           </span>
         </span>
       </span>
@@ -325,7 +316,6 @@ const VirtualSessionList = memo(function VirtualSessionList({
   density,
   sessionList,
   collapsedProjectIds,
-  runtimeIssuesByThreadId,
   selectedThreadId,
   loadingMoreThreads,
   onToggleProject,
@@ -335,7 +325,6 @@ const VirtualSessionList = memo(function VirtualSessionList({
   density: SessionListDensity;
   sessionList: SessionListModel;
   collapsedProjectIds: ReadonlySet<string>;
-  runtimeIssuesByThreadId: ReadonlyMap<string, RuntimeSyncIssue>;
   selectedThreadId: string | null;
   loadingMoreThreads: boolean;
   onToggleProject: (projectId: string) => void;
@@ -460,7 +449,6 @@ const VirtualSessionList = memo(function VirtualSessionList({
               {entry.kind === "thread" ? (
                 <SessionRow
                   thread={entry.thread}
-                  runtimeIssue={runtimeIssuesByThreadId.get(entry.thread.id) ?? null}
                   selected={entry.thread.id === selectedThreadId}
                   onSelectThread={onSelectThread}
                 />
@@ -568,7 +556,6 @@ export const SessionSidebar = memo(function SessionSidebar({
   terminalVisible,
   sessionQuery,
   sessionList,
-  runtimeIssuesByThreadId,
   selectedThreadId,
   loadingMoreThreads,
   onSidebarToggle,
@@ -722,11 +709,6 @@ export const SessionSidebar = memo(function SessionSidebar({
         <span>
           <strong>{sessionList.loadedThreadCount}</strong> loaded
         </span>
-        {sessionList.queuedTaskCount > 0 ? (
-          <span className="queued">
-            <strong>{sessionList.queuedTaskCount}</strong> queued
-          </span>
-        ) : null}
         <button
           type="button"
           className="session-collapse-all"
@@ -744,7 +726,6 @@ export const SessionSidebar = memo(function SessionSidebar({
         density={density}
         sessionList={sessionList}
         collapsedProjectIds={collapsedProjectIds}
-        runtimeIssuesByThreadId={runtimeIssuesByThreadId}
         selectedThreadId={selectedThreadId}
         loadingMoreThreads={loadingMoreThreads}
         onToggleProject={toggleProject}

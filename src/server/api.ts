@@ -60,19 +60,6 @@ function optionalBoolean(body: Record<string, unknown>, key: string) {
   return typeof value === "boolean" ? value : null;
 }
 
-function requireStringArray(body: Record<string, unknown>, key: string) {
-  const value = body[key];
-  if (!Array.isArray(value)) {
-    throw new Error(`Missing string array field: ${key}`);
-  }
-  return value.map((item) => {
-    if (typeof item !== "string" || item.trim().length === 0) {
-      throw new Error(`${key} must contain only non-empty strings`);
-    }
-    return item.trim();
-  });
-}
-
 function optionalPositiveInteger(body: Record<string, unknown>, key: string) {
   const value = body[key];
   if (value === undefined || value === null || value === "") {
@@ -321,36 +308,6 @@ async function routeApiRequest(service: ControlService, request: Request, url: U
     return jsonResponse(await service.terminal.terminate());
   }
 
-  if (method === "GET" && route === "api/projects") {
-    return jsonResponse(service.listProjects());
-  }
-
-  if (method === "POST" && route === "api/projects") {
-    const body = await readJson(request);
-    const project = service.createProject({
-      name: optionalString(body, "name"),
-      path: requireString(body, "path")
-    });
-    return jsonResponse(project, 201);
-  }
-
-  if (method === "GET" && route === "api/tasks") {
-    return jsonResponse(service.listTasks());
-  }
-
-  if (method === "POST" && route === "api/tasks") {
-    const body = await readJson(request);
-    const result = await service.createTask({
-      projectId: requireString(body, "projectId"),
-      prompt: requireString(body, "prompt"),
-      goalMode: optionalBoolean(body, "goalMode"),
-      title: optionalString(body, "title"),
-      recipeId: optionalString(body, "recipeId"),
-      model: optionalString(body, "model")
-    });
-    return jsonResponse(result, 201);
-  }
-
   if (method === "GET" && route === "api/threads") {
     if (url.searchParams.has("limit") || url.searchParams.has("offset")) {
       return jsonResponse(
@@ -363,9 +320,18 @@ async function routeApiRequest(service: ControlService, request: Request, url: U
     return jsonResponse(service.listThreads());
   }
 
-  if (method === "POST" && route === "api/threads/runtime-sync") {
+  if (method === "POST" && route === "api/threads") {
     const body = await readJson(request);
-    return jsonResponse(await service.syncRuntimeThreads(requireStringArray(body, "threadIds")));
+    return jsonResponse(
+      await service.createSession({
+        cwd: requireString(body, "cwd"),
+        prompt: requireString(body, "prompt"),
+        goalMode: optionalBoolean(body, "goalMode"),
+        title: optionalString(body, "title"),
+        model: optionalString(body, "model")
+      }),
+      201
+    );
   }
 
   if (parts[0] === "api" && parts[1] === "threads" && parts[2]) {
@@ -392,33 +358,8 @@ async function routeApiRequest(service: ControlService, request: Request, url: U
       return jsonResponse(await service.resumeThread(threadId));
     }
 
-    if (method === "PUT" && parts[3] === "name") {
-      const body = await readJson(request);
-      return jsonResponse(
-        await service.renameThread({
-          threadId,
-          title: requireString(body, "title")
-        })
-      );
-    }
-
-    if (method === "POST" && parts[3] === "steer") {
-      const body = await readJson(request);
-      await service.steerTurn(threadId, requireString(body, "prompt"));
-      return noContentResponse();
-    }
-
-    if (method === "POST" && parts[3] === "queue") {
-      const body = await readJson(request);
-      return jsonResponse(await service.queueTurn(threadId, requireString(body, "prompt")), 201);
-    }
-
     if (method === "POST" && parts[3] === "interrupt") {
       return jsonResponse(await service.interruptTurn(threadId));
-    }
-
-    if (method === "POST" && parts[3] === "fork") {
-      return jsonResponse(await service.forkThread(threadId), 201);
     }
 
     if (parts[3] === "goal") {

@@ -2,9 +2,6 @@ import type {
   ControlThread,
   DashboardState,
   GoalStatus,
-  Project,
-  QueuedPrompt,
-  RuntimeSyncResult,
   TerminalSnapshot,
   ThreadDetail,
   ThreadPage,
@@ -49,33 +46,14 @@ export function getThreadsPage(input: { limit: number; offset: number }) {
   return request<ThreadPage>(`/api/threads?${params.toString()}`);
 }
 
-export function syncThreadRuntime(threadIds: string[]) {
-  return request<RuntimeSyncResult>("/api/threads/runtime-sync", {
-    method: "POST",
-    body: JSON.stringify({ threadIds })
-  });
-}
-
-export function createProject(input: { name?: string | null; path: string }) {
-  return request<Project>("/api/projects", {
-    method: "POST",
-    body: JSON.stringify({
-      name: input.name ?? null,
-      path: input.path
-    })
-  });
-}
-
-export function createTask(input: {
-  projectId: string;
+export function createSession(input: {
+  cwd: string;
   prompt: string;
   goalMode?: boolean | null;
   title?: string | null;
-  recipeId?: string | null;
   model?: string | null;
 }) {
   return request<{
-    task: unknown;
     thread: ControlThread | null;
     turn: Turn | null;
     goal: {
@@ -84,7 +62,7 @@ export function createTask(input: {
       tokenBudget: number | null;
       tokensUsed: number;
     } | null;
-  }>("/api/tasks", {
+  }>("/api/threads", {
     method: "POST",
     body: JSON.stringify(input)
   });
@@ -97,22 +75,8 @@ export function startTurn(threadId: string, prompt: string) {
   });
 }
 
-export function queueTurn(threadId: string, prompt: string) {
-  return request<QueuedPrompt[]>(`/api/threads/${threadId}/queue`, {
-    method: "POST",
-    body: JSON.stringify({ prompt })
-  });
-}
-
 export function interruptTurn(threadId: string) {
   return request<ControlThread>(`/api/threads/${threadId}/interrupt`, {
-    method: "POST",
-    body: JSON.stringify({})
-  });
-}
-
-export function forkThread(threadId: string) {
-  return request<ControlThread>(`/api/threads/${threadId}/fork`, {
     method: "POST",
     body: JSON.stringify({})
   });
@@ -122,13 +86,6 @@ export function resumeThread(threadId: string) {
   return request<ControlThread>(`/api/threads/${threadId}/resume`, {
     method: "POST",
     body: JSON.stringify({})
-  });
-}
-
-export function renameThread(threadId: string, title: string) {
-  return request<ControlThread>(`/api/threads/${threadId}/name`, {
-    method: "PUT",
-    body: JSON.stringify({ title })
   });
 }
 
