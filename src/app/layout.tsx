@@ -2,13 +2,13 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Codex XYZ",
-  description: "Local-first Codex control plane",
-  applicationName: "Codex XYZ",
+  title: "codex-xyz",
+  description: "codex-xyz-first Codex control plane",
+  applicationName: "codex-xyz",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Codex XYZ"
+    title: "codex-xyz"
   },
   icons: {
     icon: "/icons/icon.svg",

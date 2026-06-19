@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "pnpm@11.0.3",
   "type": "module",
-  "description": "Local Codex control plane prototype for managing multiple sessions.",
+  "description": "Codex control plane for managing multiple sessions.",
   "scripts": {
     "generate:codex": "node scripts/generate-codex-types.mjs",
     "dev": "next dev --hostname 127.0.0.1 --port 1123",

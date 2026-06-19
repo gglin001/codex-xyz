@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This repository is a local Codex control-plane prototype with a Next.js client/server app:
+This repository is a Codex control-plane with a Next.js client/server app:
 
 - `src/app/`: Next.js App Router entry, route handlers, metadata, and global CSS.
 - `src/client/`: client-side dashboard island, browser API wrapper, and interactive UI components.

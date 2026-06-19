@@ -1,7 +1,7 @@
 {
-  "name": "Codex XYZ",
-  "short_name": "Codex XYZ",
-  "description": "Local-first Codex control plane",
+  "name": "codex-xyz",
+  "short_name": "codex-xyz",
+  "description": "codex-xyz",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

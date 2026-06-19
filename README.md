@@ -1,6 +1,6 @@
 # codex-xyz
 
-`codex-xyz` is a local Codex control-plane prototype. It provides a Next.js web console, same-origin API route handlers, a SQLite projection store, and an app-server adapter for real Codex sessions.
+`codex-xyz` is a Codex control-plane. It provides a Next.js web console, same-origin API route handlers, a SQLite projection store, and an app-server adapter for real Codex sessions.
 
 ## Usage
 

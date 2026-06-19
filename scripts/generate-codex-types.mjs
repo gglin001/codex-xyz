@@ -9,37 +9,18 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = resolve(repoRoot, "src/generated/codex-app-server");
 
 async function main() {
-  if (process.env.CODEX_XYZ_SKIP_CODEX_GENERATE === "1") {
-    await mkdir(outDir, { recursive: true });
-    await writeFile(
-      resolve(outDir, "manifest.json"),
-      JSON.stringify(
-        {
-          skipped: true,
-          reason: "CODEX_XYZ_SKIP_CODEX_GENERATE=1",
-          generatedAt: new Date().toISOString()
-        },
-        null,
-        2
-      )
-    );
-    return;
-  }
-
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
 
-  const codex = process.env.CODEX_XYZ_CODEX_BIN ?? "codex";
-  const { stdout: version } = await execFileAsync(codex, ["--version"], {
+  const { stdout: version } = await execFileAsync("codex", ["--version"], {
     cwd: repoRoot
   });
 
   await execFileAsync(
-    codex,
+    "codex",
     ["app-server", "generate-ts", "--experimental", "--out", outDir],
     {
-      cwd: repoRoot,
-      maxBuffer: 32 * 1024 * 1024
+      cwd: repoRoot
     }
   );
 
