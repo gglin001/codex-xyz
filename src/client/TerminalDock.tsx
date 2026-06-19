@@ -3,7 +3,6 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal as XTerm } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { Play, RotateCw, Square, Terminal as TerminalIcon, X } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   apiUrl,
@@ -13,7 +12,6 @@ import {
   writeTerminalInput
 } from "./api.js";
 import { cn, iconButtonClass, pillClass } from "./classNames.js";
-import { fadePresence, quickEase } from "./motion.js";
 import type { TerminalEvent, TerminalSnapshot } from "../server/domain.js";
 
 type TerminalDockProps = {
@@ -518,16 +516,7 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
             <TerminalIcon size={15} />
           </span>
           <strong className="shrink-0 text-sm font-semibold text-fg-strong">Terminal</strong>
-          <motion.span
-            key={label}
-            className={cn("rounded-full px-2 py-1 text-[11px] font-semibold leading-none", terminalStatusClass[label] ?? terminalStatusClass.idle)}
-            variants={fadePresence}
-            initial="initial"
-            animate="animate"
-            transition={quickEase}
-          >
-            {label}
-          </motion.span>
+          <span className={cn("rounded-full px-2 py-1 text-[11px] font-semibold leading-none", terminalStatusClass[label] ?? terminalStatusClass.idle)}>{label}</span>
           {snapshot ? <small className="min-w-0 truncate font-mono text-[11px] text-muted">{snapshot.command}</small> : null}
         </div>
         <div className="flex shrink-0 items-center gap-1">
@@ -553,20 +542,7 @@ export function TerminalDock({ visible, theme, onClose }: TerminalDockProps) {
         <span className="min-w-0 flex-1 truncate font-mono">{snapshot?.cwd ?? ""}</span>
         {snapshot?.pid ? <span className={pillClass}>pid {snapshot.pid}</span> : null}
         <span className={cn(pillClass, "hidden max-w-[42vw] truncate font-mono lg:inline-flex")} title={metricsTitle}>{metricsLabel}</span>
-        <AnimatePresence initial={false}>
-          {error ? (
-            <motion.span
-              className="max-w-[34vw] truncate rounded-full bg-error px-2 py-1 font-medium text-error-fg"
-              variants={fadePresence}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-              transition={quickEase}
-            >
-              {error}
-            </motion.span>
-          ) : null}
-        </AnimatePresence>
+        {error ? <span className="max-w-[34vw] truncate rounded-full bg-error px-2 py-1 font-medium text-error-fg">{error}</span> : null}
       </div>
       <div className="h-[min(32dvh,320px)] min-h-[160px] bg-[#09090a] p-2 [&_.xterm]:h-full [&_.xterm-screen]:will-change-transform [&_.xterm-viewport]:!bg-transparent" ref={containerRef} />
     </section>

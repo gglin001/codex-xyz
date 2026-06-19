@@ -1,10 +1,8 @@
 import { FolderOpen, Plus, Send, Square, Target } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
 import type { FormEvent, KeyboardEvent, PointerEvent } from "react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { ControlThread } from "../../server/domain.js";
 import { activeIconButtonClass, cn } from "../classNames.js";
-import { fadePresence, quickEase, revealPresence, softSpring } from "../motion.js";
 import type { ComposerMode } from "./types.js";
 import { StatusBanners } from "./StatusBanners.js";
 
@@ -71,14 +69,7 @@ function getPromptLayoutMaxHeight(textarea: HTMLTextAreaElement, viewportMaxHeig
 
 const WorkdirField = memo(function WorkdirField({ value, disabled, onChange }: WorkdirFieldProps) {
   return (
-    <motion.div
-      className="rounded-lg border border-border-soft bg-surface-subtle/70 p-1 shadow-control"
-      variants={fadePresence}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      transition={quickEase}
-    >
+    <div className="rounded-lg border border-border-soft bg-surface-subtle/70 p-1 shadow-control">
       <label className="flex h-9 items-center gap-2 rounded-md px-2 text-muted transition duration-200 ease-snappy focus-within:bg-field focus-within:text-muted-strong">
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-chip text-chip-fg shadow-control">
           <FolderOpen size={14} />
@@ -92,7 +83,7 @@ const WorkdirField = memo(function WorkdirField({ value, disabled, onChange }: W
           aria-label="Working directory"
         />
       </label>
-    </motion.div>
+    </div>
   );
 });
 
@@ -264,151 +255,120 @@ export const PromptComposer = memo(function PromptComposer({
   );
 
   return (
-    <motion.div
-      className={classes}
-      layout
-      initial={{ opacity: 0, y: collapsible ? 12 : 0 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: collapsible ? 12 : 0 }}
-      transition={softSpring}
-    >
-      <AnimatePresence initial={false}>
-        {showStatus && isExpanded ? <StatusBanners busyAction={busyAction} notice={notice} error={error} /> : null}
-      </AnimatePresence>
+    <div className={classes}>
+      {showStatus && isExpanded ? <StatusBanners busyAction={busyAction} notice={notice} error={error} /> : null}
 
-      <AnimatePresence initial={false} mode="wait">
-        {!isExpanded ? (
-          <motion.button
-            key="composer-collapsed"
-            type="button"
-            className="flex h-11 w-full items-center gap-2 rounded-lg border border-border-soft bg-surface px-3 text-left text-sm font-medium text-muted-strong shadow-control transition duration-200 ease-snappy hover:border-border hover:bg-control-hover hover:text-fg-strong"
-            title={promptPlaceholder}
-            aria-label={promptPlaceholder}
-            variants={fadePresence}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            transition={quickEase}
-            whileHover={{ y: -1 }}
-            whileTap={{ scale: 0.99 }}
-            onClick={expandComposer}
-          >
-            <PromptIcon size={16} />
-            <span className="min-w-0 truncate">{promptPlaceholder}</span>
-          </motion.button>
-        ) : (
-          <motion.div
-            key="composer-expanded"
-            className="grid gap-2 overflow-hidden"
-            variants={revealPresence}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            transition={softSpring}
-          >
-            <AnimatePresence initial={false}>
-              {promptTarget === "new" ? <WorkdirField value={workdir} disabled={busy} onChange={onWorkdirChange} /> : null}
-            </AnimatePresence>
+      {!isExpanded ? (
+        <button
+          type="button"
+          className="flex h-11 w-full items-center gap-2 rounded-lg border border-border-soft bg-surface px-3 text-left text-sm font-medium text-muted-strong shadow-control transition duration-200 ease-snappy hover:border-border hover:bg-control-hover hover:text-fg-strong"
+          title={promptPlaceholder}
+          aria-label={promptPlaceholder}
+          onClick={expandComposer}
+        >
+          <PromptIcon size={16} />
+          <span className="min-w-0 truncate">{promptPlaceholder}</span>
+        </button>
+      ) : null}
 
-            <form onSubmit={handleSubmit}>
-              <motion.div
-                layout
-                className="relative overflow-hidden rounded-lg border border-border bg-surface shadow-panel transition duration-200 ease-snappy focus-within:border-border-strong focus-within:ring-2 focus-within:ring-focus-ring/60"
-                transition={softSpring}
+      {isExpanded ? (
+        <div className="grid gap-2">
+          {promptTarget === "new" ? <WorkdirField value={workdir} disabled={busy} onChange={onWorkdirChange} /> : null}
+
+          <form onSubmit={handleSubmit}>
+            <div className="relative overflow-hidden rounded-lg border border-border bg-surface shadow-panel transition duration-200 ease-snappy focus-within:border-border-strong focus-within:ring-2 focus-within:ring-focus-ring/60">
+              <div
+                className="absolute inset-x-0 top-0 z-10 flex h-3 cursor-ns-resize items-start justify-center"
+                role="separator"
+                aria-label="Resize prompt input"
+                aria-orientation="horizontal"
+                title="Drag up to resize prompt input"
+                onPointerDown={handlePromptResizePointerDown}
               >
-                <div
-                  className="absolute inset-x-0 top-0 z-10 flex h-3 cursor-ns-resize items-start justify-center"
-                  role="separator"
-                  aria-label="Resize prompt input"
-                  aria-orientation="horizontal"
-                  title="Drag up to resize prompt input"
-                  onPointerDown={handlePromptResizePointerDown}
-                >
-                  <span className="mt-1 h-0.5 w-10 rounded-full bg-border-strong opacity-70 transition group-hover:bg-muted" />
-                </div>
-                <textarea
-                  ref={textareaRef}
-                  className={cn(
-                    "block w-full resize-none border-0 bg-transparent px-3 pb-2 pt-4 text-sm leading-6 text-fg-strong placeholder:text-muted focus:outline-none disabled:opacity-60",
-                    compact
-                      ? "min-h-[38px] max-h-[var(--mobile-textarea-max-height)]"
-                      : "min-h-[88px] max-h-[38dvh]"
-                  )}
-                  value={prompt}
-                  onChange={(event) => onPromptChange(event.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder={promptPlaceholder}
-                  disabled={busy}
-                  style={promptHeight === null ? undefined : { height: `${promptHeight}px` }}
-                />
-                <div className="flex items-center justify-between gap-2 border-t border-border-soft bg-surface-subtle px-2 py-2">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <div className="flex rounded-md border border-border-soft bg-surface p-0.5" role="group" aria-label="Session mode">
-                      <button
-                        type="button"
-                        className={cn(
-                          "inline-flex h-7 min-w-7 items-center justify-center rounded text-muted-strong transition duration-200 ease-snappy hover:bg-control-hover hover:text-fg-strong",
-                          promptTarget === "new" ? "bg-control-hover text-fg-strong" : null
-                        )}
-                        title={newModeTitle}
-                        aria-label={newModeTitle}
-                        aria-pressed={promptTarget === "new"}
-                        onClick={handleNewModeClick}
-                      >
-                        <Plus size={15} />
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        className={cn(toolbarButtonClass, goalMode ? activeIconButtonClass : null)}
-                        title={goalModeTitle}
-                        aria-label={goalModeTitle}
-                        aria-pressed={goalMode}
-                        disabled={!canUseGoalMode || busy}
-                        onClick={() => onGoalModeChange(!goalMode)}
-                      >
-                        <Target size={15} />
-                      </button>
-                      <button
-                        type="button"
-                        className={toolbarButtonClass}
-                        title="Interrupt"
-                        aria-label="Interrupt"
-                        disabled={!canInterrupt}
-                        onClick={onInterrupt}
-                      >
-                        <Square size={15} />
-                      </button>
-                      <button
-                        type="button"
-                        className={toolbarButtonClass}
-                        title="Resume"
-                        aria-label="Resume"
-                        disabled={!canResume}
-                        onClick={onResume}
-                      >
-                        <Send size={15} />
-                      </button>
-                    </div>
-                  </div>
-                  <button
-                    className={cn(
-                      "inline-flex h-8 min-w-8 items-center justify-center rounded-md border border-transparent bg-accent px-2 text-accent-fg shadow-control transition duration-200 ease-snappy hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-35 active:scale-[0.98]",
-                      canSubmitPrompt ? "shadow-control" : null
+                <span className="mt-1 h-0.5 w-10 rounded-full bg-border-strong opacity-70 transition group-hover:bg-muted" />
+              </div>
+              <textarea
+                ref={textareaRef}
+                className={cn(
+                  "block w-full resize-none border-0 bg-transparent px-3 pb-2 pt-4 text-sm leading-6 text-fg-strong placeholder:text-muted focus:outline-none disabled:opacity-60",
+                  compact
+                    ? "min-h-[38px] max-h-[var(--mobile-textarea-max-height)]"
+                    : "min-h-[88px] max-h-[38dvh]"
+                )}
+                value={prompt}
+                onChange={(event) => onPromptChange(event.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={promptPlaceholder}
+                disabled={busy}
+                style={promptHeight === null ? undefined : { height: `${promptHeight}px` }}
+              />
+              <div className="flex items-center justify-between gap-2 border-t border-border-soft bg-surface-subtle px-2 py-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="flex rounded-md border border-border-soft bg-surface p-0.5" role="group" aria-label="Session mode">
+                    <button
+                      type="button"
+                      className={cn(
+                        "inline-flex h-7 min-w-7 items-center justify-center rounded text-muted-strong transition duration-200 ease-snappy hover:bg-control-hover hover:text-fg-strong",
+                        promptTarget === "new" ? "bg-control-hover text-fg-strong" : null
                       )}
-                    disabled={!canSubmitPrompt}
-                    title={submitTitle}
-                    aria-label={submitTitle}
-                  >
-                    <PromptIcon size={16} />
-                  </button>
+                      title={newModeTitle}
+                      aria-label={newModeTitle}
+                      aria-pressed={promptTarget === "new"}
+                      onClick={handleNewModeClick}
+                    >
+                      <Plus size={15} />
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      className={cn(toolbarButtonClass, goalMode ? activeIconButtonClass : null)}
+                      title={goalModeTitle}
+                      aria-label={goalModeTitle}
+                      aria-pressed={goalMode}
+                      disabled={!canUseGoalMode || busy}
+                      onClick={() => onGoalModeChange(!goalMode)}
+                    >
+                      <Target size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      className={toolbarButtonClass}
+                      title="Interrupt"
+                      aria-label="Interrupt"
+                      disabled={!canInterrupt}
+                      onClick={onInterrupt}
+                    >
+                      <Square size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      className={toolbarButtonClass}
+                      title="Resume"
+                      aria-label="Resume"
+                      disabled={!canResume}
+                      onClick={onResume}
+                    >
+                      <Send size={15} />
+                    </button>
+                  </div>
                 </div>
-              </motion.div>
-            </form>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
+                <button
+                  className={cn(
+                    "inline-flex h-8 min-w-8 items-center justify-center rounded-md border border-transparent bg-accent px-2 text-accent-fg shadow-control transition duration-200 ease-snappy hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-35 active:scale-[0.98]",
+                    canSubmitPrompt ? "shadow-control" : null
+                  )}
+                  disabled={!canSubmitPrompt}
+                  title={submitTitle}
+                  aria-label={submitTitle}
+                >
+                  <PromptIcon size={16} />
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      ) : null}
+    </div>
   );
 });

@@ -3,13 +3,13 @@ import {
   ArrowLeft,
   Bot,
   ChevronDown,
+  ChevronUp,
   FileText,
   Info,
   ListChecks,
   Terminal,
   UserRound
 } from "lucide-react";
-import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 import type { ReactNode } from "react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import type { ControlThread, ItemType, ThreadDetail, ThreadItem } from "../../server/domain.js";
@@ -19,7 +19,6 @@ import {
   statusToneClass,
   subtleIconButtonClass
 } from "../classNames.js";
-import { fadePresence, listItemPresence, quickEase, revealPresence, smoothSpring, softSpring } from "../motion.js";
 import { getCollapsedTextPreview } from "../textPreview.js";
 import { getTranscriptEntries, type TranscriptProcessEntry } from "../transcriptEntries.js";
 import {
@@ -181,33 +180,14 @@ const SessionFacts = memo(
     const visibleGoalObjective = visibleGoalStatus ? thread.goalObjective : null;
 
     return (
-      <motion.div
-        className="shrink-0 border-b border-border-soft bg-app-detail/95 px-4 py-3"
-        variants={fadePresence}
-        initial="initial"
-        animate="animate"
-        transition={quickEase}
-      >
-        <motion.div
-          className="flex flex-nowrap gap-2 overflow-x-auto overflow-y-hidden pb-1"
-          aria-label="Session status summary"
-          initial="initial"
-          animate="animate"
-          variants={{
-            initial: {},
-            animate: {
-              transition: {
-                staggerChildren: 0.025
-              }
-            }
-          }}
-        >
-          <motion.div className={sessionFactCellClass} variants={listItemPresence} transition={quickEase}>
+      <div className="shrink-0 border-b border-border-soft bg-app-detail/95 px-4 py-3">
+        <div className="flex flex-nowrap gap-2 overflow-x-auto overflow-y-hidden pb-1" aria-label="Session status summary">
+          <div className={sessionFactCellClass}>
             <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Status</span>
             <strong className={cn("mt-1 inline-flex rounded-full px-2 py-1 text-[11px] font-semibold leading-none", statusToneClass[statusTone(thread.status)])}>{statusLabel(thread.status)}</strong>
-          </motion.div>
+          </div>
           {visibleGoalObjective && visibleGoalStatus ? (
-            <motion.div className={sessionFactCellClass} variants={listItemPresence} transition={quickEase}>
+            <div className={sessionFactCellClass}>
               <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Goal</span>
               <strong
                 className={cn(
@@ -218,42 +198,42 @@ const SessionFacts = memo(
               >
                 {statusLabel(visibleGoalStatus)}: {visibleGoalObjective}
               </strong>
-            </motion.div>
+            </div>
           ) : null}
-          <motion.div className={sessionFactCellClass} variants={listItemPresence} transition={quickEase}>
+          <div className={sessionFactCellClass}>
             <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Tokens</span>
             <strong className={sessionFactValueClass}>{formatTokens(thread.tokensUsed)}</strong>
-          </motion.div>
+          </div>
           {thread.goalTokenBudget ? (
-            <motion.div className={sessionFactCellClass} variants={listItemPresence} transition={quickEase}>
+            <div className={sessionFactCellClass}>
               <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Budget</span>
               <strong className={sessionFactValueClass}>
                 {formatTokens(thread.tokensUsed)} / {formatTokens(thread.goalTokenBudget)}
               </strong>
-            </motion.div>
+            </div>
           ) : null}
-          <motion.div className={sessionFactCellClass} variants={listItemPresence} transition={quickEase}>
+          <div className={sessionFactCellClass}>
             <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Turns</span>
             <strong className={sessionFactValueClass}>{thread.turns.length}</strong>
-          </motion.div>
-          <motion.div className={sessionFactCellClass} variants={listItemPresence} transition={quickEase}>
+          </div>
+          <div className={sessionFactCellClass}>
             <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Model</span>
             <strong className={sessionFactValueClass}>{thread.model ?? "default"}</strong>
-          </motion.div>
-          <motion.div className={sessionFactCellClass} variants={listItemPresence} transition={quickEase}>
+          </div>
+          <div className={sessionFactCellClass}>
             <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Workdir</span>
             <strong className="mt-1 block whitespace-nowrap font-mono text-[12px] font-medium leading-5 text-fg-strong">{thread.cwd}</strong>
-          </motion.div>
-          <motion.div className={sessionFactCellClass} variants={listItemPresence} transition={quickEase}>
+          </div>
+          <div className={sessionFactCellClass}>
             <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Session</span>
             <strong className="mt-1 block whitespace-nowrap font-mono text-[12px] font-medium leading-5 text-fg-strong">{shortId(thread.sessionId)}</strong>
-          </motion.div>
-          <motion.div className={sessionFactCellClass} variants={listItemPresence} transition={quickEase}>
+          </div>
+          <div className={sessionFactCellClass}>
             <span className="block text-[11px] font-medium uppercase leading-4 text-muted">Updated</span>
             <strong className={sessionFactValueClass}>{formatDateTime(thread.updatedAt)}</strong>
-          </motion.div>
-        </motion.div>
-      </motion.div>
+          </div>
+        </div>
+      </div>
     );
   },
   (previous, next) =>
@@ -284,22 +264,12 @@ const TranscriptItem = memo(function TranscriptItem({
   const title = itemTitle(item);
 
   return (
-    <motion.article
-      layout="position"
-      className={cn("rounded-lg border border-border-soft border-l-2 bg-surface shadow-control transition duration-200 ease-snappy", itemToneClass[item.type])}
-      variants={listItemPresence}
-      initial="initial"
-      animate="animate"
-      transition={quickEase}
-    >
-      <motion.button
+    <article className={cn("rounded-lg border border-border-soft border-l-2 bg-surface shadow-control transition duration-200 ease-snappy", itemToneClass[item.type])}>
+      <button
         type="button"
         className="flex min-h-10 w-full items-center gap-3 rounded-t-lg px-3 py-2 text-left transition duration-200 ease-snappy hover:bg-control-hover"
         aria-expanded={visible}
         aria-label={`${visible ? "Hide" : "Show"} ${title}`}
-        whileHover={{ y: -1 }}
-        whileTap={{ scale: 0.995 }}
-        transition={quickEase}
         onClick={() => onToggleVisible(item.id)}
       >
         <span className="flex min-w-0 flex-1 items-center gap-2">
@@ -312,19 +282,11 @@ const TranscriptItem = memo(function TranscriptItem({
           {status ? <span className={pillClass}>{readableStatus(status)}</span> : null}
           {exitCode !== null ? <span className={pillClass}>exit {exitCode}</span> : null}
           <time className="hidden sm:inline">{formatTime(item.createdAt)}</time>
-          <motion.span animate={{ rotate: visible ? 180 : 0 }} transition={quickEase}>
-            <ChevronDown size={14} />
-          </motion.span>
+          {visible ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </span>
-      </motion.button>
-      <AnimatePresence initial={false}>
-        {visible ? (
-          <motion.div variants={revealPresence} initial="initial" animate="animate" exit="exit" transition={softSpring} className="overflow-hidden">
-            <pre className="overflow-x-auto whitespace-pre-wrap border-t border-border-soft bg-surface-subtle p-3 font-mono text-[12px] leading-5 text-fg">{outputText}</pre>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-    </motion.article>
+      </button>
+      {visible ? <pre className="overflow-x-auto whitespace-pre-wrap border-t border-border-soft bg-surface-subtle p-3 font-mono text-[12px] leading-5 text-fg">{outputText}</pre> : null}
+    </article>
   );
 });
 
@@ -349,15 +311,8 @@ const ProcessStep = memo(function ProcessStep({
   const title = itemTitle(item);
 
   return (
-    <motion.div
-      layout="position"
-      className={cn("rounded-md border border-border-soft border-l-2 bg-surface shadow-control", itemToneClass[item.type])}
-      variants={listItemPresence}
-      initial="initial"
-      animate="animate"
-      transition={quickEase}
-    >
-      <motion.button
+    <div className={cn("rounded-md border border-border-soft border-l-2 bg-surface shadow-control", itemToneClass[item.type])}>
+      <button
         type="button"
         className={cn(
           "flex min-h-9 w-full items-center gap-3 rounded-t-md px-3 py-2 text-left transition duration-200 ease-snappy",
@@ -365,9 +320,6 @@ const ProcessStep = memo(function ProcessStep({
         )}
         aria-expanded={canCollapse ? expanded : undefined}
         aria-label={canCollapse ? `${expanded ? "Collapse" : "Expand"} ${title}` : undefined}
-        whileHover={canCollapse ? { y: -1 } : undefined}
-        whileTap={canCollapse ? { scale: 0.995 } : undefined}
-        transition={quickEase}
         onClick={canCollapse ? () => onToggleExpanded(item.id) : undefined}
       >
         <span className="flex min-w-0 flex-1 items-center gap-2">
@@ -380,21 +332,11 @@ const ProcessStep = memo(function ProcessStep({
           {status ? <span className={pillClass}>{readableStatus(status)}</span> : null}
           {exitCode !== null ? <span className={pillClass}>exit {exitCode}</span> : null}
           <time className="hidden sm:inline">{formatTime(item.createdAt)}</time>
-          {canCollapse ? (
-            <motion.span animate={{ rotate: expanded ? 180 : 0 }} transition={quickEase}>
-              <ChevronDown size={14} />
-            </motion.span>
-          ) : null}
+          {canCollapse ? (expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />) : null}
         </span>
-      </motion.button>
-      <motion.pre
-        layout
-        className="overflow-x-auto whitespace-pre-wrap border-t border-border-soft bg-surface-subtle p-3 font-mono text-[12px] leading-5 text-fg"
-        transition={softSpring}
-      >
-        {visibleText}
-      </motion.pre>
-    </motion.div>
+      </button>
+      <pre className="overflow-x-auto whitespace-pre-wrap border-t border-border-soft bg-surface-subtle p-3 font-mono text-[12px] leading-5 text-fg">{visibleText}</pre>
+    </div>
   );
 });
 
@@ -433,22 +375,12 @@ const ProcessGroup = memo(function ProcessGroup({
   }, []);
 
   return (
-    <motion.article
-      layout="position"
-      className="rounded-lg border border-border-soft bg-surface shadow-control"
-      variants={listItemPresence}
-      initial="initial"
-      animate="animate"
-      transition={quickEase}
-    >
-      <motion.button
+    <article className="rounded-lg border border-border-soft bg-surface shadow-control">
+      <button
         type="button"
         className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition duration-200 ease-snappy hover:bg-control-hover"
         aria-expanded={expanded}
         aria-label={`${expanded ? "Collapse" : "Expand"} ${summary.title}`}
-        whileHover={{ y: -1 }}
-        whileTap={{ scale: 0.995 }}
-        transition={quickEase}
         onClick={() => onToggleExpanded(group.id)}
       >
         <span className="min-w-0 flex-1">
@@ -464,33 +396,22 @@ const ProcessGroup = memo(function ProcessGroup({
           <span className={pillClass}>{summary.count}</span>
           {summary.status ? <span className={pillClass}>{readableStatus(summary.status)}</span> : null}
           <time className="hidden sm:inline">{formatTime(group.updatedAt)}</time>
-          <motion.span animate={{ rotate: expanded ? 180 : 0 }} transition={quickEase}>
-            <ChevronDown size={14} />
-          </motion.span>
+          {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </span>
-      </motion.button>
-      <AnimatePresence initial={false}>
-        {expanded ? (
-          <motion.div
-            className="grid gap-2 overflow-hidden border-t border-border-soft bg-surface-subtle/60 p-2"
-            variants={revealPresence}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            transition={softSpring}
-          >
-            {group.items.map((item) => (
-              <ProcessStep
-                key={item.id}
-                item={item}
-                expanded={expandedStepIds.has(item.id)}
-                onToggleExpanded={toggleExpandedStep}
-              />
-            ))}
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-    </motion.article>
+      </button>
+      {expanded ? (
+        <div className="grid gap-2 border-t border-border-soft bg-surface-subtle/60 p-2">
+          {group.items.map((item) => (
+            <ProcessStep
+              key={item.id}
+              item={item}
+              expanded={expandedStepIds.has(item.id)}
+              onToggleExpanded={toggleExpandedStep}
+            />
+          ))}
+        </div>
+      ) : null}
+    </article>
   );
 });
 
@@ -556,84 +477,50 @@ const Transcript = memo(function Transcript({
       )}
       aria-label="Session transcript"
     >
-      <LayoutGroup id="thread-transcript">
-        <motion.div className="mx-auto flex min-h-full w-full max-w-[920px] flex-col gap-3" layout>
-          <AnimatePresence initial={false}>
-            {!detail ? (
-              <motion.div
-                className="flex min-h-48 flex-1 items-center justify-center rounded-lg border border-dashed border-border-soft bg-surface-subtle/45 text-sm text-muted"
-                variants={fadePresence}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-                transition={quickEase}
+      <div className="mx-auto flex min-h-full w-full max-w-[920px] flex-col gap-3">
+        {!detail ? <div className="flex min-h-48 flex-1 items-center justify-center rounded-lg border border-dashed border-border-soft bg-surface-subtle/45 text-sm text-muted">{hasSelection ? "Loading session..." : "No session selected"}</div> : null}
+        {detail?.items.length === 0 ? <div className="flex min-h-48 flex-1 items-center justify-center rounded-lg border border-dashed border-border-soft bg-surface-subtle/45 text-sm text-muted">No transcript items yet</div> : null}
+        {showWindowControls ? (
+          <div className="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-lg border border-border-soft bg-app-detail/90 p-2 text-xs text-muted shadow-control backdrop-blur-xl">
+            <span className="px-1">{windowSummary}</span>
+            <div className="flex rounded-md border border-border-soft bg-surface-subtle p-0.5" role="group" aria-label="Transcript range">
+              <button
+                type="button"
+                className={cn("h-7 rounded px-2 text-xs font-medium text-muted-strong transition duration-200 ease-snappy hover:text-fg-strong", windowMode === "recent" ? "bg-control-hover text-fg-strong" : null)}
+                aria-pressed={windowMode === "recent"}
+                onClick={() => setWindowMode("recent")}
               >
-                {hasSelection ? "Loading session..." : "No session selected"}
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
-          <AnimatePresence initial={false}>
-            {detail?.items.length === 0 ? (
-              <motion.div
-                className="flex min-h-48 flex-1 items-center justify-center rounded-lg border border-dashed border-border-soft bg-surface-subtle/45 text-sm text-muted"
-                variants={fadePresence}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-                transition={quickEase}
+                Recent
+              </button>
+              <button
+                type="button"
+                className={cn("h-7 rounded px-2 text-xs font-medium text-muted-strong transition duration-200 ease-snappy hover:text-fg-strong", windowMode === "all" ? "bg-control-hover text-fg-strong" : null)}
+                aria-pressed={windowMode === "all"}
+                onClick={() => setWindowMode("all")}
               >
-                No transcript items yet
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
-          {showWindowControls ? (
-            <motion.div
-              className="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-lg border border-border-soft bg-app-detail/90 p-2 text-xs text-muted shadow-control backdrop-blur-xl"
-              variants={listItemPresence}
-              initial="initial"
-              animate="animate"
-              transition={quickEase}
-            >
-              <span className="px-1">{windowSummary}</span>
-              <div className="flex rounded-md border border-border-soft bg-surface-subtle p-0.5" role="group" aria-label="Transcript range">
-                <button
-                  type="button"
-                  className={cn("h-7 rounded px-2 text-xs font-medium text-muted-strong transition duration-200 ease-snappy hover:text-fg-strong", windowMode === "recent" ? "bg-control-hover text-fg-strong" : null)}
-                  aria-pressed={windowMode === "recent"}
-                  onClick={() => setWindowMode("recent")}
-                >
-                  Recent
-                </button>
-                <button
-                  type="button"
-                  className={cn("h-7 rounded px-2 text-xs font-medium text-muted-strong transition duration-200 ease-snappy hover:text-fg-strong", windowMode === "all" ? "bg-control-hover text-fg-strong" : null)}
-                  aria-pressed={windowMode === "all"}
-                  onClick={() => setWindowMode("all")}
-                >
-                  All
-                </button>
-              </div>
-            </motion.div>
-          ) : null}
-          {transcriptEntries.map((entry) =>
-            entry.kind === "process" ? (
-              <ProcessGroup
-                key={entry.id}
-                group={entry}
-                expanded={expandedProcessEntryIds.has(entry.id)}
-                onToggleExpanded={toggleExpandedProcessEntry}
-              />
-            ) : (
-              <TranscriptItem
-                key={entry.id}
-                item={entry.item}
-                visible={!hiddenItemIds.has(entry.item.id)}
-                onToggleVisible={toggleItemVisibility}
-              />
-            )
-          )}
-        </motion.div>
-      </LayoutGroup>
+                All
+              </button>
+            </div>
+          </div>
+        ) : null}
+        {transcriptEntries.map((entry) =>
+          entry.kind === "process" ? (
+            <ProcessGroup
+              key={entry.id}
+              group={entry}
+              expanded={expandedProcessEntryIds.has(entry.id)}
+              onToggleExpanded={toggleExpandedProcessEntry}
+            />
+          ) : (
+            <TranscriptItem
+              key={entry.id}
+              item={entry.item}
+              visible={!hiddenItemIds.has(entry.item.id)}
+              onToggleVisible={toggleItemVisibility}
+            />
+          )
+        )}
+      </div>
     </div>
   );
 });
@@ -647,12 +534,7 @@ export const ThreadDetailView = memo(function ThreadDetailView({
   composer = null
 }: ThreadDetailViewProps) {
   return (
-    <motion.section
-      layout
-      className="flex h-full min-h-0 flex-col bg-app-detail md:rounded-lg md:border md:border-border-soft md:shadow-panel"
-      data-detail-word-wrap={detailWordWrap ? "true" : "false"}
-      transition={smoothSpring}
-    >
+    <section className="flex min-h-0 flex-col bg-app-detail md:rounded-lg md:border md:border-border-soft md:shadow-panel" data-detail-word-wrap={detailWordWrap ? "true" : "false"}>
       <div className="flex h-14 shrink-0 items-center gap-3 border-b border-border-soft bg-app-detail/95 px-4 md:rounded-t-lg">
         <button
           type="button"
@@ -674,6 +556,6 @@ export const ThreadDetailView = memo(function ThreadDetailView({
       <Transcript detail={detail} hasSelection={Boolean(selectedThreadId)} detailWordWrap={detailWordWrap} />
 
       {composer}
-    </motion.section>
+    </section>
   );
 });
