@@ -118,29 +118,7 @@ function useMediaQuery(query: string) {
 
 function getViewportProfile(): ViewportProfile {
   if (typeof window === "undefined") {
-    return {
-      width: 1024,
-      height: 768,
-      keyboardInset: 0,
-      widthProfile: "regular",
-      heightProfile: "regular",
-      density: "comfortable",
-      keyboardVisible: false,
-      style: {
-        "--app-viewport-width": "1024px",
-        "--app-viewport-height": "768px",
-        "--keyboard-inset": "0px",
-        "--adaptive-fit": "1",
-        "--mobile-composer-max-height": "414px",
-        "--mobile-textarea-max-height": "240px",
-        "--mobile-composer-reserved": "58px",
-        "--mobile-panel-padding": "14px",
-        "--mobile-edge-padding": "10px",
-        "--mobile-gap": "10px",
-        "--mobile-header-control-size": "34px",
-        "--mobile-control-size": "40px"
-      }
-    };
+    return defaultViewportProfile();
   }
 
   const root = document.documentElement;
@@ -202,6 +180,32 @@ function getViewportProfile(): ViewportProfile {
   };
 }
 
+function defaultViewportProfile(): ViewportProfile {
+  return {
+    width: 1024,
+    height: 768,
+    keyboardInset: 0,
+    widthProfile: "regular",
+    heightProfile: "regular",
+    density: "comfortable",
+    keyboardVisible: false,
+    style: {
+      "--app-viewport-width": "1024px",
+      "--app-viewport-height": "768px",
+      "--keyboard-inset": "0px",
+      "--adaptive-fit": "1",
+      "--mobile-composer-max-height": "414px",
+      "--mobile-textarea-max-height": "240px",
+      "--mobile-composer-reserved": "58px",
+      "--mobile-panel-padding": "14px",
+      "--mobile-edge-padding": "10px",
+      "--mobile-gap": "10px",
+      "--mobile-header-control-size": "34px",
+      "--mobile-control-size": "40px"
+    }
+  };
+}
+
 function sameViewportProfile(current: ViewportProfile, next: ViewportProfile) {
   return (
     current.width === next.width &&
@@ -215,7 +219,7 @@ function sameViewportProfile(current: ViewportProfile, next: ViewportProfile) {
 }
 
 function useViewportProfile() {
-  const [profile, setProfile] = useState(getViewportProfile);
+  const [profile, setProfile] = useState(defaultViewportProfile);
 
   useEffect(() => {
     if (typeof window === "undefined") {

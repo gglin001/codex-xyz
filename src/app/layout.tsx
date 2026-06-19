@@ -10,6 +10,11 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
     title: "Codex XYZ"
   },
+  icons: {
+    icon: "/icons/icon.svg",
+    shortcut: "/icons/icon.svg",
+    apple: "/icons/icon.svg"
+  },
   manifest: "/manifest.webmanifest"
 };
 
