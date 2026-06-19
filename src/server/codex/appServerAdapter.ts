@@ -3,12 +3,9 @@ import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { createInterface, type Interface } from "node:readline";
 import {
-  AdapterThreadNotFoundError,
   type AdapterEvent,
   type AdapterEventHandler,
-  type AdapterGoal,
   type AdapterThread,
-  type AdapterTokenUsage,
   type AdapterTurn,
   type CodexAdapter,
   type ForkThreadInput,
@@ -17,15 +14,28 @@ import {
   type StartThreadInput,
   type StartTurnAdapterInput
 } from "./adapter.js";
-import type { RuntimeStatus } from "../domain.js";
-
-type JsonRpcMessage = {
-  id?: number | string;
-  method?: string;
-  params?: unknown;
-  result?: unknown;
-  error?: unknown;
-};
+import {
+  appServerInitializeParams,
+  asRecord,
+  clampDebugLogLevel,
+  debugRecordLevel,
+  extractThreadId,
+  extractTurnId,
+  inputText,
+  isYoloApprovalRequest,
+  normalizeGoal,
+  normalizeThread,
+  normalizeThreadId,
+  normalizeTurn,
+  projectAppServerNotification,
+  projectTurnStartedNotification,
+  requestError,
+  yoloApprovalResponse,
+  yoloThreadOptions,
+  yoloTurnOptions,
+  type AppServerDebugLogLevel,
+  type JsonRpcMessage
+} from "./appServerProtocol.js";
 
 type PendingRequest = {
   resolve: (value: unknown) => void;
@@ -51,359 +61,6 @@ export type AppServerCodexAdapterOptions = {
   debugLogPath?: string | null;
   debugLogLevel?: number | null;
 };
-
-type AppServerDebugLogLevel = 0 | 1 | 2 | 3;
-
-const yoloThreadOptions = {
-  approvalPolicy: "never",
-  sandbox: "danger-full-access"
-} as const;
-
-const yoloTurnOptions = {
-  approvalPolicy: "never",
-  sandboxPolicy: { type: "dangerFullAccess" }
-} as const;
-
-const highVolumeDebugMethods = new Set([
-  "command/exec/outputDelta",
-  "item/agentMessage/delta",
-  "item/commandExecution/outputDelta",
-  "item/fileChange/outputDelta",
-  "item/plan/delta",
-  "item/reasoning/summaryTextDelta",
-  "item/reasoning/textDelta",
-  "process/outputDelta",
-  "thread/realtime/outputAudio/delta",
-  "thread/realtime/transcript/delta"
-]);
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
-}
-
-function clampDebugLogLevel(value: unknown): AppServerDebugLogLevel {
-  const level = typeof value === "number" && Number.isFinite(value) ? Math.floor(value) : 0;
-  return Math.min(3, Math.max(0, level)) as AppServerDebugLogLevel;
-}
-
-function debugMessageMethod(record: Record<string, unknown>) {
-  const message = asRecord(record.message);
-  return typeof message.method === "string" ? message.method : null;
-}
-
-function debugRecordLevel(record: Record<string, unknown>): AppServerDebugLogLevel {
-  if (record.event === "message") {
-    if (record.parsed === false) {
-      return 1;
-    }
-    const method = debugMessageMethod(record);
-    return method && highVolumeDebugMethods.has(method) ? 3 : 2;
-  }
-  return 1;
-}
-
-function inputText(text: string) {
-  return [{ type: "text", text, text_elements: [] }];
-}
-
-function textFromUserInput(value: unknown) {
-  const entries = Array.isArray(value) ? value : [];
-  const parts = entries.map((entry) => {
-    const item = asRecord(entry);
-    if (item.type === "text") {
-      return typeof item.text === "string" ? item.text : "";
-    }
-    if (item.type === "image") {
-      return `[image] ${String(item.url ?? "")}`.trim();
-    }
-    if (item.type === "localImage") {
-      return `[image] ${String(item.path ?? "")}`.trim();
-    }
-    if (item.type === "skill") {
-      return `[skill] ${String(item.name ?? "")}`.trim();
-    }
-    if (item.type === "mention") {
-      return `[mention] ${String(item.name ?? item.path ?? "")}`.trim();
-    }
-    return "";
-  });
-  return parts.filter(Boolean).join("\n");
-}
-
-function fileChangeSummary(changes: unknown) {
-  if (!Array.isArray(changes)) {
-    return "";
-  }
-  return changes
-    .map((change) => {
-      const record = asRecord(change);
-      const kind = asRecord(record.kind);
-      const path = String(record.path ?? "");
-      const action = typeof kind.type === "string" ? kind.type : "update";
-      const target = kind.move_path ? `${path} -> ${String(kind.move_path)}` : path;
-      return `${action}: ${target}`;
-    })
-    .filter(Boolean)
-    .join("\n");
-}
-
-function fileChangeText(changes: unknown) {
-  if (!Array.isArray(changes)) {
-    return "";
-  }
-  const sections = changes.map((change) => {
-    const record = asRecord(change);
-    const summary = fileChangeSummary([record]);
-    const diff = typeof record.diff === "string" && record.diff ? `\n${record.diff}` : "";
-    return `${summary}${diff}`.trim();
-  });
-  return sections.filter(Boolean).join("\n\n");
-}
-
-function planText(explanation: unknown, plan: unknown) {
-  const heading = typeof explanation === "string" && explanation.trim() ? `${explanation.trim()}\n` : "";
-  const steps = Array.isArray(plan)
-    ? plan
-        .map((step, index) => {
-          const record = asRecord(step);
-          const status = typeof record.status === "string" ? record.status : "pending";
-          return `${index + 1}. [${status}] ${String(record.step ?? "")}`.trim();
-        })
-        .filter(Boolean)
-    : [];
-  return `${heading}${steps.join("\n")}`.trim();
-}
-
-function normalizeThreadItem(value: unknown) {
-  const item = asRecord(value);
-  const id = String(item.id ?? "");
-  const itemType = String(item.type ?? "system");
-  if (itemType === "userMessage") {
-    return {
-      itemId: id,
-      itemType: "user" as const,
-      text: textFromUserInput(item.content),
-      data: { sourceType: itemType, clientId: item.clientId ?? null, raw: item }
-    };
-  }
-  if (itemType === "agentMessage") {
-    return {
-      itemId: id,
-      itemType: "agent" as const,
-      text: String(item.text ?? ""),
-      data: { sourceType: itemType, phase: item.phase ?? null, raw: item }
-    };
-  }
-  if (itemType === "plan") {
-    return {
-      itemId: id,
-      itemType: "plan" as const,
-      text: String(item.text ?? ""),
-      data: { sourceType: itemType, raw: item }
-    };
-  }
-  if (itemType === "commandExecution") {
-    return {
-      itemId: id,
-      itemType: "command" as const,
-      text: formatCommandExecution(item),
-      data: {
-        sourceType: itemType,
-        command: item.command ?? null,
-        cwd: item.cwd ?? null,
-        status: item.status ?? null,
-        source: item.source ?? null,
-        exitCode: item.exitCode ?? null,
-        durationMs: item.durationMs ?? null,
-        raw: item
-      }
-    };
-  }
-  if (itemType === "fileChange") {
-    return {
-      itemId: id,
-      itemType: "file" as const,
-      text: fileChangeText(item.changes) || fileChangeSummary(item.changes),
-      data: {
-        sourceType: itemType,
-        status: item.status ?? null,
-        changes: Array.isArray(item.changes) ? item.changes : [],
-        raw: item
-      }
-    };
-  }
-  if (itemType === "reasoning") {
-    const summary = Array.isArray(item.summary) ? item.summary.join("\n") : "";
-    const content = Array.isArray(item.content) ? item.content.join("\n") : "";
-    return {
-      itemId: id,
-      itemType: "plan" as const,
-      text: [summary, content].filter(Boolean).join("\n\n"),
-      data: { sourceType: itemType, raw: item }
-    };
-  }
-  if (itemType === "mcpToolCall") {
-    return {
-      itemId: id,
-      itemType: "system" as const,
-      text: `${String(item.server ?? "mcp")}.${String(item.tool ?? "tool")} ${String(item.status ?? "")}`.trim(),
-      data: { sourceType: itemType, raw: item }
-    };
-  }
-  if (itemType === "dynamicToolCall") {
-    return {
-      itemId: id,
-      itemType: "system" as const,
-      text: `${String(item.namespace ?? "tool")}.${String(item.tool ?? "call")} ${String(item.status ?? "")}`.trim(),
-      data: { sourceType: itemType, raw: item }
-    };
-  }
-  if (itemType === "webSearch") {
-    return {
-      itemId: id,
-      itemType: "system" as const,
-      text: `Web search: ${String(item.query ?? "")}`.trim(),
-      data: { sourceType: itemType, raw: item }
-    };
-  }
-  return {
-    itemId: id,
-    itemType: "system" as const,
-    text: itemType,
-    data: { sourceType: itemType, raw: item }
-  };
-}
-
-function normalizeThreadId(value: unknown) {
-  const id = String(value);
-  const uuid = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
-  const prefixed = id.match(new RegExp(`^thread_(${uuid})$`));
-  const urn = id.match(new RegExp(`^urn:uuid:(${uuid})$`, "i"));
-  return (prefixed?.[1] ?? urn?.[1] ?? id).toLowerCase();
-}
-
-function normalizeRuntimeStatus(value: unknown): RuntimeStatus {
-  const status = asRecord(value);
-  if (status.type === "active") {
-    return "running";
-  }
-  if (status.type === "idle") {
-    return "idle";
-  }
-  if (status.type === "systemError") {
-    return "failed";
-  }
-  if (status.type === "notLoaded") {
-    return "stale";
-  }
-  const text = typeof value === "string" ? value : typeof status.status === "string" ? status.status : "";
-  if (
-    text === "idle" ||
-    text === "running" ||
-    text === "stale" ||
-    text === "interrupted" ||
-    text === "failed" ||
-    text === "completed"
-  ) {
-    return text;
-  }
-  return "idle";
-}
-
-function normalizeOptionalTurnId(value: unknown) {
-  return typeof value === "string" && value.trim().length > 0 ? value : null;
-}
-
-function normalizeUnixTimestamp(value: unknown) {
-  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
-    return null;
-  }
-  const milliseconds = value > 10_000_000_000 ? value : value * 1000;
-  return new Date(milliseconds).toISOString();
-}
-
-function normalizeThread(value: unknown, model?: unknown): AdapterThread {
-  const thread = asRecord(value);
-  const id = normalizeThreadId(thread.id);
-  const status = asRecord(thread.status);
-  return {
-    id,
-    sessionId: normalizeThreadId(thread.sessionId ?? id),
-    forkedFromId: typeof thread.forkedFromId === "string" ? normalizeThreadId(thread.forkedFromId) : null,
-    preview: String(thread.preview ?? ""),
-    cwd: String(thread.cwd ?? process.cwd()),
-    model: typeof thread.model === "string" ? thread.model : typeof model === "string" ? model : null,
-    status: normalizeRuntimeStatus(thread.status),
-    activeTurnId:
-      normalizeOptionalTurnId(thread.activeTurnId) ??
-      normalizeOptionalTurnId(status.activeTurnId) ??
-      normalizeOptionalTurnId(status.turnId),
-    updatedAt: normalizeUnixTimestamp(thread.updatedAt)
-  };
-}
-
-function normalizeTurn(value: unknown): AdapterTurn {
-  const turn = asRecord(value);
-  const status = String(turn.status ?? "running");
-  return {
-    id: String(turn.id),
-    status:
-      status === "completed"
-        ? "completed"
-        : status === "interrupted"
-          ? "interrupted"
-          : status === "failed"
-            ? "failed"
-            : "running"
-  };
-}
-
-function extractThreadId(params: Record<string, unknown>) {
-  return typeof params.threadId === "string" ? normalizeThreadId(params.threadId) : null;
-}
-
-function extractTurnId(params: Record<string, unknown>) {
-  return typeof params.turnId === "string" ? params.turnId : null;
-}
-
-function requestError(error: unknown, params: unknown) {
-  const payload = asRecord(error);
-  const message = typeof payload.message === "string" ? payload.message : JSON.stringify(error);
-  if (/thread not found/i.test(message)) {
-    const match = message.match(/thread not found:\s*([^\s"}]+)/i);
-    const threadId = match?.[1] ?? extractThreadId(asRecord(params));
-    if (threadId) {
-      return new AdapterThreadNotFoundError(threadId, message);
-    }
-  }
-  return new Error(message);
-}
-
-function formatCommandExecution(item: Record<string, unknown>) {
-  const command = String(item.command ?? "");
-  const status = String(item.status ?? "inProgress");
-  const output = typeof item.aggregatedOutput === "string" ? item.aggregatedOutput : "";
-  const exitCode = typeof item.exitCode === "number" ? item.exitCode : null;
-  let text = `$ ${command}\n${output}`;
-  if (status !== "inProgress") {
-    const exit = exitCode === null ? status : `${status}, exit ${exitCode}`;
-    text = `${text.endsWith("\n") ? text : `${text}\n`}[${exit}]`;
-  }
-  return text;
-}
-
-function normalizeTokenUsage(value: unknown): AdapterTokenUsage {
-  const usage = asRecord(value);
-  const total = asRecord(usage.total);
-  return {
-    totalTokens: typeof total.totalTokens === "number" ? total.totalTokens : 0,
-    inputTokens: typeof total.inputTokens === "number" ? total.inputTokens : 0,
-    cachedInputTokens: typeof total.cachedInputTokens === "number" ? total.cachedInputTokens : 0,
-    outputTokens: typeof total.outputTokens === "number" ? total.outputTokens : 0,
-    reasoningOutputTokens: typeof total.reasoningOutputTokens === "number" ? total.reasoningOutputTokens : 0,
-    modelContextWindow: typeof usage.modelContextWindow === "number" ? usage.modelContextWindow : null
-  };
-}
 
 class AppServerDebugLogger {
   private disabled = false;
@@ -578,7 +235,7 @@ export class AppServerCodexAdapter implements CodexAdapter {
         tokenBudget: input.tokenBudget ?? null
       })
     );
-    return this.normalizeGoal(result.goal);
+    return normalizeGoal(result.goal);
   }
 
   async setGoalStatus(input: { threadId: string; status: "active" | "paused" | "complete" }) {
@@ -588,7 +245,7 @@ export class AppServerCodexAdapter implements CodexAdapter {
         status: input.status
       })
     );
-    return this.normalizeGoal(result.goal);
+    return normalizeGoal(result.goal);
   }
 
   async startGoal(input: { threadId: string; objective: string; tokenBudget?: number | null }) {
@@ -605,7 +262,7 @@ export class AppServerCodexAdapter implements CodexAdapter {
 
   async getGoal(threadId: string) {
     const result = asRecord(await this.request("thread/goal/get", { threadId }));
-    return result.goal ? this.normalizeGoal(result.goal) : null;
+    return result.goal ? normalizeGoal(result.goal) : null;
   }
 
   async clearGoal(threadId: string) {
@@ -779,17 +436,7 @@ export class AppServerCodexAdapter implements CodexAdapter {
 
   private async initialize() {
     const id = this.nextId++;
-    const params = {
-      clientInfo: {
-        name: "codex-xyz",
-        title: "codex-xyz",
-        version: "0.1.0"
-      },
-      capabilities: {
-        experimentalApi: true,
-        requestAttestation: false
-      }
-    };
+    const params = appServerInitializeParams;
     await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         if (this.pending.delete(id)) {
@@ -870,163 +517,16 @@ export class AppServerCodexAdapter implements CodexAdapter {
     if (message.method === "turn/started" && threadId) {
       const turn = normalizeTurn(asRecord(params.turn));
       const prompt = this.resolvePendingTurnStart(threadId, turn);
-      this.eventHandler({
-        type: "turn.started",
-        threadId,
-        turnId: turn.id,
-        prompt: prompt ?? ""
-      });
+      const event = projectTurnStartedNotification(params, prompt);
+      if (event) {
+        this.eventHandler(event);
+      }
       return;
     }
 
-    if (message.method === "item/agentMessage/delta" && threadId && turnId) {
-      this.eventHandler({
-        type: "item.delta",
-        threadId,
-        turnId,
-        itemId: String(params.itemId),
-        delta: String(params.delta ?? ""),
-        itemType: "agent"
-      });
-      return;
-    }
-    if (message.method === "item/plan/delta" && threadId && turnId) {
-      this.eventHandler({
-        type: "item.delta",
-        threadId,
-        turnId,
-        itemId: String(params.itemId),
-        delta: String(params.delta ?? ""),
-        itemType: "plan"
-      });
-      return;
-    }
-    if (message.method === "item/commandExecution/outputDelta" && threadId && turnId) {
-      this.eventHandler({
-        type: "item.delta",
-        threadId,
-        turnId,
-        itemId: String(params.itemId),
-        delta: String(params.delta ?? ""),
-        itemType: "command"
-      });
-      return;
-    }
-    if (message.method === "item/fileChange/outputDelta" && threadId && turnId) {
-      this.eventHandler({
-        type: "item.delta",
-        threadId,
-        turnId,
-        itemId: String(params.itemId),
-        delta: String(params.delta ?? ""),
-        itemType: "file"
-      });
-      return;
-    }
-    if ((message.method === "item/started" || message.method === "item/completed") && threadId && turnId) {
-      const item = normalizeThreadItem(params.item);
-      if (item.itemId) {
-        this.eventHandler({
-          type: message.method === "item/started" ? "item.created" : "item.updated",
-          threadId,
-          turnId,
-          itemId: item.itemId,
-          itemType: item.itemType,
-          text: item.text,
-          data: item.data
-        });
-        return;
-      }
-    }
-    if (message.method === "item/fileChange/patchUpdated" && threadId && turnId) {
-      const itemId = String(params.itemId ?? "");
-      if (itemId) {
-        this.eventHandler({
-          type: "item.updated",
-          threadId,
-          turnId,
-          itemId,
-          itemType: "file",
-          text: fileChangeText(params.changes) || fileChangeSummary(params.changes),
-          data: {
-            sourceType: "fileChange",
-            changes: Array.isArray(params.changes) ? params.changes : [],
-            patchUpdated: true
-          }
-        });
-        return;
-      }
-    }
-    if (message.method === "turn/plan/updated" && threadId && turnId) {
-      this.eventHandler({
-        type: "item.updated",
-        threadId,
-        turnId,
-        itemId: `plan_${turnId}`,
-        itemType: "plan",
-        text: planText(params.explanation, params.plan),
-        data: {
-          sourceType: "turnPlan",
-          explanation: params.explanation ?? null,
-          plan: Array.isArray(params.plan) ? params.plan : []
-        }
-      });
-      return;
-    }
-    if (message.method === "turn/completed" && threadId) {
-      const turnPayload = asRecord(params.turn);
-      const turn = normalizeTurn(turnPayload);
-      const durationMs = turnPayload.durationMs;
-      this.eventHandler({
-        type: "turn.status",
-        threadId,
-        turnId: turn.id,
-        status: turn.status,
-        durationMs: typeof durationMs === "number" ? durationMs : null
-      });
-      return;
-    }
-    if (message.method === "thread/goal/updated" && threadId) {
-      this.eventHandler({
-        type: "thread.goal",
-        threadId,
-        turnId,
-        goal: this.normalizeGoal(asRecord(params.goal))
-      });
-      return;
-    }
-    if (message.method === "thread/goal/cleared" && threadId) {
-      this.eventHandler({
-        type: "thread.goal",
-        threadId,
-        turnId: null,
-        goal: null
-      });
-      return;
-    }
-    if (message.method === "thread/name/updated" && threadId) {
-      this.eventHandler({
-        type: "thread.renamed",
-        threadId,
-        title: typeof params.threadName === "string" ? params.threadName : null
-      });
-      return;
-    }
-    if (message.method === "thread/tokenUsage/updated" && threadId) {
-      this.eventHandler({
-        type: "thread.token_usage",
-        threadId,
-        turnId,
-        usage: normalizeTokenUsage(params.tokenUsage)
-      });
-      return;
-    }
-    if (message.method === "thread/status/changed" && threadId) {
-      this.eventHandler({
-        type: "thread.status",
-        threadId,
-        status: this.normalizeStatus(params.status)
-      });
+    const event = projectAppServerNotification(message.method ?? "notification", params);
+    if (event) {
+      this.eventHandler(event);
       return;
     }
     this.emitRaw(message.method ?? "notification", params, threadId, turnId);
@@ -1036,11 +536,7 @@ export class AppServerCodexAdapter implements CodexAdapter {
     const params = asRecord(message.params);
     const threadId = extractThreadId(params);
     const turnId = extractTurnId(params);
-    if (
-      message.method === "item/commandExecution/requestApproval" ||
-      message.method === "item/fileChange/requestApproval" ||
-      message.method === "item/permissions/requestApproval"
-    ) {
+    if (isYoloApprovalRequest(message.method)) {
       this.acceptYoloRequest(message, params);
       return;
     }
@@ -1048,49 +544,10 @@ export class AppServerCodexAdapter implements CodexAdapter {
   }
 
   private acceptYoloRequest(message: JsonRpcMessage, params: Record<string, unknown>) {
-    if (message.method === "item/permissions/requestApproval") {
-      this.send({
-        id: message.id,
-        result: {
-          permissions: asRecord(params.permissions),
-          scope: "session"
-        }
-      });
-      return;
-    }
-
     this.send({
       id: message.id,
-      result: {
-        decision: "accept"
-      }
+      result: yoloApprovalResponse(message.method, params)
     });
-  }
-
-  private normalizeStatus(value: unknown) {
-    return normalizeRuntimeStatus(value);
-  }
-
-  private normalizeGoal(value: unknown): AdapterGoal {
-    const goal = asRecord(value);
-    const status = String(goal.status ?? "active");
-    return {
-      objective: String(goal.objective ?? ""),
-      status:
-        status === "complete"
-          ? "complete"
-          : status === "paused"
-            ? "paused"
-            : status === "blocked"
-              ? "blocked"
-              : status === "usageLimited"
-                ? "usage_limited"
-                : status === "budgetLimited"
-                  ? "budget_limited"
-                  : "in_progress",
-      tokenBudget: typeof goal.tokenBudget === "number" ? goal.tokenBudget : null,
-      tokensUsed: typeof goal.tokensUsed === "number" ? goal.tokensUsed : 0
-    };
   }
 
   private emitRaw(
