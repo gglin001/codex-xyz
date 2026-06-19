@@ -3,7 +3,6 @@
 import type { FormEvent, KeyboardEvent } from "react";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  apiUrl,
   createSession,
   getState,
   getThread,
@@ -16,6 +15,7 @@ import { DashboardLayout } from "./components/DashboardLayout.js";
 import { buildWorkbenchProjects, findProjectForThread } from "./components/workbenchData.js";
 import type { ComposerMode, WorkbenchSession } from "./components/workbenchTypes.js";
 import { applyEventProjectionBatch, incrementalEventNames, type ClientProjection } from "./eventProjection.js";
+import { parseSseJsonEvent, useEventStreamSubscription } from "./eventStream.js";
 import { isMacTerminalToggleShortcut } from "./terminalShortcut.js";
 import { choosePreferredThreadId, shouldLoadThreadSelection, shouldSelectActionResult } from "./threadSelection.js";
 import { installPageZoomGuards } from "./zoomGuards.js"
@@ -380,11 +380,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
     scheduleProjectionFlush();
   }
 
-  function parseSseEvent(rawEvent: Event) {
-    const message = rawEvent as MessageEvent<string>;
-    return JSON.parse(message.data) as XyzEvent;
-  }
-
   useEffect(() => {
     return () => {
       if (fallbackRefreshTimerRef.current) {
@@ -399,95 +394,52 @@ export function App({ initialState: serverInitialState }: AppProps) {
     };
   }, []);
 
-  useEffect(() => {
-    if (!summaryEventsReady) {
-      return;
-    }
-
-    let source: EventSource | null = null;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    let disposed = false;
-
-    const handleEvent = (rawEvent: Event) => {
+  useEventStreamSubscription({
+    enabled: summaryEventsReady,
+    subscriptionKey: summaryEventsReady ? "summary" : null,
+    eventNames: incrementalEventNames,
+    getPath: () => `/api/events?after=${summaryEventIdRef.current}`,
+    onEvent: (rawEvent) => {
       try {
-        const event = parseSseEvent(rawEvent);
+        const event = parseSseJsonEvent<XyzEvent>(rawEvent);
         summaryEventIdRef.current = Math.max(summaryEventIdRef.current, event.id);
         queueProjectionEvent(event);
       } catch {
         scheduleFallbackRefresh();
       }
-    };
-
-    function connect() {
-      const after = summaryEventIdRef.current;
-      source = new EventSource(apiUrl(`/api/events?after=${after}`));
-      source.onmessage = handleEvent;
-      for (const eventName of incrementalEventNames) {
-        source.addEventListener(eventName, handleEvent);
-      }
-      source.onerror = () => {
-        source?.close();
-        if (!disposed) {
-          reconnectTimer = setTimeout(connect, 1200);
-        }
-      };
     }
+  });
 
-    connect();
-    return () => {
-      disposed = true;
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-      }
-      source?.close();
-    };
-  }, [summaryEventsReady]);
+  const detailSubscriptionKey = detailSubscription
+    ? `${detailSubscription.threadId}:${detailSubscription.after}`
+    : null;
 
   useEffect(() => {
-    if (!detailSubscription) {
-      return;
+    if (detailSubscription) {
+      detailEventIdRef.current = detailSubscription.after;
     }
+  }, [detailSubscription]);
 
-    const threadId = detailSubscription.threadId;
-    detailEventIdRef.current = detailSubscription.after;
-    let source: EventSource | null = null;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    let disposed = false;
-
-    const handleEvent = (rawEvent: Event) => {
+  useEventStreamSubscription({
+    enabled: detailSubscription !== null,
+    subscriptionKey: detailSubscriptionKey,
+    eventNames: incrementalEventNames,
+    getPath: () => {
+      if (!detailSubscription) {
+        return "/api/events?after=0";
+      }
+      return `/api/threads/${encodeURIComponent(detailSubscription.threadId)}/events?after=${detailEventIdRef.current}`;
+    },
+    onEvent: (rawEvent) => {
       try {
-        const event = parseSseEvent(rawEvent);
+        const event = parseSseJsonEvent<XyzEvent>(rawEvent);
         detailEventIdRef.current = Math.max(detailEventIdRef.current, event.id);
         queueProjectionEvent(event);
       } catch {
         scheduleFallbackRefresh();
       }
-    };
-
-    function connect() {
-      const after = detailEventIdRef.current;
-      source = new EventSource(apiUrl(`/api/threads/${encodeURIComponent(threadId)}/events?after=${after}`));
-      source.onmessage = handleEvent;
-      for (const eventName of incrementalEventNames) {
-        source.addEventListener(eventName, handleEvent);
-      }
-      source.onerror = () => {
-        source?.close();
-        if (!disposed) {
-          reconnectTimer = setTimeout(connect, 1200);
-        }
-      };
     }
-
-    connect();
-    return () => {
-      disposed = true;
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-      }
-      source?.close();
-    };
-  }, [detailSubscription]);
+  });
 
   const workbenchProjects = useMemo(() => buildWorkbenchProjects(state.threads, state.defaultCwd), [state.defaultCwd, state.threads]);
   const selectedProject = workbenchProjects.find((project) => project.id === selectedProjectId) ?? workbenchProjects[0] ?? null;

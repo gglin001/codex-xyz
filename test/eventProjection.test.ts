@@ -250,6 +250,34 @@ describe("client event projection", () => {
     expect(result.state.threadNextOffset).toBe(2);
   });
 
+  it("projects continuation threads as inserted threads that require relationship refresh", () => {
+    const continuation = thread({
+      id: "thread-continued",
+      sessionId: "session-1",
+      forkedFromId: "thread-1",
+      activeTurnId: null,
+      status: "idle"
+    });
+    const result = applyEventProjection(
+      projection(),
+      event(
+        "thread.continued",
+        {
+          thread: continuation,
+          sourceThreadId: "thread-1"
+        },
+        { threadId: "thread-continued", turnId: null }
+      )
+    );
+
+    expect(result.changed).toBe(true);
+    expect(result.handled).toBe(true);
+    expect(result.needsRefresh).toBe(true);
+    expect(result.state.threads.map((candidate) => candidate.id)).toEqual(["thread-continued", "thread-1"]);
+    expect(result.state.threadTotalCount).toBe(2);
+    expect(result.state.threadNextOffset).toBe(2);
+  });
+
   it("does not insert unloaded sessions for ordinary thread metadata updates", () => {
     const current = projection();
     const backgroundThread = thread({

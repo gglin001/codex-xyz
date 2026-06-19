@@ -39,8 +39,29 @@ export const incrementalEventNames = [
   "adapter.raw"
 ] as const;
 
+const threadPayloadEventNames = new Set([
+  "thread.started",
+  "thread.resumed",
+  "thread.runtime_lost",
+  "thread.continued",
+  "thread.renamed",
+  "thread.goal.updated",
+  "thread.goal.cleared",
+  "thread.token_usage"
+]);
+
+const insertedThreadEventNames = new Set(["thread.started", "thread.continued"]);
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object";
+}
+
+function isThreadPayloadEvent(type: string) {
+  return threadPayloadEventNames.has(type);
+}
+
+function isInsertedThreadEvent(type: string) {
+  return insertedThreadEventNames.has(type);
 }
 
 function payloadRecord(event: XyzEvent) {
@@ -285,26 +306,14 @@ function result(
     ...projection,
     changed: previous.state !== projection.state || previous.detail !== projection.detail,
     handled,
-    needsRefresh: event.type === "thread.started" || event.type === "thread.continued"
+    needsRefresh: isInsertedThreadEvent(event.type)
   };
 }
 
 export function applyEventProjection(projection: ClientProjection, event: XyzEvent): ProjectionResult {
   const thread = payloadValue<ControlThread>(event, "thread");
-  if (
-    thread &&
-    [
-      "thread.started",
-      "thread.resumed",
-      "thread.runtime_lost",
-      "thread.continued",
-      "thread.renamed",
-      "thread.goal.updated",
-      "thread.goal.cleared",
-      "thread.token_usage"
-    ].includes(event.type)
-  ) {
-    const isNewThreadEvent = event.type === "thread.started" || event.type === "thread.continued";
+  if (thread && isThreadPayloadEvent(event.type)) {
+    const isNewThreadEvent = isInsertedThreadEvent(event.type);
     return result(
       projection,
       withThread(projection, thread, {

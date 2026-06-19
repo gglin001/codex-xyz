@@ -417,28 +417,18 @@ export class Store {
   }
 
   createItem(item: ThreadItem) {
-    this.db
-      .prepare(
-        `
-          INSERT INTO items (id, thread_id, turn_id, type, text, data_json, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(id) DO UPDATE SET
-            thread_id = excluded.thread_id,
-            turn_id = excluded.turn_id,
-            type = excluded.type,
-            text = excluded.text,
-            data_json = excluded.data_json
-        `
-      )
-      .run(item.id, item.threadId, item.turnId, item.type, item.text, JSON.stringify(item.data), item.createdAt);
-    const row = this.db.prepare("SELECT * FROM items WHERE id = ?").get(item.id);
-    if (!row) {
+    const stored = this.writeItem(item);
+    if (!stored) {
       throw new Error(`Failed to create item ${item.id}`);
     }
-    return itemFromRow(row as Row);
+    return stored;
   }
 
   upsertItem(item: ThreadItem) {
+    return this.writeItem(item);
+  }
+
+  private writeItem(item: ThreadItem) {
     this.db
       .prepare(
         `

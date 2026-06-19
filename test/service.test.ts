@@ -33,6 +33,7 @@ class VolatileCodexAdapter implements CodexAdapter {
   readonly version = "test";
   private handler: AdapterEventHandler = () => {};
   private readonly threads = new Map<string, AdapterThread>();
+  private readonly missingGoalThreads = new Set<string>();
   private readonly timers = new Set<NodeJS.Timeout>();
   private nextThread = 1;
   private nextTurn = 1;
@@ -43,6 +44,10 @@ class VolatileCodexAdapter implements CodexAdapter {
 
   forgetThread(threadId: string) {
     this.threads.delete(threadId);
+  }
+
+  failSetGoal(threadId: string) {
+    this.missingGoalThreads.add(threadId);
   }
 
   async startThread(input: StartThreadInput): Promise<AdapterThread> {
@@ -119,6 +124,9 @@ class VolatileCodexAdapter implements CodexAdapter {
 
   async setGoal(input: { threadId: string; objective: string; tokenBudget?: number | null }): Promise<AdapterGoal> {
     this.requireThread(input.threadId);
+    if (this.missingGoalThreads.has(input.threadId)) {
+      throw new AdapterThreadNotFoundError(input.threadId, `thread not found: ${input.threadId}`);
+    }
     return {
       objective: input.objective,
       status: "in_progress",
@@ -586,5 +594,33 @@ describe("ControlService", () => {
     expect(turn.threadId).not.toBe(oldThreadId);
     expect(service.getThreadDetail(oldThreadId).status).toBe("stale");
     expect(service.getThreadDetail(turn.threadId).forkedFromId).toBe(oldThreadId);
+  });
+
+  it("marks a thread stale when resume succeeds but a non-continuation action still loses runtime", async () => {
+    await service.close();
+    const adapter = new VolatileCodexAdapter();
+    service = new ControlService(Store.open(join(tempDir, "volatile-lost.sqlite")), adapter);
+    service.seedLocalState({
+      cwd: tempDir,
+      adapterName: adapter.name,
+      cliVersion: adapter.version
+    });
+
+    const result = await service.createSession({
+      cwd: tempDir,
+      prompt: "Initial runtime thread"
+    });
+    await waitForEvents();
+
+    const threadId = result.thread?.id;
+    if (!threadId) {
+      throw new Error("Expected created thread id");
+    }
+
+    adapter.failSetGoal(threadId);
+    await expect(service.setGoal({ threadId, objective: "Goal after runtime drift" })).rejects.toThrow(
+      /thread not found/
+    );
+    expect(service.getThreadDetail(threadId).status).toBe("stale");
   });
 });

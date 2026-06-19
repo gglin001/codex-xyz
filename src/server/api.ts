@@ -176,69 +176,76 @@ function writeSse(sendRaw: (payload: string) => void, event: string, data: unkno
   sendRaw(formatSse(event, data, id));
 }
 
-function summaryEventsResponse(service: ControlService, request: Request, url: URL) {
+function sseAfterId(url: URL) {
+  const after = Number(url.searchParams.get("after") ?? 0);
+  return Number.isFinite(after) ? after : 0;
+}
+
+type StreamableEvent = {
+  id?: number;
+  sequence?: number;
+  type: string;
+};
+
+function eventSequence(event: StreamableEvent) {
+  return event.id ?? event.sequence;
+}
+
+function eventStreamResponse<TEvent extends StreamableEvent>(
+  request: Request,
+  url: URL,
+  input: {
+    replay: (after: number) => TEvent[];
+    subscribe: (send: (event: TEvent) => void) => () => void;
+  }
+) {
   return sseResponse(request, (sendRaw) => {
     writeSseConnected(sendRaw);
-    const after = Number(url.searchParams.get("after") ?? 0);
-    for (const event of service.replayEvents(Number.isFinite(after) ? after : 0, { summaryOnly: true })) {
-      writeSse(sendRaw, event.type, event, event.id);
+    const send = (event: TEvent) => writeSse(sendRaw, event.type, event, eventSequence(event));
+
+    for (const event of input.replay(sseAfterId(url))) {
+      send(event);
     }
-    const unsubscribe = service.events.subscribe((event) => {
-      if (isSummaryEventType(event.type)) {
-        writeSse(sendRaw, event.type, event, event.id);
-      }
-    });
+    const unsubscribe = input.subscribe(send);
     const heartbeat = setInterval(() => {
       sendRaw(": ping\n\n");
     }, 25_000);
+
     return () => {
       clearInterval(heartbeat);
       unsubscribe();
     };
+  });
+}
+
+function summaryEventsResponse(service: ControlService, request: Request, url: URL) {
+  return eventStreamResponse(request, url, {
+    replay: (after) => service.replayEvents(after, { summaryOnly: true }),
+    subscribe: (send) =>
+      service.events.subscribe((event) => {
+        if (isSummaryEventType(event.type)) {
+          send(event);
+        }
+      })
   });
 }
 
 function threadEventsResponse(service: ControlService, request: Request, url: URL, threadId: string) {
-  return sseResponse(request, (sendRaw) => {
-    writeSseConnected(sendRaw);
-    const after = Number(url.searchParams.get("after") ?? 0);
-    for (const event of service.replayEvents(Number.isFinite(after) ? after : 0, { threadId })) {
-      writeSse(sendRaw, event.type, event, event.id);
-    }
-    const unsubscribe = service.events.subscribe((event) => {
-      if (event.threadId === threadId) {
-        writeSse(sendRaw, event.type, event, event.id);
-      }
-    });
-    const heartbeat = setInterval(() => {
-      sendRaw(": ping\n\n");
-    }, 25_000);
-    return () => {
-      clearInterval(heartbeat);
-      unsubscribe();
-    };
+  return eventStreamResponse(request, url, {
+    replay: (after) => service.replayEvents(after, { threadId }),
+    subscribe: (send) =>
+      service.events.subscribe((event) => {
+        if (event.threadId === threadId) {
+          send(event);
+        }
+      })
   });
 }
 
 function terminalEventsResponse(service: ControlService, request: Request, url: URL) {
-  return sseResponse(request, (sendRaw) => {
-    writeSseConnected(sendRaw);
-    const after = Number(url.searchParams.get("after") ?? 0);
-    const replayAfter = Number.isFinite(after) ? after : 0;
-    const send = (event: TerminalEvent) => writeSse(sendRaw, event.type, event, event.sequence);
-
-    for (const event of service.terminal.replay(replayAfter)) {
-      send(event);
-    }
-    const unsubscribe = service.terminal.subscribe(send);
-    const heartbeat = setInterval(() => {
-      sendRaw(": ping\n\n");
-    }, 25_000);
-
-    return () => {
-      clearInterval(heartbeat);
-      unsubscribe();
-    };
+  return eventStreamResponse<TerminalEvent>(request, url, {
+    replay: (after) => service.terminal.replay(after),
+    subscribe: (send) => service.terminal.subscribe(send)
   });
 }
 

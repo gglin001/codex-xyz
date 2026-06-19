@@ -5,13 +5,13 @@ import "@xterm/xterm/css/xterm.css";
 import { Play, RotateCw, Square, Terminal as TerminalIcon, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  apiUrl,
   resizeTerminal,
   startTerminal,
   terminateTerminal,
   writeTerminalInput
 } from "./api.js";
 import { cn, iconButtonClass, pillClass } from "./classNames.js";
+import { openEventStream, parseSseJsonEvent } from "./eventStream.js";
 import type { TerminalEvent, TerminalSnapshot } from "../server/domain.js";
 
 type TerminalDockProps = {
@@ -162,7 +162,7 @@ export function TerminalDock({ visible, onClose }: TerminalDockProps) {
     }
 
     let disposed = false;
-    let source: EventSource | null = null;
+    let closeEventStream: (() => void) | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
     let metricsTimer: ReturnType<typeof setInterval> | null = null;
@@ -336,9 +336,9 @@ export function TerminalDock({ visible, onClose }: TerminalDockProps) {
       });
     }
 
-    function handleTerminalMessage(data: string) {
+    function handleTerminalEvent(rawEvent: Event) {
       try {
-        const event = JSON.parse(data) as TerminalEvent;
+        const event = parseSseJsonEvent<TerminalEvent>(rawEvent);
         lastSequence = Math.max(lastSequence, event.sequence);
         if (event.type === "terminal.output") {
           queueOutput(event.data);
@@ -348,11 +348,6 @@ export function TerminalDock({ visible, onClose }: TerminalDockProps) {
       } catch {
         setError("Failed to read terminal event");
       }
-    }
-
-    function handleTerminalEvent(rawEvent: Event) {
-      const message = rawEvent as MessageEvent<string>;
-      handleTerminalMessage(message.data);
     }
 
     function scheduleReconnect() {
@@ -365,28 +360,29 @@ export function TerminalDock({ visible, onClose }: TerminalDockProps) {
     }
 
     function closeTransports() {
-      source?.close();
-      source = null;
+      closeEventStream?.();
+      closeEventStream = null;
     }
 
     function connectSse(afterSequence: number) {
-      source?.close();
-      source = new EventSource(apiUrl(`/api/terminal/events?after=${afterSequence}`));
-      source.addEventListener("terminal.output", handleTerminalEvent);
-      source.addEventListener("terminal.status", handleTerminalEvent);
-      source.onopen = () => {
-        if (!disposed) {
-          clientMetrics.transport = "sse";
-          commitMetrics();
-          setConnection("connected");
-          setError(null);
+      closeTransports();
+      closeEventStream = openEventStream({
+        path: `/api/terminal/events?after=${afterSequence}`,
+        eventNames: ["terminal.output", "terminal.status"],
+        onEvent: handleTerminalEvent,
+        onOpen: () => {
+          if (!disposed) {
+            clientMetrics.transport = "sse";
+            commitMetrics();
+            setConnection("connected");
+            setError(null);
+          }
+        },
+        onError: () => {
+          closeTransports();
+          scheduleReconnect();
         }
-      };
-      source.onerror = () => {
-        source?.close();
-        source = null;
-        scheduleReconnect();
-      };
+      });
     }
 
     function connect(afterSequence: number) {

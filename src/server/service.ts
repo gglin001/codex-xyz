@@ -27,6 +27,11 @@ import {
   type CodexAdapter
 } from "./codex/adapter.js";
 import { TerminalController } from "./terminal.js";
+import {
+  RuntimeThreadCoordinator,
+  type RuntimeContinuation,
+  type RuntimeThreadActionOptions
+} from "./runtimeThread.js";
 
 function goalStatusFromAdapter(goal: AdapterGoal | null): GoalStatus | null {
   return goal ? goal.status : null;
@@ -89,6 +94,7 @@ function normalizePageOffset(value?: number | null) {
 
 export class ControlService {
   private defaultCwd = process.cwd();
+  private readonly runtimeThreads: RuntimeThreadCoordinator;
 
   constructor(
     readonly store: Store,
@@ -96,6 +102,12 @@ export class ControlService {
     readonly events = new EventBus(),
     readonly terminal = new TerminalController()
   ) {
+    this.runtimeThreads = new RuntimeThreadCoordinator({
+      resumeThread: (thread) => this.resumeRuntimeThread(thread),
+      markThreadLost: (thread) => this.markRuntimeThreadLost(thread),
+      createContinuationThread: (thread, continuation) => this.createContinuationThread(thread, continuation),
+      notResumableError: (thread) => new Error(`Thread ${thread.id} is not loaded by Codex and could not be resumed`)
+    });
     this.adapter.onEvent((event) => this.handleAdapterEvent(event));
   }
 
@@ -222,7 +234,7 @@ export class ControlService {
 
   async resumeThread(threadId: string) {
     const thread = this.requireThread(threadId);
-    const resumed = await this.tryResumeRuntimeThread(thread);
+    const resumed = await this.resumeRuntimeThread(thread);
     if (!resumed) {
       this.markRuntimeThreadLost(thread);
       throw new Error(`Thread ${thread.id} is not loaded by Codex and could not be resumed`);
@@ -239,13 +251,7 @@ export class ControlService {
         tokenBudget: input.tokenBudget
       })
     );
-    const thread = this.store.updateThread(input.threadId, {
-      goalObjective: goal.objective,
-      goalStatus: goalStatusFromAdapter(goal),
-      goalTokenBudget: goal.tokenBudget,
-      tokensUsed: goal.tokensUsed
-    });
-    this.publish("thread.goal.updated", input.threadId, null, { goal, thread });
+    this.updateGoalProjection(input.threadId, goal, null);
     return goal;
   }
 
@@ -257,13 +263,7 @@ export class ControlService {
         status: input.status
       })
     );
-    const thread = this.store.updateThread(input.threadId, {
-      goalObjective: goal.objective,
-      goalStatus: goalStatusFromAdapter(goal),
-      goalTokenBudget: goal.tokenBudget,
-      tokensUsed: goal.tokensUsed
-    });
-    this.publish("thread.goal.updated", input.threadId, null, { goal, thread });
+    const thread = this.updateGoalProjection(input.threadId, goal, null);
     return { goal, thread };
   }
 
@@ -279,16 +279,10 @@ export class ControlService {
         tokenBudget: input.tokenBudget
       })
     );
-    const thread = this.store.updateThread(input.threadId, {
-      goalObjective: goal.objective,
-      goalStatus: goalStatusFromAdapter(goal),
-      goalTokenBudget: goal.tokenBudget,
-      tokensUsed: goal.tokensUsed
-    });
+    const thread = this.updateGoalProjection(input.threadId, goal, null);
     if (!thread) {
       throw new Error(`Thread ${input.threadId} does not exist`);
     }
-    this.publish("thread.goal.updated", input.threadId, null, { goal, thread });
     const turn = this.recordTurn(thread, "", adapterTurn);
     return {
       goal,
@@ -305,13 +299,7 @@ export class ControlService {
   async clearGoal(threadId: string) {
     const source = this.requireThread(threadId);
     await this.withRuntimeThread(source, (runtimeThread) => this.adapter.clearGoal(runtimeThread.id));
-    const thread = this.store.updateThread(threadId, {
-      goalObjective: null,
-      goalStatus: "cleared",
-      goalTokenBudget: null
-    });
-    this.publish("thread.goal.cleared", threadId, null, { thread });
-    return thread;
+    return this.updateGoalProjection(threadId, null, null, { clearedStatus: "cleared" });
   }
 
   listThreads() {
@@ -438,16 +426,7 @@ export class ControlService {
     }
 
     if (event.type === "thread.goal") {
-      const thread = this.store.updateThread(event.threadId, {
-        goalObjective: event.goal?.objective ?? null,
-        goalStatus: goalStatusFromAdapter(event.goal),
-        goalTokenBudget: event.goal?.tokenBudget ?? null,
-        tokensUsed: event.goal?.tokensUsed ?? this.store.getThread(event.threadId)?.tokensUsed ?? 0
-      });
-      this.publish(event.goal ? "thread.goal.updated" : "thread.goal.cleared", event.threadId, event.turnId, {
-        goal: event.goal,
-        thread
-      });
+      this.updateGoalProjection(event.threadId, event.goal, event.turnId);
       return;
     }
 
@@ -489,6 +468,23 @@ export class ControlService {
     });
     this.events.publish(event);
     return event;
+  }
+
+  private updateGoalProjection(
+    threadId: string,
+    goal: AdapterGoal | null,
+    turnId: string | null,
+    options: { clearedStatus?: GoalStatus | null } = {}
+  ) {
+    const existing = this.store.getThread(threadId);
+    const thread = this.store.updateThread(threadId, {
+      goalObjective: goal?.objective ?? null,
+      goalStatus: goal ? goalStatusFromAdapter(goal) : (options.clearedStatus ?? null),
+      goalTokenBudget: goal?.tokenBudget ?? null,
+      tokensUsed: goal?.tokensUsed ?? existing?.tokensUsed ?? 0
+    });
+    this.publish(goal ? "thread.goal.updated" : "thread.goal.cleared", threadId, turnId, { goal, thread });
+    return thread;
   }
 
   private ensureTurnForEvent(threadId: string, turnId: string | null, prompt = "") {
@@ -612,123 +608,62 @@ export class ControlService {
   }
 
   private async startRuntimeTurn(thread: ControlThread, input: StartTurnInput) {
-    try {
-      return {
-        thread,
-        adapterTurn: await this.adapter.startTurn({
-          threadId: thread.id,
+    const result = await this.runRuntimeAction(
+      thread,
+      (runtimeThread) =>
+        this.adapter.startTurn({
+          threadId: runtimeThread.id,
+          prompt: input.prompt,
+          model: input.model ?? runtimeThread.model
+        }),
+      {
+        continuation: {
           prompt: input.prompt,
           model: input.model ?? thread.model
-        })
-      };
-    } catch (error) {
-      if (!isAdapterThreadNotFoundError(error)) {
-        throw error;
-      }
-    }
-
-    const resumed = await this.tryResumeRuntimeThread(thread);
-    if (resumed) {
-      try {
-        return {
-          thread,
-          adapterTurn: await this.adapter.startTurn({
-            threadId: thread.id,
-            prompt: input.prompt,
-            model: input.model ?? thread.model
-          })
-        };
-      } catch (error) {
-        if (!isAdapterThreadNotFoundError(error)) {
-          throw error;
         }
       }
-    }
-
-    const continuation = await this.createContinuationThread(thread, input.prompt, input.model ?? thread.model);
+    );
     return {
-      thread: continuation,
-      adapterTurn: await this.adapter.startTurn({
-        threadId: continuation.id,
-        prompt: input.prompt,
-        model: input.model ?? continuation.model
-      })
+      thread: result.thread,
+      adapterTurn: result.value
     };
   }
 
   private async startRuntimeShellCommand(thread: ControlThread, command: string) {
-    const activeTurnId = thread.activeTurnId;
-    try {
-      return {
-        thread,
-        adapterTurn: await this.adapter.runShellCommand({
-          threadId: thread.id,
+    const result = await this.runRuntimeAction(
+      thread,
+      (runtimeThread) =>
+        this.adapter.runShellCommand({
+          threadId: runtimeThread.id,
           command,
-          activeTurnId
-        })
-      };
-    } catch (error) {
-      if (!isAdapterThreadNotFoundError(error)) {
-        throw error;
-      }
-    }
-
-    const resumed = await this.tryResumeRuntimeThread(thread);
-    if (resumed) {
-      try {
-        return {
-          thread,
-          adapterTurn: await this.adapter.runShellCommand({
-            threadId: thread.id,
-            command,
-            activeTurnId
-          })
-        };
-      } catch (error) {
-        if (!isAdapterThreadNotFoundError(error)) {
-          throw error;
+          activeTurnId: runtimeThread.id === thread.id ? runtimeThread.activeTurnId : null
+        }),
+      {
+        continuation: {
+          prompt: `!${command}`,
+          model: thread.model
         }
       }
-    }
-
-    const continuation = await this.createContinuationThread(thread, `!${command}`, thread.model);
+    );
     return {
-      thread: continuation,
-      adapterTurn: await this.adapter.runShellCommand({
-        threadId: continuation.id,
-        command,
-        activeTurnId: null
-      })
+      thread: result.thread,
+      adapterTurn: result.value
     };
   }
 
   private async withRuntimeThread<T>(thread: ControlThread, action: (thread: ControlThread) => Promise<T>) {
-    try {
-      return await action(thread);
-    } catch (error) {
-      if (!isAdapterThreadNotFoundError(error)) {
-        throw error;
-      }
-    }
-
-    const resumed = await this.tryResumeRuntimeThread(thread);
-    if (!resumed) {
-      this.markRuntimeThreadLost(thread);
-      throw new Error(`Thread ${thread.id} is not loaded by Codex and could not be resumed`);
-    }
-    const resumedThread = this.store.getThread(thread.id) ?? thread;
-
-    try {
-      return await action(resumedThread);
-    } catch (error) {
-      if (isAdapterThreadNotFoundError(error)) {
-        this.markRuntimeThreadLost(thread);
-      }
-      throw error;
-    }
+    return (await this.runtimeThreads.run(thread, action)).value;
   }
 
-  private async tryResumeRuntimeThread(thread: ControlThread) {
+  private async runRuntimeAction<T>(
+    thread: ControlThread,
+    action: (thread: ControlThread) => Promise<T>,
+    options: RuntimeThreadActionOptions = {}
+  ): Promise<{ thread: ControlThread; value: T }> {
+    return this.runtimeThreads.run(thread, action, options);
+  }
+
+  private async resumeRuntimeThread(thread: ControlThread) {
     try {
       const adapterThread = await this.adapter.resumeThread({
         threadId: thread.id,
@@ -737,10 +672,10 @@ export class ControlService {
       });
       this.applyRuntimeThreadSnapshot(thread, adapterThread);
       this.publish("thread.resumed", thread.id, null, { thread: this.store.getThread(thread.id) });
-      return true;
+      return this.store.getThread(thread.id) ?? thread;
     } catch (error) {
       if (isAdapterThreadNotFoundError(error)) {
-        return false;
+        return null;
       }
       throw error;
     }
@@ -809,12 +744,12 @@ export class ControlService {
     return updated ?? this.requireThread(thread.id);
   }
 
-  private async createContinuationThread(source: ControlThread, prompt: string, model: string | null) {
+  private async createContinuationThread(source: ControlThread, continuation: RuntimeContinuation) {
     this.markRuntimeThreadLost(source);
     const adapterThread = await this.adapter.startThread({
       cwd: source.cwd,
-      promptPreview: titleFromPrompt(prompt),
-      model
+      promptPreview: titleFromPrompt(continuation.prompt),
+      model: continuation.model
     });
     const thread = this.createThreadProjection({
       adapterThread,
@@ -823,7 +758,7 @@ export class ControlService {
       goalObjective: source.goalObjective,
       goalStatus: source.goalStatus,
       goalTokenBudget: source.goalTokenBudget,
-      preview: prompt,
+      preview: continuation.prompt,
       tokensUsed: source.tokensUsed
     });
     this.publish("thread.continued", thread.id, null, { thread, sourceThreadId: source.id });
