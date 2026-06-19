@@ -5,6 +5,7 @@ next-env.d.ts
 
 src/generated/
 
+.playwright-cli/
 .codex-xyz/
 .next
 
