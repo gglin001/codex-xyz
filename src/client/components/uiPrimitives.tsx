@@ -305,10 +305,10 @@ export const CollapsibleCard = memo(function CollapsibleCard({
   const previewPadding = size === "compact" ? "px-3 pb-2" : "px-4 py-3"
   const cardClass = surface === "outline" ? ui.outlineCard : ui.card
   const headerClass = surface === "outline"
-    ? "flex w-full items-center gap-2 bg-app-bg"
+    ? "group/card-header flex w-full items-center gap-2 bg-app-bg transition duration-150 ease-out hover:bg-control/35 focus-within:bg-control/35"
     : "flex w-full items-center gap-2 border-b border-border bg-control/35"
   const headerButtonClass = surface === "outline"
-    ? "group flex min-w-0 flex-1 items-center justify-between gap-3 text-left hover:bg-control/35"
+    ? "flex min-w-0 flex-1 items-center gap-3 text-left"
     : "group flex min-w-0 flex-1 items-center justify-between gap-3 text-left hover:bg-control-hover"
 
   return (
@@ -324,17 +324,40 @@ export const CollapsibleCard = memo(function CollapsibleCard({
           <span className="min-w-0">
             <span className={cn("block truncate", titleClass)}>{title}</span>
           </span>
-          <ChevronDown
-            size={size === "compact" ? 14 : 17}
-            className={cn("shrink-0 text-muted transition-transform duration-150 ease-out", expanded ? "rotate-180" : null)}
-          />
         </button>
         {(meta || actions) ? (
           <div className={cn("flex shrink-0 items-center gap-1.5", size === "compact" ? "pr-1.5" : "pr-2")}>
             {meta}
+            <button
+              type="button"
+              className={cn("inline-flex h-8 w-8 shrink-0 items-center justify-center text-muted transition duration-150 ease-out hover:text-fg-strong", radius.control)}
+              aria-label={expanded ? `Collapse ${title}` : `Expand ${title}`}
+              aria-expanded={expanded}
+              title={expanded ? `Collapse ${title}` : `Expand ${title}`}
+              onClick={onToggle}
+            >
+              <ChevronDown
+                size={size === "compact" ? 14 : 17}
+                className={cn("shrink-0 transition-transform duration-150 ease-out", expanded ? "rotate-180" : null)}
+              />
+            </button>
             {actions}
           </div>
-        ) : null}
+        ) : (
+          <button
+            type="button"
+            className={cn("mr-2 inline-flex h-8 w-8 shrink-0 items-center justify-center text-muted transition duration-150 ease-out hover:text-fg-strong", radius.control)}
+            aria-label={expanded ? `Collapse ${title}` : `Expand ${title}`}
+            aria-expanded={expanded}
+            title={expanded ? `Collapse ${title}` : `Expand ${title}`}
+            onClick={onToggle}
+          >
+            <ChevronDown
+              size={size === "compact" ? 14 : 17}
+              className={cn("shrink-0 transition-transform duration-150 ease-out", expanded ? "rotate-180" : null)}
+            />
+          </button>
+        )}
       </div>
 
       {!expanded && preview ? (
@@ -349,29 +372,6 @@ export const CollapsibleCard = memo(function CollapsibleCard({
     </article>
   )
 })
-
-export function MessageGroup({
-  role,
-  time,
-  children,
-  className
-}: {
-  role: string
-  time: string
-  children: ReactNode
-  className?: string
-}) {
-  return (
-    <section className={cn("grid gap-4", className)}>
-      <div className="flex items-center gap-3 text-[14px] font-medium text-muted">
-        <span>{role}</span>
-        <span aria-hidden="true">·</span>
-        <span>{time}</span>
-      </div>
-      {children}
-    </section>
-  )
-}
 
 export function DisclosureRow({
   expanded,

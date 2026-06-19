@@ -18,16 +18,14 @@ import type { ControlThread, ThreadDetail, ThreadItem } from "../../server/domai
 import { cn, tone, ui } from "../designSystem.js"
 import { getFirstLineTextPreview } from "../textPreview.js"
 import { getTranscriptEntries, type TranscriptProcessEntry } from "../transcriptEntries.js"
-import { formatDateTime, formatTime, formatTokens, itemTitle, statusLabel } from "../uiFormat.js"
+import { formatTime, formatTokens, itemTitle, statusLabel } from "../uiFormat.js"
 import {
   CollapsibleCard,
   ComposerIconButton,
   ControlCard,
   CopyIconButton,
-  DisclosureRow,
   FieldShell,
-  LargeIconButton,
-  MessageGroup
+  LargeIconButton
 } from "./uiPrimitives.js"
 import type { ComposerMode, WorkbenchProject, WorkbenchSession } from "./workbenchTypes.js"
 
@@ -112,8 +110,8 @@ function transcriptEntriesFromDetail(detail: ThreadDetail | null) {
 }
 
 function processPreview(entry: TranscriptProcessEntry) {
-  const firstText = entry.items.find((item) => item.text.trim())?.text ?? ""
-  return getFirstLineTextPreview(firstText.trim() || "No output yet")
+  const lastText = entry.items.findLast((item) => item.text.trim())?.text ?? ""
+  return getFirstLineTextPreview(lastText.trim() || "No output yet")
 }
 
 function messageMeta(message: ChatMessage) {
@@ -128,6 +126,14 @@ function messageCardTitle(message: ChatMessage) {
     return "Response"
   }
   return message.title
+}
+
+function headerMeta(value: string) {
+  return (
+    <span className="max-w-[34vw] truncate whitespace-nowrap text-[11px] text-muted sm:max-w-none">
+      {value}
+    </span>
+  )
 }
 
 const CopyTextButton = memo(function CopyTextButton({
@@ -175,22 +181,21 @@ const MessageBlock = memo(function MessageBlock({
   const preview = getFirstLineTextPreview(message.text || "Pending...")
 
   return (
-    <MessageGroup role={message.title} time={messageMeta(message)}>
-      <CollapsibleCard
-        title={messageCardTitle(message)}
-        expanded={expanded}
-        onToggle={() => setExpanded((current) => !current)}
-        actions={<CopyTextButton value={message.copyText} />}
-        preview={<div className="truncate text-[13px] leading-6 text-muted">{preview}</div>}
-      >
-        {message.text ? (
-          <div className={cn(
-            "text-[16px] leading-8 text-fg",
-            wrapContent ? "whitespace-pre-wrap break-words" : "overflow-x-auto whitespace-pre"
-          )}>{message.text}</div>
-        ) : null}
-      </CollapsibleCard>
-    </MessageGroup>
+    <CollapsibleCard
+      title={messageCardTitle(message)}
+      expanded={expanded}
+      onToggle={() => setExpanded((current) => !current)}
+      meta={headerMeta(messageMeta(message))}
+      actions={<CopyTextButton value={message.copyText} />}
+      preview={<div className="truncate text-[13px] leading-6 text-muted">{preview}</div>}
+    >
+      {message.text ? (
+        <div className={cn(
+          "text-[16px] leading-8 text-fg",
+          wrapContent ? "whitespace-pre-wrap break-words" : "overflow-x-auto whitespace-pre"
+        )}>{message.text}</div>
+      ) : null}
+    </CollapsibleCard>
   )
 })
 
@@ -209,7 +214,7 @@ const ProcessItemBlock = memo(function ProcessItemBlock({
       title={message.title}
       expanded={expanded}
       onToggle={() => setExpanded((current) => !current)}
-      meta={<span className="whitespace-nowrap text-[10px] text-muted">{messageMeta(message)}</span>}
+      meta={headerMeta(messageMeta(message))}
       actions={<CopyTextButton value={message.copyText} />}
       preview={<div className="truncate text-[12px] leading-5 text-muted">{preview}</div>}
       size="compact"
@@ -240,30 +245,24 @@ const ProcessOutputBlock = memo(function ProcessOutputBlock({
   const copyText = useMemo(() => entry.items.map((item) => item.text).filter(Boolean).join("\n\n"), [entry.items])
 
   return (
-    <MessageGroup role="Model" time={formatTime(entry.createdAt)}>
-      <CollapsibleCard
-        title="Thoughts"
-        expanded={expanded}
-        onToggle={() => setExpanded((current) => !current)}
-        meta={<span className="hidden whitespace-nowrap text-[11px] text-muted sm:inline">{metaLabel}</span>}
-        actions={<CopyTextButton value={copyText || preview} />}
-        size="prominent"
-        preview={<DisclosureRow onClick={() => setExpanded(true)} divided={false} className="-mx-4 -my-3">Expand to view model thoughts</DisclosureRow>}
-        previewClassName="p-0"
-        bodyClassName="grid gap-2 px-4 pb-4 pt-0"
-      >
-        {messages.map((message) => (
-          <ProcessItemBlock
-            key={message.id}
-            message={message}
-            wrapContent={wrapContent}
-          />
-        ))}
-        <DisclosureRow expanded onClick={() => setExpanded(false)} divided={false} className="-mx-4 -mb-4 mt-2">
-          Collapse to hide model thoughts
-        </DisclosureRow>
-      </CollapsibleCard>
-    </MessageGroup>
+    <CollapsibleCard
+      title="Thoughts"
+      expanded={expanded}
+      onToggle={() => setExpanded((current) => !current)}
+      meta={headerMeta(metaLabel)}
+      actions={<CopyTextButton value={copyText || preview} />}
+      size="prominent"
+      preview={<div className="truncate text-[13px] leading-6 text-muted">{preview}</div>}
+      bodyClassName="grid gap-2 px-4 pb-4 pt-0"
+    >
+      {messages.map((message) => (
+        <ProcessItemBlock
+          key={message.id}
+          message={message}
+          wrapContent={wrapContent}
+        />
+      ))}
+    </CollapsibleCard>
   )
 })
 
@@ -558,14 +557,6 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
         >
           <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8 pt-5 md:px-8">
             <SessionContentFrame className="grid gap-8">
-              <div className="grid gap-2 pb-2">
-                <div className="flex flex-wrap items-center gap-2 text-[13px] text-muted">
-                  <span>{project?.name ?? "Workspace"}</span>
-                  <span>/</span>
-                  <span>{detail ? formatDateTime(detail.updatedAt) : "app-server"}</span>
-                </div>
-              </div>
-
               <AnimatePresence initial={false}>
                 {entries.length === 0 ? (
                   <motion.div
