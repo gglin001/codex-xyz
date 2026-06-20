@@ -1,11 +1,6 @@
 import {
   Check,
   ChevronDown,
-  Circle,
-  CircleDotDashed,
-  CirclePause,
-  CircleStop,
-  Loader2,
   Plus,
   Search,
   Settings,
@@ -13,9 +8,10 @@ import {
 } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import { memo, useMemo, useState } from "react"
-import { cn, tone, ui } from "../designSystem.js"
+import { cn, ui } from "../designSystem.js"
 import { formatFullDateTime, formatTokens } from "../uiFormat.js"
 import { AvatarBadge, ControlButton, ControlCard, FieldShell, MenuItemButton, NavAction, SurfaceAction } from "./uiPrimitives.js"
+import { SessionStatusIcon, sessionStatusDotClass } from "./sessionStatusIcon.js"
 import type { DateBucket, WorkbenchProject, WorkbenchSession } from "./workbenchTypes.js"
 
 export type SidebarProps = {
@@ -36,31 +32,6 @@ export type SidebarProps = {
 }
 
 const bucketOrder: DateBucket[] = ["Today", "Yesterday", "Older"]
-
-const statusClass = {
-  running: tone.running.dot,
-  idle: tone.neutral.dot,
-  stale: tone.stale.dot,
-  interrupted: tone.error.dot,
-  failed: tone.error.dot,
-  completed: tone.completed.dot
-} as const
-
-function statusIcon(session: WorkbenchSession) {
-  if (session.status === "running") {
-    return <Loader2 size={14} className={cn("animate-spin", tone.running.icon)} />
-  }
-  if (session.status === "idle") {
-    return <CirclePause size={14} className={tone.completed.icon} />
-  }
-  if (session.status === "completed") {
-    return <CircleStop size={14} className={tone.completed.icon} />
-  }
-  if (session.status === "stale") {
-    return <CircleDotDashed size={14} className={tone.stale.icon} />
-  }
-  return <Circle size={14} className={tone.error.icon} />
-}
 
 function projectTitle(project: WorkbenchProject) {
   const parts = [
@@ -243,12 +214,12 @@ export const Sidebar = memo(function Sidebar({
                       onClick={() => onSelectSession(session)}
                     >
                       <span className="mt-1 flex h-4 w-4 shrink-0 items-center justify-center" aria-hidden="true">
-                        {statusIcon(session)}
+                        <SessionStatusIcon status={session.status} />
                       </span>
                       <span className="grid min-w-0 flex-1 grid-rows-[20px_16px_18px]">
                         <span className="flex min-w-0 items-center gap-2">
                           <span className="truncate text-[13px] font-medium leading-5">{session.title}</span>
-                          <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", statusClass[session.status])} />
+                          <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", sessionStatusDotClass[session.status])} />
                         </span>
                         <span className="truncate text-[10px] leading-4 text-muted">
                           {formatFullDateTime(session.updatedAt)} / {formatTokens(session.tokensUsed)} tokens
@@ -307,7 +278,7 @@ export const Sidebar = memo(function Sidebar({
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[12px] font-medium text-fg-strong">Commands</span>
           </span>
-          <span className="shrink-0 font-mono text-[11px] leading-none text-muted" aria-hidden="true">⌘ k</span>
+          <span className="shrink-0 font-mono text-[12px] leading-none text-muted" aria-hidden="true">cmd k</span>
         </SurfaceAction>
       </div>
     </aside>

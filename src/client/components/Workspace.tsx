@@ -13,7 +13,7 @@ import {
   Square
 } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
-import type { FormEvent, KeyboardEvent, MouseEvent, ReactNode } from "react"
+import type { KeyboardEvent, MouseEvent, ReactNode, SubmitEvent } from "react"
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
 import type { ControlThread, RuntimeStatus, ThreadDetail, ThreadItem } from "../../server/domain.js"
 import { copyToClipboard } from "../clipboard.js"
@@ -53,7 +53,7 @@ export type WorkspaceProps = {
   inspectorVisible: boolean
   onPromptChange: (value: string) => void
   onPromptKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void
-  onPromptSubmit: (event: FormEvent) => void
+  onPromptSubmit: (event: SubmitEvent<HTMLFormElement>) => void
   onModeChange: (mode: ComposerMode) => void
   onWorkdirChange: (value: string) => void
   onGoalModeChange: (value: boolean) => void

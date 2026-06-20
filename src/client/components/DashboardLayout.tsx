@@ -1,8 +1,8 @@
-import { Command, PanelLeftOpen, Plus, Search, Settings } from "lucide-react"
+import { Menu, Plus, Search, Settings } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
-import type { FormEvent, KeyboardEvent } from "react"
+import type { KeyboardEvent, SubmitEvent } from "react"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import type { ControlThread, ThreadDetail } from "../../server/domain.js"
+import type { ControlThread, RuntimeStatus, ThreadDetail } from "../../server/domain.js"
 import { cn, ui } from "../designSystem.js"
 import { isPromptFocusShortcut } from "../promptShortcut.js"
 import { useVisualViewportHeight } from "../useVisualViewport.js"
@@ -10,7 +10,8 @@ import { useSwipeGesture } from "../useSwipeGesture.js"
 import { ParamPanel } from "./ParamPanel.js"
 import { Sidebar } from "./Sidebar.js"
 import { Workspace, type WorkspaceHandle } from "./Workspace.js"
-import { Keycap, MenuItemButton } from "./uiPrimitives.js"
+import { AvatarBadge, Keycap, MenuItemButton } from "./uiPrimitives.js"
+import { SessionStatusIcon } from "./sessionStatusIcon.js"
 import type { ComposerMode, WorkbenchProject, WorkbenchSession } from "./workbenchTypes.js"
 
 export type DashboardLayoutProps = {
@@ -47,7 +48,7 @@ export type DashboardLayoutProps = {
   onToggleTerminal: () => void
   onPromptChange: (value: string) => void
   onPromptKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void
-  onPromptSubmit: (event: FormEvent) => void
+  onPromptSubmit: (event: SubmitEvent<HTMLFormElement>) => void
   onModeChange: (mode: ComposerMode) => void
   onWorkdirChange: (value: string) => void
   onGoalModeChange: (value: boolean) => void
@@ -55,27 +56,145 @@ export type DashboardLayoutProps = {
   onResume: () => void
 }
 
-type CommandAction = {
+type CommandActionBase = {
   id: string
   title: string
   detail: string
-  icon: "project" | "session" | "panel" | "create"
   run: () => void
+}
+
+type CommandAction =
+  | (CommandActionBase & {
+    kind: "create" | "navigator" | "settings"
+  })
+  | (CommandActionBase & {
+    kind: "project"
+    projectId: string
+    projectInitials: string
+  })
+  | (CommandActionBase & {
+    kind: "session"
+    projectId: string
+    status: RuntimeStatus
+  })
+
+type CommandActionRenderItem = {
+  action: CommandAction
+  projectHasVisibleSessions: boolean
+  lastVisibleProjectSession: boolean
 }
 
 const spring = { type: "spring", stiffness: 360, damping: 36 } as const
 
-function commandIcon(icon: CommandAction["icon"]) {
-  if (icon === "project") {
-    return <PanelLeftOpen size={14} />
+function commandActionMatches(action: CommandAction, normalizedQuery: string) {
+  return `${action.title} ${action.detail}`.toLowerCase().includes(normalizedQuery)
+}
+
+function filterCommandActions(actions: CommandAction[], normalizedQuery: string) {
+  if (!normalizedQuery) {
+    return actions
   }
-  if (icon === "panel") {
-    return <Settings size={14} />
+
+  const directMatches = new Set<string>()
+  const projectsWithMatchingSessions = new Set<string>()
+
+  for (const action of actions) {
+    if (commandActionMatches(action, normalizedQuery)) {
+      directMatches.add(action.id)
+      if (action.kind === "session") {
+        projectsWithMatchingSessions.add(action.projectId)
+      }
+    }
   }
-  if (icon === "create") {
-    return <Plus size={14} />
+
+  return actions.filter((action) => {
+    if (directMatches.has(action.id)) {
+      return true
+    }
+    return action.kind === "project" && projectsWithMatchingSessions.has(action.projectId)
+  })
+}
+
+function annotateCommandActions(actions: CommandAction[]): CommandActionRenderItem[] {
+  const visibleSessionCounts = new Map<string, number>()
+  for (const action of actions) {
+    if (action.kind === "session") {
+      visibleSessionCounts.set(action.projectId, (visibleSessionCounts.get(action.projectId) ?? 0) + 1)
+    }
   }
-  return <Command size={14} />
+
+  const seenSessions = new Map<string, number>()
+  return actions.map((action) => {
+    if (action.kind === "project") {
+      return {
+        action,
+        projectHasVisibleSessions: (visibleSessionCounts.get(action.projectId) ?? 0) > 0,
+        lastVisibleProjectSession: false
+      }
+    }
+    if (action.kind === "session") {
+      const nextIndex = (seenSessions.get(action.projectId) ?? 0) + 1
+      seenSessions.set(action.projectId, nextIndex)
+      return {
+        action,
+        projectHasVisibleSessions: false,
+        lastVisibleProjectSession: nextIndex === (visibleSessionCounts.get(action.projectId) ?? 0)
+      }
+    }
+    return {
+      action,
+      projectHasVisibleSessions: false,
+      lastVisibleProjectSession: false
+    }
+  })
+}
+
+function CommandActionGlyph({
+  action,
+  projectHasVisibleSessions,
+  lastVisibleProjectSession
+}: CommandActionRenderItem) {
+  if (action.kind === "project") {
+    return (
+      <span className="relative flex h-8 w-8 shrink-0 items-center justify-center" aria-hidden="true">
+        {projectHasVisibleSessions ? (
+          <span className="absolute left-4 top-8 h-2 border-l border-border" />
+        ) : null}
+        <AvatarBadge className="h-8 w-8 text-[10px]">
+          {action.projectInitials}
+        </AvatarBadge>
+      </span>
+    )
+  }
+
+  if (action.kind === "session") {
+    return (
+      <span className="relative flex h-8 w-12 shrink-0 items-center" aria-hidden="true">
+        <span
+          className={cn(
+            "absolute left-2 border-l border-border",
+            lastVisibleProjectSession ? "-top-2 h-6" : "-top-2 -bottom-2"
+          )}
+        />
+        <span className="absolute left-2 top-4 w-3 border-t border-border" />
+        <span className={cn("absolute right-0 top-0 h-8 w-8 border border-border text-muted-strong", ui.iconBox)}>
+          <SessionStatusIcon status={action.status} />
+        </span>
+      </span>
+    )
+  }
+
+  const icon = action.kind === "create"
+    ? <Plus size={14} />
+    : action.kind === "navigator"
+      ? <Menu size={14} />
+      : <Settings size={14} />
+
+  return (
+    <span className={cn("h-8 w-8 border border-border text-muted-strong", ui.iconBox)} aria-hidden="true">
+      {icon}
+    </span>
+  )
 }
 
 const CommandPalette = memo(function CommandPalette({
@@ -92,13 +211,9 @@ const CommandPalette = memo(function CommandPalette({
 
   const filteredActions = useMemo(() => {
     const normalized = query.trim().toLowerCase()
-    if (!normalized) {
-      return actions
-    }
-    return actions.filter((action) => {
-      return `${action.title} ${action.detail}`.toLowerCase().includes(normalized)
-    })
+    return filterCommandActions(actions, normalized)
   }, [actions, query])
+  const renderItems = useMemo(() => annotateCommandActions(filteredActions), [filteredActions])
 
   useEffect(() => {
     if (!open) {
@@ -172,7 +287,7 @@ const CommandPalette = memo(function CommandPalette({
               {filteredActions.length === 0 ? (
                 <div className="px-3 py-8 text-center text-[13px] text-muted">No commands found</div>
               ) : null}
-              {filteredActions.map((action, index) => (
+              {renderItems.map(({ action, projectHasVisibleSessions, lastVisibleProjectSession }, index) => (
                 <MenuItemButton
                   key={action.id}
                   className={cn(
@@ -186,9 +301,11 @@ const CommandPalette = memo(function CommandPalette({
                     onClose()
                   }}
                 >
-                  <span className={cn("h-8 w-8 border border-border text-muted-strong", ui.iconBox)}>
-                    {commandIcon(action.icon)}
-                  </span>
+                  <CommandActionGlyph
+                    action={action}
+                    projectHasVisibleSessions={projectHasVisibleSessions}
+                    lastVisibleProjectSession={lastVisibleProjectSession}
+                  />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[13px] font-medium">{action.title}</span>
                     <span className="block truncate text-[11px] text-muted">{action.detail}</span>
@@ -327,21 +444,21 @@ export const DashboardLayout = memo(function DashboardLayout({
         id: "create-session",
         title: "Create new session",
         detail: "Start a fresh Codex app-server session",
-        icon: "create",
+        kind: "create",
         run: createSessionAndFocusPrompt
       },
       {
         id: "toggle-navigator",
         title: navigatorVisible ? "Hide navigator" : "Show navigator",
         detail: "Toggle the project and session sidebar",
-        icon: "panel",
+        kind: "navigator",
         run: () => onNavigatorVisibleChange(!navigatorVisible)
       },
       {
         id: "toggle-inspector",
         title: inspectorVisible ? "Hide settings" : "Show settings",
         detail: "Toggle app-server thread and goal state",
-        icon: "panel",
+        kind: "settings",
         run: () => onInspectorVisibleChange(!inspectorVisible)
       }
     ]
@@ -351,7 +468,9 @@ export const DashboardLayout = memo(function DashboardLayout({
         id: `project:${project.id}`,
         title: `Switch to ${project.name}`,
         detail: project.path,
-        icon: "project",
+        kind: "project",
+        projectId: project.id,
+        projectInitials: project.initials,
         run: () => onProjectChange(project.id)
       })
       for (const projectSession of project.sessions) {
@@ -359,7 +478,9 @@ export const DashboardLayout = memo(function DashboardLayout({
           id: `session:${projectSession.id}`,
           title: projectSession.title,
           detail: `${project.name} / ${projectSession.cwd}`,
-          icon: "session",
+          kind: "session",
+          projectId: project.id,
+          status: projectSession.status,
           run: () => {
             onSelectSession(projectSession, { clearSessionQuery: true })
           }
