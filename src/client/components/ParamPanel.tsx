@@ -74,7 +74,7 @@ function SettingsToggleRow({
       selected={checked}
       onClick={onClick}
     >
-      <span className="inline-flex min-w-0 items-center gap-2">
+      <span className="inline-flex min-w-0 flex-1 items-center gap-2">
         <span className={cn("shrink-0", checked ? "text-accent" : "text-muted")}>{icon}</span>
         <span className="min-w-0">
           <span className={cn("block truncate", checked ? "text-fg-strong" : "text-fg")}>{title}</span>
@@ -110,11 +110,11 @@ export const ParamPanel = memo(function ParamPanel({
   const itemCount = detail?.items.length ?? 0
 
   return (
-    <aside className={cn("flex h-full min-h-0 flex-col border-l border-border bg-panel text-fg", className)}>
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+    <aside className={cn("flex h-full min-h-0 w-full min-w-0 flex-col border-l border-border bg-panel text-fg", className)}>
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
         <SettingsSection icon={<Server size={13} />} title="Runtime">
-          <div className="grid gap-2.5">
-            <ControlCard className="flex items-center justify-between px-3.5 py-2.5">
+          <div className="grid min-w-0 gap-2.5">
+            <ControlCard className="flex w-full min-w-0 items-center justify-between gap-3 px-3.5 py-2.5">
               <span className="inline-flex min-w-0 items-center gap-2">
                 <span className={cn("h-2 w-2 shrink-0 rounded-full", runtimeStatusTone(status))} />
                 <span className="truncate text-[13px] font-medium text-fg">{statusLabel(status)}</span>
@@ -127,7 +127,7 @@ export const ParamPanel = memo(function ParamPanel({
         </SettingsSection>
 
         <SettingsSection icon={<ListTree size={13} />} title="Session">
-          <div className="grid gap-2.5">
+          <div className="grid min-w-0 gap-2.5">
             <InfoTile icon={<Hash size={13} />} label="Thread" value={thread ? shortId(thread.id) : "No thread selected"} mono />
             <InfoTile icon={<Hash size={13} />} label="Session" value={thread ? shortId(thread.sessionId) : "New session draft"} mono />
             <InfoTile icon={<Activity size={13} />} label="Active turn" value={thread?.activeTurnId ? shortId(thread.activeTurnId) : "None"} mono />
@@ -137,11 +137,11 @@ export const ParamPanel = memo(function ParamPanel({
         </SettingsSection>
 
         <SettingsSection icon={<TimerReset size={13} />} title="Goal and Tokens">
-          <div className="grid gap-2.5">
-            <ControlCard size="large" className="p-3.5">
-              <div className="mb-3 flex items-center justify-between text-[12px]">
-                <span className="font-medium text-fg">{tokenBudget ? "Goal budget" : "Tokens used"}</span>
-                <span className="font-mono text-[11px] text-muted">
+          <div className="grid min-w-0 gap-2.5">
+            <ControlCard size="large" className="w-full min-w-0 p-3.5">
+              <div className="mb-3 flex min-w-0 items-center justify-between gap-3 text-[12px]">
+                <span className="truncate font-medium text-fg">{tokenBudget ? "Goal budget" : "Tokens used"}</span>
+                <span className="shrink-0 truncate font-mono text-[11px] text-muted">
                   {tokenBudget ? `${formatCompact(contextTokens)} / ${formatCompact(contextLimit)}` : formatCompact(contextTokens)}
                 </span>
               </div>
@@ -155,17 +155,19 @@ export const ParamPanel = memo(function ParamPanel({
                   style={{ width: tokenBudget ? `${tokenPercent}%` : "0%" }}
                 />
               </div>
-              <div className="mt-3 flex items-center justify-between text-[10px] text-muted">
-                <span>{thread?.goalStatus ? statusLabel(thread.goalStatus) : "No active goal"}</span>
-                <span>{tokenBudget ? `${tokenPercent}%` : `${formatTokens(contextTokens)} total`}</span>
+              <div className="mt-3 flex min-w-0 items-center justify-between gap-3 text-[10px] text-muted">
+                <span className="truncate">{thread?.goalStatus ? statusLabel(thread.goalStatus) : "No active goal"}</span>
+                <span className="shrink-0 truncate">{tokenBudget ? `${tokenPercent}%` : `${formatTokens(contextTokens)} total`}</span>
               </div>
             </ControlCard>
             {thread?.goalObjective ? (
-              <ControlCard className="px-3.5 py-2.5 text-[12px] leading-5 text-fg break-words">
-                {thread.goalObjective}
+              <ControlCard className="w-full min-w-0 px-3.5 py-2.5 text-[12px] leading-5 text-fg">
+                <span className="block truncate" title={thread.goalObjective}>
+                  {thread.goalObjective}
+                </span>
               </ControlCard>
             ) : null}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
               <InfoTile icon={<Play size={13} />} label="Turns" value={String(turnCount)} />
               <InfoTile icon={<CircleDotDashed size={13} />} label="Items" value={String(itemCount)} />
             </div>
@@ -173,7 +175,7 @@ export const ParamPanel = memo(function ParamPanel({
         </SettingsSection>
 
         <SettingsSection icon={<SlidersHorizontal size={13} />} title="Transcript View">
-          <div className="grid gap-2.5">
+          <div className="grid min-w-0 gap-2.5">
             <SettingsToggleRow
               checked={wrapSessionContent}
               icon={<WrapText size={14} />}

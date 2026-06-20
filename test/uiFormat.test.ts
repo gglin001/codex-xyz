@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDateTime, formatTime } from "../src/client/uiFormat.js";
+import { formatDateTime, formatFullDateTime, formatTime } from "../src/client/uiFormat.js";
 
 describe("UI formatting", () => {
   it("formats times with a 24-hour clock", () => {
@@ -9,5 +9,6 @@ describe("UI formatting", () => {
     expect(formatDateTime(localMidnight)).toMatch(/00.*03/);
     expect(formatTime(localMidnight)).not.toMatch(/\b(?:AM|PM)\b/i);
     expect(formatDateTime(localMidnight)).not.toMatch(/\b(?:AM|PM)\b/i);
+    expect(formatFullDateTime(localMidnight)).toBe("Jun 13, 2026 00:03");
   });
 });

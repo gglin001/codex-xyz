@@ -469,7 +469,7 @@ export const DashboardLayout = memo(function DashboardLayout({
               key="desktop-inspector"
               className="h-full min-h-0 shrink-0 overflow-hidden"
               initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 328, opacity: 1 }}
+              animate={{ width: 320, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={spring}
             >

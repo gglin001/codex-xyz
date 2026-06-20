@@ -5,18 +5,16 @@ import {
   CircleDotDashed,
   CirclePause,
   CircleStop,
-  Command,
   Loader2,
   Plus,
   Search,
   Settings,
-  Terminal,
-  UserRound
+  Terminal
 } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import { memo, useMemo, useState } from "react"
 import { cn, tone, ui } from "../designSystem.js"
-import { formatDate, formatTime, formatTokens, statusLabel } from "../uiFormat.js"
+import { formatFullDateTime, formatTokens } from "../uiFormat.js"
 import { AvatarBadge, ControlButton, ControlCard, FieldShell, MenuItemButton, NavAction, SurfaceAction } from "./uiPrimitives.js"
 import type { DateBucket, WorkbenchProject, WorkbenchSession } from "./workbenchTypes.js"
 
@@ -237,28 +235,25 @@ export const Sidebar = memo(function Sidebar({
                     <NavAction
                       key={session.id}
                       className={cn(
-                        "group w-full items-start gap-2.5 px-3 py-2.5",
+                        "group w-full items-start gap-2.5 px-3 py-2",
                         selected ? null : "bg-transparent"
                       )}
                       selected={selected}
-                      title={`${session.title}\n${session.cwd}`}
+                      title={`${session.title}\n${formatFullDateTime(session.updatedAt)}\n${session.preview}`}
                       onClick={() => onSelectSession(session)}
                     >
                       <span className="mt-1 flex h-4 w-4 shrink-0 items-center justify-center" aria-hidden="true">
                         {statusIcon(session)}
                       </span>
-                      <span className="min-w-0 flex-1">
+                      <span className="grid min-w-0 flex-1 grid-rows-[20px_16px_18px]">
                         <span className="flex min-w-0 items-center gap-2">
                           <span className="truncate text-[13px] font-medium leading-5">{session.title}</span>
                           <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", statusClass[session.status])} />
                         </span>
-                        <span className="mt-0.5 flex min-w-0 items-center gap-2 text-[10px] text-muted">
-                          <span className="md:hidden">{formatDate(session.updatedAt)}</span>
-                          <span className="hidden md:inline">{formatTime(session.updatedAt)}</span>
-                          <span className="uppercase">{statusLabel(session.status)}</span>
-                          <span className="hidden md:inline">{formatTokens(session.tokensUsed)}</span>
+                        <span className="truncate text-[10px] leading-4 text-muted">
+                          {formatFullDateTime(session.updatedAt)} / {formatTokens(session.tokensUsed)} tokens
                         </span>
-                        <span className="mt-1 hidden line-clamp-2 text-[11px] leading-5 text-muted md:block">{session.preview}</span>
+                        <span className="truncate text-[11px] leading-[18px] text-muted">{session.preview}</span>
                       </span>
                     </NavAction>
                   )
@@ -302,16 +297,17 @@ export const Sidebar = memo(function Sidebar({
 
         <SurfaceAction
           className="h-12 w-full gap-2.5 px-3"
+          title="Open commands"
+          aria-label="Open commands"
           onClick={onOpenCommandPalette}
         >
-          <span className={cn("h-8 w-8", ui.iconBox)}>
-            <UserRound size={14} />
+          <span className={cn("h-8 w-8 font-mono text-[16px] leading-none", ui.iconBox)} aria-hidden="true">
+            ⌘
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[12px] font-medium text-fg-strong">Local operator</span>
-            <span className="block text-[10px] text-muted">Press ⌘K</span>
+            <span className="block truncate text-[12px] font-medium text-fg-strong">Commands</span>
           </span>
-          <Command size={14} className="text-muted" />
+          <span className="shrink-0 font-mono text-[11px] leading-none text-muted" aria-hidden="true">⌘ k</span>
         </SurfaceAction>
       </div>
     </aside>

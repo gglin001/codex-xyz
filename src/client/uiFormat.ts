@@ -4,25 +4,7 @@ export function statusLabel(status: string) {
   return status.replace(/_/g, " ");
 }
 
-const timeFormatter = new Intl.DateTimeFormat(undefined, {
-  hour: "2-digit",
-  hourCycle: "h23",
-  minute: "2-digit"
-});
-
-const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
-  month: "short",
-  day: "numeric",
-  hour: "2-digit",
-  hourCycle: "h23",
-  minute: "2-digit"
-});
-
-const dateFormatter = new Intl.DateTimeFormat(undefined, {
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit"
-});
+const shortMonthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
 const standardTokenFormatter = new Intl.NumberFormat(undefined, {
   notation: "standard"
@@ -33,15 +15,33 @@ const compactTokenFormatter = new Intl.NumberFormat(undefined, {
 });
 
 export function formatTime(value: string) {
-  return timeFormatter.format(new Date(value));
+  return formatFullDateTime(value);
 }
 
 export function formatDateTime(value: string) {
-  return dateTimeFormatter.format(new Date(value));
+  return formatFullDateTime(value);
+}
+
+export function formatFullDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  const month = shortMonthNames[date.getMonth()];
+  const year = date.getFullYear();
+  const day = date.getDate();
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  return `${month} ${day}, ${year} ${hour}:${minute}`;
 }
 
 export function formatDate(value: string) {
-  return dateFormatter.format(new Date(value));
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  const month = shortMonthNames[date.getMonth()];
+  return `${month} ${date.getDate()}, ${date.getFullYear()}`;
 }
 
 export function formatTokens(value: number | null | undefined) {
