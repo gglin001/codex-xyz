@@ -6,7 +6,6 @@ import {
   Code2,
   Copy,
   Menu,
-  PanelLeftClose,
   Play,
   Plus,
   Send,
@@ -640,23 +639,23 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
             pressed={navigatorVisible}
             onClick={onToggleNavigator}
           >
-            {navigatorVisible ? <PanelLeftClose size={15} /> : <Menu size={15} />}
+            <Menu size={15} />
           </LargeIconButton>
-          <div className="flex min-w-0 items-baseline gap-4">
-            <div className="min-w-0">
-              <h1 className="truncate text-[17px] font-semibold text-fg-strong">{title}</h1>
-              <p className="truncate text-[12px] text-muted">{subtitle}</p>
+          <div className="grid min-w-0 gap-0.5">
+            <h1 className="truncate text-[17px] font-semibold leading-6 text-fg-strong">{title}</h1>
+            <div className="flex min-w-0 items-center gap-2 text-[11px] leading-4 text-muted">
+              <span className="truncate">{subtitle}</span>
+              <span className="hidden shrink-0 sm:inline">/</span>
+              <span className="hidden shrink-0 sm:inline">{formatTokens(tokens)} tokens</span>
+              <span className="hidden shrink-0 sm:inline">/</span>
+              <span className="inline-flex shrink-0 items-center gap-1.5">
+                <span className={cn("h-1.5 w-1.5 rounded-full", statusDotClass(status))} />
+                <span>{statusLabel(status)}</span>
+              </span>
             </div>
-            <span className="hidden shrink-0 text-[12px] font-medium text-muted lg:inline">
-              {formatTokens(tokens)} tokens
-            </span>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <div className="hidden h-9 items-center gap-2 rounded-full border border-border bg-detail px-3 text-[11px] text-muted sm:flex">
-            <span className={cn("h-1.5 w-1.5 rounded-full", statusDotClass(status))} />
-            <span>{statusLabel(status)}</span>
-          </div>
           <LargeIconButton
             title={inspectorVisible ? "Hide settings" : "Open settings"}
             aria-label={inspectorVisible ? "Hide settings" : "Open settings"}

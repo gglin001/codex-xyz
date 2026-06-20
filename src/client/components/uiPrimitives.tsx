@@ -34,7 +34,7 @@ export function LargeIconButton({
   return (
     <button
       type="button"
-      className={cn(ui.largeIconButton, pressed ? "bg-control-hover text-fg-strong" : null, className)}
+      className={cn(ui.largeIconButton, className)}
       aria-pressed={pressed}
       {...props}
     >

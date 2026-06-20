@@ -67,7 +67,7 @@ export const ui = {
   iconButton:
     `inline-flex h-9 min-w-9 items-center justify-center ${radius.control} border border-border bg-control text-muted-strong shadow-control ${interactiveTransition} hover:bg-control-hover hover:text-fg-strong ${disabledState} ${pressState}`,
   largeIconButton:
-    `inline-flex h-10 w-10 shrink-0 items-center justify-center ${radius.nav} border border-border bg-control text-muted-strong shadow-control ${interactiveTransition} hover:bg-control-hover hover:text-fg-strong ${disabledState} ${pressState}`,
+    `inline-flex h-10 w-10 shrink-0 items-center justify-center ${radius.nav} border border-border bg-transparent text-muted-strong shadow-none ${interactiveTransition} hover:border-border-strong hover:text-fg-strong active:bg-control-hover active:text-fg-strong active:shadow-control ${disabledState} ${pressState}`,
   composerIconButton:
     `inline-flex h-9 min-w-9 items-center justify-center ${radius.control} border border-transparent bg-control text-fg ${interactiveTransition} hover:bg-control-hover hover:text-fg-strong disabled:cursor-not-allowed disabled:opacity-35 ${pressState}`,
   composerShell:
