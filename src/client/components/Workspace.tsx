@@ -1,5 +1,7 @@
 import {
+  Ellipsis,
   Bot,
+  Goal,
   Check,
   Code2,
   Copy,
@@ -8,17 +10,19 @@ import {
   Play,
   Plus,
   Send,
-  SlidersHorizontal,
+  Settings,
   Square
 } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
-import type { FormEvent, KeyboardEvent, ReactNode } from "react"
+import type { FormEvent, KeyboardEvent, MouseEvent, ReactNode } from "react"
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
-import type { ControlThread, ThreadDetail, ThreadItem } from "../../server/domain.js"
+import type { ControlThread, RuntimeStatus, ThreadDetail, ThreadItem } from "../../server/domain.js"
+import { copyToClipboard } from "../clipboard.js"
 import { cn, tone, ui } from "../designSystem.js"
 import { getFirstLineTextPreview } from "../textPreview.js"
 import { getTranscriptEntries, type TranscriptProcessEntry } from "../transcriptEntries.js"
 import { formatTime, formatTokens, itemTitle, statusLabel } from "../uiFormat.js"
+import { useSwipeGesture } from "../useSwipeGesture.js"
 import {
   CollapsibleCard,
   ComposerIconButton,
@@ -58,6 +62,8 @@ export type WorkspaceProps = {
   onResume: () => void
   onToggleNavigator: () => void
   onToggleInspector: () => void
+  onSwipeLeft?: () => void
+  onSwipeRight?: () => void
 }
 
 export type WorkspaceHandle = {
@@ -136,6 +142,22 @@ function headerMeta(value: string) {
   )
 }
 
+function statusDotClass(status: RuntimeStatus) {
+  if (status === "running") {
+    return tone.running.dot
+  }
+  if (status === "stale") {
+    return tone.stale.dot
+  }
+  if (status === "failed" || status === "interrupted") {
+    return tone.error.dot
+  }
+  if (status === "completed") {
+    return tone.completed.dot
+  }
+  return tone.neutral.dot
+}
+
 const CopyTextButton = memo(function CopyTextButton({
   value,
   label = "Copy"
@@ -154,13 +176,14 @@ const CopyTextButton = memo(function CopyTextButton({
     }
   }, [])
 
-  const copyValue = useCallback(() => {
-    void navigator.clipboard?.writeText(value)
+  const copyValue = useCallback((event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
     setCopied(true)
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current)
     }
     timeoutRef.current = setTimeout(() => setCopied(false), 1200)
+    void copyToClipboard(value)
   }, [value])
 
   return (
@@ -253,7 +276,7 @@ const ProcessOutputBlock = memo(function ProcessOutputBlock({
       actions={<CopyTextButton value={copyText || preview} />}
       size="prominent"
       preview={<div className="truncate text-[12px] leading-5 text-muted">{preview}</div>}
-      bodyClassName="grid gap-2 px-4 pb-4 pt-0"
+      bodyClassName="grid gap-1.5 px-3 pb-3 pt-0"
     >
       {messages.map((message) => (
         <ProcessItemBlock
@@ -274,9 +297,9 @@ const EmptyTranscript = memo(function EmptyTranscript({
   projectPath: string
 }) {
   return (
-    <ControlCard className="border-dashed px-5 py-12 text-center">
+    <ControlCard className="border-dashed px-5 py-8 text-center">
       <div className={cn("mx-auto mb-4 h-10 w-10 border border-border text-muted-strong", ui.iconBox)}>
-        <Bot size={16} />
+        <Bot size={22} />
       </div>
       <h2 className="text-[15px] font-semibold text-fg-strong">
         {hasThread ? "Waiting for Codex transcript" : "No Codex session selected"}
@@ -312,6 +335,8 @@ type ComposerProps = Pick<
   | "onGoalModeChange"
   | "onInterrupt"
   | "onResume"
+  | "onToggleNavigator"
+  | "onToggleInspector"
 >
 
 const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Composer({
@@ -334,11 +359,14 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
   onWorkdirChange,
   onGoalModeChange,
   onInterrupt,
-  onResume
+  onResume,
+  onToggleNavigator,
+  onToggleInspector,
 }, ref) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const canInterrupt = selectedThread?.status === "running" && !busy
   const canResume = Boolean(selectedThreadId) && selectedThread?.status !== "running" && !busy
+  const [moreActionsOpen, setMoreActionsOpen] = useState(false)
   const submitTitle = goalMode ? "Start goal mode" : promptTarget === "thread" ? "Send prompt" : "Create session"
   const placeholder = goalMode
     ? "Describe the goal objective"
@@ -435,32 +463,115 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
                 disabled={!canUseGoalMode || busy}
                 onClick={() => onGoalModeChange(!goalMode)}
               >
-                <Code2 size={14} />
+                <Goal size={14} />
               </ComposerIconButton>
-              <ComposerIconButton
-                title="Interrupt"
-                aria-label="Interrupt"
-                disabled={!canInterrupt}
-                onClick={onInterrupt}
-              >
-                <Square size={14} />
-              </ComposerIconButton>
-              <ComposerIconButton
-                title="Resume"
-                aria-label="Resume"
-                disabled={!canResume}
-                onClick={onResume}
-              >
-                <Play size={14} />
-              </ComposerIconButton>
+              <span className="hidden md:contents">
+                <ComposerIconButton
+                  title="Interrupt"
+                  aria-label="Interrupt"
+                  disabled={!canInterrupt}
+                  onClick={onInterrupt}
+                >
+                  <Square size={14} />
+                </ComposerIconButton>
+                <ComposerIconButton
+                  title="Resume"
+                  aria-label="Resume"
+                  disabled={!canResume}
+                  onClick={onResume}
+                >
+                  <Play size={14} />
+                </ComposerIconButton>
+              </span>
+              <div className="relative md:hidden">
+                <ComposerIconButton
+                  title="More actions"
+                  aria-label="More actions"
+                  pressed={moreActionsOpen}
+                  onClick={() => setMoreActionsOpen((v) => !v)}
+                >
+                  <Ellipsis size={14} />
+                </ComposerIconButton>
+                <AnimatePresence>
+                  {moreActionsOpen ? (
+                    <>
+                      <motion.div
+                        className="fixed inset-0 z-[115]"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setMoreActionsOpen(false)}
+                      />
+                      <motion.div
+                        className="absolute bottom-full left-0 z-[116] mb-2 w-44 rounded-[20px] border border-border bg-detail shadow-popover"
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 6 }}
+                        transition={spring}
+                      >
+                        <div className="p-1">
+                          <button
+                            type="button"
+                            className="flex w-full items-center gap-2.5 rounded-[14px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control disabled:cursor-not-allowed disabled:opacity-30"
+                            disabled={!canInterrupt}
+                            onClick={() => {
+                              onInterrupt()
+                              setMoreActionsOpen(false)
+                            }}
+                          >
+                            <Square size={15} className="shrink-0 text-muted" />
+                            <span>Interrupt</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="flex w-full items-center gap-2.5 rounded-[14px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control disabled:cursor-not-allowed disabled:opacity-30"
+                            disabled={!canResume}
+                            onClick={() => {
+                              onResume()
+                              setMoreActionsOpen(false)
+                            }}
+                          >
+                            <Play size={15} className="shrink-0 text-muted" />
+                            <span>Resume</span>
+                          </button>
+                        </div>
+                        <div className="mx-3 border-t border-border" />
+                        <div className="p-1">
+                          <button
+                            type="button"
+                            className="flex w-full items-center gap-2.5 rounded-[14px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control"
+                            onClick={() => {
+                              onToggleNavigator()
+                              setMoreActionsOpen(false)
+                            }}
+                          >
+                            <Menu size={15} className="shrink-0 text-muted" />
+                            <span>Sessions</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="flex w-full items-center gap-2.5 rounded-[14px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control"
+                            onClick={() => {
+                              onToggleInspector()
+                              setMoreActionsOpen(false)
+                            }}
+                          >
+                            <Settings size={15} className="shrink-0 text-muted" />
+                            <span>Settings</span>
+                          </button>
+                        </div>
+                      </motion.div>
+                    </>
+                  ) : null}
+                </AnimatePresence>
+              </div>
             </div>
             <button
-              className={ui.submitButton}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[18px] border border-accent-soft bg-accent/10 text-accent transition duration-150 ease-out hover:bg-accent/18 disabled:cursor-not-allowed disabled:opacity-30"
               disabled={!canSubmitPrompt}
               title={submitTitle}
               aria-label={submitTitle}
             >
-              <span>Run</span>
               <Send size={14} />
             </button>
           </div>
@@ -498,9 +609,12 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
   onInterrupt,
   onResume,
   onToggleNavigator,
-  onToggleInspector
+  onToggleInspector,
+  onSwipeLeft,
+  onSwipeRight
 }, ref) {
   const composerRef = useRef<ComposerHandle | null>(null)
+  const composerShellRef = useRef<HTMLDivElement | null>(null)
   const entries = useMemo(() => transcriptEntriesFromDetail(detail), [detail])
   const title = selectedThread?.title ?? session?.title ?? "New Codex session"
   const subtitle = selectedThread?.cwd ?? session?.cwd ?? project?.path ?? "Select a project to begin"
@@ -511,9 +625,14 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
     focusPrompt: () => composerRef.current?.focusPrompt() ?? false
   }), [])
 
+  useSwipeGesture(composerShellRef, {
+    onSwipeLeft,
+    onSwipeRight
+  })
+
   return (
     <section className={cn("flex h-full min-h-0 min-w-0 flex-col bg-app-bg text-fg", sessionContentWidthClass)}>
-      <header className="relative z-[110] flex h-16 shrink-0 items-center justify-between gap-3 bg-app-bg px-4 md:px-5">
+      <header className="hidden md:flex md:relative z-[110] md:h-16 shrink-0 items-center justify-between gap-3 md:bg-app-bg md:px-5">
         <div className="flex min-w-0 items-center gap-3">
           <LargeIconButton
             title={navigatorVisible ? "Hide sessions" : "Open sessions"}
@@ -535,7 +654,7 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <div className="hidden h-9 items-center gap-2 rounded-full border border-border bg-detail px-3 text-[11px] text-muted sm:flex">
-            <span className="h-1.5 w-1.5 rounded-full bg-running-dot" />
+            <span className={cn("h-1.5 w-1.5 rounded-full", statusDotClass(status))} />
             <span>{statusLabel(status)}</span>
           </div>
           <LargeIconButton
@@ -544,7 +663,7 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
             pressed={inspectorVisible}
             onClick={onToggleInspector}
           >
-            <SlidersHorizontal size={15} />
+            <Settings size={15} />
           </LargeIconButton>
         </div>
       </header>
@@ -555,8 +674,8 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
           animate={{ width: "100%" }}
           transition={spring}
         >
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-7 pt-4 md:px-8">
-            <SessionContentFrame className="grid gap-6">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-5 pt-[calc(var(--safe-inset-top)+1rem)] md:px-8 md:pt-4">
+            <SessionContentFrame className="grid gap-3 md:gap-4">
               <AnimatePresence initial={false}>
                 {entries.length === 0 ? (
                   <motion.div
@@ -572,7 +691,6 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
                 {entries.map((entry) => (
                   <motion.div
                     key={entry.id}
-                    layout
                     className="min-w-0"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -596,7 +714,7 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
             </SessionContentFrame>
           </div>
 
-          <div className="shrink-0 bg-app-bg/95 px-4 pb-3 pt-2.5 md:px-8">
+          <div ref={composerShellRef} className="shrink-0 bg-app-bg px-4 pb-2.5 pt-2 md:bg-app-bg/95 md:px-8">
             <SessionContentFrame>
               <Composer
                 ref={composerRef}
@@ -620,6 +738,8 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
                 onGoalModeChange={onGoalModeChange}
                 onInterrupt={onInterrupt}
                 onResume={onResume}
+                onToggleNavigator={onToggleNavigator}
+                onToggleInspector={onToggleInspector}
               />
             </SessionContentFrame>
           </div>

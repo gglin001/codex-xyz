@@ -1,10 +1,12 @@
-import { Command, PanelLeftOpen, Plus, Search, SlidersHorizontal } from "lucide-react"
+import { Command, PanelLeftOpen, Plus, Search, Settings } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import type { FormEvent, KeyboardEvent } from "react"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { ControlThread, ThreadDetail } from "../../server/domain.js"
 import { cn, ui } from "../designSystem.js"
 import { isPromptFocusShortcut } from "../promptShortcut.js"
+import { useVisualViewportHeight } from "../useVisualViewport.js"
+import { useSwipeGesture } from "../useSwipeGesture.js"
 import { ParamPanel } from "./ParamPanel.js"
 import { Sidebar } from "./Sidebar.js"
 import { Workspace, type WorkspaceHandle } from "./Workspace.js"
@@ -68,7 +70,7 @@ function commandIcon(icon: CommandAction["icon"]) {
     return <PanelLeftOpen size={14} />
   }
   if (icon === "panel") {
-    return <SlidersHorizontal size={14} />
+    return <Settings size={14} />
   }
   if (icon === "create") {
     return <Plus size={14} />
@@ -247,6 +249,34 @@ export const DashboardLayout = memo(function DashboardLayout({
   const [commandOpen, setCommandOpen] = useState(false)
   const desktopWorkspaceRef = useRef<WorkspaceHandle | null>(null)
   const mobileWorkspaceRef = useRef<WorkspaceHandle | null>(null)
+  const vvHeight = useVisualViewportHeight({ maxWidth: 767 })
+  const navigatorBackdropRef = useRef<HTMLDivElement | null>(null)
+  const inspectorBackdropRef = useRef<HTMLDivElement | null>(null)
+
+  const handleSwipeRight = useCallback(() => {
+    if (mobileInspectorOpen) {
+      setMobileInspectorOpen(false)
+    } else {
+      setMobileNavigatorOpen(true)
+    }
+  }, [mobileInspectorOpen])
+
+  const handleSwipeLeft = useCallback(() => {
+    if (mobileNavigatorOpen) {
+      setMobileNavigatorOpen(false)
+    } else {
+      setMobileInspectorOpen(true)
+    }
+  }, [mobileNavigatorOpen])
+
+  useSwipeGesture(navigatorBackdropRef, {
+    onSwipeLeft: () => setMobileNavigatorOpen(false)
+  })
+
+  useSwipeGesture(inspectorBackdropRef, {
+    onSwipeRight: () => setMobileInspectorOpen(false)
+  })
+
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? projects[0] ?? null
 
   const focusVisiblePrompt = useCallback(() => {
@@ -379,7 +409,10 @@ export const DashboardLayout = memo(function DashboardLayout({
   )
 
   return (
-    <main className={cn("h-dvh min-h-0 w-full overflow-hidden", ui.appShell)}>
+    <main
+      className={cn("h-dvh min-h-0 w-full overflow-hidden", ui.appShell)}
+      style={vvHeight != null ? { height: `${vvHeight}px` } : undefined}
+    >
       <div className="hidden h-full min-h-0 md:flex">
         <AnimatePresence initial={false}>
           {navigatorVisible ? (
@@ -479,6 +512,8 @@ export const DashboardLayout = memo(function DashboardLayout({
             setMobileInspectorOpen(false)
             setMobileNavigatorOpen((current) => !current)
           }}
+          onSwipeLeft={handleSwipeLeft}
+          onSwipeRight={handleSwipeRight}
           onToggleInspector={() => {
             setMobileNavigatorOpen(false)
             setMobileInspectorOpen((current) => !current)
@@ -489,6 +524,7 @@ export const DashboardLayout = memo(function DashboardLayout({
       <AnimatePresence>
         {mobileNavigatorOpen ? (
           <motion.div
+            ref={navigatorBackdropRef}
             className={cn("fixed inset-0 z-[90] md:hidden", ui.overlay)}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -539,7 +575,8 @@ export const DashboardLayout = memo(function DashboardLayout({
       <AnimatePresence>
         {mobileInspectorOpen ? (
           <motion.div
-            className={cn("fixed inset-0 z-[95] flex items-end md:hidden", ui.overlay)}
+            ref={inspectorBackdropRef}
+            className={cn("fixed inset-0 z-[95] md:hidden", ui.overlay)}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -547,10 +584,10 @@ export const DashboardLayout = memo(function DashboardLayout({
             onMouseDown={() => setMobileInspectorOpen(false)}
           >
             <motion.div
-              className={cn("max-h-[calc(100dvh-1.5rem)] w-full overflow-hidden rounded-t-[28px] border-t", ui.backdropPanel)}
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
+              className={cn("h-full w-[min(88vw,360px)] ml-auto overflow-hidden border-l", ui.backdropPanel)}
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
               transition={spring}
               onMouseDown={(event) => event.stopPropagation()}
             >

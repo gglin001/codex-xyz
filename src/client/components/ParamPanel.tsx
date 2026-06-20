@@ -1,4 +1,6 @@
 import {
+  Maximize2,
+  Minimize2,
   Activity,
   Bot,
   CircleDotDashed,
@@ -17,6 +19,7 @@ import { memo } from "react"
 import type { ReactNode } from "react"
 import type { ControlThread, ThreadDetail } from "../../server/domain.js"
 import { cn, tone } from "../designSystem.js"
+import { useFullscreen } from "../useFullscreen.js"
 import { formatTokens, shortId, statusLabel } from "../uiFormat.js"
 import { ControlCard, InfoTile, Pill, SettingsSection, SurfaceAction, SwitchControl } from "./uiPrimitives.js"
 import type { WorkbenchSession } from "./workbenchTypes.js"
@@ -94,6 +97,7 @@ export const ParamPanel = memo(function ParamPanel({
   defaultCwd,
   onWrapSessionContentChange
 }: ParamPanelProps) {
+  const { isFullscreen, toggle: toggleFullscreen, supported: fullscreenSupported } = useFullscreen()
   const thread = selectedThread ?? session?.thread ?? null
   const status = thread?.status ?? "idle"
   const model = thread?.model ?? "default Codex model"
@@ -107,14 +111,7 @@ export const ParamPanel = memo(function ParamPanel({
 
   return (
     <aside className={cn("flex h-full min-h-0 flex-col border-l border-border bg-panel text-fg", className)}>
-      <div className="flex h-16 shrink-0 items-center justify-between gap-3 px-5">
-        <div className="min-w-0">
-          <h2 className="truncate text-[17px] font-semibold text-fg-strong">Run settings</h2>
-          <p className="truncate text-[11px] text-muted">Thread and goal state</p>
-        </div>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
         <SettingsSection icon={<Server size={13} />} title="Runtime">
           <div className="grid gap-2.5">
             <ControlCard className="flex items-center justify-between px-3.5 py-2.5">
@@ -164,7 +161,7 @@ export const ParamPanel = memo(function ParamPanel({
               </div>
             </ControlCard>
             {thread?.goalObjective ? (
-              <ControlCard className="px-3.5 py-2.5 text-[12px] leading-5 text-fg">
+              <ControlCard className="px-3.5 py-2.5 text-[12px] leading-5 text-fg break-words">
                 {thread.goalObjective}
               </ControlCard>
             ) : null}
@@ -176,7 +173,7 @@ export const ParamPanel = memo(function ParamPanel({
         </SettingsSection>
 
         <SettingsSection icon={<SlidersHorizontal size={13} />} title="Transcript View">
-          <div className="grid gap-2">
+          <div className="grid gap-2.5">
             <SettingsToggleRow
               checked={wrapSessionContent}
               icon={<WrapText size={14} />}
@@ -184,6 +181,15 @@ export const ParamPanel = memo(function ParamPanel({
               description={wrapSessionContent ? "Long transcript lines wrap" : "Long transcript lines scroll"}
               onClick={() => onWrapSessionContentChange(!wrapSessionContent)}
             />
+            {fullscreenSupported ? (
+              <SettingsToggleRow
+                checked={isFullscreen}
+                icon={isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                title="Full screen"
+                description={isFullscreen ? "Exit browser full screen mode" : "Use the entire screen"}
+                onClick={toggleFullscreen}
+              />
+            ) : null}
           </div>
         </SettingsSection>
       </div>

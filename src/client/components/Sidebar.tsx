@@ -9,14 +9,14 @@ import {
   Loader2,
   Plus,
   Search,
-  SlidersHorizontal,
+  Settings,
   Terminal,
   UserRound
 } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import { memo, useMemo, useState } from "react"
 import { cn, tone, ui } from "../designSystem.js"
-import { formatTime, formatTokens, statusLabel } from "../uiFormat.js"
+import { formatDate, formatTime, formatTokens, statusLabel } from "../uiFormat.js"
 import { AvatarBadge, ControlButton, ControlCard, FieldShell, MenuItemButton, NavAction, SurfaceAction } from "./uiPrimitives.js"
 import type { DateBucket, WorkbenchProject, WorkbenchSession } from "./workbenchTypes.js"
 
@@ -191,8 +191,8 @@ export const Sidebar = memo(function Sidebar({
         </AnimatePresence>
       </div>
 
-      <div className="shrink-0 px-4 py-2.5">
-        <FieldShell icon={<Search size={14} />}>
+      <div className="shrink-0 flex items-center gap-2 px-4 py-2.5">
+        <FieldShell icon={<Search size={14} />} className="min-w-0 flex-1">
           <input
             className={cn(ui.input, "text-[13px]")}
             value={sessionQuery}
@@ -202,11 +202,12 @@ export const Sidebar = memo(function Sidebar({
           />
         </FieldShell>
         <ControlButton
-          className="mt-3 h-11 w-full gap-2 text-[13px] font-medium"
+          className="h-11 w-11 shrink-0 bg-transparent"
           onClick={onCreateSession}
+          title="New session"
+          aria-label="New session"
         >
-          <Plus size={14} />
-          New session
+          <Plus size={16} />
         </ControlButton>
       </div>
 
@@ -251,12 +252,13 @@ export const Sidebar = memo(function Sidebar({
                           <span className="truncate text-[13px] font-medium leading-5">{session.title}</span>
                           <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", statusClass[session.status])} />
                         </span>
-                        <span className="mt-0.5 line-clamp-2 text-[11px] leading-5 text-muted">{session.preview}</span>
-                        <span className="mt-1 flex min-w-0 items-center gap-2 text-[10px] uppercase text-muted">
-                          <span>{formatTime(session.updatedAt)}</span>
-                          <span>{statusLabel(session.status)}</span>
-                          <span>{formatTokens(session.tokensUsed)}</span>
+                        <span className="mt-0.5 flex min-w-0 items-center gap-2 text-[10px] text-muted">
+                          <span className="md:hidden">{formatDate(session.updatedAt)}</span>
+                          <span className="hidden md:inline">{formatTime(session.updatedAt)}</span>
+                          <span className="uppercase">{statusLabel(session.status)}</span>
+                          <span className="hidden md:inline">{formatTokens(session.tokensUsed)}</span>
                         </span>
+                        <span className="mt-1 hidden line-clamp-2 text-[11px] leading-5 text-muted md:block">{session.preview}</span>
                       </span>
                     </NavAction>
                   )
@@ -292,10 +294,11 @@ export const Sidebar = memo(function Sidebar({
             selected={inspectorVisible}
             onClick={onToggleInspector}
           >
-            <SlidersHorizontal size={14} />
+            <Settings size={14} />
             <span className="truncate">Settings</span>
           </SurfaceAction>
         </div>
+
 
         <SurfaceAction
           className="h-12 w-full gap-2.5 px-3"

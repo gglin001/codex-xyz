@@ -60,8 +60,8 @@ export const ui = {
   outlineCard: `overflow-hidden ${radius.card} border border-border-strong bg-app-bg shadow-none ${interactiveTransition} hover:border-border-strong`,
   cardLarge: `overflow-hidden ${radius.cardLg} border border-border bg-detail shadow-control ${interactiveTransition} hover:border-border-strong`,
   panelCard: `overflow-hidden ${radius.panel} border border-border bg-detail shadow-panel ${interactiveTransition} hover:border-border-strong`,
-  popover: `overflow-hidden ${radius.panel} border border-border bg-detail shadow-popover backdrop-blur-md`,
-  overlay: "bg-black/60 backdrop-blur-sm",
+  popover: `overflow-hidden ${radius.panel} border border-border bg-detail shadow-popover md:backdrop-blur-md`,
+  overlay: "bg-black/60 md:backdrop-blur-sm",
   backdropPanel: "border-border bg-panel shadow-popover",
   controlBase,
   iconButton:

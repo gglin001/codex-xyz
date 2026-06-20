@@ -18,6 +18,12 @@ const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
   minute: "2-digit"
 });
 
+const dateFormatter = new Intl.DateTimeFormat(undefined, {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit"
+});
+
 const standardTokenFormatter = new Intl.NumberFormat(undefined, {
   notation: "standard"
 });
@@ -32,6 +38,10 @@ export function formatTime(value: string) {
 
 export function formatDateTime(value: string) {
   return dateTimeFormatter.format(new Date(value));
+}
+
+export function formatDate(value: string) {
+  return dateFormatter.format(new Date(value));
 }
 
 export function formatTokens(value: number | null | undefined) {

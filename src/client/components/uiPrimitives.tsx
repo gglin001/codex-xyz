@@ -1,5 +1,5 @@
 import { ChevronDown } from "lucide-react"
-import type { ButtonHTMLAttributes, HTMLAttributes, LabelHTMLAttributes, ReactNode } from "react"
+import type { ButtonHTMLAttributes, HTMLAttributes, LabelHTMLAttributes, MouseEvent, ReactNode } from "react"
 import { memo } from "react"
 import { cn, radius, ui } from "../designSystem.js"
 
@@ -252,7 +252,7 @@ export const CopyIconButton = memo(function CopyIconButton({
   children
 }: {
   label: string
-  onClick: () => void
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void
   children: ReactNode
 }) {
   return (
@@ -382,7 +382,7 @@ export function DisclosureRow({
 }: {
   expanded?: boolean
   children: ReactNode
-  onClick: () => void
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void
   className?: string
   divided?: boolean
 }) {
@@ -437,7 +437,7 @@ export const InfoTile = memo(function InfoTile({
   className?: string
 }) {
   return (
-    <div className={cn("flex items-start gap-2.5 border border-border bg-detail px-3 py-2.5", radius.controlLg, className)}>
+    <div className={cn("flex items-start gap-2.5 border border-border bg-detail px-3.5 py-2.5", radius.controlLg, className)}>
       <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-muted">{icon}</span>
       <span className="min-w-0 flex-1">
         <span className="block text-[10px] font-medium uppercase text-muted">{label}</span>
