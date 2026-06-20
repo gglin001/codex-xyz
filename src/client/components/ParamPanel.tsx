@@ -121,18 +121,18 @@ export const ParamPanel = memo(function ParamPanel({
               </span>
               <Pill className="font-mono text-[10px] text-muted">app-server</Pill>
             </ControlCard>
-            <InfoTile icon={<Bot size={13} />} label="Model" value={model} mono />
-            <InfoTile icon={<Cpu size={13} />} label="Adapter" value="codex app-server --stdio" mono />
+            <InfoTile icon={<Bot size={13} />} label="Model" value={model} mono layout="inline" />
+            <InfoTile icon={<Cpu size={13} />} label="Adapter" value="codex app-server --stdio" mono layout="inline" />
           </div>
         </SettingsSection>
 
         <SettingsSection icon={<ListTree size={13} />} title="Session">
           <div className="grid min-w-0 gap-2.5">
-            <InfoTile icon={<Hash size={13} />} label="Thread" value={thread ? shortId(thread.id) : "No thread selected"} mono />
-            <InfoTile icon={<Hash size={13} />} label="Session" value={thread ? shortId(thread.sessionId) : "New session draft"} mono />
-            <InfoTile icon={<Activity size={13} />} label="Active turn" value={thread?.activeTurnId ? shortId(thread.activeTurnId) : "None"} mono />
+            <InfoTile icon={<Hash size={13} />} label="Thread" value={thread ? shortId(thread.id) : "No thread selected"} mono layout="inline" />
+            <InfoTile icon={<Hash size={13} />} label="Session" value={thread ? shortId(thread.sessionId) : "New session draft"} mono layout="inline" />
+            <InfoTile icon={<Activity size={13} />} label="Active turn" value={thread?.activeTurnId ? shortId(thread.activeTurnId) : "None"} mono layout="inline" />
             <InfoTile icon={<FolderGit2 size={13} />} label="Working directory" value={thread?.cwd ?? session?.cwd ?? defaultCwd} mono />
-            {thread?.forkedFromId ? <InfoTile icon={<GitFork size={13} />} label="Continued from" value={shortId(thread.forkedFromId)} mono /> : null}
+            {thread?.forkedFromId ? <InfoTile icon={<GitFork size={13} />} label="Continued from" value={shortId(thread.forkedFromId)} mono layout="inline" /> : null}
           </div>
         </SettingsSection>
 
@@ -168,8 +168,8 @@ export const ParamPanel = memo(function ParamPanel({
               </ControlCard>
             ) : null}
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
-              <InfoTile icon={<Play size={13} />} label="Turns" value={String(turnCount)} />
-              <InfoTile icon={<CircleDotDashed size={13} />} label="Items" value={String(itemCount)} />
+              <InfoTile icon={<Play size={13} />} label="Turns" value={String(turnCount)} layout="inline" />
+              <InfoTile icon={<CircleDotDashed size={13} />} label="Items" value={String(itemCount)} layout="inline" />
             </div>
           </div>
         </SettingsSection>

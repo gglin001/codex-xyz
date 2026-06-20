@@ -428,23 +428,39 @@ export const InfoTile = memo(function InfoTile({
   label,
   value,
   mono = false,
+  layout = "stacked",
   className
 }: {
   icon: ReactNode
   label: string
   value: string
   mono?: boolean
+  layout?: "stacked" | "inline"
   className?: string
 }) {
+  const inline = layout === "inline"
+
   return (
     <div
-      className={cn("flex min-h-[58px] w-full min-w-0 items-start gap-2.5 border border-border bg-detail px-3.5 py-2.5", radius.controlLg, className)}
+      className={cn(
+        "flex w-full min-w-0 gap-2.5 border border-border bg-detail",
+        inline ? "min-h-10 items-center px-3 py-2" : "min-h-[58px] items-start px-3.5 py-2.5",
+        radius.controlLg,
+        className
+      )}
       title={`${label}: ${value}`}
     >
-      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-muted">{icon}</span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[10px] font-medium uppercase text-muted">{label}</span>
-        <span className={cn("block max-w-full truncate text-[12px] text-fg", mono ? "font-mono" : "font-medium")}>{value}</span>
+      <span className={cn("flex h-5 w-5 shrink-0 items-center justify-center text-muted", inline ? null : "mt-0.5")}>{icon}</span>
+      <span className={cn("min-w-0 flex-1", inline ? "flex items-center justify-between gap-2" : null)}>
+        <span className={cn(
+          "truncate text-[10px] font-medium uppercase text-muted",
+          inline ? "shrink-0" : "block"
+        )}>{label}</span>
+        <span className={cn(
+          "truncate text-[12px] text-fg",
+          inline ? "min-w-0 text-right" : "block max-w-full",
+          mono ? "font-mono" : "font-medium"
+        )}>{value}</span>
       </span>
     </div>
   )
