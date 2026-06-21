@@ -18,6 +18,11 @@ import {
 
 type Row = Record<string, unknown>;
 
+export const currentDatabaseVersion = "v1";
+
+const databaseMetadataTable = "database_metadata";
+const databaseVersionKey = "database_version";
+
 type EventReplayOptions = {
   threadId?: string | null;
   summaryOnly?: boolean;
@@ -139,9 +144,14 @@ export class Store {
     }
     const db = new DatabaseSync(filePath);
     const store = new Store(db);
-    store.configure();
-    store.initializeSchema();
-    return store;
+    try {
+      store.configure();
+      store.initializeSchema();
+      return store;
+    } catch (error) {
+      db.close();
+      throw error;
+    }
   }
 
   close() {
@@ -154,8 +164,35 @@ export class Store {
   }
 
   initializeSchema() {
+    const databaseVersion = this.readDatabaseVersion();
+    if (databaseVersion !== null) {
+      this.requireDatabaseVersion(databaseVersion);
+      return;
+    }
+
+    if (this.hasUserTables()) {
+      throw new Error(`Database version is missing; expected "${currentDatabaseVersion}"`);
+    }
+
+    this.db.exec("BEGIN");
+    try {
+      this.createCurrentSchema();
+      this.writeDatabaseVersion();
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  private createCurrentSchema() {
     this.db.exec(`
-      CREATE TABLE IF NOT EXISTS hosts (
+      CREATE TABLE ${databaseMetadataTable} (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+
+      CREATE TABLE hosts (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         adapter TEXT NOT NULL,
@@ -164,7 +201,7 @@ export class Store {
         last_seen_at TEXT NOT NULL
       );
 
-      CREATE TABLE IF NOT EXISTS threads (
+      CREATE TABLE threads (
         id TEXT PRIMARY KEY,
         session_id TEXT NOT NULL,
         forked_from_id TEXT,
@@ -183,7 +220,7 @@ export class Store {
         updated_at TEXT NOT NULL
       );
 
-      CREATE TABLE IF NOT EXISTS turns (
+      CREATE TABLE turns (
         id TEXT PRIMARY KEY,
         thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
         status TEXT NOT NULL,
@@ -193,7 +230,7 @@ export class Store {
         duration_ms INTEGER
       );
 
-      CREATE TABLE IF NOT EXISTS items (
+      CREATE TABLE items (
         id TEXT PRIMARY KEY,
         thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
         turn_id TEXT REFERENCES turns(id) ON DELETE CASCADE,
@@ -203,7 +240,7 @@ export class Store {
         created_at TEXT NOT NULL
       );
 
-      CREATE TABLE IF NOT EXISTS events (
+      CREATE TABLE events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         type TEXT NOT NULL,
         thread_id TEXT,
@@ -220,28 +257,43 @@ export class Store {
       CREATE INDEX IF NOT EXISTS idx_events_thread ON events(thread_id);
       CREATE INDEX IF NOT EXISTS idx_events_thread_id ON events(thread_id, id);
       CREATE INDEX IF NOT EXISTS idx_events_type_id ON events(type, id);
-
-      DROP TABLE IF EXISTS approvals;
-      DROP TABLE IF EXISTS queued_prompts;
-      DROP TABLE IF EXISTS tasks;
-      DROP TABLE IF EXISTS prompt_recipes;
-      DROP TABLE IF EXISTS eval_runs;
-      DROP TABLE IF EXISTS projects;
     `);
-    this.requireCurrentSchema();
   }
 
-  private requireColumn(table: string, column: string) {
-    const columns = this.db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name?: unknown }>;
-    if (!columns.some((row) => row.name === column)) {
-      throw new Error(`Database schema is not current: missing ${table}.${column}`);
+  private readDatabaseVersion() {
+    if (!this.tableExists(databaseMetadataTable)) {
+      return null;
+    }
+    const row = this.db
+      .prepare(`SELECT value FROM ${databaseMetadataTable} WHERE key = ?`)
+      .get(databaseVersionKey) as Row | undefined;
+    return row ? scalarString(row.value) : null;
+  }
+
+  private requireDatabaseVersion(databaseVersion: string) {
+    if (databaseVersion !== currentDatabaseVersion) {
+      throw new Error(`Unsupported database version "${databaseVersion}"; expected "${currentDatabaseVersion}"`);
     }
   }
 
-  private requireCurrentSchema() {
-    this.requireColumn("hosts", "default_cwd");
-    this.requireColumn("threads", "last_turn_status");
-    this.requireColumn("threads", "goal_token_budget");
+  private writeDatabaseVersion() {
+    this.db
+      .prepare(`INSERT INTO ${databaseMetadataTable} (key, value) VALUES (?, ?)`)
+      .run(databaseVersionKey, currentDatabaseVersion);
+  }
+
+  private tableExists(table: string) {
+    const row = this.db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
+      .get(table) as Row | undefined;
+    return Boolean(row);
+  }
+
+  private hasUserTables() {
+    const row = this.db
+      .prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
+      .get() as Row | undefined;
+    return row ? scalarNumber(row.count) > 0 : false;
   }
 
   upsertHost(input: { id: string; name: string; adapter: string; version?: string | null; defaultCwd?: string | null }) {
