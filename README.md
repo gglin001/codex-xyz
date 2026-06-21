@@ -26,6 +26,12 @@ CODEX_XYZ_DEBUG_LEVEL=2 pnpm run dev
 CODEX_XYZ_DEBUG_LEVEL=3 pnpm run dev
 ```
 
+with a cutom env
+
+```bash
+CODEX_HOME="${PWD}/dot.home/.codex" CODEX_XYZ_DEBUG_LEVEL=2 pnpm run dev
+```
+
 Log records are appended as JSON Lines to `.codex-xyz/debug.jsonl`. Level `1` records process lifecycle, stderr, and malformed input. Level `2` adds app-server protocol messages except high-volume stream deltas. Level `3` includes stream deltas such as `item/agentMessage/delta`.
 
 ## Checks
