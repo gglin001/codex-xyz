@@ -114,6 +114,8 @@
     --safe-inset-left: env(safe-area-inset-left, 0px);
     --app-visual-height: 100dvh;
     --keyboard-inset-bottom: 0px;
+    --mobile-sheet-height: 92dvh;
+    --mobile-sheet-top: 8dvh;
     --composer-height: 132px;
     --shadow-control-value: 0 1px 0 rgba(255, 255, 255, 0.025) inset;
     --shadow-panel-value: 0 18px 48px rgba(0, 0, 0, 0.28), 0 1px 0 rgba(255, 255, 255, 0.035) inset;
@@ -239,6 +241,22 @@
 }
 
 @media (max-width: 767px) {
+  .mobile-keyboard-scroll {
+    scroll-padding-bottom: calc(var(--keyboard-inset-bottom) + 1rem);
+  }
+
+  .mobile-sheet-surface .scroll-mask-y {
+    scroll-padding-bottom: calc(var(--keyboard-inset-bottom) + 1rem);
+  }
+
+  :root[data-keyboard-visible] .mobile-keyboard-scroll {
+    padding-bottom: calc(var(--keyboard-inset-bottom) + 0.75rem);
+  }
+
+  :root[data-keyboard-visible] .mobile-sheet-surface .scroll-mask-y {
+    padding-bottom: calc(var(--keyboard-inset-bottom) + 0.75rem);
+  }
+
   .mobile-transcript-scroll {
     padding-bottom: 1rem;
     scroll-padding-bottom: calc(var(--composer-height, 132px) + 1rem);

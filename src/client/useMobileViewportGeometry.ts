@@ -10,9 +10,12 @@ type VirtualKeyboardNavigator = Navigator & {
 
 const appVisualHeightProperty = "--app-visual-height"
 const keyboardInsetProperty = "--keyboard-inset-bottom"
+const mobileSheetHeightProperty = "--mobile-sheet-height"
+const mobileSheetTopProperty = "--mobile-sheet-top"
 const keyboardVisibleAttribute = "data-keyboard-visible"
 const mobileViewportQuery = "(max-width: 767px)"
 const keyboardVisibilityThreshold = 80
+const mobileSheetHeightRatio = 0.92
 
 function setKeyboardState(insetValue: number) {
   const inset = Math.max(0, Math.round(insetValue > keyboardVisibilityThreshold ? insetValue : 0))
@@ -28,6 +31,25 @@ function setAppVisualHeight(heightValue: number | null) {
   document.documentElement.style.setProperty(appVisualHeightProperty, `${Math.max(320, Math.round(heightValue))}px`)
 }
 
+function setMobileSheetGeometry(heightValue: number | null) {
+  if (heightValue === null) {
+    document.documentElement.style.setProperty(mobileSheetHeightProperty, "92dvh")
+    document.documentElement.style.setProperty(mobileSheetTopProperty, "8dvh")
+    return
+  }
+  const viewportHeight = Math.max(320, Math.round(heightValue))
+  const sheetHeight = Math.max(320, Math.round(viewportHeight * mobileSheetHeightRatio))
+  document.documentElement.style.setProperty(
+    mobileSheetHeightProperty,
+    `${sheetHeight}px`
+  )
+  document.documentElement.style.setProperty(mobileSheetTopProperty, `${Math.max(0, viewportHeight - sheetHeight)}px`)
+}
+
+function viewportHeight() {
+  return window.visualViewport?.height ?? window.innerHeight
+}
+
 function visualViewportKeyboardInset() {
   const viewport = window.visualViewport
   if (!viewport) {
@@ -41,19 +63,26 @@ function virtualKeyboardInset(virtualKeyboard: VirtualKeyboardNavigator["virtual
   return virtualKeyboard?.boundingRect?.height ?? 0
 }
 
-function visibleViewportHeight(keyboardInset: number) {
-  const viewport = window.visualViewport
-  const viewportHeight = viewport?.height ?? window.innerHeight
-
-  if (viewport && visualViewportKeyboardInset() > keyboardVisibilityThreshold) {
-    return viewportHeight
+function activeEditableElement() {
+  const active = document.activeElement
+  if (!(active instanceof HTMLElement)) {
+    return false
   }
 
-  if (keyboardInset > keyboardVisibilityThreshold) {
-    return window.innerHeight - keyboardInset
+  const tagName = active.tagName.toLowerCase()
+  return active.isContentEditable || tagName === "input" || tagName === "textarea" || tagName === "select"
+}
+
+function visibleViewportHeight(keyboardInset: number, stableViewportHeight: number | null) {
+  const currentViewportHeight = viewportHeight()
+  if (keyboardInset <= keyboardVisibilityThreshold) {
+    return currentViewportHeight
   }
 
-  return viewportHeight
+  const estimatedVisibleHeight = stableViewportHeight === null
+    ? currentViewportHeight
+    : stableViewportHeight - keyboardInset
+  return Math.min(currentViewportHeight, estimatedVisibleHeight)
 }
 
 export function useMobileViewportGeometry() {
@@ -62,6 +91,8 @@ export function useMobileViewportGeometry() {
     const viewport = window.visualViewport
     const virtualKeyboard = (window.navigator as VirtualKeyboardNavigator).virtualKeyboard
     let frame: number | null = null
+    let stableMobileViewportHeight: number | null = null
+    let keyboardWasVisible = false
 
     const commit = () => {
       frame = null
@@ -69,15 +100,39 @@ export function useMobileViewportGeometry() {
       if (!mobileQuery.matches) {
         setAppVisualHeight(null)
         setKeyboardState(0)
+        setMobileSheetGeometry(null)
+        stableMobileViewportHeight = null
+        keyboardWasVisible = false
         return
       }
 
+      const currentViewportHeight = viewportHeight()
+      if (stableMobileViewportHeight === null) {
+        stableMobileViewportHeight = currentViewportHeight
+      }
+
+      const viewportHeightDrop = Math.max(0, stableMobileViewportHeight - currentViewportHeight)
+      const resizeKeyboardInset = viewportHeightDrop > keyboardVisibilityThreshold
+        && (activeEditableElement() || keyboardWasVisible)
+        ? viewportHeightDrop
+        : 0
       const keyboardInset = Math.max(
         visualViewportKeyboardInset(),
-        virtualKeyboardInset(virtualKeyboard)
+        virtualKeyboardInset(virtualKeyboard),
+        resizeKeyboardInset
       )
+      const keyboardVisible = keyboardInset > keyboardVisibilityThreshold
+
+      if (!keyboardVisible) {
+        stableMobileViewportHeight = currentViewportHeight
+      } else {
+        stableMobileViewportHeight = Math.max(stableMobileViewportHeight, currentViewportHeight + keyboardInset)
+      }
+
       setKeyboardState(keyboardInset)
-      setAppVisualHeight(visibleViewportHeight(keyboardInset))
+      setAppVisualHeight(visibleViewportHeight(keyboardInset, stableMobileViewportHeight))
+      setMobileSheetGeometry(stableMobileViewportHeight)
+      keyboardWasVisible = keyboardVisible
     }
 
     const schedule = () => {
@@ -91,6 +146,8 @@ export function useMobileViewportGeometry() {
     viewport?.addEventListener("resize", schedule)
     viewport?.addEventListener("scroll", schedule)
     virtualKeyboard?.addEventListener("geometrychange", schedule)
+    window.addEventListener("focusin", schedule)
+    window.addEventListener("focusout", schedule)
     window.addEventListener("resize", schedule)
     mobileQuery.addEventListener("change", schedule)
 
@@ -101,10 +158,13 @@ export function useMobileViewportGeometry() {
       viewport?.removeEventListener("resize", schedule)
       viewport?.removeEventListener("scroll", schedule)
       virtualKeyboard?.removeEventListener("geometrychange", schedule)
+      window.removeEventListener("focusin", schedule)
+      window.removeEventListener("focusout", schedule)
       window.removeEventListener("resize", schedule)
       mobileQuery.removeEventListener("change", schedule)
       setAppVisualHeight(null)
       setKeyboardState(0)
+      setMobileSheetGeometry(null)
     }
   }, [])
 }

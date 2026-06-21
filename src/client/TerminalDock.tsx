@@ -43,6 +43,8 @@ const inputFlushMs = 8;
 const resizeFlushMs = 100;
 const metricsCommitMs = 500;
 const dragDismissThreshold = 80;
+const mobileTerminalSheetClass =
+  "pointer-events-auto absolute inset-x-0 top-[var(--mobile-sheet-top)] flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden rounded-t-[16px] md:inset-auto md:rounded-[12px]";
 const desktopMargin = 16;
 const desktopDefaultWidth = 560;
 const desktopDefaultHeight = 320;
@@ -738,7 +740,7 @@ export function TerminalDock({ visible, onClose }: TerminalDockProps) {
 
           <motion.section
             className={cn(
-              "pointer-events-auto absolute inset-x-0 bottom-[var(--keyboard-inset-bottom)] flex h-[92dvh] max-h-[calc(100dvh_-_var(--keyboard-inset-bottom))] flex-col overflow-hidden rounded-t-[16px] md:inset-auto md:rounded-[12px]",
+              mobileTerminalSheetClass,
               ui.popover
             )}
             style={isMobileSheet ? undefined : {

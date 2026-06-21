@@ -101,6 +101,8 @@ type CommandActionRenderItem = {
 type MobileSheet = "navigator" | "inspector"
 
 const spring = { type: "spring", stiffness: 360, damping: 36 } as const
+const mobileSheetClass =
+  "mobile-sheet-surface absolute inset-x-0 top-[var(--mobile-sheet-top)] flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden rounded-t-[16px] border-t"
 
 function isMobileViewport() {
   return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(max-width: 767px)").matches
@@ -317,7 +319,7 @@ const CommandPalette = memo(function CommandPalette({
     <AnimatePresence>
       {open ? (
         <motion.div
-          className={cn("fixed inset-0 z-[120] flex items-start justify-center px-3 pt-[12vh]", ui.overlay)}
+          className={cn("fixed inset-0 z-[120] flex items-start justify-center md:px-3 md:pt-[12vh]", ui.overlay)}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -325,13 +327,20 @@ const CommandPalette = memo(function CommandPalette({
           onMouseDown={onClose}
         >
           <motion.div
-            className={cn("w-full max-w-[620px]", ui.popover)}
-            initial={{ opacity: 0, y: -12, scale: 0.98 }}
+            className={cn(
+              mobileSheetClass,
+              "px-0 md:static md:h-auto md:max-h-[calc(100dvh_-_24vh)] md:w-full md:max-w-[620px] md:rounded-[12px] md:border",
+              ui.popover
+            )}
+            initial={isMobileViewport() ? { y: "100%", opacity: 0 } : { opacity: 0, y: -12, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -12, scale: 0.98 }}
-            transition={{ type: "spring", stiffness: 420, damping: 34 }}
+            exit={isMobileViewport() ? { y: "100%", opacity: 0 } : { opacity: 0, y: -12, scale: 0.98 }}
+            transition={isMobileViewport() ? spring : { type: "spring", stiffness: 420, damping: 34 }}
             onMouseDown={(event) => event.stopPropagation()}
           >
+            <div className="md:hidden">
+              <MobileSheetHandle />
+            </div>
             <div className="flex h-12 items-center gap-3 border-b border-border px-3.5">
               <Search size={16} className="text-muted" />
               <input
@@ -361,7 +370,7 @@ const CommandPalette = memo(function CommandPalette({
               />
               <Keycap>Esc</Keycap>
             </div>
-            <div className="max-h-[420px] overflow-y-auto p-1.5">
+            <div className="mobile-keyboard-scroll min-h-0 flex-1 overflow-y-auto p-1.5 md:max-h-[420px]">
               {filteredActions.length === 0 ? (
                 <div className="px-3 py-8 text-center text-[13px] text-muted">No commands found</div>
               ) : null}
@@ -940,7 +949,7 @@ export const DashboardLayout = memo(function DashboardLayout({
             <motion.div
               ref={mobileSheetRef}
               className={cn(
-                "absolute inset-x-0 bottom-[var(--keyboard-inset-bottom)] flex h-[92dvh] max-h-[calc(100dvh_-_var(--keyboard-inset-bottom))] flex-col overflow-hidden rounded-t-[16px] border-t",
+                mobileSheetClass,
                 ui.backdropPanel
               )}
               initial={{ y: "100%", opacity: 0 }}
