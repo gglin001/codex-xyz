@@ -1,6 +1,6 @@
 import { Menu, Plus, Search, Settings } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
-import type { KeyboardEvent, SubmitEvent } from "react"
+import type { CSSProperties, KeyboardEvent, SubmitEvent } from "react"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { ControlThread, SessionDisplayStatus, ThreadDetail } from "../../server/domain.js"
 import { cn, ui } from "../designSystem.js"
@@ -47,7 +47,7 @@ export type DashboardLayoutProps = {
   onSelectSession: (session: WorkbenchSession, options?: { clearSessionQuery?: boolean }) => void
   onCreateSession: () => void
   onSessionQueryChange: (value: string) => void
-  onToggleTerminal: () => void
+  onTerminalVisibleChange: (visible: boolean) => void
   onPromptChange: (value: string) => void
   onPromptKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void
   onPromptSubmit: (event: SubmitEvent<HTMLFormElement>) => void
@@ -86,7 +86,21 @@ type CommandActionRenderItem = {
   lastVisibleProjectSession: boolean
 }
 
+type MobileSheet = "navigator" | "inspector"
+
 const spring = { type: "spring", stiffness: 360, damping: 36 } as const
+
+function isMobileViewport() {
+  return typeof window.matchMedia === "function" && window.matchMedia("(max-width: 767px)").matches
+}
+
+function MobileSheetHandle() {
+  return (
+    <div className="pointer-events-none flex h-7 shrink-0 items-start justify-center pt-2" aria-hidden="true">
+      <span className="h-1 w-10 rounded-full bg-border-strong" />
+    </div>
+  )
+}
 
 function commandActionMatches(action: CommandAction, normalizedQuery: string) {
   return `${action.title} ${action.detail}`.toLowerCase().includes(normalizedQuery)
@@ -355,7 +369,7 @@ export const DashboardLayout = memo(function DashboardLayout({
   onSelectSession,
   onCreateSession,
   onSessionQueryChange,
-  onToggleTerminal,
+  onTerminalVisibleChange,
   onPromptChange,
   onPromptKeyDown,
   onPromptSubmit,
@@ -365,38 +379,19 @@ export const DashboardLayout = memo(function DashboardLayout({
   onInterrupt,
   onResume
 }: DashboardLayoutProps) {
-  const [mobileNavigatorOpen, setMobileNavigatorOpen] = useState(false)
-  const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false)
+  const [mobileSheet, setMobileSheet] = useState<MobileSheet | null>(null)
   const [commandOpen, setCommandOpen] = useState(false)
   const desktopWorkspaceRef = useRef<WorkspaceHandle | null>(null)
   const mobileWorkspaceRef = useRef<WorkspaceHandle | null>(null)
   const vvHeight = useVisualViewportHeight({ maxWidth: 767 })
-  const navigatorBackdropRef = useRef<HTMLDivElement | null>(null)
-  const inspectorBackdropRef = useRef<HTMLDivElement | null>(null)
+  const mobileSheetRef = useRef<HTMLDivElement | null>(null)
 
-  const handleSwipeRight = useCallback(() => {
-    if (mobileInspectorOpen) {
-      setMobileInspectorOpen(false)
-    } else {
-      setMobileNavigatorOpen(true)
-    }
-  }, [mobileInspectorOpen])
-
-  const handleSwipeLeft = useCallback(() => {
-    if (mobileNavigatorOpen) {
-      setMobileNavigatorOpen(false)
-    } else {
-      setMobileInspectorOpen(true)
-    }
-  }, [mobileNavigatorOpen])
-
-  useSwipeGesture(navigatorBackdropRef, {
-    onSwipeLeft: () => setMobileNavigatorOpen(false)
-  })
-
-  useSwipeGesture(inspectorBackdropRef, {
-    onSwipeRight: () => setMobileInspectorOpen(false)
-  })
+  const mobileSheetHeight = vvHeight != null
+    ? `min(${vvHeight * 0.92}px, 100dvh)`
+    : "92dvh"
+  const mobileSheetStyle = {
+    "--mobile-sheet-height": mobileSheetHeight
+  } as CSSProperties
 
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? projects[0] ?? null
 
@@ -417,21 +412,18 @@ export const DashboardLayout = memo(function DashboardLayout({
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") {
         setCommandOpen(false)
-        setMobileNavigatorOpen(false)
-        setMobileInspectorOpen(false)
+        setMobileSheet(null)
         return
       }
       if (!commandOpen && isPromptFocusShortcut(event)) {
         event.preventDefault()
-        setMobileNavigatorOpen(false)
-        setMobileInspectorOpen(false)
+        setMobileSheet(null)
         window.requestAnimationFrame(focusVisiblePrompt)
         return
       }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault()
-        setMobileNavigatorOpen(false)
-        setMobileInspectorOpen(false)
+        setMobileSheet(null)
         setCommandOpen((current) => !current)
       }
     }
@@ -442,7 +434,29 @@ export const DashboardLayout = memo(function DashboardLayout({
     }
   }, [commandOpen, focusVisiblePrompt])
 
+  useEffect(() => {
+    if (terminalVisible) {
+      setMobileSheet(null)
+    }
+  }, [terminalVisible])
+
   const commandActions = useMemo<CommandAction[]>(() => {
+    const setNavigatorVisible = () => {
+      if (isMobileViewport()) {
+        onTerminalVisibleChange(false)
+        setMobileSheet((current) => current === "navigator" ? null : "navigator")
+        return
+      }
+      onNavigatorVisibleChange(!navigatorVisible)
+    }
+    const setInspectorVisible = () => {
+      if (isMobileViewport()) {
+        onTerminalVisibleChange(false)
+        setMobileSheet((current) => current === "inspector" ? null : "inspector")
+        return
+      }
+      onInspectorVisibleChange(!inspectorVisible)
+    }
     const actions: CommandAction[] = [
       {
         id: "create-session",
@@ -456,14 +470,14 @@ export const DashboardLayout = memo(function DashboardLayout({
         title: navigatorVisible ? "Hide navigator" : "Show navigator",
         detail: "Toggle the project and session sidebar",
         kind: "navigator",
-        run: () => onNavigatorVisibleChange(!navigatorVisible)
+        run: setNavigatorVisible
       },
       {
         id: "toggle-inspector",
         title: inspectorVisible ? "Hide settings" : "Show settings",
         detail: "Toggle app-server thread and goal state",
         kind: "settings",
-        run: () => onInspectorVisibleChange(!inspectorVisible)
+        run: setInspectorVisible
       }
     ]
 
@@ -499,10 +513,65 @@ export const DashboardLayout = memo(function DashboardLayout({
     createSessionAndFocusPrompt,
     onInspectorVisibleChange,
     onNavigatorVisibleChange,
+    onTerminalVisibleChange,
     onProjectChange,
     onSelectSession,
     projects
   ])
+
+  const toggleDesktopTerminal = useCallback(() => {
+    onTerminalVisibleChange(!terminalVisible)
+  }, [onTerminalVisibleChange, terminalVisible])
+
+  const openMobileSheet = useCallback((sheet: MobileSheet) => {
+    onTerminalVisibleChange(false)
+    setMobileSheet((current) => current === sheet ? null : sheet)
+  }, [onTerminalVisibleChange])
+
+  const showMobileTerminal = useCallback(() => {
+    setMobileSheet(null)
+    onTerminalVisibleChange(true)
+  }, [onTerminalVisibleChange])
+
+  const toggleNavigator = useCallback(() => {
+    if (isMobileViewport()) {
+      openMobileSheet("navigator")
+      return
+    }
+    onNavigatorVisibleChange(!navigatorVisible)
+  }, [navigatorVisible, onNavigatorVisibleChange, openMobileSheet])
+
+  const toggleInspector = useCallback(() => {
+    if (isMobileViewport()) {
+      openMobileSheet("inspector")
+      return
+    }
+    onInspectorVisibleChange(!inspectorVisible)
+  }, [inspectorVisible, onInspectorVisibleChange, openMobileSheet])
+
+  const handleMobileSwipeLeft = useCallback(() => {
+    if (mobileSheet === "navigator") {
+      setMobileSheet(null)
+      return
+    }
+    onTerminalVisibleChange(false)
+    setMobileSheet("inspector")
+  }, [mobileSheet, onTerminalVisibleChange])
+
+  const handleMobileSwipeRight = useCallback(() => {
+    if (mobileSheet === "inspector") {
+      setMobileSheet(null)
+      return
+    }
+    onTerminalVisibleChange(false)
+    setMobileSheet("navigator")
+  }, [mobileSheet, onTerminalVisibleChange])
+
+  useSwipeGesture(mobileSheetRef, {
+    onSwipeLeft: mobileSheet === "navigator" ? () => setMobileSheet(null) : undefined,
+    onSwipeRight: mobileSheet === "inspector" ? () => setMobileSheet(null) : undefined,
+    onSwipeDown: () => setMobileSheet(null)
+  })
 
   const sidebar = (
     <Sidebar
@@ -515,9 +584,9 @@ export const DashboardLayout = memo(function DashboardLayout({
       onSelectSession={onSelectSession}
       onCreateSession={createSessionAndFocusPrompt}
       terminalVisible={terminalVisible}
-      onToggleTerminal={onToggleTerminal}
+      onToggleTerminal={toggleDesktopTerminal}
       inspectorVisible={inspectorVisible}
-      onToggleInspector={() => onInspectorVisibleChange(!inspectorVisible)}
+      onToggleInspector={toggleInspector}
       onOpenCommandPalette={() => setCommandOpen(true)}
     />
   )
@@ -586,8 +655,8 @@ export const DashboardLayout = memo(function DashboardLayout({
             onGoalModeChange={onGoalModeChange}
             onInterrupt={onInterrupt}
             onResume={onResume}
-            onToggleNavigator={() => onNavigatorVisibleChange(!navigatorVisible)}
-            onToggleInspector={() => onInspectorVisibleChange(!inspectorVisible)}
+            onToggleNavigator={toggleNavigator}
+            onToggleInspector={toggleInspector}
           />
         </div>
 
@@ -627,8 +696,8 @@ export const DashboardLayout = memo(function DashboardLayout({
           canSubmitPrompt={canSubmitPrompt}
           wrapSessionContent={wrapSessionContent}
           displayScale={displayScale}
-          navigatorVisible={mobileNavigatorOpen}
-          inspectorVisible={mobileInspectorOpen}
+          navigatorVisible={mobileSheet === "navigator"}
+          inspectorVisible={mobileSheet === "inspector"}
           onPromptChange={onPromptChange}
           onPromptKeyDown={onPromptKeyDown}
           onPromptSubmit={onPromptSubmit}
@@ -637,99 +706,85 @@ export const DashboardLayout = memo(function DashboardLayout({
           onGoalModeChange={onGoalModeChange}
           onInterrupt={onInterrupt}
           onResume={onResume}
-          onToggleNavigator={() => {
-            setMobileInspectorOpen(false)
-            setMobileNavigatorOpen((current) => !current)
-          }}
-          onSwipeLeft={handleSwipeLeft}
-          onSwipeRight={handleSwipeRight}
-          onToggleInspector={() => {
-            setMobileNavigatorOpen(false)
-            setMobileInspectorOpen((current) => !current)
-          }}
+          onToggleNavigator={() => openMobileSheet("navigator")}
+          onToggleInspector={() => openMobileSheet("inspector")}
+          onSwipeLeft={handleMobileSwipeLeft}
+          onSwipeRight={handleMobileSwipeRight}
         />
       </div>
 
       <AnimatePresence>
-        {mobileNavigatorOpen ? (
+        {mobileSheet ? (
           <motion.div
-            ref={navigatorBackdropRef}
             className={cn("fixed inset-0 z-[90] md:hidden", ui.overlay)}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={spring}
-            onMouseDown={() => setMobileNavigatorOpen(false)}
+            onMouseDown={() => setMobileSheet(null)}
           >
             <motion.div
-              className={cn("h-full w-[min(88vw,360px)] overflow-hidden border-r", ui.backdropPanel)}
-              initial={{ x: "-100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "-100%" }}
+              ref={mobileSheetRef}
+              className={cn(
+                "absolute inset-x-0 bottom-0 flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden rounded-t-[28px] border-t",
+                ui.backdropPanel
+              )}
+              style={mobileSheetStyle}
+              initial={{ y: "100%", opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: "100%", opacity: 0 }}
               transition={spring}
+              drag="y"
+              dragConstraints={{ top: 0, bottom: 0 }}
+              dragElastic={{ top: 0, bottom: 0.4 }}
+              dragMomentum={false}
+              onDragEnd={(_event, info) => {
+                if (info.offset.y > 80 || info.velocity.y > 600) {
+                  setMobileSheet(null)
+                }
+              }}
               onMouseDown={(event) => event.stopPropagation()}
             >
-              <Sidebar
-                projects={projects}
-                selectedProjectId={selectedProjectId}
-                selectedSessionId={selectedSessionId}
-                sessionQuery={sessionQuery}
-                onProjectChange={onProjectChange}
-                onSessionQueryChange={onSessionQueryChange}
-                onSelectSession={(nextSession) => {
-                  onSelectSession(nextSession)
-                  setMobileNavigatorOpen(false)
-                }}
-                onCreateSession={() => {
-                  createSessionAndFocusPrompt()
-                  setMobileNavigatorOpen(false)
-                }}
-                terminalVisible={terminalVisible}
-                onToggleTerminal={onToggleTerminal}
-                inspectorVisible={mobileInspectorOpen}
-                onToggleInspector={() => {
-                  setMobileNavigatorOpen(false)
-                  setMobileInspectorOpen((current) => !current)
-                }}
-                onOpenCommandPalette={() => {
-                  setMobileNavigatorOpen(false)
-                  setCommandOpen(true)
-                }}
-              />
-            </motion.div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {mobileInspectorOpen ? (
-          <motion.div
-            ref={inspectorBackdropRef}
-            className={cn("fixed inset-0 z-[95] md:hidden", ui.overlay)}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={spring}
-            onMouseDown={() => setMobileInspectorOpen(false)}
-          >
-            <motion.div
-              className={cn("h-full w-[min(88vw,360px)] ml-auto overflow-hidden border-l", ui.backdropPanel)}
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={spring}
-              onMouseDown={(event) => event.stopPropagation()}
-            >
-              <ParamPanel
-                session={session}
-                detail={detail}
-                selectedThread={selectedThread}
-                wrapSessionContent={wrapSessionContent}
-                displayScale={displayScale}
-                onDisplayScaleChange={onDisplayScaleChange}
-                defaultCwd={defaultCwd}
-                onWrapSessionContentChange={onWrapSessionContentChange}
-              />
+              <MobileSheetHandle />
+              {mobileSheet === "navigator" ? (
+                <Sidebar
+                  className="border-r-0"
+                  projects={projects}
+                  selectedProjectId={selectedProjectId}
+                  selectedSessionId={selectedSessionId}
+                  sessionQuery={sessionQuery}
+                  onProjectChange={onProjectChange}
+                  onSessionQueryChange={onSessionQueryChange}
+                  onSelectSession={(nextSession) => {
+                    onSelectSession(nextSession)
+                    setMobileSheet(null)
+                  }}
+                  onCreateSession={() => {
+                    createSessionAndFocusPrompt()
+                    setMobileSheet(null)
+                  }}
+                  terminalVisible={terminalVisible}
+                  onToggleTerminal={showMobileTerminal}
+                  inspectorVisible={false}
+                  onToggleInspector={() => openMobileSheet("inspector")}
+                  onOpenCommandPalette={() => {
+                    setMobileSheet(null)
+                    setCommandOpen(true)
+                  }}
+                />
+              ) : (
+                <ParamPanel
+                  className="border-l-0"
+                  session={session}
+                  detail={detail}
+                  selectedThread={selectedThread}
+                  wrapSessionContent={wrapSessionContent}
+                  displayScale={displayScale}
+                  onDisplayScaleChange={onDisplayScaleChange}
+                  defaultCwd={defaultCwd}
+                  onWrapSessionContentChange={onWrapSessionContentChange}
+                />
+              )}
             </motion.div>
           </motion.div>
         ) : null}

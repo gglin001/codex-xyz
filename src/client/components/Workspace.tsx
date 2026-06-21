@@ -65,6 +65,8 @@ export type WorkspaceProps = {
   onToggleInspector: () => void
   onSwipeLeft?: () => void
   onSwipeRight?: () => void
+  onSwipeUp?: () => void
+  onSwipeDown?: () => void
 }
 
 export type WorkspaceHandle = {
@@ -613,7 +615,9 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
   onToggleNavigator,
   onToggleInspector,
   onSwipeLeft,
-  onSwipeRight
+  onSwipeRight,
+  onSwipeUp,
+  onSwipeDown
 }, ref) {
   const composerRef = useRef<ComposerHandle | null>(null)
   const composerShellRef = useRef<HTMLDivElement | null>(null)
@@ -638,7 +642,9 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
 
   useSwipeGesture(composerShellRef, {
     onSwipeLeft,
-    onSwipeRight
+    onSwipeRight,
+    onSwipeUp,
+    onSwipeDown
   })
 
   return (

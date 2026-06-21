@@ -4,6 +4,8 @@ import { useEffect, useRef } from "react"
 export type SwipeHandlers = {
   onSwipeLeft?: () => void
   onSwipeRight?: () => void
+  onSwipeUp?: () => void
+  onSwipeDown?: () => void
 }
 
 export type SwipeGestureOptions = {
@@ -36,8 +38,7 @@ function isInteractiveTarget(target: EventTarget | null) {
 
 /**
  * Listens for touch-swipe gestures on `elementRef` and fires the
- * corresponding handler when the horizontal distance exceeds `threshold`
- * and the swipe is more horizontal than vertical.
+ * corresponding handler when the dominant movement exceeds `threshold`.
  */
 export function useSwipeGesture(
   elementRef: RefObject<HTMLElement | null>,
@@ -53,7 +54,10 @@ export function useSwipeGesture(
   const startRef = useRef<SwipeStart | null>(null)
 
   useEffect(() => {
-    if (!enabled || (!handlers.onSwipeLeft && !handlers.onSwipeRight)) {
+    if (
+      !enabled ||
+      (!handlers.onSwipeLeft && !handlers.onSwipeRight && !handlers.onSwipeUp && !handlers.onSwipeDown)
+    ) {
       return
     }
     const el = elementRef.current
@@ -80,17 +84,27 @@ export function useSwipeGesture(
       if (!start || event.changedTouches.length !== 1) return
       const dx = event.changedTouches[0].clientX - start.x
       const dy = event.changedTouches[0].clientY - start.y
+      const absDx = Math.abs(dx)
+      const absDy = Math.abs(dy)
 
-      if (Math.abs(dx) < Math.abs(dy)) return
-      if (Math.abs(dx) < threshold) return
-
-      if (dx > 0) {
+      if (absDx >= absDy) {
+        if (absDx < threshold) return
+        if (dx <= 0) {
+          if (!start.nearRightEdge) return
+          handlers.onSwipeLeft?.()
+          return
+        }
         if (!start.nearLeftEdge) return
         handlers.onSwipeRight?.()
-      } else {
-        if (!start.nearRightEdge) return
-        handlers.onSwipeLeft?.()
+        return
       }
+
+      if (absDy < threshold) return
+      if (dy <= 0) {
+        handlers.onSwipeUp?.()
+        return
+      }
+      handlers.onSwipeDown?.()
     }
 
     const onTouchCancel = () => {
@@ -112,6 +126,8 @@ export function useSwipeGesture(
     enabled,
     handlers.onSwipeLeft,
     handlers.onSwipeRight,
+    handlers.onSwipeUp,
+    handlers.onSwipeDown,
     ignoreInteractive,
     threshold
   ])

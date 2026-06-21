@@ -776,7 +776,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
         onSelectSession={selectWorkbenchSession}
         onCreateSession={createWorkbenchSession}
         onSessionQueryChange={setSessionQuery}
-        onToggleTerminal={() => setTerminalVisible((current) => !current)}
+        onTerminalVisibleChange={setTerminalVisible}
         onPromptChange={setPrompt}
         onPromptKeyDown={handlePromptKeyDown}
         onPromptSubmit={submitPrompt}
