@@ -82,18 +82,18 @@ const initialTerminalClientMetrics: TerminalClientMetrics = {
 
 function terminalTheme() {
   return {
-    background: "#171717",
-    foreground: "#d2d2d2",
-    cursor: "#cfd8ff",
-    selectionBackground: "#343a4d",
-    black: "#1f1f1f",
+    background: "#0b0d0c",
+    foreground: "#d8ded7",
+    cursor: "#d8e9c8",
+    selectionBackground: "#2c382d",
+    black: "#151816",
     red: "#fb7185",
     green: "#67d28f",
-    yellow: "#fbbf24",
-    blue: "#9fb3ff",
+    yellow: "#e2c26d",
+    blue: "#a7c7a1",
     magenta: "#c4b5fd",
     cyan: "#67e8f9",
-    white: "#f0f0f0"
+    white: "#f3f7f0"
   };
 }
 
@@ -743,7 +743,7 @@ export function TerminalDock({ visible, onClose }: TerminalDockProps) {
 
           <motion.section
             className={cn(
-              "pointer-events-auto absolute inset-x-0 bottom-[var(--keyboard-inset-bottom)] flex h-[92dvh] max-h-[calc(100dvh_-_var(--keyboard-inset-bottom))] flex-col overflow-hidden rounded-t-[28px] md:inset-auto md:rounded-[24px]",
+              "pointer-events-auto absolute inset-x-0 bottom-[var(--keyboard-inset-bottom)] flex h-[92dvh] max-h-[calc(100dvh_-_var(--keyboard-inset-bottom))] flex-col overflow-hidden rounded-t-[16px] md:inset-auto md:rounded-[12px]",
               ui.popover
             )}
             style={isMobileSheet ? undefined : {

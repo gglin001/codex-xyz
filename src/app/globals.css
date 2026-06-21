@@ -4,36 +4,36 @@
   --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-  --color-app-bg: #141414;
-  --color-app-panel: #1f1f1f;
-  --color-app-detail: #202020;
-  --color-panel: #1f1f1f;
-  --color-detail: #202020;
-  --color-surface: #262626;
-  --color-surface-subtle: #1a1a1a;
-  --color-field: #222222;
-  --color-control: #303030;
-  --color-control-hover: #3a3a3a;
-  --color-selected: #383838;
-  --color-selected-strong: #444444;
-  --color-terminal: #171717;
-  --color-fg: #d2d2d2;
-  --color-fg-strong: #f0f0f0;
-  --color-muted: #8a8a8a;
-  --color-muted-strong: #b8b8b8;
-  --color-border: rgba(255, 255, 255, 0.08);
-  --color-border-strong: rgba(255, 255, 255, 0.14);
-  --color-border-soft: rgba(255, 255, 255, 0.055);
-  --color-accent: #cfd8ff;
-  --color-accent-fg: #141414;
-  --color-accent-soft: rgba(94, 111, 157, 0.36);
-  --color-focus-ring: rgba(199, 211, 255, 0.26);
-  --color-chip: rgba(50, 50, 50, 0.82);
-  --color-chip-fg: #d7d7d7;
-  --color-quiet: rgba(48, 48, 48, 0.82);
-  --color-quiet-fg: #b0b0b0;
-  --color-running: rgba(72, 164, 116, 0.16);
-  --color-running-fg: #c8f1da;
+  --color-app-bg: #0f1110;
+  --color-app-panel: #151816;
+  --color-app-detail: #181b19;
+  --color-panel: #151816;
+  --color-detail: #181b19;
+  --color-surface: #202520;
+  --color-surface-subtle: #121412;
+  --color-field: #161917;
+  --color-control: #202520;
+  --color-control-hover: #283029;
+  --color-selected: #222922;
+  --color-selected-strong: #2d382f;
+  --color-terminal: #0b0d0c;
+  --color-fg: #d8ded7;
+  --color-fg-strong: #f3f7f0;
+  --color-muted: #879086;
+  --color-muted-strong: #b3bdb1;
+  --color-border: rgba(231, 244, 226, 0.08);
+  --color-border-strong: rgba(231, 244, 226, 0.15);
+  --color-border-soft: rgba(231, 244, 226, 0.055);
+  --color-accent: #d8e9c8;
+  --color-accent-fg: #0f1110;
+  --color-accent-soft: rgba(196, 224, 179, 0.24);
+  --color-focus-ring: rgba(216, 233, 200, 0.22);
+  --color-chip: rgba(40, 48, 41, 0.84);
+  --color-chip-fg: #dce4d9;
+  --color-quiet: rgba(31, 36, 32, 0.82);
+  --color-quiet-fg: #aeb8ab;
+  --color-running: rgba(80, 176, 114, 0.16);
+  --color-running-fg: #c9f2d6;
   --color-attention: var(--attention-bg);
   --color-attention-fg: var(--attention-text);
   --color-stale: var(--stale-bg);
@@ -43,68 +43,69 @@
   --color-error: var(--error-bg);
   --color-error-fg: var(--error-text);
   --color-running-dot: #67d28f;
-  --color-stale-dot: #9caae8;
+  --color-stale-dot: #e2c26d;
   --color-failed-dot: #fb7185;
   --color-completed-dot: #777777;
 
   --ease-fluid: cubic-bezier(0.2, 0, 0, 1);
   --ease-snappy: cubic-bezier(0.16, 1, 0.3, 1);
 
-  --radius-control: 16px;
-  --radius-control-lg: 18px;
-  --radius-card: 18px;
-  --radius-card-lg: 20px;
-  --radius-panel: 24px;
-  --radius-sheet: 28px;
+  --radius-control: 8px;
+  --radius-control-lg: 10px;
+  --radius-card: 8px;
+  --radius-card-lg: 10px;
+  --radius-panel: 12px;
+  --radius-sheet: 16px;
 
-  --shadow-control: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
-  --shadow-panel: 0 28px 80px rgba(0, 0, 0, 0.34), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
-  --shadow-popover: 0 34px 90px rgba(0, 0, 0, 0.58), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  --shadow-control: 0 1px 0 rgba(255, 255, 255, 0.025) inset;
+  --shadow-panel: 0 18px 48px rgba(0, 0, 0, 0.28), 0 1px 0 rgba(255, 255, 255, 0.035) inset;
+  --shadow-popover: 0 24px 72px rgba(0, 0, 0, 0.48), 0 1px 0 rgba(255, 255, 255, 0.05) inset;
 }
 
 @layer base {
   :root {
     color-scheme: dark;
     text-rendering: optimizeLegibility;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 
-    --app-bg: #141414;
-    --panel-bg: #1f1f1f;
-    --detail-bg: #202020;
-    --surface-bg: #262626;
-    --surface-subtle-bg: #1a1a1a;
-    --field-bg: #202020;
-    --control-bg: #303030;
-    --control-hover-bg: #3a3a3a;
-    --selected-bg: #383838;
-    --selected-strong-bg: #444444;
-    --terminal-bg: #171717;
-    --text: #d2d2d2;
-    --text-strong: #f0f0f0;
-    --muted: #8a8a8a;
-    --muted-strong: #b8b8b8;
-    --border: rgba(255, 255, 255, 0.08);
-    --border-strong: rgba(255, 255, 255, 0.14);
-    --border-soft: rgba(255, 255, 255, 0.055);
-    --accent: #cfd8ff;
-    --accent-text: #141414;
-    --accent-soft: rgba(94, 111, 157, 0.36);
-    --focus-ring: rgba(199, 211, 255, 0.26);
-    --chip-bg: rgba(50, 50, 50, 0.82);
-    --chip-text: #d7d7d7;
-    --quiet-bg: rgba(48, 48, 48, 0.82);
-    --quiet-text: #b0b0b0;
-    --running-bg: rgba(72, 164, 116, 0.16);
-    --running-text: #c8f1da;
+    --app-bg: #0f1110;
+    --panel-bg: #151816;
+    --detail-bg: #181b19;
+    --surface-bg: #202520;
+    --surface-subtle-bg: #121412;
+    --field-bg: #161917;
+    --control-bg: #202520;
+    --control-hover-bg: #283029;
+    --selected-bg: #222922;
+    --selected-strong-bg: #2d382f;
+    --terminal-bg: #0b0d0c;
+    --text: #d8ded7;
+    --text-strong: #f3f7f0;
+    --muted: #879086;
+    --muted-strong: #b3bdb1;
+    --border: rgba(231, 244, 226, 0.08);
+    --border-strong: rgba(231, 244, 226, 0.15);
+    --border-soft: rgba(231, 244, 226, 0.055);
+    --accent: #d8e9c8;
+    --accent-text: #0f1110;
+    --accent-soft: rgba(196, 224, 179, 0.24);
+    --focus-ring: rgba(216, 233, 200, 0.22);
+    --chip-bg: rgba(40, 48, 41, 0.84);
+    --chip-text: #dce4d9;
+    --quiet-bg: rgba(31, 36, 32, 0.82);
+    --quiet-text: #aeb8ab;
+    --running-bg: rgba(80, 176, 114, 0.16);
+    --running-text: #c9f2d6;
     --attention-bg: rgba(244, 63, 94, 0.14);
     --attention-text: #fecdd3;
-    --stale-bg: rgba(122, 141, 201, 0.18);
-    --stale-text: #d9e0ff;
-    --success-bg: rgba(72, 164, 116, 0.16);
-    --success-text: #c8f1da;
+    --stale-bg: rgba(226, 194, 109, 0.14);
+    --stale-text: #f2ddb0;
+    --success-bg: rgba(80, 176, 114, 0.16);
+    --success-text: #c9f2d6;
     --error-bg: rgba(244, 63, 94, 0.14);
     --error-text: #fecdd3;
     --running-dot: #67d28f;
-    --stale-dot: #9caae8;
+    --stale-dot: #e2c26d;
     --failed-dot: #fb7185;
     --completed-dot: #777777;
     --safe-inset-top: env(safe-area-inset-top, 0px);
@@ -114,9 +115,9 @@
     --app-visual-height: 100dvh;
     --keyboard-inset-bottom: 0px;
     --composer-height: 132px;
-    --shadow-control-value: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
-    --shadow-panel-value: 0 28px 80px rgba(0, 0, 0, 0.34), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
-    --shadow-popover-value: 0 34px 90px rgba(0, 0, 0, 0.58), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+    --shadow-control-value: 0 1px 0 rgba(255, 255, 255, 0.025) inset;
+    --shadow-panel-value: 0 18px 48px rgba(0, 0, 0, 0.28), 0 1px 0 rgba(255, 255, 255, 0.035) inset;
+    --shadow-popover-value: 0 24px 72px rgba(0, 0, 0, 0.48), 0 1px 0 rgba(255, 255, 255, 0.05) inset;
   }
 
   * {
@@ -185,7 +186,7 @@
   }
 
   ::selection {
-    background: rgba(199, 211, 255, 0.24);
+    background: rgba(216, 233, 200, 0.24);
   }
 
   * {
@@ -244,9 +245,9 @@
   }
 
   .shadow-panel {
-    --tw-shadow: 0 18px 40px var(--tw-shadow-color, rgba(0, 0, 0, 0.34)), 0 1px 0 var(--tw-shadow-color, rgba(255, 255, 255, 0.04)) inset;
+    --tw-shadow: 0 14px 34px var(--tw-shadow-color, rgba(0, 0, 0, 0.28)), 0 1px 0 var(--tw-shadow-color, rgba(255, 255, 255, 0.035)) inset;
   }
   .shadow-popover {
-    --tw-shadow: 0 20px 40px var(--tw-shadow-color, rgba(0, 0, 0, 0.58)), 0 1px 0 var(--tw-shadow-color, rgba(255, 255, 255, 0.06)) inset;
+    --tw-shadow: 0 18px 44px var(--tw-shadow-color, rgba(0, 0, 0, 0.48)), 0 1px 0 var(--tw-shadow-color, rgba(255, 255, 255, 0.05)) inset;
   }
 }

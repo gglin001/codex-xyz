@@ -325,17 +325,17 @@ const CommandPalette = memo(function CommandPalette({
           onMouseDown={onClose}
         >
           <motion.div
-            className={cn("w-full max-w-[640px]", ui.popover)}
-            initial={{ opacity: 0, y: -18, scale: 0.97 }}
+            className={cn("w-full max-w-[620px]", ui.popover)}
+            initial={{ opacity: 0, y: -12, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -18, scale: 0.97 }}
+            exit={{ opacity: 0, y: -12, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 420, damping: 34 }}
             onMouseDown={(event) => event.stopPropagation()}
           >
-            <div className="flex h-14 items-center gap-3 border-b border-border px-4">
+            <div className="flex h-12 items-center gap-3 border-b border-border px-3.5">
               <Search size={16} className="text-muted" />
               <input
-                className={cn(ui.input, "h-12 text-[14px]")}
+                className={cn(ui.input, "h-10 text-[14px]")}
                 autoFocus
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -361,7 +361,7 @@ const CommandPalette = memo(function CommandPalette({
               />
               <Keycap>Esc</Keycap>
             </div>
-            <div className="max-h-[420px] overflow-y-auto p-2">
+            <div className="max-h-[420px] overflow-y-auto p-1.5">
               {filteredActions.length === 0 ? (
                 <div className="px-3 py-8 text-center text-[13px] text-muted">No commands found</div>
               ) : null}
@@ -369,7 +369,7 @@ const CommandPalette = memo(function CommandPalette({
                 <MenuItemButton
                   key={action.id}
                   className={cn(
-                    "h-12 w-full gap-2.5 px-3",
+                    "h-11 w-full gap-2.5 px-2.5",
                     index === activeIndex ? null : "bg-transparent",
                     action.disabled ? "opacity-45" : null
                   )}
@@ -743,11 +743,11 @@ export const DashboardLayout = memo(function DashboardLayout({
   })
 
   const sidebarFooter = (
-    <div className="shrink-0 p-4 pt-2.5">
-      <div className="mb-3 grid grid-cols-2 gap-3">
+    <div className="shrink-0 border-t border-border p-3">
+      <div className="mb-2.5 grid grid-cols-2 gap-2">
         <SurfaceAction
           className={cn(
-            "h-11 justify-center gap-2 px-2 text-[12px] font-medium",
+            "h-10 justify-center gap-2 px-2 text-[12px] font-medium",
             terminalVisible ? null : "text-muted-strong"
           )}
           title="Toggle terminal"
@@ -760,7 +760,7 @@ export const DashboardLayout = memo(function DashboardLayout({
         </SurfaceAction>
         <SurfaceAction
           className={cn(
-            "h-11 justify-center gap-2 px-2 text-[12px] font-medium",
+            "h-10 justify-center gap-2 px-2 text-[12px] font-medium",
             inspectorVisible ? null : "text-muted-strong"
           )}
           title={inspectorVisible ? "Hide settings" : "Open settings"}
@@ -774,12 +774,12 @@ export const DashboardLayout = memo(function DashboardLayout({
       </div>
 
       <SurfaceAction
-        className="h-12 w-full gap-2.5 px-3"
+        className="h-10 w-full gap-2.5 px-2.5"
         title="Open commands"
         aria-label="Open commands"
         onClick={openCommandPalette}
       >
-        <span className={cn("h-8 w-8 font-mono text-[16px] leading-none", ui.iconBox)} aria-hidden="true">
+        <span className={cn("h-7 w-7 font-mono text-[15px] leading-none", ui.iconBox)} aria-hidden="true">
           ⌘
         </span>
         <span className="min-w-0 flex-1">
@@ -829,7 +829,7 @@ export const DashboardLayout = memo(function DashboardLayout({
               key="desktop-sidebar"
               className="h-full min-h-0 shrink-0 overflow-hidden"
               initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 320, opacity: 1 }}
+              animate={{ width: 316, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={spring}
             >
@@ -879,7 +879,7 @@ export const DashboardLayout = memo(function DashboardLayout({
               key="desktop-inspector"
               className="h-full min-h-0 shrink-0 overflow-hidden"
               initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 320, opacity: 1 }}
+              animate={{ width: 316, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={spring}
             >
@@ -940,7 +940,7 @@ export const DashboardLayout = memo(function DashboardLayout({
             <motion.div
               ref={mobileSheetRef}
               className={cn(
-                "absolute inset-x-0 bottom-[var(--keyboard-inset-bottom)] flex h-[92dvh] max-h-[calc(100dvh_-_var(--keyboard-inset-bottom))] flex-col overflow-hidden rounded-t-[28px] border-t",
+                "absolute inset-x-0 bottom-[var(--keyboard-inset-bottom)] flex h-[92dvh] max-h-[calc(100dvh_-_var(--keyboard-inset-bottom))] flex-col overflow-hidden rounded-t-[16px] border-t",
                 ui.backdropPanel
               )}
               initial={{ y: "100%", opacity: 0 }}

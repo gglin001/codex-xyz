@@ -26,7 +26,6 @@ import { useSwipeGesture } from "../useSwipeGesture.js"
 import {
   CollapsibleCard,
   ComposerIconButton,
-  ControlCard,
   CopyIconButton,
   FieldShell,
   LargeIconButton
@@ -137,6 +136,17 @@ function messageCardTitle(message: ChatMessage) {
   return message.title
 }
 
+function messageSurfaceClass(message: ChatMessage) {
+  const title = messageCardTitle(message)
+  if (title === "Prompt") {
+    return "border-accent-soft bg-selected/35"
+  }
+  if (title === "Response") {
+    return "border-border bg-detail/70"
+  }
+  return "border-border bg-app-bg/60"
+}
+
 function headerMeta(value: string) {
   return (
     <span className="max-w-[34vw] truncate whitespace-nowrap text-[10px] text-muted sm:max-w-none">
@@ -214,10 +224,11 @@ const MessageBlock = memo(function MessageBlock({
       meta={headerMeta(messageMeta(message))}
       actions={<CopyTextButton value={message.copyText} />}
       preview={<div className="truncate text-[12px] leading-5 text-muted">{preview}</div>}
+      className={messageSurfaceClass(message)}
     >
       {message.text ? (
         <div className={cn(
-          "text-[length:var(--transcript-font-size)] leading-[var(--transcript-line-height)] text-fg",
+          "text-[length:var(--transcript-font-size)] leading-[var(--transcript-line-height)] text-fg-strong",
           wrapContent ? "whitespace-pre-wrap break-words" : "overflow-x-auto whitespace-pre"
         )}>{message.text}</div>
       ) : null}
@@ -244,7 +255,7 @@ const ProcessItemBlock = memo(function ProcessItemBlock({
       actions={<CopyTextButton value={message.copyText} />}
       preview={<div className="truncate text-[11px] leading-5 text-muted">{preview}</div>}
       size="compact"
-      className="rounded-[14px] shadow-none"
+      className="bg-app-bg/55 shadow-none"
     >
       {message.text ? (
         <div className={cn(
@@ -280,6 +291,7 @@ const ProcessOutputBlock = memo(function ProcessOutputBlock({
       size="prominent"
       preview={<div className="truncate text-[12px] leading-5 text-muted">{preview}</div>}
       bodyClassName="grid gap-1.5 px-3 pb-3 pt-0"
+      className="border-border bg-surface-subtle/80"
     >
       {messages.map((message) => (
         <ProcessItemBlock
@@ -300,7 +312,7 @@ const EmptyTranscript = memo(function EmptyTranscript({
   projectPath: string
 }) {
   return (
-    <ControlCard className="border-dashed px-5 py-8 text-center">
+    <div className="rounded-[12px] border border-dashed border-border bg-detail/45 px-5 py-8 text-center">
       <div className={cn("mx-auto mb-4 h-10 w-10 border border-border text-muted-strong", ui.iconBox)}>
         <Bot size={22} />
       </div>
@@ -312,7 +324,7 @@ const EmptyTranscript = memo(function EmptyTranscript({
           ? "This app-server thread has no persisted transcript items yet. Send a prompt or resume the session to continue."
           : `Create a Codex app-server session for ${projectPath} or select an existing thread from the navigator.`}
       </p>
-    </ControlCard>
+    </div>
   )
 })
 
@@ -425,7 +437,7 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
       ) : null}
 
       {promptTarget === "new" ? (
-        <FieldShell className="mb-3 h-10 px-3.5" icon={<Code2 size={14} />}>
+        <FieldShell className="mb-3 h-9 px-3" icon={<Code2 size={14} />}>
           <input
             className={cn(ui.input, "font-mono text-[12px] text-fg")}
             value={workdir}
@@ -441,7 +453,7 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
         <div className={ui.composerShell}>
           <textarea
             ref={textareaRef}
-            className={cn(ui.textarea, "max-h-[160px] min-h-[30px] px-1 py-1 text-[length:var(--composer-font-size)] leading-[var(--composer-line-height)]")}
+            className={cn(ui.textarea, "max-h-[160px] min-h-[34px] px-0.5 py-0.5 text-[length:var(--composer-font-size)] leading-[var(--composer-line-height)]")}
             value={prompt}
             onChange={(event) => onPromptChange(event.target.value)}
             onKeyDown={onPromptKeyDown}
@@ -449,8 +461,8 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
             placeholder={placeholder}
             disabled={busy}
           />
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2">
+          <div className="flex items-center justify-between gap-3 border-t border-border pt-2">
+            <div className="flex min-w-0 items-center gap-1.5">
               <ComposerIconButton
                 title="New session"
                 aria-label="New session"
@@ -510,7 +522,7 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
                         onClick={() => setMoreActionsOpen(false)}
                       />
                       <motion.div
-                        className="absolute bottom-full left-0 z-[116] mb-2 w-44 rounded-[20px] border border-border bg-detail shadow-popover"
+                        className="absolute bottom-full left-0 z-[116] mb-2 w-44 rounded-[12px] border border-border bg-detail shadow-popover"
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 6 }}
@@ -519,7 +531,7 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
                         <div className="p-1">
                           <button
                             type="button"
-                            className="flex w-full items-center gap-2.5 rounded-[14px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control disabled:cursor-not-allowed disabled:opacity-30"
+                            className="flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control disabled:cursor-not-allowed disabled:opacity-30"
                             disabled={!canInterrupt}
                             onClick={() => {
                               onInterrupt()
@@ -531,7 +543,7 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
                           </button>
                           <button
                             type="button"
-                            className="flex w-full items-center gap-2.5 rounded-[14px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control disabled:cursor-not-allowed disabled:opacity-30"
+                            className="flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control disabled:cursor-not-allowed disabled:opacity-30"
                             disabled={!canResume}
                             onClick={() => {
                               onResume()
@@ -546,7 +558,7 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
                         <div className="p-1">
                           <button
                             type="button"
-                            className="flex w-full items-center gap-2.5 rounded-[14px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control"
+                            className="flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control"
                             onClick={() => {
                               onToggleNavigator()
                               setMoreActionsOpen(false)
@@ -557,7 +569,7 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
                           </button>
                           <button
                             type="button"
-                            className="flex w-full items-center gap-2.5 rounded-[14px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control"
+                            className="flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control"
                             onClick={() => {
                               onToggleInspector()
                               setMoreActionsOpen(false)
@@ -574,7 +586,7 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
               </div>
             </div>
             <button
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[18px] border border-accent-soft bg-accent/10 text-accent transition duration-150 ease-out hover:bg-accent/18 disabled:cursor-not-allowed disabled:opacity-30"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-accent-soft bg-accent text-accent-fg shadow-control transition duration-150 ease-out hover:border-accent hover:bg-accent disabled:cursor-not-allowed disabled:border-border-soft disabled:bg-control disabled:text-muted disabled:opacity-45"
               disabled={!canSubmitPrompt}
               title={submitTitle}
               aria-label={submitTitle}
@@ -633,13 +645,13 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
   const tokens = detail?.tokensUsed ?? session?.tokensUsed ?? 0
   const status = selectedThread ? sessionDisplayStatus(selectedThread) : (session?.status ?? "idle")
   const contentScaleStyle = useMemo(() => ({
-    "--transcript-font-size": `${15 * displayScale}px`,
-    "--transcript-line-height": `${26 * displayScale}px`,
+    "--transcript-font-size": `${14 * displayScale}px`,
+    "--transcript-line-height": `${24 * displayScale}px`,
     "--process-font-size": `${13 * displayScale}px`,
     "--process-line-height": `${22 * displayScale}px`,
-    "--composer-font-size": `${17 * displayScale}px`,
-    "--composer-line-height": `${28 * displayScale}px`,
-    "--transcript-gap": `${Math.max(10, 14 * displayScale)}px`
+    "--composer-font-size": `${16 * displayScale}px`,
+    "--composer-line-height": `${26 * displayScale}px`,
+    "--transcript-gap": `${Math.max(9, 12 * displayScale)}px`
   }) as CSSProperties, [displayScale])
 
   useImperativeHandle(ref, () => ({
@@ -712,7 +724,7 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
       className={cn("flex h-full min-h-0 min-w-0 flex-col bg-app-bg text-fg", sessionContentWidthClass)}
       style={contentScaleStyle}
     >
-      <header className="hidden md:flex md:relative z-[110] md:h-16 shrink-0 items-center justify-between gap-3 md:bg-app-bg md:px-5">
+      <header className="hidden md:flex md:relative z-[110] md:h-14 shrink-0 items-center justify-between gap-3 border-b border-border md:bg-app-bg/95 md:px-5">
         <div className="flex min-w-0 items-center gap-3">
           <LargeIconButton
             title={navigatorVisible ? "Hide sessions" : "Open sessions"}
@@ -723,12 +735,12 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
             <Menu size={15} />
           </LargeIconButton>
           <div className="grid min-w-0 gap-0.5">
-            <h1 className="truncate text-[17px] font-semibold leading-6 text-fg-strong">{title}</h1>
+            <h1 className="truncate text-[15px] font-semibold leading-5 text-fg-strong">{title}</h1>
             <div className="flex min-w-0 items-center gap-2 text-[11px] leading-4 text-muted">
               <span className="truncate">{subtitle}</span>
-              <span className="hidden shrink-0 sm:inline">/</span>
+              <span className="hidden h-3 border-l border-border sm:inline" />
               <span className="hidden shrink-0 sm:inline">{formatTokens(tokens)} tokens</span>
-              <span className="hidden shrink-0 sm:inline">/</span>
+              <span className="hidden h-3 border-l border-border sm:inline" />
               <span className="inline-flex shrink-0 items-center gap-1.5">
                 <span className={cn("h-1.5 w-1.5 rounded-full", statusDotClass(status))} />
                 <span>{statusLabel(status)}</span>
@@ -754,7 +766,7 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
           animate={{ width: "100%" }}
           transition={spring}
         >
-          <div ref={transcriptScrollRef} className="mobile-transcript-scroll min-h-0 flex-1 overflow-y-auto px-4 pt-[calc(var(--safe-inset-top)+1rem)] md:px-8 md:pb-5 md:pt-4">
+          <div ref={transcriptScrollRef} className="mobile-transcript-scroll min-h-0 flex-1 overflow-y-auto px-4 pt-[calc(var(--safe-inset-top)+1rem)] md:px-8 md:pb-5 md:pt-5">
             <SessionContentFrame className="grid gap-[var(--transcript-gap)]">
               <AnimatePresence initial={false}>
                 {entries.length === 0 ? (
@@ -794,7 +806,7 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
             </SessionContentFrame>
           </div>
 
-          <div ref={composerShellRef} className="mobile-composer-bar relative z-[70] shrink-0 bg-app-bg px-4 pt-2 md:z-auto md:bg-app-bg/95 md:px-8 md:pb-2.5">
+          <div ref={composerShellRef} className="mobile-composer-bar relative z-[70] shrink-0 border-t border-border bg-app-bg/95 px-4 pt-2 md:z-auto md:px-8 md:pb-3">
             <SessionContentFrame>
               <Composer
                 ref={composerRef}

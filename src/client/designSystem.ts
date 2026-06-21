@@ -3,40 +3,40 @@ export function cn(...values: Array<string | false | null | undefined>) {
 }
 
 export const radius = {
-  control: "rounded-[16px]",
-  controlLg: "rounded-[18px]",
-  nav: "rounded-[22px]",
-  card: "rounded-[18px]",
-  cardLg: "rounded-[20px]",
-  panel: "rounded-[24px]",
-  sheet: "rounded-[28px]"
+  control: "rounded-[8px]",
+  controlLg: "rounded-[10px]",
+  nav: "rounded-[8px]",
+  card: "rounded-[8px]",
+  cardLg: "rounded-[10px]",
+  panel: "rounded-[12px]",
+  sheet: "rounded-[16px]"
 } as const
 
 export const tone = {
   neutral: {
     dot: "bg-muted",
-    badge: "bg-control text-fg",
+    badge: "border border-border bg-control text-fg",
     alert: "border-border bg-detail text-fg"
   },
   selected: {
-    badge: "bg-selected text-fg-strong",
-    strong: "border-white/15 bg-selected-strong text-fg-strong shadow-[0_0_0_1px_rgba(255,255,255,0.08)]"
+    badge: "border border-border-strong bg-selected text-fg-strong",
+    strong: "border-accent-soft bg-selected-strong text-fg-strong shadow-[0_0_0_1px_rgba(216,233,200,0.10)]"
   },
   running: {
-    dot: "bg-running-dot shadow-[0_0_12px_rgba(103,210,143,0.38)]",
+    dot: "bg-running-dot shadow-[0_0_10px_rgba(103,210,143,0.28)]",
     icon: "text-running-dot",
-    badge: "bg-running text-running-fg",
-    alert: "border-emerald-400/20 bg-emerald-400/10 text-emerald-100"
+    badge: "border border-emerald-300/15 bg-running text-running-fg",
+    alert: "border-emerald-300/15 bg-emerald-400/8 text-running-fg"
   },
   stale: {
     dot: "bg-stale-dot",
     icon: "text-stale-dot",
-    badge: "bg-stale text-stale-fg"
+    badge: "border border-yellow-200/15 bg-stale text-stale-fg"
   },
   error: {
     dot: "bg-failed-dot",
     icon: "text-rose-300",
-    badge: "bg-error text-error-fg",
+    badge: "border border-rose-300/15 bg-error text-error-fg",
     alert: "border-rose-400/20 bg-rose-400/10 text-rose-100"
   },
   completed: {
@@ -66,9 +66,10 @@ export function formatDisplayScale(value: number) {
 
 const interactiveTransition = "transition duration-150 ease-out"
 const disabledState = "disabled:cursor-not-allowed disabled:opacity-40"
-const pressState = "active:scale-[0.98]"
-const interactiveRow = `${interactiveTransition} hover:bg-surface`
-const controlBase = `${radius.controlLg} border border-border bg-control text-fg ${interactiveTransition} hover:border-border-strong hover:bg-control-hover hover:text-fg-strong ${disabledState}`
+const pressState = "active:translate-y-px"
+const focusRing = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+const interactiveRow = `${interactiveTransition} hover:bg-control-hover`
+const controlBase = `${radius.control} border border-border bg-control text-fg shadow-control ${interactiveTransition} hover:border-border-strong hover:bg-control-hover hover:text-fg-strong ${focusRing} ${disabledState}`
 const sliderThumb =
   "[&::-webkit-slider-thumb]:h-[18px] [&::-webkit-slider-thumb]:w-[18px] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-border-strong [&::-webkit-slider-thumb]:bg-fg [&::-webkit-slider-thumb]:shadow-control [&::-moz-range-thumb]:h-[18px] [&::-moz-range-thumb]:w-[18px] [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border [&::-moz-range-thumb]:border-border-strong [&::-moz-range-thumb]:bg-fg"
 
@@ -76,45 +77,45 @@ export const ui = {
   appShell: "bg-app-bg text-fg antialiased",
   workspaceCanvas: "bg-app-bg text-fg",
   sidePanel: "border-border bg-panel text-fg",
-  topBar: "h-16 shrink-0 bg-app-bg",
-  card: `overflow-hidden ${radius.card} border border-border bg-detail shadow-control ${interactiveTransition} hover:border-border-strong`,
-  outlineCard: `overflow-hidden ${radius.card} border border-border-strong bg-app-bg shadow-none ${interactiveTransition} hover:border-border-strong`,
-  cardLarge: `overflow-hidden ${radius.cardLg} border border-border bg-detail shadow-control ${interactiveTransition} hover:border-border-strong`,
+  topBar: "h-16 shrink-0 border-b border-border bg-app-bg/95",
+  card: `overflow-hidden ${radius.card} border border-border bg-detail shadow-none ${interactiveTransition} hover:border-border-strong`,
+  outlineCard: `overflow-hidden ${radius.card} border border-border bg-app-bg/70 shadow-none ${interactiveTransition} hover:border-border-strong hover:bg-detail/60`,
+  cardLarge: `overflow-hidden ${radius.cardLg} border border-border bg-detail shadow-none ${interactiveTransition} hover:border-border-strong`,
   panelCard: `overflow-hidden ${radius.panel} border border-border bg-detail shadow-panel ${interactiveTransition} hover:border-border-strong`,
-  popover: `overflow-hidden ${radius.panel} border border-border bg-detail shadow-popover md:backdrop-blur-md`,
-  overlay: "bg-black/60 md:backdrop-blur-sm",
+  popover: `overflow-hidden ${radius.panel} border border-border-strong bg-detail shadow-popover md:backdrop-blur-md`,
+  overlay: "bg-black/55 md:backdrop-blur-sm",
   backdropPanel: "border-border bg-panel shadow-popover",
   controlBase,
   iconButton:
-    `inline-flex h-9 min-w-9 items-center justify-center ${radius.control} border border-border bg-control text-muted-strong shadow-control ${interactiveTransition} hover:bg-control-hover hover:text-fg-strong ${disabledState} ${pressState}`,
+    `inline-flex h-8 min-w-8 items-center justify-center ${radius.control} border border-border bg-control text-muted-strong shadow-control ${interactiveTransition} hover:border-border-strong hover:bg-control-hover hover:text-fg-strong ${focusRing} ${disabledState} ${pressState}`,
   largeIconButton:
-    `inline-flex h-10 w-10 shrink-0 items-center justify-center ${radius.nav} border border-border bg-transparent text-muted-strong shadow-none ${interactiveTransition} hover:border-border-strong hover:text-fg-strong active:bg-control-hover active:text-fg-strong active:shadow-control ${disabledState} ${pressState}`,
+    `inline-flex h-9 w-9 shrink-0 items-center justify-center ${radius.nav} border border-transparent bg-transparent text-muted-strong shadow-none ${interactiveTransition} hover:border-border hover:bg-control hover:text-fg-strong active:bg-control-hover active:text-fg-strong ${focusRing} ${disabledState} ${pressState}`,
   composerIconButton:
-    `inline-flex h-9 min-w-9 items-center justify-center ${radius.control} border border-transparent bg-control text-fg ${interactiveTransition} hover:bg-control-hover hover:text-fg-strong disabled:cursor-not-allowed disabled:opacity-35 ${pressState}`,
+    `inline-flex h-8 min-w-8 items-center justify-center ${radius.control} border border-transparent bg-transparent text-muted-strong ${interactiveTransition} hover:bg-control hover:text-fg-strong disabled:cursor-not-allowed disabled:opacity-35 ${focusRing} ${pressState}`,
   composerShell:
-    `grid min-h-[96px] gap-2 ${radius.panel} border border-border-strong bg-surface px-3.5 py-2.5 shadow-panel ${interactiveTransition} focus-within:border-white/20 focus-within:ring-2 focus-within:ring-focus-ring`,
+    `grid min-h-[104px] gap-2 ${radius.panel} border border-border-strong bg-field px-3.5 py-3 shadow-panel ${interactiveTransition} focus-within:border-accent-soft focus-within:ring-2 focus-within:ring-focus-ring`,
   submitButton:
-    `inline-flex h-9 min-w-[76px] shrink-0 items-center justify-center gap-1.5 ${radius.controlLg} border border-border bg-control px-3 text-[13px] font-semibold text-fg ${interactiveTransition} hover:bg-control-hover hover:text-fg-strong disabled:cursor-not-allowed disabled:border-border-soft disabled:bg-surface-subtle disabled:text-[#4f4f4f]`,
+    `inline-flex h-8 min-w-[72px] shrink-0 items-center justify-center gap-1.5 ${radius.control} border border-accent-soft bg-accent px-3 text-[13px] font-semibold text-accent-fg ${interactiveTransition} hover:border-accent hover:bg-accent disabled:cursor-not-allowed disabled:border-border-soft disabled:bg-surface-subtle disabled:text-muted`,
   buttonControl:
     `inline-flex items-center justify-center ${controlBase}`,
   surfaceButton:
-    `flex min-w-0 items-center text-left ${radius.controlLg} border border-border bg-detail text-fg ${interactiveTransition} hover:border-border-strong hover:bg-surface hover:text-fg-strong ${disabledState}`,
+    `flex min-w-0 items-center text-left ${radius.control} border border-border bg-detail text-fg shadow-none ${interactiveTransition} hover:border-border-strong hover:bg-control hover:text-fg-strong ${focusRing} ${disabledState} ${pressState}`,
   navButton:
-    `flex min-w-0 items-center text-left ${radius.nav} text-fg ${interactiveTransition} hover:bg-surface hover:text-fg-strong ${disabledState}`,
-  navSelected: "bg-control text-fg-strong shadow-control",
+    `flex min-w-0 items-center text-left ${radius.nav} text-fg ${interactiveTransition} hover:bg-control hover:text-fg-strong ${focusRing} ${disabledState}`,
+  navSelected: "border border-border-strong bg-selected text-fg-strong shadow-control",
   segmented:
-    `inline-flex items-center ${radius.panel} border border-border bg-surface-subtle p-1 text-muted shadow-control`,
+    `inline-flex items-center ${radius.controlLg} border border-border bg-surface-subtle p-0.5 text-muted shadow-control`,
   segment:
-    `inline-flex h-9 items-center justify-center ${radius.controlLg} px-3.5 text-[13px] font-medium ${interactiveTransition} hover:text-fg-strong`,
+    `inline-flex h-8 items-center justify-center ${radius.control} px-3 text-[13px] font-medium ${interactiveTransition} hover:text-fg-strong ${focusRing}`,
   menuItem:
     `flex min-w-0 items-center text-left ${radius.control} ${interactiveRow}`,
   alert: `${radius.controlLg} border px-3.5 py-2.5 text-[12px]`,
   iconBox: `flex shrink-0 items-center justify-center ${radius.control} bg-control text-fg`,
   avatar: `flex shrink-0 items-center justify-center ${radius.control} border border-border bg-control text-[12px] font-semibold text-fg`,
-  selected: "bg-selected text-fg-strong ring-1 ring-white/10",
+  selected: "border border-border-strong bg-selected text-fg-strong",
   selectedStrong: tone.selected.strong,
   field:
-    `${radius.controlLg} border border-border bg-field text-muted ${interactiveTransition} focus-within:border-border-strong focus-within:bg-surface focus-within:text-fg`,
+    `${radius.control} border border-border bg-field text-muted shadow-control ${interactiveTransition} focus-within:border-border-strong focus-within:bg-surface-subtle focus-within:text-fg ${focusRing}`,
   input: "min-w-0 flex-1 border-0 bg-transparent text-fg-strong placeholder:text-muted focus:outline-none disabled:opacity-60",
   textarea: "block w-full resize-none border-0 bg-transparent text-fg-strong placeholder:text-muted focus:outline-none disabled:opacity-60",
   range:
@@ -122,7 +123,7 @@ export const ui = {
   row: interactiveRow,
   meta: "text-muted",
   subtleMeta: "text-[12px] text-muted",
-  sectionLabel: "flex items-center gap-2 text-[12px] font-medium text-muted",
+  sectionLabel: "flex items-center gap-2 text-[11px] font-medium uppercase text-muted",
   pill:
     "inline-flex h-5 shrink-0 items-center justify-center gap-1 rounded-full border border-border bg-control px-1.5 text-[10px] font-medium leading-none text-fg"
 } as const

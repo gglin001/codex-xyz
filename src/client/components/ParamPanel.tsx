@@ -75,7 +75,7 @@ function SettingsToggleRow({
 }) {
   return (
     <SurfaceAction
-      className={cn("min-h-12 w-full justify-between gap-3 px-3.5 py-2.5 text-[13px] font-medium", checked ? null : "text-muted-strong")}
+      className={cn("min-h-11 w-full justify-between gap-3 px-3 py-2.5 text-[13px] font-medium", checked ? null : "text-muted-strong")}
       selected={checked}
       onClick={onClick}
     >
@@ -122,8 +122,8 @@ export const ParamPanel = memo(function ParamPanel({
     <aside className={cn("flex h-full min-h-0 w-full min-w-0 flex-col border-l border-border bg-panel text-fg", className)}>
       <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
         <SettingsSection icon={<Server size={13} />} title="Runtime">
-          <div className="grid min-w-0 gap-2.5">
-            <ControlCard className="flex w-full min-w-0 items-center justify-between gap-3 px-3.5 py-2.5">
+          <div className="grid min-w-0 gap-2">
+            <ControlCard className="flex w-full min-w-0 items-center justify-between gap-3 bg-field/70 px-3 py-2.5">
               <span className="inline-flex min-w-0 items-center gap-2">
                 <span className={cn("h-2 w-2 shrink-0 rounded-full", runtimeStatusTone(status))} />
                 <span className="truncate text-[13px] font-medium text-fg">{statusLabel(status)}</span>
@@ -136,7 +136,7 @@ export const ParamPanel = memo(function ParamPanel({
         </SettingsSection>
 
         <SettingsSection icon={<ListTree size={13} />} title="Session">
-          <div className="grid min-w-0 gap-2.5">
+          <div className="grid min-w-0 gap-2">
             <InfoTile icon={<Hash size={13} />} label="Thread" value={thread ? shortId(thread.id) : "No thread selected"} mono layout="inline" />
             <InfoTile icon={<Hash size={13} />} label="Session" value={thread ? shortId(thread.sessionId) : "New session draft"} mono layout="inline" />
             <InfoTile icon={<Activity size={13} />} label="Active turn" value={thread?.activeTurnId ? shortId(thread.activeTurnId) : "None"} mono layout="inline" />
@@ -146,15 +146,15 @@ export const ParamPanel = memo(function ParamPanel({
         </SettingsSection>
 
         <SettingsSection icon={<TimerReset size={13} />} title="Goal and Tokens">
-          <div className="grid min-w-0 gap-2.5">
-            <ControlCard size="large" className="w-full min-w-0 p-3.5">
+          <div className="grid min-w-0 gap-2">
+            <ControlCard size="large" className="w-full min-w-0 bg-field/70 p-3">
               <div className="mb-3 flex min-w-0 items-center justify-between gap-3 text-[12px]">
                 <span className="truncate font-medium text-fg">{tokenBudget ? "Goal budget" : "Tokens used"}</span>
                 <span className="shrink-0 truncate font-mono text-[11px] text-muted">
                   {tokenBudget ? `${formatCompact(contextTokens)} / ${formatCompact(contextLimit)}` : formatCompact(contextTokens)}
                 </span>
               </div>
-              <div className="h-2 overflow-hidden rounded-full bg-control">
+              <div className="h-1.5 overflow-hidden rounded-full bg-control">
                 <div
                   className={cn(
                     "h-full rounded-full transition-[width,background-color] duration-300 ease-out",
@@ -170,7 +170,7 @@ export const ParamPanel = memo(function ParamPanel({
               </div>
             </ControlCard>
             {thread?.goalObjective ? (
-              <ControlCard className="w-full min-w-0 px-3.5 py-2.5 text-[12px] leading-5 text-fg">
+              <ControlCard className="w-full min-w-0 bg-field/70 px-3 py-2.5 text-[12px] leading-5 text-fg">
                 <span className="block truncate" title={thread.goalObjective}>
                   {thread.goalObjective}
                 </span>
@@ -184,7 +184,7 @@ export const ParamPanel = memo(function ParamPanel({
         </SettingsSection>
 
         <SettingsSection icon={<SlidersHorizontal size={13} />} title="Transcript View">
-          <div className="grid min-w-0 gap-2.5">
+          <div className="grid min-w-0 gap-2">
             <SettingsToggleRow
               checked={wrapSessionContent}
               icon={<WrapText size={14} />}
@@ -205,8 +205,8 @@ export const ParamPanel = memo(function ParamPanel({
         </SettingsSection>
 
         <SettingsSection icon={<ZoomIn size={13} />} title="Display">
-          <div className="grid min-w-0 gap-2.5">
-            <ControlCard className="w-full min-w-0 px-3.5 py-3">
+          <div className="grid min-w-0 gap-2">
+            <ControlCard className="w-full min-w-0 bg-field/70 px-3 py-3">
               <ScaleControl
                 label="Content scale"
                 value={displayScale}

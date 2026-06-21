@@ -34,7 +34,7 @@ export function LargeIconButton({
   return (
     <button
       type="button"
-      className={cn(ui.largeIconButton, className)}
+      className={cn(ui.largeIconButton, pressed ? "border-border bg-control text-fg-strong" : null, className)}
       aria-pressed={pressed}
       {...props}
     >
@@ -204,7 +204,7 @@ export function Keycap({
 }: HTMLAttributes<HTMLSpanElement>) {
   return (
     <span
-      className={cn("rounded-full border border-border bg-control px-2 py-1 font-mono text-[10px] leading-none text-muted", className)}
+      className={cn("rounded-[6px] border border-border bg-control px-1.5 py-1 font-mono text-[10px] leading-none text-muted", className)}
       {...props}
     >
       {children}
@@ -357,11 +357,11 @@ export const CollapsibleCard = memo(function CollapsibleCard({
     : size === "prominent"
       ? "text-[14px] font-semibold text-fg-strong"
       : "text-[13px] font-medium text-fg"
-  const bodyPadding = size === "compact" ? "p-3" : "px-4 py-4"
-  const previewPadding = size === "compact" ? "px-3 pb-2" : "px-4 pb-3 pt-2"
+  const bodyPadding = size === "compact" ? "px-3 pb-3 pt-1" : "px-4 pb-4 pt-1"
+  const previewPadding = size === "compact" ? "px-3 pb-2" : "px-4 pb-3"
   const cardClass = surface === "outline" ? ui.outlineCard : ui.card
   const headerClass = surface === "outline"
-    ? "group/card-header flex w-full items-center gap-2 bg-app-bg transition duration-150 ease-out hover:bg-control/35 focus-within:bg-control/35"
+    ? "group/card-header flex w-full items-center gap-2 bg-transparent transition duration-150 ease-out hover:bg-control/40 focus-within:bg-control/40"
     : "flex w-full items-center gap-2 border-b border-border bg-control/35"
   const headerButtonClass = surface === "outline"
     ? "flex min-w-0 flex-1 items-center gap-3 text-left"
@@ -386,7 +386,7 @@ export const CollapsibleCard = memo(function CollapsibleCard({
             {meta}
             <button
               type="button"
-              className={cn("inline-flex h-7 w-7 shrink-0 items-center justify-center text-muted transition duration-150 ease-out hover:text-fg-strong", radius.control)}
+              className={cn("inline-flex h-7 w-7 shrink-0 items-center justify-center text-muted transition duration-150 ease-out hover:bg-control hover:text-fg-strong", radius.control)}
               aria-label={expanded ? `Collapse ${title}` : `Expand ${title}`}
               aria-expanded={expanded}
               title={expanded ? `Collapse ${title}` : `Expand ${title}`}
@@ -402,7 +402,7 @@ export const CollapsibleCard = memo(function CollapsibleCard({
         ) : (
           <button
             type="button"
-            className={cn("mr-2 inline-flex h-7 w-7 shrink-0 items-center justify-center text-muted transition duration-150 ease-out hover:text-fg-strong", radius.control)}
+            className={cn("mr-2 inline-flex h-7 w-7 shrink-0 items-center justify-center text-muted transition duration-150 ease-out hover:bg-control hover:text-fg-strong", radius.control)}
             aria-label={expanded ? `Collapse ${title}` : `Expand ${title}`}
             aria-expanded={expanded}
             title={expanded ? `Collapse ${title}` : `Expand ${title}`}
@@ -469,8 +469,8 @@ export function SettingsSection({
   children: ReactNode
 }) {
   return (
-    <section className="w-full min-w-0 border-b border-border px-5 py-5 last:border-b-0">
-      <div className={cn(ui.sectionLabel, "mb-4 min-w-0")}>
+    <section className="w-full min-w-0 border-b border-border px-4 py-4 last:border-b-0">
+      <div className={cn(ui.sectionLabel, "mb-3 min-w-0")}>
         <span className="shrink-0">{icon}</span>
         <span className="truncate">{title}</span>
       </div>
@@ -499,9 +499,9 @@ export const InfoTile = memo(function InfoTile({
   return (
     <div
       className={cn(
-        "flex w-full min-w-0 gap-2.5 border border-border bg-detail",
-        inline ? "min-h-10 items-center px-3 py-2" : "min-h-[58px] items-start px-3.5 py-2.5",
-        radius.controlLg,
+        "flex w-full min-w-0 gap-2.5 border border-border bg-field/70",
+        inline ? "min-h-9 items-center px-2.5 py-2" : "min-h-[56px] items-start px-3 py-2.5",
+        radius.control,
         className
       )}
       title={`${label}: ${value}`}
@@ -530,15 +530,15 @@ export function SwitchControl({
   return (
     <span
       className={cn(
-        "relative h-7 w-12 shrink-0 rounded-full border border-border transition duration-150 ease-out",
-        checked ? "bg-neutral-100" : "bg-control"
+        "relative h-6 w-10 shrink-0 rounded-full border border-border transition duration-150 ease-out",
+        checked ? "border-accent-soft bg-accent" : "bg-control"
       )}
       aria-hidden="true"
     >
       <span
         className={cn(
-          "absolute top-1 h-5 w-5 rounded-full transition duration-150 ease-out",
-          checked ? "left-6 bg-app-bg" : "left-1 bg-muted"
+          "absolute top-1 h-4 w-4 rounded-full transition duration-150 ease-out",
+          checked ? "left-5 bg-accent-fg" : "left-1 bg-muted"
         )}
       />
     </span>
