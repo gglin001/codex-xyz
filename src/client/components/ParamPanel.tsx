@@ -119,7 +119,7 @@ export const ParamPanel = memo(function ParamPanel({
   const itemCount = detail?.items.length ?? 0
 
   return (
-    <aside className={cn("flex h-full min-h-0 w-full min-w-0 flex-col border-l border-border bg-panel text-fg", className)}>
+    <aside className={cn("flex h-full min-h-0 w-full min-w-0 flex-col border-l border-l-border-strong bg-panel text-fg", className)}>
       <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden scroll-mask-y">
         <SettingsSection icon={<Server size={13} />} title="Runtime">
           <div className="grid min-w-0 gap-2">

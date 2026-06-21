@@ -712,7 +712,7 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
               <span className="hidden h-3 border-l border-border sm:inline" />
               <span className="hidden shrink-0 sm:inline">{formatTokens(tokens)} tokens</span>
               <span className="hidden h-3 border-l border-border sm:inline" />
-              <span className="inline-flex shrink-0 items-center gap-1.5">
+              <span className="inline-flex shrink-0 items-center gap-1.5 text-muted-strong">
                 <span className={cn("h-1.5 w-1.5 rounded-full", statusDotClass(status))} />
                 <span>{statusLabel(status)}</span>
               </span>

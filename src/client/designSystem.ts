@@ -67,6 +67,7 @@ export function formatDisplayScale(value: number) {
 const interactiveTransition = "transition duration-150 ease-out"
 const disabledState = "disabled:cursor-not-allowed disabled:opacity-40"
 const pressState = "active:translate-y-px"
+const staggeredTransition = "transition-[border-color] duration-100 ease-out [transition-property:border-color,background-color] [transition-duration:100ms,200ms] [transition-delay:0s,30ms]"
 const focusRing = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
 const interactiveRow = `${interactiveTransition} hover:bg-control-hover`
 const controlBase = `${radius.control} border border-border bg-control text-fg shadow-control ${interactiveTransition} hover:border-border-strong hover:bg-control-hover hover:text-fg-strong ${focusRing} ${disabledState}`
@@ -78,9 +79,9 @@ export const ui = {
   workspaceCanvas: "bg-app-bg text-fg",
   sidePanel: "border-border bg-panel/92 text-fg backdrop-blur-xl",
   topBar: "h-16 shrink-0 border-b border-border bg-app-bg/88 backdrop-blur-xl",
-  card: `overflow-hidden ${radius.card} border border-border bg-detail shadow-none ${interactiveTransition} hover:border-border-strong`,
-  outlineCard: `overflow-hidden ${radius.card} border border-border bg-app-bg/70 shadow-none ${interactiveTransition} hover:border-border-strong hover:bg-detail/60`,
-  cardLarge: `overflow-hidden ${radius.cardLg} border border-border bg-detail shadow-none ${interactiveTransition} hover:border-border-strong`,
+  card: `overflow-hidden ${radius.card} border border-border bg-detail shadow-card ${interactiveTransition} hover:border-border-strong`,
+  outlineCard: `overflow-hidden ${radius.card} border border-border bg-app-bg/70 shadow-card ${interactiveTransition} hover:border-border-strong hover:bg-detail/60`,
+  cardLarge: `overflow-hidden ${radius.cardLg} border border-border bg-detail shadow-card ${interactiveTransition} hover:border-border-strong`,
   panelCard: `overflow-hidden ${radius.panel} border border-border bg-detail shadow-panel ${interactiveTransition} hover:border-border-strong`,
   popover: `overflow-hidden ${radius.panel} border border-border-strong bg-detail shadow-popover md:backdrop-blur-md`,
   overlay: "bg-black/55 md:backdrop-blur-sm",
@@ -93,15 +94,15 @@ export const ui = {
   composerIconButton:
     `inline-flex h-8 min-w-8 items-center justify-center ${radius.control} border border-transparent bg-transparent text-muted-strong ${interactiveTransition} hover:bg-control hover:text-fg-strong disabled:cursor-not-allowed disabled:opacity-35 ${focusRing} ${pressState}`,
   composerShell:
-    `grid min-h-[104px] gap-2 ${radius.panel} border border-border-strong bg-field px-3.5 py-3 shadow-panel ${interactiveTransition} focus-within:border-accent-soft focus-within:ring-2 focus-within:ring-focus-ring`,
+    `grid min-h-[104px] gap-2 ${radius.panel} border border-border-strong bg-field px-3.5 py-3 shadow-panel ${interactiveTransition} focus-within:border-accent-soft focus-within:bg-detail/50 focus-within:ring-2 focus-within:ring-focus-ring`,
   submitButton:
     `inline-flex h-8 min-w-[72px] shrink-0 items-center justify-center gap-1.5 ${radius.control} border border-accent-soft bg-accent px-3 text-[13px] font-semibold text-accent-fg ${interactiveTransition} hover:border-accent hover:bg-accent disabled:cursor-not-allowed disabled:border-border-soft disabled:bg-surface-subtle disabled:text-muted`,
   buttonControl:
     `inline-flex items-center justify-center ${controlBase}`,
   surfaceButton:
-    `flex min-w-0 items-center text-left ${radius.control} border border-border bg-detail text-fg shadow-none ${interactiveTransition} hover:border-border-strong hover:bg-control hover:text-fg-strong ${focusRing} ${disabledState} ${pressState}`,
+    `flex min-w-0 items-center text-left ${radius.control} border border-border bg-detail text-fg shadow-card ${staggeredTransition} hover:border-border-strong hover:bg-control hover:text-fg-strong ${focusRing} ${disabledState} ${pressState}`,
   navButton:
-    `flex min-w-0 items-center text-left ${radius.nav} text-fg ${interactiveTransition} hover:bg-control hover:text-fg-strong ${focusRing} ${disabledState}`,
+    `flex min-w-0 items-center text-left ${radius.nav} text-fg ${staggeredTransition} hover:bg-control hover:text-fg-strong ${focusRing} ${disabledState}`,
   navSelected: "border border-border-strong bg-selected text-fg-strong shadow-control",
   segmented:
     `inline-flex items-center ${radius.controlLg} border border-border bg-surface-subtle p-0.5 text-muted shadow-control`,

@@ -94,7 +94,7 @@ export const Sidebar = memo(function Sidebar({
   const sessionGroups = useMemo(() => groupSessions(visibleSessions), [visibleSessions])
 
   return (
-    <aside className={cn("flex h-full min-h-0 flex-col border-r", ui.sidePanel, className)}>
+    <aside className={cn("flex h-full min-h-0 flex-col border-r border-r-border-strong", ui.sidePanel, className)}>
       <div className="relative shrink-0 p-3 pb-2">
         <SurfaceAction
           className="h-11 w-full gap-2.5 px-2.5"
@@ -190,7 +190,7 @@ export const Sidebar = memo(function Sidebar({
             ) : null}
             {sessionGroups.map((group) => (
               <section key={group.bucket} className="grid gap-1">
-                <div className="px-2 pb-1 text-[11px] font-medium uppercase tracking-normal text-muted">
+                <div className="px-2 pb-1 text-[11px] font-medium uppercase tracking-normal text-muted-strong">
                   {group.bucket}
                 </div>
                 {group.sessions.map((session) => {
@@ -217,7 +217,7 @@ export const Sidebar = memo(function Sidebar({
                         <span className="truncate text-[11px] leading-4 text-muted">
                           {formatFullDateTime(session.updatedAt)} / {formatTokens(session.tokensUsed)} tokens
                         </span>
-                        <span className="truncate text-[11px] leading-[18px] text-muted">{session.preview}</span>
+                        <span className="truncate text-[11px] leading-[18px] text-muted-strong">{session.preview}</span>
                       </span>
                     </NavAction>
                   )

@@ -509,7 +509,7 @@ export const InfoTile = memo(function InfoTile({
       <span className={cn("flex h-5 w-5 shrink-0 items-center justify-center text-muted", inline ? null : "mt-0.5")}>{icon}</span>
       <span className={cn("min-w-0 flex-1", inline ? "flex items-center justify-between gap-2" : null)}>
         <span className={cn(
-          "truncate text-[11px] font-medium uppercase text-muted",
+          "truncate text-[11px] font-medium uppercase text-muted-strong",
           inline ? "shrink-0" : "block"
         )}>{label}</span>
         <span className={cn(
