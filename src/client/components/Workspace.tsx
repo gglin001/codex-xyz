@@ -340,7 +340,9 @@ type ComposerProps = Pick<
   | "onResume"
   | "onToggleNavigator"
   | "onToggleInspector"
->
+> & {
+  onPromptFocus?: () => void
+}
 
 const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Composer({
   workdir,
@@ -365,6 +367,7 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
   onResume,
   onToggleNavigator,
   onToggleInspector,
+  onPromptFocus
 }, ref) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const canInterrupt = selectedThread?.status === "active" && !busy
@@ -442,6 +445,7 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
             value={prompt}
             onChange={(event) => onPromptChange(event.target.value)}
             onKeyDown={onPromptKeyDown}
+            onFocus={onPromptFocus}
             placeholder={placeholder}
             disabled={busy}
           />
@@ -621,6 +625,8 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
 }, ref) {
   const composerRef = useRef<ComposerHandle | null>(null)
   const composerShellRef = useRef<HTMLDivElement | null>(null)
+  const rootRef = useRef<HTMLElement | null>(null)
+  const transcriptScrollRef = useRef<HTMLDivElement | null>(null)
   const entries = useMemo(() => transcriptEntriesFromDetail(detail), [detail])
   const title = selectedThread?.title ?? session?.title ?? "New Codex session"
   const subtitle = selectedThread?.cwd ?? session?.cwd ?? project?.path ?? "Select a project to begin"
@@ -647,8 +653,62 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
     onSwipeDown
   })
 
+  useEffect(() => {
+    const root = rootRef.current
+    const composerShell = composerShellRef.current
+    if (!root || !composerShell) {
+      return
+    }
+
+    let frame: number | null = null
+    const updateComposerHeight = () => {
+      frame = null
+      root.style.setProperty("--composer-height", `${Math.ceil(composerShell.getBoundingClientRect().height)}px`)
+    }
+    const scheduleUpdate = () => {
+      if (frame !== null) {
+        return
+      }
+      frame = window.requestAnimationFrame(updateComposerHeight)
+    }
+
+    const observer = new ResizeObserver(scheduleUpdate)
+    observer.observe(composerShell)
+    scheduleUpdate()
+
+    return () => {
+      if (frame !== null) {
+        window.cancelAnimationFrame(frame)
+      }
+      observer.disconnect()
+      root.style.removeProperty("--composer-height")
+    }
+  }, [])
+
+  const settleMobilePromptFocus = useCallback(() => {
+    if (typeof window.matchMedia !== "function" || !window.matchMedia("(max-width: 767px)").matches) {
+      return
+    }
+    const scrollElement = transcriptScrollRef.current
+    if (!scrollElement) {
+      return
+    }
+
+    const scrollToEnd = () => {
+      scrollElement.scrollTo({
+        top: scrollElement.scrollHeight,
+        behavior: "auto"
+      })
+    }
+
+    window.requestAnimationFrame(scrollToEnd)
+    window.setTimeout(scrollToEnd, 180)
+    window.setTimeout(scrollToEnd, 360)
+  }, [])
+
   return (
     <section
+      ref={rootRef}
       className={cn("flex h-full min-h-0 min-w-0 flex-col bg-app-bg text-fg", sessionContentWidthClass)}
       style={contentScaleStyle}
     >
@@ -694,7 +754,7 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
           animate={{ width: "100%" }}
           transition={spring}
         >
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-5 pt-[calc(var(--safe-inset-top)+1rem)] md:px-8 md:pt-4">
+          <div ref={transcriptScrollRef} className="mobile-transcript-scroll min-h-0 flex-1 overflow-y-auto px-4 pt-[calc(var(--safe-inset-top)+1rem)] md:px-8 md:pb-5 md:pt-4">
             <SessionContentFrame className="grid gap-[var(--transcript-gap)]">
               <AnimatePresence initial={false}>
                 {entries.length === 0 ? (
@@ -734,7 +794,7 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
             </SessionContentFrame>
           </div>
 
-          <div ref={composerShellRef} className="shrink-0 bg-app-bg px-4 pb-2.5 pt-2 md:bg-app-bg/95 md:px-8">
+          <div ref={composerShellRef} className="mobile-composer-bar shrink-0 bg-app-bg px-4 pt-2 md:bg-app-bg/95 md:px-8 md:pb-2.5">
             <SessionContentFrame>
               <Composer
                 ref={composerRef}
@@ -760,6 +820,7 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
                 onResume={onResume}
                 onToggleNavigator={onToggleNavigator}
                 onToggleInspector={onToggleInspector}
+                onPromptFocus={settleMobilePromptFocus}
               />
             </SessionContentFrame>
           </div>

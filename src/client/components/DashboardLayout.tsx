@@ -1,11 +1,11 @@
 import { Menu, Plus, Search, Settings } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
-import type { CSSProperties, KeyboardEvent, SubmitEvent } from "react"
+import type { KeyboardEvent, SubmitEvent } from "react"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { ControlThread, SessionDisplayStatus, ThreadDetail } from "../../server/domain.js"
 import { cn, ui } from "../designSystem.js"
 import { isPromptFocusShortcut } from "../promptShortcut.js"
-import { useVisualViewportHeight } from "../useVisualViewport.js"
+import { useMobileViewportGeometry } from "../useMobileViewportGeometry.js"
 import { useSwipeGesture } from "../useSwipeGesture.js"
 import { ParamPanel } from "./ParamPanel.js"
 import { Sidebar } from "./Sidebar.js"
@@ -383,17 +383,11 @@ export const DashboardLayout = memo(function DashboardLayout({
   const [commandOpen, setCommandOpen] = useState(false)
   const desktopWorkspaceRef = useRef<WorkspaceHandle | null>(null)
   const mobileWorkspaceRef = useRef<WorkspaceHandle | null>(null)
-  const vvHeight = useVisualViewportHeight({ maxWidth: 767 })
   const mobileSheetRef = useRef<HTMLDivElement | null>(null)
 
-  const mobileSheetHeight = vvHeight != null
-    ? `min(${vvHeight * 0.92}px, 100dvh)`
-    : "92dvh"
-  const mobileSheetStyle = {
-    "--mobile-sheet-height": mobileSheetHeight
-  } as CSSProperties
-
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? projects[0] ?? null
+
+  useMobileViewportGeometry()
 
   const focusVisiblePrompt = useCallback(() => {
     const useDesktopWorkspace = typeof window.matchMedia === "function"
@@ -605,10 +599,7 @@ export const DashboardLayout = memo(function DashboardLayout({
   )
 
   return (
-    <main
-      className={cn("h-dvh min-h-0 w-full overflow-hidden", ui.appShell)}
-      style={vvHeight != null ? { height: `${vvHeight}px` } : undefined}
-    >
+    <main className={cn("h-[var(--app-visual-height)] min-h-0 w-full overflow-hidden md:h-dvh", ui.appShell)}>
       <div className="hidden h-full min-h-0 md:flex">
         <AnimatePresence initial={false}>
           {navigatorVisible ? (
@@ -726,10 +717,9 @@ export const DashboardLayout = memo(function DashboardLayout({
             <motion.div
               ref={mobileSheetRef}
               className={cn(
-                "absolute inset-x-0 bottom-0 flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden rounded-t-[28px] border-t",
+                "absolute inset-x-0 bottom-[var(--keyboard-inset-bottom)] flex h-[92dvh] max-h-[calc(100dvh_-_var(--keyboard-inset-bottom))] flex-col overflow-hidden rounded-t-[28px] border-t",
                 ui.backdropPanel
               )}
-              style={mobileSheetStyle}
               initial={{ y: "100%", opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: "100%", opacity: 0 }}

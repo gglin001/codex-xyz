@@ -4,7 +4,7 @@ import { Terminal as XTerm } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { Play, RotateCw, Square, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   resizeTerminal,
@@ -15,7 +15,6 @@ import {
 import { cn, tone, ui } from "./designSystem.js";
 import { IconButton, Pill } from "./components/uiPrimitives.js";
 import { openEventStream, parseSseJsonEvent } from "./eventStream.js";
-import { useVisualViewportHeight } from "./useVisualViewport.js";
 import type { TerminalEvent, TerminalSnapshot } from "../server/domain.js";
 
 type TerminalDockProps = {
@@ -248,17 +247,10 @@ export function TerminalDock({ visible, onClose }: TerminalDockProps) {
   const [desktopFrame, setDesktopFrame] = useState<DesktopFrame>(() => defaultDesktopFrame());
   const themeOptions = useMemo(() => terminalTheme(), []);
   const isMobileSheet = useMediaQuery("(max-width: 767px)");
-  const vvHeight = useVisualViewportHeight({ maxWidth: 767 });
   const canStop = snapshot?.status === "running" || snapshot?.status === "starting";
   const label = statusLabel(snapshot, connection);
   const metricsTitle = terminalMetricsTitle(metrics, snapshot);
   const startActionLabel = canStop ? "Reconnect terminal" : "Start terminal";
-  const mobileSheetHeight = vvHeight != null
-    ? `min(${vvHeight * 0.92}px, 100dvh)`
-    : "92dvh";
-  const shellStyle = {
-    "--terminal-sheet-height": mobileSheetHeight
-  } as CSSProperties;
 
   useEffect(() => {
     if (isMobileSheet) {
@@ -751,10 +743,10 @@ export function TerminalDock({ visible, onClose }: TerminalDockProps) {
 
           <motion.section
             className={cn(
-              "pointer-events-auto absolute inset-x-0 bottom-0 flex h-[var(--terminal-sheet-height)] flex-col overflow-hidden rounded-t-[28px] md:inset-auto md:rounded-[24px]",
+              "pointer-events-auto absolute inset-x-0 bottom-[var(--keyboard-inset-bottom)] flex h-[92dvh] max-h-[calc(100dvh_-_var(--keyboard-inset-bottom))] flex-col overflow-hidden rounded-t-[28px] md:inset-auto md:rounded-[24px]",
               ui.popover
             )}
-            style={isMobileSheet ? shellStyle : {
+            style={isMobileSheet ? undefined : {
               left: desktopFrame.x,
               top: desktopFrame.y,
               width: desktopFrame.width,
