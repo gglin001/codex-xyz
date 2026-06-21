@@ -278,7 +278,7 @@ export const Sidebar = memo(function Sidebar({
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[12px] font-medium text-fg-strong">Commands</span>
           </span>
-          <span className="shrink-0 font-mono text-[12px] leading-none text-muted" aria-hidden="true">cmd k</span>
+          <span className="shrink-0 font-mono text-[12px] leading-none text-muted" aria-hidden="true">Cmd K</span>
         </SurfaceAction>
       </div>
     </aside>
