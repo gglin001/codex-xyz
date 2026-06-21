@@ -1,4 +1,4 @@
-import { Goal, Maximize2, Menu, Play, Plus, Search, Settings, Square, Terminal, TextCursorInput, WrapText, ZoomIn } from "lucide-react"
+import { Goal, Maximize2, Menu, Plus, Search, Settings, Terminal, TextCursorInput, WrapText, ZoomIn } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import type { KeyboardEvent, SubmitEvent } from "react"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -70,7 +70,7 @@ type CommandActionBase = {
 
 type CommandAction =
   | (CommandActionBase & {
-    kind: "create" | "navigator" | "terminal" | "prompt" | "turn" | "view"
+    kind: "create" | "navigator" | "terminal" | "prompt" | "view"
   })
   | (CommandActionBase & {
     kind: "project"
@@ -266,9 +266,7 @@ function CommandActionGlyph({
         ? <Terminal size={14} />
         : action.kind === "prompt"
           ? <TextCursorInput size={14} />
-          : action.kind === "turn"
-            ? action.id === "interrupt-turn" ? <Square size={14} /> : <Play size={14} />
-            : <WrapText size={14} />
+          : <WrapText size={14} />
 
   return (
     <span className={cn("h-8 w-8 border border-border text-muted-strong", ui.iconBox)} aria-hidden="true">
@@ -511,8 +509,6 @@ export const DashboardLayout = memo(function DashboardLayout({
     }
   }, [terminalVisible])
 
-  const canInterrupt = selectedThread?.status === "active" && !busy
-  const canResume = Boolean(selectedThreadId) && selectedThread?.status !== "active" && !busy
   const scaleStep = displayScaleConfig.step
   const canDecreaseScale = displayScale > displayScaleConfig.min
   const canIncreaseScale = displayScale < displayScaleConfig.max
@@ -570,24 +566,6 @@ export const DashboardLayout = memo(function DashboardLayout({
         detail: "Open the terminal dock",
         kind: "terminal",
         run: showTerminal
-      },
-      {
-        id: "interrupt-turn",
-        title: "Interrupt current turn",
-        detail: "Stop the active Codex turn",
-        kind: "turn",
-        disabled: !canInterrupt,
-        disabledDetail: busy ? "Busy with another action" : "No active turn to interrupt",
-        run: onInterrupt
-      },
-      {
-        id: "resume-session",
-        title: "Resume session",
-        detail: "Continue the selected Codex session",
-        kind: "turn",
-        disabled: !canResume,
-        disabledDetail: busy ? "Busy with another action" : "Select an idle session to resume",
-        run: onResume
       },
       {
         id: "settings:panel",
@@ -690,11 +668,8 @@ export const DashboardLayout = memo(function DashboardLayout({
 
     return actions
   }, [
-    busy,
     canDecreaseScale,
     canIncreaseScale,
-    canInterrupt,
-    canResume,
     canUseGoalMode,
     displayScale,
     focusVisiblePrompt,
@@ -711,8 +686,6 @@ export const DashboardLayout = memo(function DashboardLayout({
     onGoalModeChange,
     onInspectorVisibleChange,
     onNavigatorVisibleChange,
-    onInterrupt,
-    onResume,
     onWrapSessionContentChange,
     onTerminalVisibleChange,
     onProjectChange,
@@ -950,6 +923,7 @@ export const DashboardLayout = memo(function DashboardLayout({
           onToggleInspector={() => openMobileSheet("inspector")}
           onSwipeLeft={handleMobileSwipeLeft}
           onSwipeRight={handleMobileSwipeRight}
+          onSwipeUp={openCommandPalette}
         />
       </div>
 
@@ -1002,7 +976,6 @@ export const DashboardLayout = memo(function DashboardLayout({
                     createSessionAndFocusPrompt()
                     setMobileSheet(null)
                   }}
-                  onSearchSwipeUp={openCommandPalette}
                 />
               ) : (
                 <ParamPanel

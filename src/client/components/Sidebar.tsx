@@ -6,10 +6,9 @@ import {
 } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import type { ReactNode } from "react"
-import { memo, useMemo, useRef, useState } from "react"
+import { memo, useMemo, useState } from "react"
 import { cn, ui } from "../designSystem.js"
 import { formatFullDateTime, formatTokens } from "../uiFormat.js"
-import { useSwipeGesture } from "../useSwipeGesture.js"
 import { AvatarBadge, ControlButton, ControlCard, FieldShell, MenuItemButton, NavAction, SurfaceAction } from "./uiPrimitives.js"
 import { SessionStatusIcon, sessionStatusDotClass } from "./sessionStatusIcon.js"
 import type { DateBucket, WorkbenchProject, WorkbenchSession } from "./workbenchTypes.js"
@@ -24,7 +23,6 @@ export type SidebarProps = {
   onSessionQueryChange: (value: string) => void
   onSelectSession: (session: WorkbenchSession) => void
   onCreateSession: () => void
-  onSearchSwipeUp?: () => void
   footer?: ReactNode
 }
 
@@ -85,24 +83,15 @@ export const Sidebar = memo(function Sidebar({
   onSessionQueryChange,
   onSelectSession,
   onCreateSession,
-  onSearchSwipeUp,
   footer
 }: SidebarProps) {
   const [projectMenuOpen, setProjectMenuOpen] = useState(false)
-  const searchGestureRef = useRef<HTMLDivElement | null>(null)
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? projects[0]
   const visibleSessions = useMemo(
     () => (selectedProject ? filterSessions(selectedProject, sessionQuery) : []),
     [selectedProject, sessionQuery]
   )
   const sessionGroups = useMemo(() => groupSessions(visibleSessions), [visibleSessions])
-
-  useSwipeGesture(searchGestureRef, {
-    onSwipeUp: onSearchSwipeUp
-  }, {
-    enabled: Boolean(onSearchSwipeUp),
-    threshold: 36
-  })
 
   return (
     <aside className={cn("flex h-full min-h-0 flex-col border-r", ui.sidePanel, className)}>
@@ -163,7 +152,7 @@ export const Sidebar = memo(function Sidebar({
       </div>
 
       <div className="flex shrink-0 items-center gap-2 px-4 py-2.5">
-        <div ref={searchGestureRef} className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1">
           <FieldShell icon={<Search size={14} />} className="w-full">
             <input
               className={cn(ui.input, "text-[13px]")}
