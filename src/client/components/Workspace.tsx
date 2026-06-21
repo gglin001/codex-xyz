@@ -87,6 +87,10 @@ type ChatMessage = {
 const spring = { type: "spring", stiffness: 340, damping: 34 } as const
 const sessionContentWidthClass = "[--session-content-width:900px]"
 const sessionContentFrameClass = "mx-auto w-full min-w-0 max-w-[var(--session-content-width)]"
+const mobileComposerSwipeAxisLockRatio = 1.15
+const mobileComposerSwipeDirectionThresholds = {
+  up: 88
+}
 
 function SessionContentFrame({
   children,
@@ -634,6 +638,10 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
     onSwipeRight,
     onSwipeUp,
     onSwipeDown
+  }, {
+    axisLockRatio: mobileComposerSwipeAxisLockRatio,
+    directionThresholds: mobileComposerSwipeDirectionThresholds,
+    ignoreInteractive: true
   })
 
   useEffect(() => {

@@ -8,9 +8,13 @@ export type SwipeHandlers = {
   onSwipeDown?: () => void
 }
 
+export type SwipeDirection = "left" | "right" | "up" | "down"
+
 export type SwipeGestureOptions = {
   enabled?: boolean
   threshold?: number
+  directionThresholds?: Partial<Record<SwipeDirection, number>>
+  axisLockRatio?: number
   edgeSize?: number
   ignoreInteractive?: boolean
 }
@@ -20,6 +24,16 @@ type SwipeStart = {
   y: number
   nearLeftEdge: boolean
   nearRightEdge: boolean
+}
+
+type SwipeDirectionResolution = {
+  dx: number
+  dy: number
+  threshold?: number
+  directionThresholds?: Partial<Record<SwipeDirection, number>>
+  axisLockRatio?: number
+  nearLeftEdge?: boolean
+  nearRightEdge?: boolean
 }
 
 const interactiveTargetSelector = [
@@ -36,6 +50,46 @@ function isInteractiveTarget(target: EventTarget | null) {
   return target instanceof Element && target.closest(interactiveTargetSelector) !== null
 }
 
+function thresholdForDirection(
+  direction: SwipeDirection,
+  threshold: number,
+  directionThresholds: Partial<Record<SwipeDirection, number>> | undefined
+) {
+  return directionThresholds?.[direction] ?? threshold
+}
+
+export function resolveSwipeDirection({
+  dx,
+  dy,
+  threshold = 60,
+  directionThresholds,
+  axisLockRatio = 1,
+  nearLeftEdge = true,
+  nearRightEdge = true
+}: SwipeDirectionResolution): SwipeDirection | null {
+  const absDx = Math.abs(dx)
+  const absDy = Math.abs(dy)
+
+  if (absDx >= absDy * axisLockRatio) {
+    if (dx <= 0) {
+      if (absDx < thresholdForDirection("left", threshold, directionThresholds)) return null
+      if (!nearRightEdge) return null
+      return "left"
+    }
+    if (absDx < thresholdForDirection("right", threshold, directionThresholds)) return null
+    if (!nearLeftEdge) return null
+    return "right"
+  }
+
+  if (absDy < absDx * axisLockRatio) return null
+  if (dy <= 0) {
+    if (absDy < thresholdForDirection("up", threshold, directionThresholds)) return null
+    return "up"
+  }
+  if (absDy < thresholdForDirection("down", threshold, directionThresholds)) return null
+  return "down"
+}
+
 /**
  * Listens for touch-swipe gestures on `elementRef` and fires the
  * corresponding handler when the dominant movement exceeds `threshold`.
@@ -48,6 +102,8 @@ export function useSwipeGesture(
   const {
     enabled = true,
     threshold = 60,
+    directionThresholds,
+    axisLockRatio = 1,
     edgeSize,
     ignoreInteractive = false
   } = options
@@ -84,27 +140,25 @@ export function useSwipeGesture(
       if (!start || event.changedTouches.length !== 1) return
       const dx = event.changedTouches[0].clientX - start.x
       const dy = event.changedTouches[0].clientY - start.y
-      const absDx = Math.abs(dx)
-      const absDy = Math.abs(dy)
+      const direction = resolveSwipeDirection({
+        dx,
+        dy,
+        threshold,
+        directionThresholds,
+        axisLockRatio,
+        nearLeftEdge: start.nearLeftEdge,
+        nearRightEdge: start.nearRightEdge
+      })
 
-      if (absDx >= absDy) {
-        if (absDx < threshold) return
-        if (dx <= 0) {
-          if (!start.nearRightEdge) return
-          handlers.onSwipeLeft?.()
-          return
-        }
-        if (!start.nearLeftEdge) return
+      if (direction === "left") {
+        handlers.onSwipeLeft?.()
+      } else if (direction === "right") {
         handlers.onSwipeRight?.()
-        return
-      }
-
-      if (absDy < threshold) return
-      if (dy <= 0) {
+      } else if (direction === "up") {
         handlers.onSwipeUp?.()
-        return
+      } else if (direction === "down") {
+        handlers.onSwipeDown?.()
       }
-      handlers.onSwipeDown?.()
     }
 
     const onTouchCancel = () => {
@@ -124,6 +178,8 @@ export function useSwipeGesture(
     edgeSize,
     elementRef,
     enabled,
+    directionThresholds,
+    axisLockRatio,
     handlers.onSwipeLeft,
     handlers.onSwipeRight,
     handlers.onSwipeUp,
