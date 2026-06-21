@@ -25,8 +25,9 @@ function thread(overrides: Partial<ControlThread> = {}): ControlThread {
     preview: "Initial prompt",
     cwd: "/tmp/codex-xyz",
     model: "gpt-test",
-    status: "running",
+    status: "active",
     activeTurnId: "turn-1",
+    lastTurnStatus: "in_progress",
     goalObjective: null,
     goalStatus: null,
     goalTokenBudget: null,
@@ -41,7 +42,7 @@ function turn(overrides: Partial<Turn> = {}): Turn {
   return {
     id: "turn-1",
     threadId: "thread-1",
-    status: "running",
+    status: "in_progress",
     prompt: "Initial prompt",
     startedAt: createdAt,
     completedAt: null,
@@ -191,6 +192,7 @@ describe("client event projection", () => {
     expect(result.state.threads[0]).toMatchObject({
       status: "idle",
       activeTurnId: null,
+      lastTurnStatus: "completed",
       updatedAt
     });
     expect(result.detail?.turns[0]).toMatchObject({

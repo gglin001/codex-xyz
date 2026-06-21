@@ -18,6 +18,7 @@ function thread(overrides: Partial<ControlThread> = {}): ControlThread {
     model: "gpt-test",
     status: "idle",
     activeTurnId: null,
+    lastTurnStatus: null,
     goalObjective: null,
     goalStatus: null,
     goalTokenBudget: null,
@@ -34,7 +35,15 @@ describe("workbench project data", () => {
       [
         thread({ id: "xyz-old", cwd: "/work/codex-xyz", updatedAt: early, tokensUsed: 5 }),
         thread({ id: "api-latest", cwd: "/work/api-server", updatedAt: late, tokensUsed: 10 }),
-        thread({ id: "xyz-middle", cwd: "/work/codex-xyz", status: "running", updatedAt: middle, tokensUsed: 7 })
+        thread({
+          id: "xyz-middle",
+          cwd: "/work/codex-xyz",
+          status: "active",
+          activeTurnId: "turn-1",
+          lastTurnStatus: "in_progress",
+          updatedAt: middle,
+          tokensUsed: 7
+        })
       ],
       "/work/codex-xyz"
     )

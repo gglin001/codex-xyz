@@ -559,7 +559,7 @@ describe("AppServerCodexAdapter", () => {
 
     expect(turn).toMatchObject({
       id: turnId,
-      status: "running"
+      status: "in_progress"
     })
     expect(events).toEqual(
       expect.arrayContaining([
@@ -628,7 +628,7 @@ describe("AppServerCodexAdapter", () => {
     })
     expect(result.turn).toMatchObject({
       id: goalTurnId,
-      status: "running"
+      status: "in_progress"
     })
     expect(events).toEqual(
       expect.arrayContaining([
@@ -694,7 +694,7 @@ describe("AppServerCodexAdapter", () => {
 
     expect(turn).toMatchObject({
       id: "turn_shell_1",
-      status: "running"
+      status: "in_progress"
     })
     expect(events).toEqual(
       expect.arrayContaining([

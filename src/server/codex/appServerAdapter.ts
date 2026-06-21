@@ -174,7 +174,7 @@ export class AppServerCodexAdapter implements CodexAdapter {
       });
       return {
         id: input.activeTurnId,
-        status: "running"
+        status: "in_progress"
       };
     }
 

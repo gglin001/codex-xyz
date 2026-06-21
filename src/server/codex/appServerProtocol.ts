@@ -6,7 +6,7 @@ import {
   type AdapterTokenUsage,
   type AdapterTurn
 } from "./adapter.js";
-import type { ThreadRuntimeStatus, TurnRuntimeStatus } from "../domain.js";
+import type { ThreadRuntimeStatus, TurnStatus } from "../domain.js";
 
 export type JsonRpcMessage = {
   id?: number | string;
@@ -274,30 +274,42 @@ export function normalizeThreadId(value: unknown) {
 export function normalizeThreadRuntimeStatus(value: unknown): ThreadRuntimeStatus {
   const status = asRecord(value);
   if (status.type === "active") {
-    return "running";
+    return "active";
   }
   if (status.type === "idle") {
     return "idle";
   }
   if (status.type === "systemError") {
-    return "failed";
+    return "system_error";
   }
   if (status.type === "notLoaded") {
-    return "stale";
+    return "not_loaded";
   }
   const text = typeof value === "string" ? value : typeof status.status === "string" ? status.status : "";
-  if (text === "idle" || text === "running" || text === "stale" || text === "failed") {
+  if (text === "idle" || text === "active" || text === "not_loaded" || text === "system_error") {
     return text;
+  }
+  if (text === "running") {
+    return "active";
+  }
+  if (text === "stale") {
+    return "not_loaded";
+  }
+  if (text === "failed") {
+    return "system_error";
   }
   return "idle";
 }
 
-export function normalizeTurnRuntimeStatus(value: unknown): TurnRuntimeStatus {
-  const status = String(value ?? "running");
+export function normalizeTurnStatus(value: unknown): TurnStatus {
+  const status = String(value ?? "inProgress");
+  if (status === "inProgress" || status === "in_progress" || status === "running") {
+    return "in_progress";
+  }
   if (status === "completed" || status === "interrupted" || status === "failed") {
     return status;
   }
-  return "running";
+  return "in_progress";
 }
 
 function normalizeOptionalTurnId(value: unknown) {
@@ -336,7 +348,7 @@ export function normalizeTurn(value: unknown): AdapterTurn {
   const turn = asRecord(value);
   return {
     id: String(turn.id),
-    status: normalizeTurnRuntimeStatus(turn.status)
+    status: normalizeTurnStatus(turn.status)
   };
 }
 

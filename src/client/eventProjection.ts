@@ -1,13 +1,17 @@
 import type {
   ControlThread,
   DashboardState,
-  RuntimeStatus,
   ThreadRuntimeStatus,
   ThreadDetail,
   ThreadItem,
   Turn,
-  TurnRuntimeStatus,
+  TurnStatus,
   XyzEvent
+} from "../server/domain.js";
+import {
+  isThreadRuntimeStatus,
+  isTurnStatus,
+  threadRuntimeStatusFromTurnStatus
 } from "../server/domain.js";
 
 export type ClientProjection = {
@@ -158,24 +162,6 @@ function updateById<T extends { id: string }>(items: T[], itemId: string, update
   const next = [...items];
   next[index] = nextItem;
   return next;
-}
-
-function threadStatusFromTurnStatus(status: TurnRuntimeStatus): ThreadRuntimeStatus {
-  if (status === "running") {
-    return "running";
-  }
-  if (status === "failed") {
-    return "failed";
-  }
-  return "idle";
-}
-
-function isTurnRuntimeStatus(status: unknown): status is TurnRuntimeStatus {
-  return status === "running" || status === "completed" || status === "interrupted" || status === "failed";
-}
-
-function isThreadRuntimeStatus(status: unknown): status is ThreadRuntimeStatus {
-  return status === "idle" || status === "running" || status === "stale" || status === "failed";
 }
 
 function withThread(
@@ -347,8 +333,9 @@ export function applyEventProjection(projection: ClientProjection, event: XyzEve
       return result(projection, projection, false, event);
     }
     const updates: Partial<ControlThread> = {
-      status: "running",
+      status: "active",
       activeTurnId: turn.id,
+      lastTurnStatus: "in_progress",
       updatedAt: turn.startedAt
     };
     if (turn.prompt) {
@@ -360,16 +347,17 @@ export function applyEventProjection(projection: ClientProjection, event: XyzEve
 
   if (event.type === "turn.status") {
     const status = payloadRecord(event).status;
-    if (!event.threadId || !event.turnId || !isTurnRuntimeStatus(status)) {
+    if (!event.threadId || !event.turnId || !isTurnStatus(status)) {
       return result(projection, projection, false, event);
     }
-    const completedAt = status === "running" ? null : event.createdAt;
+    const completedAt = status === "in_progress" ? null : event.createdAt;
     const next = withThreadFields(
       withTurnFields(projection, event.threadId, event.turnId, { status, completedAt }),
       event.threadId,
       {
-        status: threadStatusFromTurnStatus(status),
-        activeTurnId: status === "running" ? event.turnId : null,
+        status: threadRuntimeStatusFromTurnStatus(status),
+        activeTurnId: status === "in_progress" ? event.turnId : null,
+        lastTurnStatus: status,
         updatedAt: event.createdAt
       }
     );
@@ -389,7 +377,7 @@ export function applyEventProjection(projection: ClientProjection, event: XyzEve
       status,
       updatedAt: event.createdAt
     };
-    if (status !== "running") {
+    if (status !== "active") {
       updates.activeTurnId = null;
     }
     return result(projection, withThreadFields(projection, event.threadId, updates), true, event);

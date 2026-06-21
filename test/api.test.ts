@@ -173,6 +173,7 @@ function threadFixture(index: number): ControlThread {
     model: "test-codex",
     status: "idle",
     activeTurnId: null,
+    lastTurnStatus: null,
     goalObjective: null,
     goalStatus: null,
     goalTokenBudget: null,
@@ -251,7 +252,7 @@ describe("Next API routes", () => {
     expect(created.turn).toMatchObject({
       threadId: created.thread.id,
       prompt: "",
-      status: "running"
+      status: "in_progress"
     });
     expect(created.goal?.objective).toBe("Finish the local goal workflow");
     expect(created.goal?.status).toBe("in_progress");

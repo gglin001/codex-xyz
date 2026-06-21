@@ -1,6 +1,10 @@
-export type ThreadRuntimeStatus = "idle" | "running" | "stale" | "failed";
-export type TurnRuntimeStatus = "running" | "completed" | "interrupted" | "failed";
-export type RuntimeStatus = ThreadRuntimeStatus | TurnRuntimeStatus;
+export type ThreadRuntimeStatus = "idle" | "active" | "not_loaded" | "system_error"
+export type TurnStatus = "in_progress" | "completed" | "interrupted" | "failed"
+export type SessionDisplayStatus =
+  | ThreadRuntimeStatus
+  | "turn_completed"
+  | "turn_interrupted"
+  | "turn_failed"
 
 export type GoalStatus =
   | "in_progress"
@@ -30,6 +34,7 @@ export type ControlThread = {
   model: string | null;
   status: ThreadRuntimeStatus;
   activeTurnId: string | null;
+  lastTurnStatus: TurnStatus | null;
   goalObjective: string | null;
   goalStatus: GoalStatus | null;
   goalTokenBudget: number | null;
@@ -38,10 +43,38 @@ export type ControlThread = {
   updatedAt: string;
 };
 
+export function isThreadRuntimeStatus(value: unknown): value is ThreadRuntimeStatus {
+  return value === "idle" || value === "active" || value === "not_loaded" || value === "system_error"
+}
+
+export function isTurnStatus(value: unknown): value is TurnStatus {
+  return value === "in_progress" || value === "completed" || value === "interrupted" || value === "failed"
+}
+
+export function threadRuntimeStatusFromTurnStatus(status: TurnStatus): ThreadRuntimeStatus {
+  return status === "in_progress" ? "active" : "idle"
+}
+
+export function sessionDisplayStatus(thread: Pick<ControlThread, "status" | "lastTurnStatus">): SessionDisplayStatus {
+  if (thread.status !== "idle") {
+    return thread.status
+  }
+  if (thread.lastTurnStatus === "completed") {
+    return "turn_completed"
+  }
+  if (thread.lastTurnStatus === "interrupted") {
+    return "turn_interrupted"
+  }
+  if (thread.lastTurnStatus === "failed") {
+    return "turn_failed"
+  }
+  return "idle"
+}
+
 export type Turn = {
   id: string;
   threadId: string;
-  status: TurnRuntimeStatus;
+  status: TurnStatus;
   prompt: string;
   startedAt: string;
   completedAt: string | null;

@@ -30,7 +30,7 @@ describe("app-server protocol projection", () => {
       preview: "Runtime preview",
       cwd: "/work/codex-xyz",
       model: "gpt-test",
-      status: "running",
+      status: "active",
       activeTurnId: "turn-1",
       updatedAt: "2023-11-14T22:13:20.000Z"
     })
@@ -133,7 +133,7 @@ describe("app-server protocol projection", () => {
     ).toEqual({
       type: "thread.status",
       threadId: "thread-1",
-      status: "stale"
+      status: "not_loaded"
     })
 
     expect(

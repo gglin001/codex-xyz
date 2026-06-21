@@ -73,7 +73,7 @@ class VolatileCodexAdapter implements CodexAdapter {
     this.requireThread(input.threadId);
     const turn: AdapterTurn = {
       id: `volatile_turn_${this.nextTurn++}`,
-      status: "running"
+      status: "in_progress"
     };
     const timer = setTimeout(() => {
       this.timers.delete(timer);
@@ -214,7 +214,7 @@ class EagerEventCodexAdapter implements CodexAdapter {
     this.requireThread(input.threadId);
     const turn: AdapterTurn = {
       id: `eager_turn_${this.nextTurn++}`,
-      status: "running"
+      status: "in_progress"
     };
     const answerId = `eager_item_${turn.id}`;
     this.handler({
@@ -374,12 +374,12 @@ class InterruptDriftCodexAdapter implements CodexAdapter {
     }
     this.thread = {
       ...this.thread,
-      status: "running",
+      status: "active",
       activeTurnId: this.activeTurnId
     };
     return {
       id: this.activeTurnId,
-      status: "running"
+      status: "in_progress"
     };
   }
 
@@ -470,7 +470,7 @@ describe("ControlService", () => {
       cwd: tempDir,
       prompt: "Implement local test support"
     });
-    expect(result.thread?.status).toBe("running");
+    expect(result.thread?.status).toBe("active");
 
     await waitForEvents();
 
@@ -498,13 +498,13 @@ describe("ControlService", () => {
 
     expect(result.turn).toMatchObject({
       threadId,
-      status: "running",
+      status: "in_progress",
       prompt: ""
     });
     expect(result.goal?.objective).toBe("Finish the first-version MVP");
     expect(result.thread?.goalObjective).toBe("Finish the first-version MVP");
     expect(result.thread?.goalStatus).toBe("in_progress");
-    expect(result.thread?.status).toBe("running");
+    expect(result.thread?.status).toBe("active");
 
     await waitForEvents();
 
@@ -745,11 +745,11 @@ describe("ControlService", () => {
     await waitForEvents();
 
     expect(turn.threadId).not.toBe(oldThreadId);
-    expect(service.getThreadDetail(oldThreadId).status).toBe("stale");
+    expect(service.getThreadDetail(oldThreadId).status).toBe("not_loaded");
     expect(service.getThreadDetail(turn.threadId).forkedFromId).toBe(oldThreadId);
   });
 
-  it("marks a thread stale when resume succeeds but a non-continuation action still loses runtime", async () => {
+  it("marks a thread not loaded when resume succeeds but a non-continuation action still loses runtime", async () => {
     await service.close();
     const adapter = new VolatileCodexAdapter();
     service = new ControlService(Store.open(join(tempDir, "volatile-lost.sqlite")), adapter);
@@ -774,6 +774,6 @@ describe("ControlService", () => {
     await expect(service.setGoal({ threadId, objective: "Goal after runtime drift" })).rejects.toThrow(
       /thread not found/
     );
-    expect(service.getThreadDetail(threadId).status).toBe("stale");
+    expect(service.getThreadDetail(threadId).status).toBe("not_loaded");
   });
 });

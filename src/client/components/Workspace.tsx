@@ -15,7 +15,8 @@ import {
 import { AnimatePresence, motion } from "framer-motion"
 import type { KeyboardEvent, MouseEvent, ReactNode, SubmitEvent } from "react"
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
-import type { ControlThread, RuntimeStatus, ThreadDetail, ThreadItem } from "../../server/domain.js"
+import type { ControlThread, SessionDisplayStatus, ThreadDetail, ThreadItem } from "../../server/domain.js"
+import { sessionDisplayStatus } from "../../server/domain.js"
 import { copyToClipboard } from "../clipboard.js"
 import { cn, tone, ui } from "../designSystem.js"
 import { getFirstLineTextPreview } from "../textPreview.js"
@@ -141,17 +142,17 @@ function headerMeta(value: string) {
   )
 }
 
-function statusDotClass(status: RuntimeStatus) {
-  if (status === "running") {
+function statusDotClass(status: SessionDisplayStatus) {
+  if (status === "active") {
     return tone.running.dot
   }
-  if (status === "stale") {
+  if (status === "not_loaded") {
     return tone.stale.dot
   }
-  if (status === "failed" || status === "interrupted") {
+  if (status === "system_error" || status === "turn_failed" || status === "turn_interrupted") {
     return tone.error.dot
   }
-  if (status === "completed") {
+  if (status === "turn_completed") {
     return tone.completed.dot
   }
   return tone.neutral.dot
@@ -363,8 +364,8 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
   onToggleInspector,
 }, ref) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
-  const canInterrupt = selectedThread?.status === "running" && !busy
-  const canResume = Boolean(selectedThreadId) && selectedThread?.status !== "running" && !busy
+  const canInterrupt = selectedThread?.status === "active" && !busy
+  const canResume = Boolean(selectedThreadId) && selectedThread?.status !== "active" && !busy
   const [moreActionsOpen, setMoreActionsOpen] = useState(false)
   const submitTitle = goalMode ? "Start goal mode" : promptTarget === "thread" ? "Send prompt" : "Create session"
   const placeholder = goalMode
@@ -618,7 +619,7 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
   const title = selectedThread?.title ?? session?.title ?? "New Codex session"
   const subtitle = selectedThread?.cwd ?? session?.cwd ?? project?.path ?? "Select a project to begin"
   const tokens = detail?.tokensUsed ?? session?.tokensUsed ?? 0
-  const status = selectedThread?.status ?? session?.status ?? "idle"
+  const status = selectedThread ? sessionDisplayStatus(selectedThread) : (session?.status ?? "idle")
 
   useImperativeHandle(ref, () => ({
     focusPrompt: () => composerRef.current?.focusPrompt() ?? false

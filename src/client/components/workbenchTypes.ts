@@ -1,4 +1,10 @@
-import type { ControlThread, GoalStatus, RuntimeStatus } from "../../server/domain.js"
+import type {
+  ControlThread,
+  GoalStatus,
+  SessionDisplayStatus,
+  ThreadRuntimeStatus,
+  TurnStatus
+} from "../../server/domain.js"
 
 export type DateBucket = "Today" | "Yesterday" | "Older"
 export type ComposerMode = "thread" | "new"
@@ -14,8 +20,10 @@ export type WorkbenchSession = {
   preview: string
   cwd: string
   model: string | null
-  status: RuntimeStatus
+  status: SessionDisplayStatus
+  runtimeStatus: ThreadRuntimeStatus
   activeTurnId: string | null
+  lastTurnStatus: TurnStatus | null
   goalObjective: string | null
   goalStatus: GoalStatus | null
   goalTokenBudget: number | null

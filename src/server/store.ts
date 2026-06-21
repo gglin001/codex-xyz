@@ -12,7 +12,7 @@ import {
   type ThreadDetail,
   type ThreadItem,
   type Turn,
-  type TurnRuntimeStatus,
+  type TurnStatus,
   type XyzEvent
 } from "./domain.js";
 
@@ -60,16 +60,28 @@ function nullableString(value: unknown) {
 
 function storedThreadStatus(value: unknown): ThreadRuntimeStatus {
   const status = scalarString(value);
-  if (status === "running" || status === "stale" || status === "failed") {
+  if (status === "idle" || status === "active" || status === "not_loaded" || status === "system_error") {
     return status;
+  }
+  if (status === "running") {
+    return "active";
+  }
+  if (status === "stale") {
+    return "not_loaded";
+  }
+  if (status === "failed") {
+    return "system_error";
   }
   return "idle";
 }
 
-function storedTurnStatus(value: unknown): TurnRuntimeStatus {
+function storedTurnStatus(value: unknown): TurnStatus {
   const status = scalarString(value);
-  if (status === "running" || status === "completed" || status === "interrupted" || status === "failed") {
+  if (status === "in_progress" || status === "completed" || status === "interrupted" || status === "failed") {
     return status;
+  }
+  if (status === "running") {
+    return "in_progress";
   }
   return "interrupted";
 }
@@ -85,6 +97,7 @@ function threadFromRow(row: Row): ControlThread {
     model: nullableString(row.model),
     status: storedThreadStatus(row.status),
     activeTurnId: nullableString(row.active_turn_id),
+    lastTurnStatus: row.last_turn_status ? storedTurnStatus(row.last_turn_status) : null,
     goalObjective: nullableString(row.goal_objective),
     goalStatus: nullableString(row.goal_status) as GoalStatus | null,
     goalTokenBudget: typeof row.goal_token_budget === "number" ? row.goal_token_budget : null,
@@ -174,6 +187,7 @@ export class Store {
         model TEXT,
         status TEXT NOT NULL,
         active_turn_id TEXT,
+        last_turn_status TEXT,
         goal_objective TEXT,
         goal_status TEXT,
         goal_token_budget INTEGER,
@@ -229,6 +243,48 @@ export class Store {
     `);
     this.addColumnIfMissing("hosts", "default_cwd", "TEXT");
     this.addColumnIfMissing("threads", "goal_token_budget", "INTEGER");
+    this.addColumnIfMissing("threads", "last_turn_status", "TEXT");
+    this.normalizeStatusVocabulary();
+  }
+
+  private normalizeStatusVocabulary() {
+    this.db.exec(`
+      UPDATE turns
+      SET status = CASE status
+        WHEN 'running' THEN 'in_progress'
+        ELSE status
+      END;
+
+      UPDATE threads
+      SET last_turn_status = CASE last_turn_status
+        WHEN 'running' THEN 'in_progress'
+        ELSE last_turn_status
+      END
+      WHERE last_turn_status IS NOT NULL;
+
+      UPDATE threads
+      SET last_turn_status = (
+        SELECT turns.status
+        FROM turns
+        WHERE turns.thread_id = threads.id
+        ORDER BY turns.started_at DESC, turns.id DESC
+        LIMIT 1
+      )
+      WHERE last_turn_status IS NULL;
+
+      UPDATE threads
+      SET status = CASE status
+        WHEN 'running' THEN 'active'
+        WHEN 'stale' THEN 'not_loaded'
+        WHEN 'failed' THEN CASE last_turn_status
+          WHEN 'failed' THEN 'idle'
+          ELSE 'system_error'
+        END
+        WHEN 'completed' THEN 'idle'
+        WHEN 'interrupted' THEN 'idle'
+        ELSE status
+      END;
+    `);
   }
 
   private addColumnIfMissing(table: string, column: string, definition: string) {
@@ -285,10 +341,10 @@ export class Store {
         `
           INSERT INTO threads (
             id, session_id, forked_from_id, title, preview, cwd, model,
-            status, active_turn_id, goal_objective, goal_status, goal_token_budget,
+            status, active_turn_id, last_turn_status, goal_objective, goal_status, goal_token_budget,
             tokens_used, created_at, updated_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `
       )
       .run(
@@ -301,6 +357,7 @@ export class Store {
         thread.model,
         thread.status,
         thread.activeTurnId,
+        thread.lastTurnStatus,
         thread.goalObjective,
         thread.goalStatus,
         thread.goalTokenBudget,
@@ -316,7 +373,15 @@ export class Store {
     updates: Partial<
       Pick<
         ControlThread,
-        "status" | "activeTurnId" | "goalObjective" | "goalStatus" | "goalTokenBudget" | "tokensUsed" | "title" | "preview"
+        | "status"
+        | "activeTurnId"
+        | "lastTurnStatus"
+        | "goalObjective"
+        | "goalStatus"
+        | "goalTokenBudget"
+        | "tokensUsed"
+        | "title"
+        | "preview"
       >
     >,
     options: ThreadUpdateOptions = {}
@@ -335,6 +400,7 @@ export class Store {
             preview = ?,
             status = ?,
             active_turn_id = ?,
+            last_turn_status = ?,
             goal_objective = ?,
             goal_status = ?,
             goal_token_budget = ?,
@@ -348,6 +414,7 @@ export class Store {
         next.preview,
         next.status,
         next.activeTurnId,
+        next.lastTurnStatus,
         next.goalObjective,
         next.goalStatus,
         next.goalTokenBudget,

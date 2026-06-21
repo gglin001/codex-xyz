@@ -1,4 +1,4 @@
-import type { ControlThread } from "../../server/domain.js"
+import { sessionDisplayStatus, type ControlThread } from "../../server/domain.js"
 import type { DateBucket, ProjectAccent, WorkbenchProject, WorkbenchSession } from "./workbenchTypes.js"
 
 const accentCycle: ProjectAccent[] = ["emerald", "violet", "sky", "slate"]
@@ -66,8 +66,10 @@ function sessionFromThread(thread: ControlThread): WorkbenchSession {
     preview: thread.preview || "No transcript preview yet.",
     cwd: thread.cwd || "Unknown workdir",
     model: thread.model,
-    status: thread.status,
+    status: sessionDisplayStatus(thread),
+    runtimeStatus: thread.status,
     activeTurnId: thread.activeTurnId,
+    lastTurnStatus: thread.lastTurnStatus,
     goalObjective: thread.goalObjective,
     goalStatus: thread.goalStatus,
     goalTokenBudget: thread.goalTokenBudget,
@@ -95,7 +97,7 @@ function projectFromPath(path: string, sessions: WorkbenchSession[]): WorkbenchP
     accent,
     sessions: sortedSessions,
     totalSessions: sortedSessions.length,
-    runningSessions: sortedSessions.filter((session) => session.status === "running").length,
+    runningSessions: sortedSessions.filter((session) => session.runtimeStatus === "active").length,
     tokenTotal: sortedSessions.reduce((total, session) => total + session.tokensUsed, 0)
   }
 }

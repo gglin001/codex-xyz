@@ -4,26 +4,16 @@ import type {
   ThreadRuntimeStatus,
   ThreadItem,
   Turn,
-  TurnRuntimeStatus,
+  TurnStatus,
   XyzEvent
 } from "./domain.js";
-import { nowIso } from "./domain.js";
+import { nowIso, threadRuntimeStatusFromTurnStatus } from "./domain.js";
 import type { EventBus } from "./eventBus.js";
 import type { Store } from "./store.js";
 import type { AdapterEvent, AdapterGoal, AdapterThread, AdapterTurn } from "./codex/adapter.js";
 
 function goalStatusFromAdapter(goal: AdapterGoal | null): GoalStatus | null {
   return goal ? goal.status : null;
-}
-
-function threadStatusFromTurnStatus(status: TurnRuntimeStatus): ThreadRuntimeStatus {
-  if (status === "running") {
-    return "running";
-  }
-  if (status === "failed") {
-    return "failed";
-  }
-  return "idle";
 }
 
 export type CreateThreadProjectionInput = {
@@ -90,15 +80,16 @@ export class ThreadProjection {
       if (!this.ensureTurnForEvent(event.threadId, event.turnId)) {
         return;
       }
-      const completedAt = event.status === "running" ? null : nowIso();
+      const completedAt = event.status === "in_progress" ? null : nowIso();
       this.store.updateTurn(event.turnId, {
         status: event.status,
         completedAt,
         durationMs: event.durationMs ?? null
       });
       this.store.updateThread(event.threadId, {
-        status: threadStatusFromTurnStatus(event.status),
-        activeTurnId: event.status === "running" ? event.turnId : null
+        status: threadRuntimeStatusFromTurnStatus(event.status),
+        activeTurnId: event.status === "in_progress" ? event.turnId : null,
+        lastTurnStatus: event.status
       });
       this.publish("turn.status", event.threadId, event.turnId, { status: event.status });
       return;
@@ -111,17 +102,21 @@ export class ThreadProjection {
       }
       this.recordTurn(thread, event.prompt ?? "", {
         id: event.turnId,
-        status: "running"
+        status: "in_progress"
       });
       return;
     }
 
     if (event.type === "thread.status") {
-      const updates: Partial<Pick<ControlThread, "status" | "activeTurnId">> = {
+      const updates: Partial<Pick<ControlThread, "status" | "activeTurnId" | "lastTurnStatus">> = {
         status: event.status
       };
-      if (event.status !== "running") {
+      if (event.status !== "active") {
+        const activeTurnStatus = this.interruptInProgressActiveTurn(event.threadId);
         updates.activeTurnId = null;
+        if (activeTurnStatus) {
+          updates.lastTurnStatus = activeTurnStatus;
+        }
       }
       const thread = this.store.updateThread(event.threadId, updates);
       this.publish("thread.status", event.threadId, null, { status: event.status, thread });
@@ -202,7 +197,8 @@ export class ThreadProjection {
       cwd: input.adapterThread.cwd,
       model: input.adapterThread.model,
       status,
-      activeTurnId: status === "running" ? (input.adapterThread.activeTurnId ?? null) : null,
+      activeTurnId: status === "active" ? (input.adapterThread.activeTurnId ?? null) : null,
+      lastTurnStatus: status === "active" ? "in_progress" : null,
       goalObjective: input.goalObjective,
       goalStatus: input.goalStatus,
       goalTokenBudget: input.goalTokenBudget ?? null,
@@ -219,8 +215,9 @@ export class ThreadProjection {
     if (existing) {
       const current = !existing.prompt && prompt ? this.store.updateTurn(existing.id, { prompt }) ?? existing : existing;
       this.store.updateThread(thread.id, {
-        status: threadStatusFromTurnStatus(current.status),
-        activeTurnId: current.status === "running" ? current.id : null,
+        status: threadRuntimeStatusFromTurnStatus(current.status),
+        activeTurnId: current.status === "in_progress" ? current.id : null,
+        lastTurnStatus: current.status,
         preview: current.prompt || prompt || thread.preview
       });
       return current;
@@ -234,13 +231,14 @@ export class ThreadProjection {
       status: turnStatus,
       prompt,
       startedAt: now,
-      completedAt: turnStatus === "running" ? null : now,
+      completedAt: turnStatus === "in_progress" ? null : now,
       durationMs: null
     };
     this.store.createTurn(turn);
     this.store.updateThread(thread.id, {
-      status: threadStatusFromTurnStatus(turnStatus),
-      activeTurnId: turnStatus === "running" ? turn.id : null,
+      status: threadRuntimeStatusFromTurnStatus(turnStatus),
+      activeTurnId: turnStatus === "in_progress" ? turn.id : null,
+      lastTurnStatus: turnStatus,
       preview: prompt || thread.preview
     });
     this.publish("turn.started", thread.id, turn.id, { turn });
@@ -249,29 +247,31 @@ export class ThreadProjection {
 
   applyRuntimeThreadSnapshot(thread: ControlThread, adapterThread: AdapterThread) {
     const runtimeStatus = adapterThread.status;
-    const nextActiveTurnId = runtimeStatus === "running" ? (adapterThread.activeTurnId ?? null) : null;
-    const updates: Partial<Pick<ControlThread, "status" | "activeTurnId" | "preview">> = {
+    const nextActiveTurnId = runtimeStatus === "active" ? (adapterThread.activeTurnId ?? null) : null;
+    if (nextActiveTurnId) {
+      this.ensureTurnForEvent(thread.id, nextActiveTurnId);
+    }
+    const updates: Partial<Pick<ControlThread, "status" | "activeTurnId" | "lastTurnStatus" | "preview">> = {
       status: runtimeStatus,
       activeTurnId: nextActiveTurnId,
       preview: adapterThread.preview || thread.preview
     };
+    if (runtimeStatus === "active") {
+      updates.lastTurnStatus = "in_progress";
+    }
+    if (runtimeStatus !== "active") {
+      const activeTurnStatus = this.interruptInProgressActiveTurn(thread.id);
+      if (activeTurnStatus) {
+        updates.lastTurnStatus = activeTurnStatus;
+      }
+    }
     const fieldsChanged =
       thread.status !== updates.status ||
       thread.activeTurnId !== updates.activeTurnId ||
+      (updates.lastTurnStatus !== undefined && thread.lastTurnStatus !== updates.lastTurnStatus) ||
       thread.preview !== updates.preview;
     const updatedAtChanged = Boolean(adapterThread.updatedAt && adapterThread.updatedAt !== thread.updatedAt);
     const changed = fieldsChanged || updatedAtChanged;
-
-    if (runtimeStatus !== "running" && thread.activeTurnId) {
-      const activeTurn = this.store.getTurn(thread.activeTurnId);
-      if (activeTurn?.status === "running") {
-        this.store.updateTurn(activeTurn.id, {
-          status: "interrupted",
-          completedAt: nowIso(),
-          durationMs: null
-        });
-      }
-    }
 
     const updated = changed
       ? this.store.updateThread(
@@ -291,38 +291,41 @@ export class ThreadProjection {
   }
 
   clearLostActiveTurn(thread: ControlThread) {
-    if (thread.activeTurnId) {
-      const activeTurn = this.store.getTurn(thread.activeTurnId);
-      if (activeTurn?.status === "running") {
-        this.store.updateTurn(activeTurn.id, {
-          status: "interrupted",
-          completedAt: nowIso(),
-          durationMs: null
-        });
-      }
-    }
+    const activeTurnStatus = this.interruptInProgressActiveTurn(thread.id);
     const updated = this.store.updateThread(thread.id, {
       status: "idle",
-      activeTurnId: null
+      activeTurnId: null,
+      lastTurnStatus: activeTurnStatus ?? thread.lastTurnStatus
     });
     this.publish("thread.status", thread.id, null, { status: "idle", thread: updated });
     return updated ?? thread;
   }
 
   markRuntimeThreadLost(thread: ControlThread) {
-    const activeTurn = thread.activeTurnId ? this.store.getTurn(thread.activeTurnId) : null;
-    if (activeTurn) {
-      this.store.updateTurn(activeTurn.id, {
-        status: "interrupted",
-        completedAt: nowIso(),
-        durationMs: null
-      });
-    }
+    const activeTurnStatus = this.interruptInProgressActiveTurn(thread.id);
     const updated = this.store.updateThread(thread.id, {
-      status: "stale",
-      activeTurnId: null
+      status: "not_loaded",
+      activeTurnId: null,
+      lastTurnStatus: activeTurnStatus ?? thread.lastTurnStatus
     });
     this.publish("thread.runtime_lost", thread.id, null, { thread: updated });
+  }
+
+  private interruptInProgressActiveTurn(threadId: string): TurnStatus | null {
+    const thread = this.store.getThread(threadId);
+    const activeTurn = thread?.activeTurnId ? this.store.getTurn(thread.activeTurnId) : null;
+    if (!activeTurn) {
+      return null;
+    }
+    if (activeTurn.status !== "in_progress") {
+      return activeTurn.status;
+    }
+    this.store.updateTurn(activeTurn.id, {
+      status: "interrupted",
+      completedAt: nowIso(),
+      durationMs: null
+    });
+    return "interrupted";
   }
 
   private ensureTurnForEvent(threadId: string, turnId: string | null, prompt = "") {
@@ -341,7 +344,7 @@ export class ThreadProjection {
     const turn: Turn = {
       id: turnId,
       threadId,
-      status: "running",
+      status: "in_progress",
       prompt,
       startedAt: now,
       completedAt: null,
@@ -349,8 +352,9 @@ export class ThreadProjection {
     };
     this.store.createTurn(turn);
     this.store.updateThread(threadId, {
-      status: "running",
+      status: "active",
       activeTurnId: turnId,
+      lastTurnStatus: "in_progress",
       preview: prompt || thread.preview
     });
     this.publish("turn.started", threadId, turnId, { turn });

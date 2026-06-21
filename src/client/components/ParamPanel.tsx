@@ -43,13 +43,13 @@ function formatCompact(value: number) {
 }
 
 function runtimeStatusTone(status: string | null | undefined) {
-  if (status === "running") {
+  if (status === "active") {
     return tone.running.dot
   }
-  if (status === "failed" || status === "interrupted") {
+  if (status === "system_error") {
     return tone.error.dot
   }
-  if (status === "stale") {
+  if (status === "not_loaded") {
     return tone.stale.dot
   }
   return tone.neutral.dot

@@ -2,7 +2,7 @@ import { Menu, Plus, Search, Settings } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import type { KeyboardEvent, SubmitEvent } from "react"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import type { ControlThread, RuntimeStatus, ThreadDetail } from "../../server/domain.js"
+import type { ControlThread, SessionDisplayStatus, ThreadDetail } from "../../server/domain.js"
 import { cn, ui } from "../designSystem.js"
 import { isPromptFocusShortcut } from "../promptShortcut.js"
 import { useVisualViewportHeight } from "../useVisualViewport.js"
@@ -75,7 +75,7 @@ type CommandAction =
   | (CommandActionBase & {
     kind: "session"
     projectId: string
-    status: RuntimeStatus
+    status: SessionDisplayStatus
   })
 
 type CommandActionRenderItem = {

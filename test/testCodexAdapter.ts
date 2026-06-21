@@ -14,6 +14,7 @@ import {
   type StartThreadInput,
   type StartTurnAdapterInput
 } from "../src/server/codex/adapter.js";
+import type { ThreadRuntimeStatus } from "../src/server/domain.js";
 
 type TestThread = AdapterThread & {
   goal: AdapterGoal | null;
@@ -71,10 +72,10 @@ export class TestCodexAdapter implements CodexAdapter {
       completed: false
     };
     thread.activeTurnId = turnId;
-    thread.status = "running";
+    thread.status = "active";
     this.running.set(turnId, running);
     setTimeout(() => this.emitTurnOutput(input, turnId, running), 0);
-    return { id: turnId, status: "running" };
+    return { id: turnId, status: "in_progress" };
   }
 
   async runShellCommand(input: RunShellCommandInput): Promise<AdapterTurn> {
@@ -90,7 +91,7 @@ export class TestCodexAdapter implements CodexAdapter {
 
     if (!input.activeTurnId) {
       thread.activeTurnId = turnId;
-      thread.status = "running";
+      thread.status = "active";
       this.running.set(turnId, running);
       this.emit({
         type: "turn.started",
@@ -101,7 +102,7 @@ export class TestCodexAdapter implements CodexAdapter {
     }
 
     setTimeout(() => this.emitShellCommandOutput(input, turnId, running), 0);
-    return { id: turnId, status: "running" };
+    return { id: turnId, status: "in_progress" };
   }
 
   async steerTurn(input: { threadId: string; turnId: string; prompt: string }) {
@@ -196,14 +197,14 @@ export class TestCodexAdapter implements CodexAdapter {
       completed: false
     };
     thread.activeTurnId = turnId;
-    thread.status = "running";
+    thread.status = "active";
     this.running.set(turnId, running);
     setTimeout(() => this.emitGoalTurnOutput(input, turnId, running), 0);
     return {
       goal,
       turn: {
         id: turnId,
-        status: "running"
+        status: "in_progress"
       }
     };
   }
@@ -228,7 +229,7 @@ export class TestCodexAdapter implements CodexAdapter {
     this.completeTurn(running, status);
   }
 
-  dropActiveTurn(threadId: string, status: "idle" | "failed" | "stale" = "idle") {
+  dropActiveTurn(threadId: string, status: Exclude<ThreadRuntimeStatus, "active"> = "idle") {
     const thread = this.requireThread(threadId);
     if (thread.activeTurnId) {
       this.running.delete(thread.activeTurnId);
@@ -261,7 +262,7 @@ export class TestCodexAdapter implements CodexAdapter {
     this.emit({
       type: "thread.status",
       threadId: input.threadId,
-      status: "running"
+      status: "active"
     });
     this.emit({
       type: "item.created",
@@ -300,7 +301,7 @@ export class TestCodexAdapter implements CodexAdapter {
     this.emit({
       type: "thread.status",
       threadId: input.threadId,
-      status: "running"
+      status: "active"
     });
     this.emit({
       type: "item.created",
@@ -378,7 +379,7 @@ export class TestCodexAdapter implements CodexAdapter {
     const thread = this.threads.get(running.threadId);
     if (thread?.activeTurnId === running.turnId) {
       thread.activeTurnId = null;
-      thread.status = status === "failed" ? "failed" : "idle";
+      thread.status = "idle";
     }
     this.emit({
       type: "turn.status",
@@ -390,7 +391,7 @@ export class TestCodexAdapter implements CodexAdapter {
     this.emit({
       type: "thread.status",
       threadId: running.threadId,
-      status: status === "failed" ? "failed" : "idle"
+      status: "idle"
     });
   }
 

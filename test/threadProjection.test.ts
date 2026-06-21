@@ -69,7 +69,7 @@ describe("ThreadProjection", () => {
     expect(detail?.turns).toHaveLength(1);
     expect(detail?.turns[0]).toMatchObject({
       id: "turn-1",
-      status: "running",
+      status: "in_progress",
       prompt: ""
     });
     expect(detail?.items).toHaveLength(1);
@@ -81,11 +81,11 @@ describe("ThreadProjection", () => {
     expect(events.map((event) => event.type)).toEqual(["turn.started", "item.delta"]);
   });
 
-  it("updates a running thread from a runtime snapshot and interrupts the stale active turn", () => {
-    const thread = createThread({ status: "running", activeTurnId: "turn-1" });
+  it("updates an active thread from an idle runtime snapshot and interrupts the active turn", () => {
+    const thread = createThread({ status: "active", activeTurnId: "turn-1" });
     projection.recordTurn(thread, "working prompt", {
       id: "turn-1",
-      status: "running"
+      status: "in_progress"
     });
     events = [];
 

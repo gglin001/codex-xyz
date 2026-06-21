@@ -14,6 +14,7 @@ function thread(id = "thread-1"): ControlThread {
     model: "model-a",
     status: "idle",
     activeTurnId: null,
+    lastTurnStatus: null,
     goalObjective: null,
     goalStatus: null,
     goalTokenBudget: null,
@@ -43,7 +44,7 @@ describe("RuntimeThreadCoordinator", () => {
 
   it("resumes a missing runtime thread and retries the action", async () => {
     const source = thread();
-    const resumed = { ...source, status: "running" as const, activeTurnId: "turn-1" };
+    const resumed = { ...source, status: "active" as const, activeTurnId: "turn-1", lastTurnStatus: "in_progress" as const };
     const action = vi
       .fn()
       .mockRejectedValueOnce(new AdapterThreadNotFoundError(source.id))
@@ -62,7 +63,7 @@ describe("RuntimeThreadCoordinator", () => {
     expect(action).toHaveBeenCalledWith(resumed);
   });
 
-  it("marks a non-continuable action stale when resume cannot reload the thread", async () => {
+  it("marks a non-continuable action not loaded when resume cannot reload the thread", async () => {
     const source = thread();
     const markThreadLost = vi.fn();
     const coordinator = new RuntimeThreadCoordinator({
@@ -109,7 +110,7 @@ describe("RuntimeThreadCoordinator", () => {
     expect(action).toHaveBeenLastCalledWith(continuation);
   });
 
-  it("marks stale and rethrows adapter loss after a non-continuable resumed retry fails", async () => {
+  it("marks not loaded and rethrows adapter loss after a non-continuable resumed retry fails", async () => {
     const source = thread();
     const resumed = { ...source, status: "idle" as const };
     const markThreadLost = vi.fn();
