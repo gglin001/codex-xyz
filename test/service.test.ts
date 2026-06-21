@@ -331,6 +331,123 @@ class EagerEventCodexAdapter implements CodexAdapter {
   }
 }
 
+class InterruptDriftCodexAdapter implements CodexAdapter {
+  readonly name = "interrupt-drift";
+  readonly version = "test";
+  private handler: AdapterEventHandler = () => {};
+  private thread: AdapterThread | null = null;
+  private readonly activeTurnId = "drift_turn_1";
+
+  onEvent(handler: AdapterEventHandler) {
+    this.handler = handler;
+  }
+
+  async startThread(input: StartThreadInput): Promise<AdapterThread> {
+    const thread: AdapterThread = {
+      id: "drift_thread_1",
+      sessionId: "drift_thread_1",
+      forkedFromId: null,
+      preview: input.promptPreview,
+      cwd: input.cwd,
+      model: input.model ?? "drift-model",
+      status: "idle"
+    };
+    this.thread = thread;
+    return thread;
+  }
+
+  async resumeThread(input: ResumeThreadInput): Promise<AdapterThread> {
+    if (!this.thread || this.thread.id !== input.threadId) {
+      throw new AdapterThreadNotFoundError(input.threadId, `thread not found: ${input.threadId}`);
+    }
+    this.thread = {
+      ...this.thread,
+      status: "idle",
+      activeTurnId: null
+    };
+    return this.thread;
+  }
+
+  async startTurn(input: StartTurnAdapterInput): Promise<AdapterTurn> {
+    if (!this.thread || this.thread.id !== input.threadId) {
+      throw new AdapterThreadNotFoundError(input.threadId, `thread not found: ${input.threadId}`);
+    }
+    this.thread = {
+      ...this.thread,
+      status: "running",
+      activeTurnId: this.activeTurnId
+    };
+    return {
+      id: this.activeTurnId,
+      status: "running"
+    };
+  }
+
+  async runShellCommand(input: RunShellCommandInput): Promise<AdapterTurn> {
+    return this.startTurn({
+      threadId: input.threadId,
+      prompt: `!${input.command}`,
+      model: null
+    });
+  }
+
+  async steerTurn() {}
+
+  async interruptTurn(input: { threadId: string }) {
+    throw new AdapterThreadNotFoundError(input.threadId, `no rollout found for thread id ${input.threadId}`);
+  }
+
+  async forkThread(input: ForkThreadInput): Promise<AdapterThread> {
+    return this.startThread({
+      cwd: input.cwd,
+      model: input.model,
+      promptPreview: "fork"
+    });
+  }
+
+  async renameThread() {}
+
+  async setGoal(input: { objective: string; tokenBudget?: number | null }): Promise<AdapterGoal> {
+    return {
+      objective: input.objective,
+      status: "in_progress",
+      tokenBudget: input.tokenBudget ?? null,
+      tokensUsed: 0
+    };
+  }
+
+  async setGoalStatus(input: { status: "active" | "paused" | "complete" }): Promise<AdapterGoal> {
+    return {
+      objective: "Test goal",
+      status: input.status === "active" ? "in_progress" : input.status,
+      tokenBudget: null,
+      tokensUsed: 0
+    };
+  }
+
+  async startGoal(input: { threadId: string; objective: string; tokenBudget?: number | null }): Promise<AdapterGoalStart> {
+    return {
+      goal: await this.setGoal(input),
+      turn: await this.startTurn({
+        threadId: input.threadId,
+        prompt: "",
+        model: null
+      })
+    };
+  }
+
+  async getGoal() {
+    return null;
+  }
+
+  async clearGoal() {}
+
+  async close() {
+    this.thread = null;
+    this.handler = () => {};
+  }
+}
+
 beforeEach(() => {
   tempDir = mkdtempSync(join(tmpdir(), "codex-xyz-service-"));
   testAdapter = new TestCodexAdapter();
@@ -523,6 +640,42 @@ describe("ControlService", () => {
     expect(detail.turns.map((turn) => turn.status)).toEqual(["interrupted", "completed"]);
     expect(detail.status).toBe("idle");
     expect(detail.items.some((item) => item.text.includes("Prompt preview: Start after runtime drift."))).toBe(true);
+  });
+
+  it("syncs local running state from app-server when interrupt finds no rollout", async () => {
+    await service.close();
+    const adapter = new InterruptDriftCodexAdapter();
+    service = new ControlService(Store.open(join(tempDir, "interrupt-drift.sqlite")), adapter);
+    service.seedLocalState({
+      cwd: tempDir,
+      adapterName: adapter.name,
+      cliVersion: adapter.version
+    });
+
+    const result = await service.createSession({
+      cwd: tempDir,
+      prompt: "Start a turn that drifts before interrupt"
+    });
+    const threadId = result.thread?.id;
+    const turnId = result.turn?.id;
+    if (!threadId || !turnId) {
+      throw new Error("Expected created thread and turn");
+    }
+
+    const interrupted = await service.interruptTurn(threadId);
+    const detail = service.getThreadDetail(threadId);
+
+    expect(interrupted).toMatchObject({
+      id: threadId,
+      status: "idle",
+      activeTurnId: null
+    });
+    expect(detail.status).toBe("idle");
+    expect(detail.activeTurnId).toBeNull();
+    expect(detail.turns[0]).toMatchObject({
+      id: turnId,
+      status: "interrupted"
+    });
   });
 
   it("supports the core goal controls on an existing idle session", async () => {

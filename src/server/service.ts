@@ -30,6 +30,14 @@ function isNoActiveTurnError(error: unknown) {
   return error instanceof Error && /no active turn/i.test(error.message);
 }
 
+function isRuntimeStateMismatchError(error: unknown) {
+  return (
+    isAdapterThreadNotFoundError(error) ||
+    isNoActiveTurnError(error) ||
+    (error instanceof Error && /expected active turn id/i.test(error.message))
+  );
+}
+
 function normalizeWorkingDirectory(path: string) {
   const resolved = resolve(path.trim());
   let stat;
@@ -202,16 +210,17 @@ export class ControlService {
     if (!thread.activeTurnId) {
       return thread;
     }
-    const activeTurnId = await this.withRuntimeThread(thread, async (runtimeThread) => {
-      if (!runtimeThread.activeTurnId) {
-        return null;
+    const activeTurnId = thread.activeTurnId;
+    try {
+      await this.adapter.interruptTurn({ threadId: thread.id, turnId: activeTurnId });
+    } catch (error) {
+      if (!isRuntimeStateMismatchError(error)) {
+        throw error;
       }
-      await this.adapter.interruptTurn({ threadId: runtimeThread.id, turnId: runtimeThread.activeTurnId });
-      return runtimeThread.activeTurnId;
-    });
-    if (activeTurnId) {
-      this.projection.publish("turn.interrupt.requested", threadId, activeTurnId, {});
+      await this.syncThreadAfterRuntimeMismatch(thread);
+      return this.store.getThread(threadId);
     }
+    this.projection.publish("turn.interrupt.requested", threadId, activeTurnId, {});
     return this.store.getThread(threadId);
   }
 
@@ -418,6 +427,15 @@ export class ControlService {
       }
       throw error;
     }
+  }
+
+  private async syncThreadAfterRuntimeMismatch(thread: ControlThread) {
+    const resumed = await this.resumeRuntimeThread(thread);
+    if (resumed) {
+      return resumed;
+    }
+    this.projection.markRuntimeThreadLost(thread);
+    return this.store.getThread(thread.id);
   }
 
   private async createContinuationThread(source: ControlThread, continuation: RuntimeContinuation) {

@@ -6,7 +6,7 @@ import {
   type AdapterTokenUsage,
   type AdapterTurn
 } from "./adapter.js";
-import type { RuntimeStatus } from "../domain.js";
+import type { ThreadRuntimeStatus, TurnRuntimeStatus } from "../domain.js";
 
 export type JsonRpcMessage = {
   id?: number | string;
@@ -271,7 +271,7 @@ export function normalizeThreadId(value: unknown) {
   return (prefixed?.[1] ?? urn?.[1] ?? id).toLowerCase();
 }
 
-export function normalizeRuntimeStatus(value: unknown): RuntimeStatus {
+export function normalizeThreadRuntimeStatus(value: unknown): ThreadRuntimeStatus {
   const status = asRecord(value);
   if (status.type === "active") {
     return "running";
@@ -286,17 +286,18 @@ export function normalizeRuntimeStatus(value: unknown): RuntimeStatus {
     return "stale";
   }
   const text = typeof value === "string" ? value : typeof status.status === "string" ? status.status : "";
-  if (
-    text === "idle" ||
-    text === "running" ||
-    text === "stale" ||
-    text === "interrupted" ||
-    text === "failed" ||
-    text === "completed"
-  ) {
+  if (text === "idle" || text === "running" || text === "stale" || text === "failed") {
     return text;
   }
   return "idle";
+}
+
+export function normalizeTurnRuntimeStatus(value: unknown): TurnRuntimeStatus {
+  const status = String(value ?? "running");
+  if (status === "completed" || status === "interrupted" || status === "failed") {
+    return status;
+  }
+  return "running";
 }
 
 function normalizeOptionalTurnId(value: unknown) {
@@ -322,7 +323,7 @@ export function normalizeThread(value: unknown, model?: unknown): AdapterThread 
     preview: String(thread.preview ?? ""),
     cwd: String(thread.cwd ?? process.cwd()),
     model: typeof thread.model === "string" ? thread.model : typeof model === "string" ? model : null,
-    status: normalizeRuntimeStatus(thread.status),
+    status: normalizeThreadRuntimeStatus(thread.status),
     activeTurnId:
       normalizeOptionalTurnId(thread.activeTurnId) ??
       normalizeOptionalTurnId(status.activeTurnId) ??
@@ -333,17 +334,9 @@ export function normalizeThread(value: unknown, model?: unknown): AdapterThread 
 
 export function normalizeTurn(value: unknown): AdapterTurn {
   const turn = asRecord(value);
-  const status = String(turn.status ?? "running");
   return {
     id: String(turn.id),
-    status:
-      status === "completed"
-        ? "completed"
-        : status === "interrupted"
-          ? "interrupted"
-          : status === "failed"
-            ? "failed"
-            : "running"
+    status: normalizeTurnRuntimeStatus(turn.status)
   };
 }
 
@@ -358,11 +351,13 @@ export function extractTurnId(params: Record<string, unknown>) {
 export function requestError(error: unknown, params: unknown) {
   const payload = asRecord(error);
   const message = typeof payload.message === "string" ? payload.message : JSON.stringify(error);
-  if (/thread not found/i.test(message)) {
-    const match = message.match(/thread not found:\s*([^\s"}]+)/i);
+  if (/thread not found|no rollout found for thread id/i.test(message)) {
+    const match =
+      message.match(/thread not found:\s*([^\s"}]+)/i) ??
+      message.match(/no rollout found for thread id\s+([^\s"}]+)/i);
     const threadId = match?.[1] ?? extractThreadId(asRecord(params));
     if (threadId) {
-      return new AdapterThreadNotFoundError(threadId, message);
+      return new AdapterThreadNotFoundError(normalizeThreadId(threadId), message);
     }
   }
   return new Error(message);
@@ -555,7 +550,7 @@ export function projectAppServerNotification(method: string, params: Record<stri
     return {
       type: "thread.status",
       threadId,
-      status: normalizeRuntimeStatus(params.status)
+      status: normalizeThreadRuntimeStatus(params.status)
     };
   }
   return null;

@@ -1,4 +1,4 @@
-import type { GoalStatus, GoalStatusUpdate, RuntimeStatus } from "../domain.js";
+import type { GoalStatus, GoalStatusUpdate, ThreadRuntimeStatus, TurnRuntimeStatus } from "../domain.js";
 
 export type AdapterThread = {
   id: string;
@@ -7,14 +7,14 @@ export type AdapterThread = {
   preview: string;
   cwd: string;
   model: string | null;
-  status: RuntimeStatus;
+  status: ThreadRuntimeStatus;
   activeTurnId?: string | null;
   updatedAt?: string | null;
 };
 
 export type AdapterTurn = {
   id: string;
-  status: RuntimeStatus;
+  status: TurnRuntimeStatus;
 };
 
 export type AdapterGoal = {
@@ -69,7 +69,7 @@ export type AdapterEvent =
       type: "turn.status";
       threadId: string;
       turnId: string;
-      status: RuntimeStatus;
+      status: TurnRuntimeStatus;
       durationMs?: number | null;
     }
   | {
@@ -81,7 +81,7 @@ export type AdapterEvent =
   | {
       type: "thread.status";
       threadId: string;
-      status: RuntimeStatus;
+      status: ThreadRuntimeStatus;
     }
   | {
       type: "thread.goal";

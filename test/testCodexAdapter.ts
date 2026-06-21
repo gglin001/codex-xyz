@@ -390,7 +390,7 @@ export class TestCodexAdapter implements CodexAdapter {
     this.emit({
       type: "thread.status",
       threadId: running.threadId,
-      status: status === "completed" ? "idle" : status
+      status: status === "failed" ? "failed" : "idle"
     });
   }
 

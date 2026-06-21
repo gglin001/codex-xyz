@@ -2,9 +2,11 @@ import type {
   ControlThread,
   DashboardState,
   RuntimeStatus,
+  ThreadRuntimeStatus,
   ThreadDetail,
   ThreadItem,
   Turn,
+  TurnRuntimeStatus,
   XyzEvent
 } from "../server/domain.js";
 
@@ -158,8 +160,22 @@ function updateById<T extends { id: string }>(items: T[], itemId: string, update
   return next;
 }
 
-function runtimeStatusFromTurnStatus(status: RuntimeStatus): RuntimeStatus {
-  return status === "completed" ? "idle" : status;
+function threadStatusFromTurnStatus(status: TurnRuntimeStatus): ThreadRuntimeStatus {
+  if (status === "running") {
+    return "running";
+  }
+  if (status === "failed") {
+    return "failed";
+  }
+  return "idle";
+}
+
+function isTurnRuntimeStatus(status: unknown): status is TurnRuntimeStatus {
+  return status === "running" || status === "completed" || status === "interrupted" || status === "failed";
+}
+
+function isThreadRuntimeStatus(status: unknown): status is ThreadRuntimeStatus {
+  return status === "idle" || status === "running" || status === "stale" || status === "failed";
 }
 
 function withThread(
@@ -343,8 +359,8 @@ export function applyEventProjection(projection: ClientProjection, event: XyzEve
   }
 
   if (event.type === "turn.status") {
-    const status = payloadRecord(event).status as RuntimeStatus | undefined;
-    if (!event.threadId || !event.turnId || !status) {
+    const status = payloadRecord(event).status;
+    if (!event.threadId || !event.turnId || !isTurnRuntimeStatus(status)) {
       return result(projection, projection, false, event);
     }
     const completedAt = status === "running" ? null : event.createdAt;
@@ -352,7 +368,7 @@ export function applyEventProjection(projection: ClientProjection, event: XyzEve
       withTurnFields(projection, event.threadId, event.turnId, { status, completedAt }),
       event.threadId,
       {
-        status: runtimeStatusFromTurnStatus(status),
+        status: threadStatusFromTurnStatus(status),
         activeTurnId: status === "running" ? event.turnId : null,
         updatedAt: event.createdAt
       }
@@ -361,8 +377,8 @@ export function applyEventProjection(projection: ClientProjection, event: XyzEve
   }
 
   if (event.type === "thread.status") {
-    const status = payloadRecord(event).status as RuntimeStatus | undefined;
-    if (!event.threadId || !status) {
+    const status = payloadRecord(event).status;
+    if (!event.threadId || !isThreadRuntimeStatus(status)) {
       return result(projection, projection, false, event);
     }
     const thread = payloadValue<ControlThread>(event, "thread");

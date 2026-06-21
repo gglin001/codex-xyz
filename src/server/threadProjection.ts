@@ -1,9 +1,10 @@
 import type {
   ControlThread,
   GoalStatus,
-  RuntimeStatus,
+  ThreadRuntimeStatus,
   ThreadItem,
   Turn,
+  TurnRuntimeStatus,
   XyzEvent
 } from "./domain.js";
 import { nowIso } from "./domain.js";
@@ -15,12 +16,14 @@ function goalStatusFromAdapter(goal: AdapterGoal | null): GoalStatus | null {
   return goal ? goal.status : null;
 }
 
-function threadStatusFromTurnStatus(status: RuntimeStatus): RuntimeStatus {
-  return status === "completed" ? "idle" : status;
-}
-
-function normalizeThreadRuntimeStatus(status: RuntimeStatus): RuntimeStatus {
-  return status === "completed" ? "idle" : status;
+function threadStatusFromTurnStatus(status: TurnRuntimeStatus): ThreadRuntimeStatus {
+  if (status === "running") {
+    return "running";
+  }
+  if (status === "failed") {
+    return "failed";
+  }
+  return "idle";
 }
 
 export type CreateThreadProjectionInput = {
@@ -189,7 +192,7 @@ export class ThreadProjection {
 
   createThread(input: CreateThreadProjectionInput) {
     const now = input.adapterThread.updatedAt ?? nowIso();
-    const status = normalizeThreadRuntimeStatus(input.adapterThread.status);
+    const status = input.adapterThread.status;
     const thread: ControlThread = {
       id: input.adapterThread.id,
       sessionId: input.adapterThread.sessionId,
@@ -224,19 +227,20 @@ export class ThreadProjection {
     }
 
     const now = nowIso();
+    const turnStatus = adapterTurn.status;
     const turn: Turn = {
       id: adapterTurn.id,
       threadId: thread.id,
-      status: "running",
+      status: turnStatus,
       prompt,
       startedAt: now,
-      completedAt: null,
+      completedAt: turnStatus === "running" ? null : now,
       durationMs: null
     };
     this.store.createTurn(turn);
     this.store.updateThread(thread.id, {
-      status: "running",
-      activeTurnId: turn.id,
+      status: threadStatusFromTurnStatus(turnStatus),
+      activeTurnId: turnStatus === "running" ? turn.id : null,
       preview: prompt || thread.preview
     });
     this.publish("turn.started", thread.id, turn.id, { turn });
@@ -244,9 +248,8 @@ export class ThreadProjection {
   }
 
   applyRuntimeThreadSnapshot(thread: ControlThread, adapterThread: AdapterThread) {
-    const runtimeStatus = normalizeThreadRuntimeStatus(adapterThread.status);
-    const nextActiveTurnId =
-      runtimeStatus === "running" ? (adapterThread.activeTurnId ?? thread.activeTurnId ?? null) : null;
+    const runtimeStatus = adapterThread.status;
+    const nextActiveTurnId = runtimeStatus === "running" ? (adapterThread.activeTurnId ?? null) : null;
     const updates: Partial<Pick<ControlThread, "status" | "activeTurnId" | "preview">> = {
       status: runtimeStatus,
       activeTurnId: nextActiveTurnId,

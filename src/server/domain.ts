@@ -1,10 +1,6 @@
-export type RuntimeStatus =
-  | "idle"
-  | "running"
-  | "stale"
-  | "interrupted"
-  | "failed"
-  | "completed";
+export type ThreadRuntimeStatus = "idle" | "running" | "stale" | "failed";
+export type TurnRuntimeStatus = "running" | "completed" | "interrupted" | "failed";
+export type RuntimeStatus = ThreadRuntimeStatus | TurnRuntimeStatus;
 
 export type GoalStatus =
   | "in_progress"
@@ -32,7 +28,7 @@ export type ControlThread = {
   preview: string;
   cwd: string;
   model: string | null;
-  status: RuntimeStatus;
+  status: ThreadRuntimeStatus;
   activeTurnId: string | null;
   goalObjective: string | null;
   goalStatus: GoalStatus | null;
@@ -45,7 +41,7 @@ export type ControlThread = {
 export type Turn = {
   id: string;
   threadId: string;
-  status: RuntimeStatus;
+  status: TurnRuntimeStatus;
   prompt: string;
   startedAt: string;
   completedAt: string | null;

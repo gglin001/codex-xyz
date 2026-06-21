@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest"
+import { AdapterThreadNotFoundError } from "../src/server/codex/adapter.js"
 import {
   normalizeGoal,
   normalizeThread,
   projectAppServerNotification,
+  requestError,
   yoloApprovalResponse
 } from "../src/server/codex/appServerProtocol.js"
 
@@ -46,6 +48,20 @@ describe("app-server protocol projection", () => {
     expect(normalizeGoal({ status: "blocked" }).status).toBe("blocked")
     expect(normalizeGoal({ status: "paused" }).status).toBe("paused")
     expect(normalizeGoal({ status: "complete" }).status).toBe("complete")
+  })
+
+  it("classifies missing rollout errors as thread-not-found runtime drift", () => {
+    const error = requestError(
+      {
+        message: "no rollout found for thread id 019ee0dd-6f13-7043-995f-d88646e16316"
+      },
+      {
+        threadId: "019ee0dd-6f13-7043-995f-d88646e16316"
+      }
+    )
+
+    expect(error).toBeInstanceOf(AdapterThreadNotFoundError)
+    expect((error as AdapterThreadNotFoundError).threadId).toBe("019ee0dd-6f13-7043-995f-d88646e16316")
   })
 
   it("projects streaming item notifications into adapter events", () => {

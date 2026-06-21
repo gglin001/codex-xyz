@@ -7,11 +7,12 @@ import {
   type ItemType,
   isSummaryEventType,
   nowIso,
-  type RuntimeStatus,
   summaryEventTypes,
+  type ThreadRuntimeStatus,
   type ThreadDetail,
   type ThreadItem,
   type Turn,
+  type TurnRuntimeStatus,
   type XyzEvent
 } from "./domain.js";
 
@@ -57,6 +58,22 @@ function nullableString(value: unknown) {
   return typeof value === "string" ? value : null;
 }
 
+function storedThreadStatus(value: unknown): ThreadRuntimeStatus {
+  const status = scalarString(value);
+  if (status === "running" || status === "stale" || status === "failed") {
+    return status;
+  }
+  return "idle";
+}
+
+function storedTurnStatus(value: unknown): TurnRuntimeStatus {
+  const status = scalarString(value);
+  if (status === "running" || status === "completed" || status === "interrupted" || status === "failed") {
+    return status;
+  }
+  return "interrupted";
+}
+
 function threadFromRow(row: Row): ControlThread {
   return {
     id: scalarString(row.id),
@@ -66,7 +83,7 @@ function threadFromRow(row: Row): ControlThread {
     preview: scalarString(row.preview),
     cwd: scalarString(row.cwd),
     model: nullableString(row.model),
-    status: scalarString(row.status) as RuntimeStatus,
+    status: storedThreadStatus(row.status),
     activeTurnId: nullableString(row.active_turn_id),
     goalObjective: nullableString(row.goal_objective),
     goalStatus: nullableString(row.goal_status) as GoalStatus | null,
@@ -81,7 +98,7 @@ function turnFromRow(row: Row): Turn {
   return {
     id: scalarString(row.id),
     threadId: scalarString(row.thread_id),
-    status: scalarString(row.status) as RuntimeStatus,
+    status: storedTurnStatus(row.status),
     prompt: scalarString(row.prompt),
     startedAt: scalarString(row.started_at),
     completedAt: nullableString(row.completed_at),

@@ -321,11 +321,19 @@ describe("Next API routes", () => {
     });
     expect(repeatedTurn.threadId).toBe(created.thread.id);
 
-    const interrupted = await json<{ status: string }>(`/api/threads/${created.thread.id}/interrupt`, {
-      method: "POST",
-      body: JSON.stringify({})
+    const interrupted = await json<{ status: string; activeTurnId: string | null }>(
+      `/api/threads/${created.thread.id}/interrupt`,
+      {
+        method: "POST",
+        body: JSON.stringify({})
+      }
+    );
+    expect(interrupted).toMatchObject({
+      status: "idle",
+      activeTurnId: null
     });
-    expect(interrupted.status).toBe("interrupted");
+    const interruptedDetail = await json<{ turns: Array<{ status: string }> }>(`/api/threads/${created.thread.id}`);
+    expect(interruptedDetail.turns[0]?.status).toBe("interrupted");
 
     const resumed = await json<{ id: string; status: string }>(`/api/threads/${created.thread.id}/resume`, {
       method: "POST",
