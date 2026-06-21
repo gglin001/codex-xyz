@@ -364,7 +364,7 @@ export const CollapsibleCard = memo(function CollapsibleCard({
     ? "group/card-header flex w-full items-center gap-2 bg-transparent transition duration-150 ease-out hover:bg-control/40 focus-within:bg-control/40"
     : "flex w-full items-center gap-2 border-b border-border bg-control/35"
   const headerButtonClass = surface === "outline"
-    ? "flex min-w-0 flex-1 items-center gap-3 text-left"
+    ? "flex min-w-0 flex-1 items-center justify-between gap-3 text-left"
     : "group flex min-w-0 flex-1 items-center justify-between gap-3 text-left hover:bg-control-hover"
 
   return (
@@ -380,10 +380,10 @@ export const CollapsibleCard = memo(function CollapsibleCard({
           <span className="min-w-0">
             <span className={cn("block truncate", titleClass)}>{title}</span>
           </span>
+          {meta ? <span className="shrink-0">{meta}</span> : null}
         </button>
         {(meta || actions) ? (
           <div className={cn("flex shrink-0 items-center gap-1.5", size === "compact" ? "pr-1.5" : "pr-2")}>
-            {meta}
             <button
               type="button"
               className={cn("inline-flex h-7 w-7 shrink-0 items-center justify-center text-muted transition duration-150 ease-out hover:bg-control hover:text-fg-strong", radius.control)}

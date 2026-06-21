@@ -248,7 +248,6 @@
 
   .mobile-composer-bar {
     padding-bottom: calc(var(--safe-inset-bottom) + 0.625rem);
-    contain: layout paint;
   }
 
   :root[data-keyboard-visible] .mobile-composer-bar {

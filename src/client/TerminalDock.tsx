@@ -673,16 +673,11 @@ export function TerminalDock({ visible, onClose }: TerminalDockProps) {
       onPointerUp={finishDesktopInteraction}
       onPointerCancel={finishDesktopInteraction}
     >
-      <div className="grid min-w-0 gap-0.5">
-        <span className="min-w-0 truncate font-mono text-[11px] leading-4 text-muted" title={snapshot?.cwd ?? ""}>
-          {snapshot?.cwd ?? snapshot?.command ?? ""}
-        </span>
-        <div className="flex min-w-0 items-center gap-1.5 text-[11px] leading-4">
-          <span className={cn("shrink-0 rounded-full px-1.5 py-1 text-[11px] font-semibold leading-none", terminalStatusClass[label] ?? terminalStatusClass.idle)}>{label}</span>
-          {snapshot?.pid ? <Pill className="hidden sm:inline-flex">pid {snapshot.pid}</Pill> : null}
-          <Pill className="hidden max-w-[30vw] truncate font-mono xl:inline-flex" title={metricsTitle}>diagnostics</Pill>
-          {error ? <span className={cn("hidden max-w-[26vw] truncate rounded-full px-2 py-1 text-[11px] font-medium sm:inline-flex", tone.error.badge)}>{error}</span> : null}
-        </div>
+      <div className="flex min-w-0 items-center gap-1.5 text-[11px] leading-4">
+        <span className={cn("shrink-0 rounded-full px-1.5 py-1 text-[11px] font-semibold leading-none", terminalStatusClass[label] ?? terminalStatusClass.idle)}>{label}</span>
+        {snapshot?.pid ? <Pill className="hidden sm:inline-flex">pid {snapshot.pid}</Pill> : null}
+        <Pill className="hidden max-w-[30vw] truncate font-mono xl:inline-flex" title={metricsTitle}>diagnostics</Pill>
+        {error ? <span className={cn("hidden max-w-[26vw] truncate rounded-full px-2 py-1 text-[11px] font-medium sm:inline-flex", tone.error.badge)}>{error}</span> : null}
       </div>
       <div className="flex shrink-0 items-center gap-1">
         <TerminalActions

@@ -350,8 +350,6 @@ type ComposerProps = Pick<
   | "onGoalModeChange"
   | "onInterrupt"
   | "onResume"
-  | "onToggleNavigator"
-  | "onToggleInspector"
 > & {
   onPromptFocus?: () => void
 }
@@ -377,8 +375,6 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
   onGoalModeChange,
   onInterrupt,
   onResume,
-  onToggleNavigator,
-  onToggleInspector,
   onPromptFocus
 }, ref) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -502,7 +498,7 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
                   <Play size={14} />
                 </ComposerIconButton>
               </span>
-              <div className="relative md:hidden">
+              <div className="relative z-10 md:hidden">
                 <ComposerIconButton
                   title="More actions"
                   aria-label="More actions"
@@ -515,14 +511,14 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
                   {moreActionsOpen ? (
                     <>
                       <motion.div
-                        className="fixed inset-0 z-[115]"
+                        className="fixed inset-0 z-10"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={() => setMoreActionsOpen(false)}
                       />
                       <motion.div
-                        className="absolute bottom-full left-0 z-[116] mb-2 w-44 rounded-[12px] border border-border bg-detail shadow-popover"
+                        className="absolute bottom-full left-0 z-20 mb-2 w-44 rounded-[12px] border border-border bg-detail shadow-popover"
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 6 }}
@@ -552,31 +548,6 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
                           >
                             <Play size={15} className="shrink-0 text-muted" />
                             <span>Resume</span>
-                          </button>
-                        </div>
-                        <div className="mx-3 border-t border-border" />
-                        <div className="p-1">
-                          <button
-                            type="button"
-                            className="flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control"
-                            onClick={() => {
-                              onToggleNavigator()
-                              setMoreActionsOpen(false)
-                            }}
-                          >
-                            <Menu size={15} className="shrink-0 text-muted" />
-                            <span>Sessions</span>
-                          </button>
-                          <button
-                            type="button"
-                            className="flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control"
-                            onClick={() => {
-                              onToggleInspector()
-                              setMoreActionsOpen(false)
-                            }}
-                          >
-                            <Settings size={15} className="shrink-0 text-muted" />
-                            <span>Settings</span>
                           </button>
                         </div>
                       </motion.div>
@@ -830,8 +801,6 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
                 onGoalModeChange={onGoalModeChange}
                 onInterrupt={onInterrupt}
                 onResume={onResume}
-                onToggleNavigator={onToggleNavigator}
-                onToggleInspector={onToggleInspector}
                 onPromptFocus={settleMobilePromptFocus}
               />
             </SessionContentFrame>
