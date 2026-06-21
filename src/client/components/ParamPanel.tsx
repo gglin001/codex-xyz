@@ -20,7 +20,6 @@ import { memo } from "react"
 import type { ReactNode } from "react"
 import type { ControlThread, ThreadDetail } from "../../server/domain.js"
 import { cn, tone } from "../designSystem.js"
-import { useFullscreen } from "../useFullscreen.js"
 import { formatTokens, shortId, statusLabel } from "../uiFormat.js"
 import { ControlCard, InfoTile, Pill, ScaleControl, SettingsSection, SurfaceAction, SwitchControl } from "./uiPrimitives.js"
 import type { WorkbenchSession } from "./workbenchTypes.js"
@@ -35,6 +34,9 @@ export type ParamPanelProps = {
   onDisplayScaleChange: (value: number) => void
   defaultCwd: string
   onWrapSessionContentChange: (value: boolean) => void
+  fullscreenSupported: boolean
+  isFullscreen: boolean
+  onToggleFullscreen: () => void
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -100,9 +102,11 @@ export const ParamPanel = memo(function ParamPanel({
   displayScale,
   onDisplayScaleChange,
   defaultCwd,
-  onWrapSessionContentChange
+  onWrapSessionContentChange,
+  fullscreenSupported,
+  isFullscreen,
+  onToggleFullscreen
 }: ParamPanelProps) {
-  const { isFullscreen, toggle: toggleFullscreen, supported: fullscreenSupported } = useFullscreen()
   const thread = selectedThread ?? session?.thread ?? null
   const status = thread?.status ?? "idle"
   const model = thread?.model ?? "default Codex model"
@@ -194,7 +198,7 @@ export const ParamPanel = memo(function ParamPanel({
                 icon={isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
                 title="Full screen"
                 description={isFullscreen ? "Exit browser full screen mode" : "Use the entire screen"}
-                onClick={toggleFullscreen}
+                onClick={onToggleFullscreen}
               />
             ) : null}
           </div>

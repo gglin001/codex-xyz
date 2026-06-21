@@ -2,14 +2,14 @@ import {
   Check,
   ChevronDown,
   Plus,
-  Search,
-  Settings,
-  Terminal
+  Search
 } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
-import { memo, useMemo, useState } from "react"
+import type { ReactNode } from "react"
+import { memo, useMemo, useRef, useState } from "react"
 import { cn, ui } from "../designSystem.js"
 import { formatFullDateTime, formatTokens } from "../uiFormat.js"
+import { useSwipeGesture } from "../useSwipeGesture.js"
 import { AvatarBadge, ControlButton, ControlCard, FieldShell, MenuItemButton, NavAction, SurfaceAction } from "./uiPrimitives.js"
 import { SessionStatusIcon, sessionStatusDotClass } from "./sessionStatusIcon.js"
 import type { DateBucket, WorkbenchProject, WorkbenchSession } from "./workbenchTypes.js"
@@ -24,11 +24,8 @@ export type SidebarProps = {
   onSessionQueryChange: (value: string) => void
   onSelectSession: (session: WorkbenchSession) => void
   onCreateSession: () => void
-  terminalVisible: boolean
-  onToggleTerminal: () => void
-  inspectorVisible: boolean
-  onToggleInspector: () => void
-  onOpenCommandPalette: () => void
+  onSearchSwipeUp?: () => void
+  footer?: ReactNode
 }
 
 const bucketOrder: DateBucket[] = ["Today", "Yesterday", "Older"]
@@ -88,19 +85,24 @@ export const Sidebar = memo(function Sidebar({
   onSessionQueryChange,
   onSelectSession,
   onCreateSession,
-  terminalVisible,
-  onToggleTerminal,
-  inspectorVisible,
-  onToggleInspector,
-  onOpenCommandPalette
+  onSearchSwipeUp,
+  footer
 }: SidebarProps) {
   const [projectMenuOpen, setProjectMenuOpen] = useState(false)
+  const searchGestureRef = useRef<HTMLDivElement | null>(null)
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? projects[0]
   const visibleSessions = useMemo(
     () => (selectedProject ? filterSessions(selectedProject, sessionQuery) : []),
     [selectedProject, sessionQuery]
   )
   const sessionGroups = useMemo(() => groupSessions(visibleSessions), [visibleSessions])
+
+  useSwipeGesture(searchGestureRef, {
+    onSwipeUp: onSearchSwipeUp
+  }, {
+    enabled: Boolean(onSearchSwipeUp),
+    threshold: 36
+  })
 
   return (
     <aside className={cn("flex h-full min-h-0 flex-col border-r", ui.sidePanel, className)}>
@@ -160,16 +162,18 @@ export const Sidebar = memo(function Sidebar({
         </AnimatePresence>
       </div>
 
-      <div className="shrink-0 flex items-center gap-2 px-4 py-2.5">
-        <FieldShell icon={<Search size={14} />} className="min-w-0 flex-1">
-          <input
-            className={cn(ui.input, "text-[13px]")}
-            value={sessionQuery}
-            onChange={(event) => onSessionQueryChange(event.target.value)}
-            placeholder="Search sessions"
-            aria-label="Search sessions"
-          />
-        </FieldShell>
+      <div className="flex shrink-0 items-center gap-2 px-4 py-2.5">
+        <div ref={searchGestureRef} className="min-w-0 flex-1">
+          <FieldShell icon={<Search size={14} />} className="w-full">
+            <input
+              className={cn(ui.input, "text-[13px]")}
+              value={sessionQuery}
+              onChange={(event) => onSessionQueryChange(event.target.value)}
+              placeholder="Search sessions"
+              aria-label="Search sessions"
+            />
+          </FieldShell>
+        </div>
         <ControlButton
           className="h-11 w-11 shrink-0 bg-transparent"
           onClick={onCreateSession}
@@ -235,52 +239,7 @@ export const Sidebar = memo(function Sidebar({
         </AnimatePresence>
       </div>
 
-      <div className="shrink-0 p-4 pt-2.5">
-        <div className="mb-3 grid grid-cols-2 gap-3">
-          <SurfaceAction
-            className={cn(
-              "h-11 justify-center gap-2 px-2 text-[12px] font-medium",
-              terminalVisible ? null : "text-muted-strong"
-            )}
-            title="Toggle terminal"
-            aria-label="Toggle terminal"
-            selected={terminalVisible}
-            onClick={onToggleTerminal}
-          >
-            <Terminal size={14} />
-            <span className="truncate">Terminal</span>
-          </SurfaceAction>
-          <SurfaceAction
-            className={cn(
-              "h-11 justify-center gap-2 px-2 text-[12px] font-medium",
-              inspectorVisible ? null : "text-muted-strong"
-            )}
-            title={inspectorVisible ? "Hide settings" : "Open settings"}
-            aria-label={inspectorVisible ? "Hide settings" : "Open settings"}
-            selected={inspectorVisible}
-            onClick={onToggleInspector}
-          >
-            <Settings size={14} />
-            <span className="truncate">Settings</span>
-          </SurfaceAction>
-        </div>
-
-
-        <SurfaceAction
-          className="h-12 w-full gap-2.5 px-3"
-          title="Open commands"
-          aria-label="Open commands"
-          onClick={onOpenCommandPalette}
-        >
-          <span className={cn("h-8 w-8 font-mono text-[16px] leading-none", ui.iconBox)} aria-hidden="true">
-            ⌘
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[12px] font-medium text-fg-strong">Commands</span>
-          </span>
-          <span className="shrink-0 font-mono text-[12px] leading-none text-muted" aria-hidden="true">Cmd K</span>
-        </SurfaceAction>
-      </div>
+      {footer}
     </aside>
   )
 })

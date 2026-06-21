@@ -794,7 +794,7 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
             </SessionContentFrame>
           </div>
 
-          <div ref={composerShellRef} className="mobile-composer-bar shrink-0 bg-app-bg px-4 pt-2 md:bg-app-bg/95 md:px-8 md:pb-2.5">
+          <div ref={composerShellRef} className="mobile-composer-bar relative z-[70] shrink-0 bg-app-bg px-4 pt-2 md:z-auto md:bg-app-bg/95 md:px-8 md:pb-2.5">
             <SessionContentFrame>
               <Composer
                 ref={composerRef}

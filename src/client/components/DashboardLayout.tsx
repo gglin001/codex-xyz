@@ -1,16 +1,17 @@
-import { Menu, Plus, Search, Settings } from "lucide-react"
+import { Goal, Maximize2, Menu, Play, Plus, Search, Settings, Square, Terminal, TextCursorInput, WrapText, ZoomIn } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import type { KeyboardEvent, SubmitEvent } from "react"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { ControlThread, SessionDisplayStatus, ThreadDetail } from "../../server/domain.js"
-import { cn, ui } from "../designSystem.js"
+import { clampDisplayScale, cn, displayScale as displayScaleConfig, formatDisplayScale, ui } from "../designSystem.js"
 import { isPromptFocusShortcut } from "../promptShortcut.js"
 import { useMobileViewportGeometry } from "../useMobileViewportGeometry.js"
+import { useFullscreen } from "../useFullscreen.js"
 import { useSwipeGesture } from "../useSwipeGesture.js"
 import { ParamPanel } from "./ParamPanel.js"
 import { Sidebar } from "./Sidebar.js"
 import { Workspace, type WorkspaceHandle } from "./Workspace.js"
-import { AvatarBadge, Keycap, MenuItemButton } from "./uiPrimitives.js"
+import { AvatarBadge, Keycap, MenuItemButton, SurfaceAction } from "./uiPrimitives.js"
 import { SessionStatusIcon } from "./sessionStatusIcon.js"
 import type { ComposerMode, WorkbenchProject, WorkbenchSession } from "./workbenchTypes.js"
 
@@ -63,11 +64,13 @@ type CommandActionBase = {
   title: string
   detail: string
   run: () => void
+  disabled?: boolean
+  disabledDetail?: string
 }
 
 type CommandAction =
   | (CommandActionBase & {
-    kind: "create" | "navigator" | "settings"
+    kind: "create" | "navigator" | "terminal" | "prompt" | "turn" | "view"
   })
   | (CommandActionBase & {
     kind: "project"
@@ -79,11 +82,20 @@ type CommandAction =
     projectId: string
     status: SessionDisplayStatus
   })
+  | (CommandActionBase & {
+    kind: "settingsGroup"
+    settingsGroupId: string
+  })
+  | (CommandActionBase & {
+    kind: "settingsItem"
+    settingsGroupId: string
+    icon: "fullscreen" | "goal" | "settings" | "wrap" | "zoom"
+  })
 
 type CommandActionRenderItem = {
   action: CommandAction
-  projectHasVisibleSessions: boolean
-  lastVisibleProjectSession: boolean
+  parentHasVisibleChildren: boolean
+  lastVisibleChild: boolean
 }
 
 type MobileSheet = "navigator" | "inspector"
@@ -91,7 +103,7 @@ type MobileSheet = "navigator" | "inspector"
 const spring = { type: "spring", stiffness: 360, damping: 36 } as const
 
 function isMobileViewport() {
-  return typeof window.matchMedia === "function" && window.matchMedia("(max-width: 767px)").matches
+  return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(max-width: 767px)").matches
 }
 
 function MobileSheetHandle() {
@@ -106,19 +118,30 @@ function commandActionMatches(action: CommandAction, normalizedQuery: string) {
   return `${action.title} ${action.detail}`.toLowerCase().includes(normalizedQuery)
 }
 
+function commandParentId(action: CommandAction) {
+  if (action.kind === "session") {
+    return `project:${action.projectId}`
+  }
+  if (action.kind === "settingsItem") {
+    return `settings:${action.settingsGroupId}`
+  }
+  return null
+}
+
 function filterCommandActions(actions: CommandAction[], normalizedQuery: string) {
   if (!normalizedQuery) {
     return actions
   }
 
   const directMatches = new Set<string>()
-  const projectsWithMatchingSessions = new Set<string>()
+  const parentsWithMatchingChildren = new Set<string>()
 
   for (const action of actions) {
     if (commandActionMatches(action, normalizedQuery)) {
       directMatches.add(action.id)
-      if (action.kind === "session") {
-        projectsWithMatchingSessions.add(action.projectId)
+      const parentId = commandParentId(action)
+      if (parentId) {
+        parentsWithMatchingChildren.add(parentId)
       }
     }
   }
@@ -127,58 +150,67 @@ function filterCommandActions(actions: CommandAction[], normalizedQuery: string)
     if (directMatches.has(action.id)) {
       return true
     }
-    return action.kind === "project" && projectsWithMatchingSessions.has(action.projectId)
+    return parentsWithMatchingChildren.has(action.id)
   })
 }
 
 function annotateCommandActions(actions: CommandAction[]): CommandActionRenderItem[] {
-  const visibleSessionCounts = new Map<string, number>()
+  const visibleChildCounts = new Map<string, number>()
   for (const action of actions) {
-    if (action.kind === "session") {
-      visibleSessionCounts.set(action.projectId, (visibleSessionCounts.get(action.projectId) ?? 0) + 1)
+    const parentId = commandParentId(action)
+    if (parentId) {
+      visibleChildCounts.set(parentId, (visibleChildCounts.get(parentId) ?? 0) + 1)
     }
   }
 
-  const seenSessions = new Map<string, number>()
+  const seenChildren = new Map<string, number>()
   return actions.map((action) => {
-    if (action.kind === "project") {
+    const parentId = commandParentId(action)
+    if (!parentId) {
       return {
         action,
-        projectHasVisibleSessions: (visibleSessionCounts.get(action.projectId) ?? 0) > 0,
-        lastVisibleProjectSession: false
+        parentHasVisibleChildren: (visibleChildCounts.get(action.id) ?? 0) > 0,
+        lastVisibleChild: false
       }
     }
-    if (action.kind === "session") {
-      const nextIndex = (seenSessions.get(action.projectId) ?? 0) + 1
-      seenSessions.set(action.projectId, nextIndex)
-      return {
-        action,
-        projectHasVisibleSessions: false,
-        lastVisibleProjectSession: nextIndex === (visibleSessionCounts.get(action.projectId) ?? 0)
-      }
-    }
+
+    const nextIndex = (seenChildren.get(parentId) ?? 0) + 1
+    seenChildren.set(parentId, nextIndex)
     return {
       action,
-      projectHasVisibleSessions: false,
-      lastVisibleProjectSession: false
+      parentHasVisibleChildren: false,
+      lastVisibleChild: nextIndex === (visibleChildCounts.get(parentId) ?? 0)
     }
   })
 }
 
 function CommandActionGlyph({
   action,
-  projectHasVisibleSessions,
-  lastVisibleProjectSession
+  parentHasVisibleChildren,
+  lastVisibleChild
 }: CommandActionRenderItem) {
   if (action.kind === "project") {
     return (
       <span className="relative flex h-8 w-8 shrink-0 items-center justify-center" aria-hidden="true">
-        {projectHasVisibleSessions ? (
+        {parentHasVisibleChildren ? (
           <span className="absolute left-4 top-8 h-2 border-l border-border" />
         ) : null}
         <AvatarBadge className="h-8 w-8 text-[10px]">
           {action.projectInitials}
         </AvatarBadge>
+      </span>
+    )
+  }
+
+  if (action.kind === "settingsGroup") {
+    return (
+      <span className="relative flex h-8 w-8 shrink-0 items-center justify-center" aria-hidden="true">
+        {parentHasVisibleChildren ? (
+          <span className="absolute left-4 top-8 h-2 border-l border-border" />
+        ) : null}
+        <span className={cn("h-8 w-8 border border-border text-muted-strong", ui.iconBox)}>
+          <Settings size={14} />
+        </span>
       </span>
     )
   }
@@ -189,7 +221,7 @@ function CommandActionGlyph({
         <span
           className={cn(
             "absolute left-2 border-l border-border",
-            lastVisibleProjectSession ? "-top-2 h-6" : "-top-2 -bottom-2"
+            lastVisibleChild ? "-top-2 h-6" : "-top-2 -bottom-2"
           )}
         />
         <span className="absolute left-2 top-4 w-3 border-t border-border" />
@@ -200,11 +232,43 @@ function CommandActionGlyph({
     )
   }
 
+  if (action.kind === "settingsItem") {
+    const itemIcon = action.icon === "goal"
+      ? <Goal size={14} />
+      : action.icon === "wrap"
+        ? <WrapText size={14} />
+        : action.icon === "zoom"
+          ? <ZoomIn size={14} />
+          : action.icon === "fullscreen"
+            ? <Maximize2 size={14} />
+            : <Settings size={14} />
+    return (
+      <span className="relative flex h-8 w-12 shrink-0 items-center" aria-hidden="true">
+        <span
+          className={cn(
+            "absolute left-2 border-l border-border",
+            lastVisibleChild ? "-top-2 h-6" : "-top-2 -bottom-2"
+          )}
+        />
+        <span className="absolute left-2 top-4 w-3 border-t border-border" />
+        <span className={cn("absolute right-0 top-0 h-8 w-8 border border-border text-muted-strong", ui.iconBox)}>
+          {itemIcon}
+        </span>
+      </span>
+    )
+  }
+
   const icon = action.kind === "create"
     ? <Plus size={14} />
     : action.kind === "navigator"
       ? <Menu size={14} />
-      : <Settings size={14} />
+      : action.kind === "terminal"
+        ? <Terminal size={14} />
+        : action.kind === "prompt"
+          ? <TextCursorInput size={14} />
+          : action.kind === "turn"
+            ? action.id === "interrupt-turn" ? <Square size={14} /> : <Play size={14} />
+            : <WrapText size={14} />
 
   return (
     <span className={cn("h-8 w-8 border border-border text-muted-strong", ui.iconBox)} aria-hidden="true">
@@ -244,7 +308,7 @@ const CommandPalette = memo(function CommandPalette({
 
   const runActive = useCallback(() => {
     const action = filteredActions[activeIndex]
-    if (!action) {
+    if (!action || action.disabled) {
       return
     }
     action.run()
@@ -303,28 +367,35 @@ const CommandPalette = memo(function CommandPalette({
               {filteredActions.length === 0 ? (
                 <div className="px-3 py-8 text-center text-[13px] text-muted">No commands found</div>
               ) : null}
-              {renderItems.map(({ action, projectHasVisibleSessions, lastVisibleProjectSession }, index) => (
+              {renderItems.map(({ action, parentHasVisibleChildren, lastVisibleChild }, index) => (
                 <MenuItemButton
                   key={action.id}
                   className={cn(
                     "h-12 w-full gap-2.5 px-3",
-                    index === activeIndex ? null : "bg-transparent"
+                    index === activeIndex ? null : "bg-transparent",
+                    action.disabled ? "opacity-45" : null
                   )}
                   selected={index === activeIndex}
+                  disabled={action.disabled}
                   onMouseEnter={() => setActiveIndex(index)}
                   onClick={() => {
+                    if (action.disabled) {
+                      return
+                    }
                     action.run()
                     onClose()
                   }}
                 >
                   <CommandActionGlyph
                     action={action}
-                    projectHasVisibleSessions={projectHasVisibleSessions}
-                    lastVisibleProjectSession={lastVisibleProjectSession}
+                    parentHasVisibleChildren={parentHasVisibleChildren}
+                    lastVisibleChild={lastVisibleChild}
                   />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[13px] font-medium">{action.title}</span>
-                    <span className="block truncate text-[11px] text-muted">{action.detail}</span>
+                    <span className="block truncate text-[11px] text-muted">
+                      {action.disabled ? action.disabledDetail ?? action.detail : action.detail}
+                    </span>
                   </span>
                 </MenuItemButton>
               ))}
@@ -384,6 +455,7 @@ export const DashboardLayout = memo(function DashboardLayout({
   const desktopWorkspaceRef = useRef<WorkspaceHandle | null>(null)
   const mobileWorkspaceRef = useRef<WorkspaceHandle | null>(null)
   const mobileSheetRef = useRef<HTMLDivElement | null>(null)
+  const { isFullscreen, toggle: toggleFullscreen, supported: fullscreenSupported } = useFullscreen()
 
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? projects[0] ?? null
 
@@ -401,6 +473,11 @@ export const DashboardLayout = memo(function DashboardLayout({
     onCreateSession()
     window.requestAnimationFrame(focusVisiblePrompt)
   }, [focusVisiblePrompt, onCreateSession])
+
+  const openCommandPalette = useCallback(() => {
+    setMobileSheet(null)
+    setCommandOpen(true)
+  }, [])
 
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
@@ -434,6 +511,12 @@ export const DashboardLayout = memo(function DashboardLayout({
     }
   }, [terminalVisible])
 
+  const canInterrupt = selectedThread?.status === "active" && !busy
+  const canResume = Boolean(selectedThreadId) && selectedThread?.status !== "active" && !busy
+  const scaleStep = displayScaleConfig.step
+  const canDecreaseScale = displayScale > displayScaleConfig.min
+  const canIncreaseScale = displayScale < displayScaleConfig.max
+
   const commandActions = useMemo<CommandAction[]>(() => {
     const setNavigatorVisible = () => {
       if (isMobileViewport()) {
@@ -451,6 +534,14 @@ export const DashboardLayout = memo(function DashboardLayout({
       }
       onInspectorVisibleChange(!inspectorVisible)
     }
+    const showTerminal = () => {
+      setMobileSheet(null)
+      onTerminalVisibleChange(true)
+    }
+    const focusPrompt = () => {
+      setMobileSheet(null)
+      window.requestAnimationFrame(focusVisiblePrompt)
+    }
     const actions: CommandAction[] = [
       {
         id: "create-session",
@@ -460,18 +551,115 @@ export const DashboardLayout = memo(function DashboardLayout({
         run: createSessionAndFocusPrompt
       },
       {
+        id: "focus-prompt",
+        title: "Focus prompt",
+        detail: "Jump to the composer input",
+        kind: "prompt",
+        run: focusPrompt
+      },
+      {
         id: "toggle-navigator",
-        title: navigatorVisible ? "Hide navigator" : "Show navigator",
-        detail: "Toggle the project and session sidebar",
+        title: isMobileViewport() ? "Open sessions" : navigatorVisible ? "Hide sessions" : "Show sessions",
+        detail: "Open the project and session list",
         kind: "navigator",
         run: setNavigatorVisible
       },
       {
-        id: "toggle-inspector",
-        title: inspectorVisible ? "Hide settings" : "Show settings",
-        detail: "Toggle app-server thread and goal state",
-        kind: "settings",
+        id: "open-terminal",
+        title: terminalVisible ? "Show terminal" : "Open terminal",
+        detail: "Open the terminal dock",
+        kind: "terminal",
+        run: showTerminal
+      },
+      {
+        id: "interrupt-turn",
+        title: "Interrupt current turn",
+        detail: "Stop the active Codex turn",
+        kind: "turn",
+        disabled: !canInterrupt,
+        disabledDetail: busy ? "Busy with another action" : "No active turn to interrupt",
+        run: onInterrupt
+      },
+      {
+        id: "resume-session",
+        title: "Resume session",
+        detail: "Continue the selected Codex session",
+        kind: "turn",
+        disabled: !canResume,
+        disabledDetail: busy ? "Busy with another action" : "Select an idle session to resume",
+        run: onResume
+      },
+      {
+        id: "settings:panel",
+        title: "Settings",
+        detail: isMobileViewport() ? "Open settings and transcript controls" : "Toggle settings and transcript controls",
+        kind: "settingsGroup",
+        settingsGroupId: "panel",
         run: setInspectorVisible
+      },
+      {
+        id: "settings:toggle-goal-mode",
+        title: goalMode ? "Disable goal mode" : "Enable goal mode",
+        detail: goalMode ? "Composer will send normal prompts" : "Composer will start or continue a goal",
+        kind: "settingsItem",
+        settingsGroupId: "panel",
+        icon: "goal",
+        disabled: !goalMode && !canUseGoalMode,
+        disabledDetail: "Select a session or working directory before using goal mode",
+        run: () => onGoalModeChange(!goalMode)
+      },
+      {
+        id: "settings:toggle-wrap",
+        title: wrapSessionContent ? "Disable transcript wrap" : "Enable transcript wrap",
+        detail: wrapSessionContent ? "Long transcript lines will scroll horizontally" : "Long transcript lines will wrap",
+        kind: "settingsItem",
+        settingsGroupId: "panel",
+        icon: "wrap",
+        run: () => onWrapSessionContentChange(!wrapSessionContent)
+      },
+      {
+        id: "settings:decrease-scale",
+        title: "Decrease content scale",
+        detail: `Current scale ${formatDisplayScale(displayScale)}`,
+        kind: "settingsItem",
+        settingsGroupId: "panel",
+        icon: "zoom",
+        disabled: !canDecreaseScale,
+        disabledDetail: `Already at minimum scale ${formatDisplayScale(displayScaleConfig.min)}`,
+        run: () => onDisplayScaleChange(clampDisplayScale(displayScale - scaleStep))
+      },
+      {
+        id: "settings:increase-scale",
+        title: "Increase content scale",
+        detail: `Current scale ${formatDisplayScale(displayScale)}`,
+        kind: "settingsItem",
+        settingsGroupId: "panel",
+        icon: "zoom",
+        disabled: !canIncreaseScale,
+        disabledDetail: `Already at maximum scale ${formatDisplayScale(displayScaleConfig.max)}`,
+        run: () => onDisplayScaleChange(clampDisplayScale(displayScale + scaleStep))
+      },
+      {
+        id: "settings:reset-scale",
+        title: "Reset content scale",
+        detail: `Return to ${formatDisplayScale(displayScaleConfig.defaultValue)}`,
+        kind: "settingsItem",
+        settingsGroupId: "panel",
+        icon: "zoom",
+        disabled: displayScale === displayScaleConfig.defaultValue,
+        disabledDetail: `Already at ${formatDisplayScale(displayScaleConfig.defaultValue)}`,
+        run: () => onDisplayScaleChange(displayScaleConfig.defaultValue)
+      },
+      {
+        id: "settings:toggle-fullscreen",
+        title: isFullscreen ? "Exit full screen" : "Enter full screen",
+        detail: "Use the whole browser viewport",
+        kind: "settingsItem",
+        settingsGroupId: "panel",
+        icon: "fullscreen",
+        disabled: !fullscreenSupported,
+        disabledDetail: "Full screen is not available in this browser",
+        run: toggleFullscreen
       }
     ]
 
@@ -502,11 +690,30 @@ export const DashboardLayout = memo(function DashboardLayout({
 
     return actions
   }, [
+    busy,
+    canDecreaseScale,
+    canIncreaseScale,
+    canInterrupt,
+    canResume,
+    canUseGoalMode,
+    displayScale,
+    focusVisiblePrompt,
+    fullscreenSupported,
+    goalMode,
     inspectorVisible,
+    isFullscreen,
     navigatorVisible,
+    terminalVisible,
+    toggleFullscreen,
+    wrapSessionContent,
     createSessionAndFocusPrompt,
+    onDisplayScaleChange,
+    onGoalModeChange,
     onInspectorVisibleChange,
     onNavigatorVisibleChange,
+    onInterrupt,
+    onResume,
+    onWrapSessionContentChange,
     onTerminalVisibleChange,
     onProjectChange,
     onSelectSession,
@@ -520,11 +727,6 @@ export const DashboardLayout = memo(function DashboardLayout({
   const openMobileSheet = useCallback((sheet: MobileSheet) => {
     onTerminalVisibleChange(false)
     setMobileSheet((current) => current === sheet ? null : sheet)
-  }, [onTerminalVisibleChange])
-
-  const showMobileTerminal = useCallback(() => {
-    setMobileSheet(null)
-    onTerminalVisibleChange(true)
   }, [onTerminalVisibleChange])
 
   const toggleNavigator = useCallback(() => {
@@ -567,6 +769,54 @@ export const DashboardLayout = memo(function DashboardLayout({
     onSwipeDown: () => setMobileSheet(null)
   })
 
+  const sidebarFooter = (
+    <div className="shrink-0 p-4 pt-2.5">
+      <div className="mb-3 grid grid-cols-2 gap-3">
+        <SurfaceAction
+          className={cn(
+            "h-11 justify-center gap-2 px-2 text-[12px] font-medium",
+            terminalVisible ? null : "text-muted-strong"
+          )}
+          title="Toggle terminal"
+          aria-label="Toggle terminal"
+          selected={terminalVisible}
+          onClick={toggleDesktopTerminal}
+        >
+          <Terminal size={14} />
+          <span className="truncate">Terminal</span>
+        </SurfaceAction>
+        <SurfaceAction
+          className={cn(
+            "h-11 justify-center gap-2 px-2 text-[12px] font-medium",
+            inspectorVisible ? null : "text-muted-strong"
+          )}
+          title={inspectorVisible ? "Hide settings" : "Open settings"}
+          aria-label={inspectorVisible ? "Hide settings" : "Open settings"}
+          selected={inspectorVisible}
+          onClick={toggleInspector}
+        >
+          <Settings size={14} />
+          <span className="truncate">Settings</span>
+        </SurfaceAction>
+      </div>
+
+      <SurfaceAction
+        className="h-12 w-full gap-2.5 px-3"
+        title="Open commands"
+        aria-label="Open commands"
+        onClick={openCommandPalette}
+      >
+        <span className={cn("h-8 w-8 font-mono text-[16px] leading-none", ui.iconBox)} aria-hidden="true">
+          ⌘
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[12px] font-medium text-fg-strong">Commands</span>
+        </span>
+        <span className="shrink-0 font-mono text-[12px] leading-none text-muted" aria-hidden="true">Cmd K</span>
+      </SurfaceAction>
+    </div>
+  )
+
   const sidebar = (
     <Sidebar
       projects={projects}
@@ -577,11 +827,7 @@ export const DashboardLayout = memo(function DashboardLayout({
       onSessionQueryChange={onSessionQueryChange}
       onSelectSession={onSelectSession}
       onCreateSession={createSessionAndFocusPrompt}
-      terminalVisible={terminalVisible}
-      onToggleTerminal={toggleDesktopTerminal}
-      inspectorVisible={inspectorVisible}
-      onToggleInspector={toggleInspector}
-      onOpenCommandPalette={() => setCommandOpen(true)}
+      footer={sidebarFooter}
     />
   )
 
@@ -595,6 +841,9 @@ export const DashboardLayout = memo(function DashboardLayout({
       onDisplayScaleChange={onDisplayScaleChange}
       defaultCwd={defaultCwd}
       onWrapSessionContentChange={onWrapSessionContentChange}
+      fullscreenSupported={fullscreenSupported}
+      isFullscreen={isFullscreen}
+      onToggleFullscreen={toggleFullscreen}
     />
   )
 
@@ -753,14 +1002,7 @@ export const DashboardLayout = memo(function DashboardLayout({
                     createSessionAndFocusPrompt()
                     setMobileSheet(null)
                   }}
-                  terminalVisible={terminalVisible}
-                  onToggleTerminal={showMobileTerminal}
-                  inspectorVisible={false}
-                  onToggleInspector={() => openMobileSheet("inspector")}
-                  onOpenCommandPalette={() => {
-                    setMobileSheet(null)
-                    setCommandOpen(true)
-                  }}
+                  onSearchSwipeUp={openCommandPalette}
                 />
               ) : (
                 <ParamPanel
@@ -773,6 +1015,9 @@ export const DashboardLayout = memo(function DashboardLayout({
                   onDisplayScaleChange={onDisplayScaleChange}
                   defaultCwd={defaultCwd}
                   onWrapSessionContentChange={onWrapSessionContentChange}
+                  fullscreenSupported={fullscreenSupported}
+                  isFullscreen={isFullscreen}
+                  onToggleFullscreen={toggleFullscreen}
                 />
               )}
             </motion.div>
