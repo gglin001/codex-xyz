@@ -1,10 +1,11 @@
-import { Goal, Maximize2, Menu, Plus, Search, Settings, Terminal, TextCursorInput, WrapText, ZoomIn } from "lucide-react"
+import { Goal, Maximize2, Menu, Plus, Search, Settings, Sun, Terminal, TextCursorInput, WrapText, ZoomIn } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import type { KeyboardEvent, SubmitEvent } from "react"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { ControlThread, SessionDisplayStatus, ThreadDetail } from "../../server/domain.js"
 import { clampDisplayScale, cn, displayScale as displayScaleConfig, formatDisplayScale, ui } from "../designSystem.js"
 import { isPromptFocusShortcut } from "../promptShortcut.js"
+import { nextThemeMode, themeModeLabels, type ThemeMode } from "../theme.js"
 import { useMobileViewportGeometry } from "../useMobileViewportGeometry.js"
 import { useFullscreen } from "../useFullscreen.js"
 import { useSwipeGesture } from "../useSwipeGesture.js"
@@ -27,6 +28,7 @@ export type DashboardLayoutProps = {
   inspectorVisible: boolean
   terminalVisible: boolean
   wrapSessionContent: boolean
+  themeMode: ThemeMode
   sessionQuery: string
   defaultCwd: string
   workdir: string
@@ -42,6 +44,7 @@ export type DashboardLayoutProps = {
   onNavigatorVisibleChange: (visible: boolean) => void
   onInspectorVisibleChange: (visible: boolean) => void
   onWrapSessionContentChange: (value: boolean) => void
+  onThemeModeChange: (mode: ThemeMode) => void
   displayScale: number
   onDisplayScaleChange: (value: number) => void
   onProjectChange: (projectId: string) => void
@@ -89,7 +92,7 @@ type CommandAction =
   | (CommandActionBase & {
     kind: "settingsItem"
     settingsGroupId: string
-    icon: "fullscreen" | "goal" | "settings" | "wrap" | "zoom"
+    icon: "fullscreen" | "goal" | "settings" | "theme" | "wrap" | "zoom"
   })
 
 type CommandActionRenderItem = {
@@ -237,6 +240,8 @@ function CommandActionGlyph({
   if (action.kind === "settingsItem") {
     const itemIcon = action.icon === "goal"
       ? <Goal size={14} />
+      : action.icon === "theme"
+        ? <Sun size={14} />
       : action.icon === "wrap"
         ? <WrapText size={14} />
         : action.icon === "zoom"
@@ -426,6 +431,7 @@ export const DashboardLayout = memo(function DashboardLayout({
   inspectorVisible,
   terminalVisible,
   wrapSessionContent,
+  themeMode,
   sessionQuery,
   defaultCwd,
   workdir,
@@ -441,6 +447,7 @@ export const DashboardLayout = memo(function DashboardLayout({
   onNavigatorVisibleChange,
   onInspectorVisibleChange,
   onWrapSessionContentChange,
+  onThemeModeChange,
   displayScale,
   onDisplayScaleChange,
   onProjectChange,
@@ -596,6 +603,15 @@ export const DashboardLayout = memo(function DashboardLayout({
         run: () => onGoalModeChange(!goalMode)
       },
       {
+        id: "settings:toggle-theme",
+        title: themeMode === "day" ? "Use dark mode" : "Use day mode",
+        detail: `Current appearance ${themeModeLabels[themeMode]}`,
+        kind: "settingsItem",
+        settingsGroupId: "panel",
+        icon: "theme",
+        run: () => onThemeModeChange(nextThemeMode(themeMode))
+      },
+      {
         id: "settings:toggle-wrap",
         title: wrapSessionContent ? "Disable transcript wrap" : "Enable transcript wrap",
         detail: wrapSessionContent ? "Long transcript lines will scroll horizontally" : "Long transcript lines will wrap",
@@ -688,6 +704,7 @@ export const DashboardLayout = memo(function DashboardLayout({
     isFullscreen,
     navigatorVisible,
     terminalVisible,
+    themeMode,
     toggleFullscreen,
     wrapSessionContent,
     createSessionAndFocusPrompt,
@@ -695,6 +712,7 @@ export const DashboardLayout = memo(function DashboardLayout({
     onGoalModeChange,
     onInspectorVisibleChange,
     onNavigatorVisibleChange,
+    onThemeModeChange,
     onWrapSessionContentChange,
     onTerminalVisibleChange,
     onProjectChange,
@@ -819,10 +837,12 @@ export const DashboardLayout = memo(function DashboardLayout({
       detail={detail}
       selectedThread={selectedThread}
       wrapSessionContent={wrapSessionContent}
+      themeMode={themeMode}
       displayScale={displayScale}
       onDisplayScaleChange={onDisplayScaleChange}
       defaultCwd={defaultCwd}
       onWrapSessionContentChange={onWrapSessionContentChange}
+      onThemeModeChange={onThemeModeChange}
       fullscreenSupported={fullscreenSupported}
       isFullscreen={isFullscreen}
       onToggleFullscreen={toggleFullscreen}
@@ -993,10 +1013,12 @@ export const DashboardLayout = memo(function DashboardLayout({
                   detail={detail}
                   selectedThread={selectedThread}
                   wrapSessionContent={wrapSessionContent}
+                  themeMode={themeMode}
                   displayScale={displayScale}
                   onDisplayScaleChange={onDisplayScaleChange}
                   defaultCwd={defaultCwd}
                   onWrapSessionContentChange={onWrapSessionContentChange}
+                  onThemeModeChange={onThemeModeChange}
                   fullscreenSupported={fullscreenSupported}
                   isFullscreen={isFullscreen}
                   onToggleFullscreen={toggleFullscreen}

@@ -15,9 +15,11 @@ import {
 import { cn, tone, ui } from "./designSystem.js";
 import { IconButton, Pill } from "./components/uiPrimitives.js";
 import { openEventStream, parseSseJsonEvent } from "./eventStream.js";
+import { terminalTheme, type ThemeMode } from "./theme.js";
 import type { TerminalEvent, TerminalSnapshot } from "../server/domain.js";
 
 type TerminalDockProps = {
+  themeMode: ThemeMode;
   visible: boolean;
   onClose: () => void;
 };
@@ -81,23 +83,6 @@ const initialTerminalClientMetrics: TerminalClientMetrics = {
   inputChars: 0,
   reconnects: 0
 };
-
-function terminalTheme() {
-  return {
-    background: "#0b0d0c",
-    foreground: "#d8ded7",
-    cursor: "#a8c8ff",
-    selectionBackground: "#2c382d",
-    black: "#151816",
-    red: "#fb7185",
-    green: "#67d28f",
-    yellow: "#e2c26d",
-    blue: "#a7c7a1",
-    magenta: "#c4b5fd",
-    cyan: "#67e8f9",
-    white: "#f3f7f0"
-  };
-}
 
 function statusLabel(snapshot: TerminalSnapshot | null, connection: ConnectionStatus) {
   if (connection === "connecting" || connection === "reconnecting") {
@@ -229,7 +214,7 @@ function TerminalActions({
   );
 }
 
-export function TerminalDock({ visible, onClose }: TerminalDockProps) {
+export function TerminalDock({ themeMode, visible, onClose }: TerminalDockProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const desktopInteractionRef = useRef<{
     mode: "move" | "resize";
@@ -247,7 +232,7 @@ export function TerminalDock({ visible, onClose }: TerminalDockProps) {
   const [error, setError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<TerminalClientMetrics>(initialTerminalClientMetrics);
   const [desktopFrame, setDesktopFrame] = useState<DesktopFrame>(() => defaultDesktopFrame());
-  const themeOptions = useMemo(() => terminalTheme(), []);
+  const themeOptions = useMemo(() => terminalTheme(themeMode), [themeMode]);
   const isMobileSheet = useMediaQuery("(max-width: 767px)");
   const canStop = snapshot?.status === "running" || snapshot?.status === "starting";
   const label = statusLabel(snapshot, connection);

@@ -30,10 +30,24 @@ export const viewport: Viewport = {
   ]
 };
 
+const themeBootScript = `
+(() => {
+  try {
+    const mode = window.localStorage.getItem("codex-xyz-theme-mode");
+    document.documentElement.dataset.theme = mode === "day" ? "day" : "dark";
+  } catch {
+    document.documentElement.dataset.theme = "dark";
+  }
+})();
+`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body>{children}</body>
+    <html lang="en" data-theme="dark" suppressHydrationWarning>
+      <body>
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+        {children}
+      </body>
     </html>
   );
 }

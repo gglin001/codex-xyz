@@ -9,9 +9,11 @@ import {
   GitFork,
   Hash,
   ListTree,
+  Moon,
   Play,
   Server,
   SlidersHorizontal,
+  Sun,
   TimerReset,
   WrapText,
   ZoomIn
@@ -20,6 +22,7 @@ import { memo } from "react"
 import type { ReactNode } from "react"
 import type { ControlThread, ThreadDetail } from "../../server/domain.js"
 import { cn, tone } from "../designSystem.js"
+import { nextThemeMode, type ThemeMode } from "../theme.js"
 import { formatTokens, shortId, statusLabel } from "../uiFormat.js"
 import { ControlCard, InfoTile, Pill, ScaleControl, SettingsSection, SurfaceAction, SwitchControl } from "./uiPrimitives.js"
 import type { WorkbenchSession } from "./workbenchTypes.js"
@@ -30,10 +33,12 @@ export type ParamPanelProps = {
   detail: ThreadDetail | null
   selectedThread: ControlThread | null
   wrapSessionContent: boolean
+  themeMode: ThemeMode
   displayScale: number
   onDisplayScaleChange: (value: number) => void
   defaultCwd: string
   onWrapSessionContentChange: (value: boolean) => void
+  onThemeModeChange: (mode: ThemeMode) => void
   fullscreenSupported: boolean
   isFullscreen: boolean
   onToggleFullscreen: () => void
@@ -99,10 +104,12 @@ export const ParamPanel = memo(function ParamPanel({
   detail,
   selectedThread,
   wrapSessionContent,
+  themeMode,
   displayScale,
   onDisplayScaleChange,
   defaultCwd,
   onWrapSessionContentChange,
+  onThemeModeChange,
   fullscreenSupported,
   isFullscreen,
   onToggleFullscreen
@@ -180,6 +187,18 @@ export const ParamPanel = memo(function ParamPanel({
               <InfoTile icon={<Play size={13} />} label="Turns" value={String(turnCount)} layout="inline" />
               <InfoTile icon={<CircleDotDashed size={13} />} label="Items" value={String(itemCount)} layout="inline" />
             </div>
+          </div>
+        </SettingsSection>
+
+        <SettingsSection icon={<Sun size={13} />} title="Appearance">
+          <div className="grid min-w-0 gap-2">
+            <SettingsToggleRow
+              checked={themeMode === "day"}
+              icon={themeMode === "day" ? <Sun size={14} /> : <Moon size={14} />}
+              title="Day mode"
+              description={themeMode === "day" ? "Apple-style light interface" : "Switch to the light interface"}
+              onClick={() => onThemeModeChange(nextThemeMode(themeMode))}
+            />
           </div>
         </SettingsSection>
 

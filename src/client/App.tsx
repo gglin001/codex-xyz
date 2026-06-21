@@ -18,6 +18,7 @@ import { clampDisplayScale, displayScale as displayScaleConfig } from "./designS
 import { applyEventProjectionBatch, incrementalEventNames, type ClientProjection } from "./eventProjection.js";
 import { parseSseJsonEvent, useEventStreamSubscription } from "./eventStream.js";
 import { isMacTerminalToggleShortcut } from "./terminalShortcut.js";
+import { applyThemeMode, defaultThemeMode, readStoredThemeMode, writeStoredThemeMode, type ThemeMode } from "./theme.js";
 import { choosePreferredThreadId, shouldLoadThreadSelection, shouldSelectActionResult } from "./threadSelection.js";
 import type { DashboardState, ThreadDetail, XyzEvent } from "../server/domain.js";
 
@@ -108,6 +109,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
   const [navigatorVisible, setNavigatorVisible] = useState(true);
   const [inspectorVisible, setInspectorVisible] = useState(true);
   const [wrapSessionContent, setWrapSessionContent] = useState(true);
+  const [themeMode, setThemeMode] = useState<ThemeMode>(defaultThemeMode);
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [preferencesReady, setPreferencesReady] = useState(false);
   const [displayScale, setDisplayScale] = useState<number>(displayScaleConfig.defaultValue);
@@ -290,7 +292,9 @@ export function App({ initialState: serverInitialState }: AppProps) {
   }, [serverInitialState]);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = "dark";
+    const storedThemeMode = readStoredThemeMode();
+    applyThemeMode(storedThemeMode);
+    setThemeMode(storedThemeMode);
     setTerminalVisible(readStoredTerminalVisible());
     setNavigatorVisible(readStoredBoolean(navigatorVisibleStorageKey, true));
     setInspectorVisible(readStoredBoolean(inspectorVisibleStorageKey, true));
@@ -298,6 +302,14 @@ export function App({ initialState: serverInitialState }: AppProps) {
     setDisplayScale(readStoredDisplayScale());
     setPreferencesReady(true);
   }, []);
+
+  useEffect(() => {
+    if (!preferencesReady) {
+      return;
+    }
+    applyThemeMode(themeMode);
+    writeStoredThemeMode(themeMode);
+  }, [preferencesReady, themeMode]);
 
   useEffect(() => {
     if (!preferencesReady) {
@@ -755,6 +767,8 @@ export function App({ initialState: serverInitialState }: AppProps) {
         inspectorVisible={inspectorVisible}
         terminalVisible={terminalVisible}
         wrapSessionContent={wrapSessionContent}
+        themeMode={themeMode}
+        onThemeModeChange={setThemeMode}
         displayScale={displayScale}
         onDisplayScaleChange={(value) => setDisplayScale(clampDisplayScale(value))}
         sessionQuery={sessionQuery}
@@ -788,7 +802,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
       />
       <Suspense fallback={null}>
         {terminalVisible ? (
-          <TerminalDock visible={terminalVisible} onClose={() => setTerminalVisible(false)} />
+          <TerminalDock themeMode={themeMode} visible={terminalVisible} onClose={() => setTerminalVisible(false)} />
         ) : null}
       </Suspense>
     </>
