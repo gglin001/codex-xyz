@@ -84,7 +84,7 @@ function terminalTheme() {
   return {
     background: "#0b0d0c",
     foreground: "#d8ded7",
-    cursor: "#d8e9c8",
+    cursor: "#a8c8ff",
     selectionBackground: "#2c382d",
     black: "#151816",
     red: "#fb7185",

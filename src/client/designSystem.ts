@@ -20,7 +20,7 @@ export const tone = {
   },
   selected: {
     badge: "border border-border-strong bg-selected text-fg-strong",
-    strong: "border-accent-soft bg-selected-strong text-fg-strong shadow-[0_0_0_1px_rgba(216,233,200,0.10)]"
+    strong: "border-accent-soft bg-selected-strong text-fg-strong shadow-[0_0_0_1px_rgba(168,200,255,0.10)]"
   },
   running: {
     dot: "bg-running-dot shadow-[0_0_10px_rgba(103,210,143,0.28)]",
