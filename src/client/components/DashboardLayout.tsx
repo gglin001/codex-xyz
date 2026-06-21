@@ -195,7 +195,7 @@ function CommandActionGlyph({
         {parentHasVisibleChildren ? (
           <span className="absolute left-4 top-8 h-2 border-l border-border" />
         ) : null}
-        <AvatarBadge className="h-8 w-8 text-[10px]">
+        <AvatarBadge className="h-8 w-8 text-[11px]">
           {action.projectInitials}
         </AvatarBadge>
       </span>

@@ -149,7 +149,7 @@ function messageSurfaceClass(message: ChatMessage) {
 
 function headerMeta(value: string) {
   return (
-    <span className="max-w-[34vw] truncate whitespace-nowrap text-[10px] text-muted sm:max-w-none">
+    <span className="max-w-[34vw] truncate whitespace-nowrap text-[11px] text-muted sm:max-w-none">
       {value}
     </span>
   )
@@ -766,7 +766,7 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
           animate={{ width: "100%" }}
           transition={spring}
         >
-          <div ref={transcriptScrollRef} className="mobile-transcript-scroll min-h-0 flex-1 overflow-y-auto px-4 pt-[calc(var(--safe-inset-top)+1rem)] md:px-8 md:pb-5 md:pt-5">
+          <div ref={transcriptScrollRef} className="mobile-transcript-scroll min-h-0 flex-1 overflow-y-auto scroll-mask-y-t px-4 pt-[calc(var(--safe-inset-top)+1rem)] md:px-8 md:pb-5 md:pt-5">
             <SessionContentFrame className="grid gap-[var(--transcript-gap)]">
               <AnimatePresence initial={false}>
                 {entries.length === 0 ? (

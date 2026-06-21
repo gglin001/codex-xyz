@@ -76,15 +76,15 @@ const sliderThumb =
 export const ui = {
   appShell: "bg-app-bg text-fg antialiased",
   workspaceCanvas: "bg-app-bg text-fg",
-  sidePanel: "border-border bg-panel text-fg",
-  topBar: "h-16 shrink-0 border-b border-border bg-app-bg/95",
+  sidePanel: "border-border bg-panel/92 text-fg backdrop-blur-xl",
+  topBar: "h-16 shrink-0 border-b border-border bg-app-bg/88 backdrop-blur-xl",
   card: `overflow-hidden ${radius.card} border border-border bg-detail shadow-none ${interactiveTransition} hover:border-border-strong`,
   outlineCard: `overflow-hidden ${radius.card} border border-border bg-app-bg/70 shadow-none ${interactiveTransition} hover:border-border-strong hover:bg-detail/60`,
   cardLarge: `overflow-hidden ${radius.cardLg} border border-border bg-detail shadow-none ${interactiveTransition} hover:border-border-strong`,
   panelCard: `overflow-hidden ${radius.panel} border border-border bg-detail shadow-panel ${interactiveTransition} hover:border-border-strong`,
   popover: `overflow-hidden ${radius.panel} border border-border-strong bg-detail shadow-popover md:backdrop-blur-md`,
   overlay: "bg-black/55 md:backdrop-blur-sm",
-  backdropPanel: "border-border bg-panel shadow-popover",
+  backdropPanel: "border-border bg-panel/92 shadow-popover backdrop-blur-xl",
   controlBase,
   iconButton:
     `inline-flex h-8 min-w-8 items-center justify-center ${radius.control} border border-border bg-control text-muted-strong shadow-control ${interactiveTransition} hover:border-border-strong hover:bg-control-hover hover:text-fg-strong ${focusRing} ${disabledState} ${pressState}`,
@@ -125,5 +125,5 @@ export const ui = {
   subtleMeta: "text-[12px] text-muted",
   sectionLabel: "flex items-center gap-2 text-[11px] font-medium uppercase text-muted",
   pill:
-    "inline-flex h-5 shrink-0 items-center justify-center gap-1 rounded-full border border-border bg-control px-1.5 text-[10px] font-medium leading-none text-fg"
+    "inline-flex h-5 shrink-0 items-center justify-center gap-1 rounded-full border border-border bg-control px-1.5 text-[11px] font-medium leading-none text-fg"
 } as const

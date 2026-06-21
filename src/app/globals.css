@@ -215,6 +215,17 @@
     background-clip: content-box;
   }
 
+  .scroll-mask-y {
+    mask-image: linear-gradient(to bottom, transparent, black 10px, black calc(100% - 10px), transparent);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, black 10px, black calc(100% - 10px), transparent);
+  }
+
+  .scroll-mask-y-t {
+    mask-image: linear-gradient(to bottom, black, black calc(100% - 10px), transparent);
+    -webkit-mask-image: linear-gradient(to bottom, black, black calc(100% - 10px), transparent);
+  }
+
+
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,

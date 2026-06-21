@@ -120,7 +120,7 @@ export const ParamPanel = memo(function ParamPanel({
 
   return (
     <aside className={cn("flex h-full min-h-0 w-full min-w-0 flex-col border-l border-border bg-panel text-fg", className)}>
-      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden scroll-mask-y">
         <SettingsSection icon={<Server size={13} />} title="Runtime">
           <div className="grid min-w-0 gap-2">
             <ControlCard className="flex w-full min-w-0 items-center justify-between gap-3 bg-field/70 px-3 py-2.5">
@@ -128,7 +128,7 @@ export const ParamPanel = memo(function ParamPanel({
                 <span className={cn("h-2 w-2 shrink-0 rounded-full", runtimeStatusTone(status))} />
                 <span className="truncate text-[13px] font-medium text-fg">{statusLabel(status)}</span>
               </span>
-              <Pill className="font-mono text-[10px] text-muted">app-server</Pill>
+              <Pill className="font-mono text-[11px] text-muted">app-server</Pill>
             </ControlCard>
             <InfoTile icon={<Bot size={13} />} label="Model" value={model} mono layout="inline" />
             <InfoTile icon={<Cpu size={13} />} label="Adapter" value="codex app-server --stdio" mono layout="inline" />
@@ -164,7 +164,7 @@ export const ParamPanel = memo(function ParamPanel({
                   style={{ width: tokenBudget ? `${tokenPercent}%` : "0%" }}
                 />
               </div>
-              <div className="mt-3 flex min-w-0 items-center justify-between gap-3 text-[10px] text-muted">
+              <div className="mt-3 flex min-w-0 items-center justify-between gap-3 text-[11px] text-muted">
                 <span className="truncate">{thread?.goalStatus ? statusLabel(thread.goalStatus) : "No active goal"}</span>
                 <span className="shrink-0 truncate">{tokenBudget ? `${tokenPercent}%` : `${formatTokens(contextTokens)} total`}</span>
               </div>

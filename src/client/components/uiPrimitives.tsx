@@ -204,7 +204,7 @@ export function Keycap({
 }: HTMLAttributes<HTMLSpanElement>) {
   return (
     <span
-      className={cn("rounded-[6px] border border-border bg-control px-1.5 py-1 font-mono text-[10px] leading-none text-muted", className)}
+      className={cn("rounded-[6px] border border-border bg-control px-1.5 py-1 font-mono text-[11px] leading-none text-muted", className)}
       {...props}
     >
       {children}
@@ -294,7 +294,7 @@ export function ScaleControl({
           ))}
         </div>
       </div>
-      <div className="mt-2 flex justify-between font-mono text-[10px] tabular-nums text-muted">
+      <div className="mt-2 flex justify-between font-mono text-[11px] tabular-nums text-muted">
         <span>{formatDisplayScale(min)}</span>
         <span>{formatDisplayScale(max)}</span>
       </div>
@@ -509,7 +509,7 @@ export const InfoTile = memo(function InfoTile({
       <span className={cn("flex h-5 w-5 shrink-0 items-center justify-center text-muted", inline ? null : "mt-0.5")}>{icon}</span>
       <span className={cn("min-w-0 flex-1", inline ? "flex items-center justify-between gap-2" : null)}>
         <span className={cn(
-          "truncate text-[10px] font-medium uppercase text-muted",
+          "truncate text-[11px] font-medium uppercase text-muted",
           inline ? "shrink-0" : "block"
         )}>{label}</span>
         <span className={cn(
