@@ -1,7 +1,7 @@
 # codex-xyz
 
 ```bash
-pnpm install
+export CODEX_XYZ_UI_URL="http://127.0.0.1:1123"
 pnpm run dev
 # http://127.0.0.1:1123
 ```
