@@ -41,6 +41,8 @@ export type DashboardLayoutProps = {
   onNavigatorVisibleChange: (visible: boolean) => void
   onInspectorVisibleChange: (visible: boolean) => void
   onWrapSessionContentChange: (value: boolean) => void
+  displayScale: number
+  onDisplayScaleChange: (value: number) => void
   onProjectChange: (projectId: string) => void
   onSelectSession: (session: WorkbenchSession, options?: { clearSessionQuery?: boolean }) => void
   onCreateSession: () => void
@@ -347,6 +349,8 @@ export const DashboardLayout = memo(function DashboardLayout({
   onNavigatorVisibleChange,
   onInspectorVisibleChange,
   onWrapSessionContentChange,
+  displayScale,
+  onDisplayScaleChange,
   onProjectChange,
   onSelectSession,
   onCreateSession,
@@ -524,6 +528,8 @@ export const DashboardLayout = memo(function DashboardLayout({
       detail={detail}
       selectedThread={selectedThread}
       wrapSessionContent={wrapSessionContent}
+      displayScale={displayScale}
+      onDisplayScaleChange={onDisplayScaleChange}
       defaultCwd={defaultCwd}
       onWrapSessionContentChange={onWrapSessionContentChange}
     />
@@ -569,6 +575,7 @@ export const DashboardLayout = memo(function DashboardLayout({
             canUseGoalMode={canUseGoalMode}
             canSubmitPrompt={canSubmitPrompt}
             wrapSessionContent={wrapSessionContent}
+            displayScale={displayScale}
             navigatorVisible={navigatorVisible}
             inspectorVisible={inspectorVisible}
             onPromptChange={onPromptChange}
@@ -619,6 +626,7 @@ export const DashboardLayout = memo(function DashboardLayout({
           canUseGoalMode={canUseGoalMode}
           canSubmitPrompt={canSubmitPrompt}
           wrapSessionContent={wrapSessionContent}
+          displayScale={displayScale}
           navigatorVisible={mobileNavigatorOpen}
           inspectorVisible={mobileInspectorOpen}
           onPromptChange={onPromptChange}
@@ -717,6 +725,8 @@ export const DashboardLayout = memo(function DashboardLayout({
                 detail={detail}
                 selectedThread={selectedThread}
                 wrapSessionContent={wrapSessionContent}
+                displayScale={displayScale}
+                onDisplayScaleChange={onDisplayScaleChange}
                 defaultCwd={defaultCwd}
                 onWrapSessionContentChange={onWrapSessionContentChange}
               />

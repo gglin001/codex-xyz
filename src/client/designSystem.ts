@@ -45,11 +45,32 @@ export const tone = {
   }
 } as const
 
+export const displayScale = {
+  min: 0.8,
+  max: 1.2,
+  step: 0.05,
+  defaultValue: 1
+} as const
+
+export function clampDisplayScale(value: number) {
+  if (!Number.isFinite(value)) {
+    return displayScale.defaultValue
+  }
+  const clamped = Math.min(displayScale.max, Math.max(displayScale.min, value))
+  return Math.round(clamped / displayScale.step) * displayScale.step
+}
+
+export function formatDisplayScale(value: number) {
+  return `${Math.round(value * 100)}%`
+}
+
 const interactiveTransition = "transition duration-150 ease-out"
 const disabledState = "disabled:cursor-not-allowed disabled:opacity-40"
 const pressState = "active:scale-[0.98]"
 const interactiveRow = `${interactiveTransition} hover:bg-surface`
 const controlBase = `${radius.controlLg} border border-border bg-control text-fg ${interactiveTransition} hover:border-border-strong hover:bg-control-hover hover:text-fg-strong ${disabledState}`
+const sliderThumb =
+  "[&::-webkit-slider-thumb]:h-[18px] [&::-webkit-slider-thumb]:w-[18px] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-border-strong [&::-webkit-slider-thumb]:bg-fg [&::-webkit-slider-thumb]:shadow-control [&::-moz-range-thumb]:h-[18px] [&::-moz-range-thumb]:w-[18px] [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border [&::-moz-range-thumb]:border-border-strong [&::-moz-range-thumb]:bg-fg"
 
 export const ui = {
   appShell: "bg-app-bg text-fg antialiased",
@@ -96,6 +117,8 @@ export const ui = {
     `${radius.controlLg} border border-border bg-field text-muted ${interactiveTransition} focus-within:border-border-strong focus-within:bg-surface focus-within:text-fg`,
   input: "min-w-0 flex-1 border-0 bg-transparent text-fg-strong placeholder:text-muted focus:outline-none disabled:opacity-60",
   textarea: "block w-full resize-none border-0 bg-transparent text-fg-strong placeholder:text-muted focus:outline-none disabled:opacity-60",
+  range:
+    `h-2 w-full cursor-pointer appearance-none rounded-full border border-border bg-control accent-accent ${sliderThumb} ${interactiveTransition} hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring`,
   row: interactiveRow,
   meta: "text-muted",
   subtleMeta: "text-[12px] text-muted",

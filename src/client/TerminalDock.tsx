@@ -2,7 +2,9 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal as XTerm } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
-import { Play, RotateCw, Square, Terminal as TerminalIcon, X } from "lucide-react";
+import { Play, RotateCw, Square, X } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   resizeTerminal,
@@ -13,6 +15,7 @@ import {
 import { cn, tone, ui } from "./designSystem.js";
 import { IconButton, Pill } from "./components/uiPrimitives.js";
 import { openEventStream, parseSseJsonEvent } from "./eventStream.js";
+import { useVisualViewportHeight } from "./useVisualViewport.js";
 import type { TerminalEvent, TerminalSnapshot } from "../server/domain.js";
 
 type TerminalDockProps = {
@@ -40,6 +43,19 @@ const reconnectDelayMs = 1_200;
 const inputFlushMs = 8;
 const resizeFlushMs = 100;
 const metricsCommitMs = 500;
+const dragDismissThreshold = 80;
+const desktopMargin = 16;
+const desktopDefaultWidth = 560;
+const desktopDefaultHeight = 320;
+const desktopMinWidth = 360;
+const desktopMinHeight = 220;
+
+type DesktopFrame = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
 
 const terminalStatusClass: Record<string, string> = {
   idle: tone.neutral.badge,
@@ -117,8 +133,110 @@ function terminalMetricsTitle(metrics: TerminalClientMetrics, snapshot: Terminal
   ].join("\n");
 }
 
+function defaultDesktopFrame(): DesktopFrame {
+  if (typeof window === "undefined") {
+    return {
+      x: desktopMargin,
+      y: desktopMargin,
+      width: desktopDefaultWidth,
+      height: desktopDefaultHeight
+    };
+  }
+  const width = Math.min(desktopDefaultWidth, Math.max(desktopMinWidth, window.innerWidth - desktopMargin * 2));
+  const height = Math.min(desktopDefaultHeight, Math.max(desktopMinHeight, window.innerHeight - desktopMargin * 2));
+  return {
+    x: desktopMargin,
+    y: Math.max(desktopMargin, window.innerHeight - height - desktopMargin),
+    width,
+    height
+  };
+}
+
+function clampDesktopFrame(frame: DesktopFrame): DesktopFrame {
+  if (typeof window === "undefined") {
+    return frame;
+  }
+  const maxWidth = Math.max(desktopMinWidth, window.innerWidth - desktopMargin * 2);
+  const maxHeight = Math.max(desktopMinHeight, window.innerHeight - desktopMargin * 2);
+  const width = Math.min(maxWidth, Math.max(desktopMinWidth, frame.width));
+  const height = Math.min(maxHeight, Math.max(desktopMinHeight, frame.height));
+  return {
+    x: Math.min(Math.max(desktopMargin, frame.x), Math.max(desktopMargin, window.innerWidth - width - desktopMargin)),
+    y: Math.min(Math.max(desktopMargin, frame.y), Math.max(desktopMargin, window.innerHeight - height - desktopMargin)),
+    width,
+    height
+  };
+}
+
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    return window.matchMedia(query).matches;
+  });
+
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    const update = () => setMatches(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => {
+      media.removeEventListener("change", update);
+    };
+  }, [query]);
+
+  return matches;
+}
+
+const spring = { type: "spring", stiffness: 360, damping: 36 } as const;
+const sheetSpring = { type: "spring", stiffness: 380, damping: 38 } as const;
+
+function DragHandle() {
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center md:hidden" aria-hidden="true">
+      <div className="h-1 w-10 rounded-full bg-border-strong" />
+    </div>
+  );
+}
+
+function TerminalActions({
+  onStartOrAttach,
+  onStop,
+  canStop,
+  startActionLabel
+}: {
+  onStartOrAttach: () => void;
+  onStop: () => void;
+  canStop: boolean;
+  startActionLabel: string;
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      <IconButton title={startActionLabel} aria-label={startActionLabel} onClick={onStartOrAttach}>
+        {canStop ? <RotateCw size={14} /> : <Play size={14} />}
+      </IconButton>
+      <IconButton
+        title="Stop terminal process"
+        aria-label="Stop terminal process"
+        disabled={!canStop}
+        onClick={onStop}
+      >
+        <Square size={14} />
+      </IconButton>
+    </div>
+  );
+}
+
 export function TerminalDock({ visible, onClose }: TerminalDockProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const desktopInteractionRef = useRef<{
+    mode: "move" | "resize";
+    pointerId: number;
+    startClientX: number;
+    startClientY: number;
+    startFrame: DesktopFrame;
+  } | null>(null);
   const terminalRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const startSessionRef = useRef<(() => Promise<void>) | null>(null);
@@ -127,11 +245,34 @@ export function TerminalDock({ visible, onClose }: TerminalDockProps) {
   const [connection, setConnection] = useState<ConnectionStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<TerminalClientMetrics>(initialTerminalClientMetrics);
+  const [desktopFrame, setDesktopFrame] = useState<DesktopFrame>(() => defaultDesktopFrame());
   const themeOptions = useMemo(() => terminalTheme(), []);
+  const isMobileSheet = useMediaQuery("(max-width: 767px)");
+  const vvHeight = useVisualViewportHeight({ maxWidth: 767 });
   const canStop = snapshot?.status === "running" || snapshot?.status === "starting";
   const label = statusLabel(snapshot, connection);
   const metricsTitle = terminalMetricsTitle(metrics, snapshot);
   const startActionLabel = canStop ? "Reconnect terminal" : "Start terminal";
+  const mobileSheetHeight = vvHeight != null
+    ? `min(${vvHeight * 0.92}px, 100dvh)`
+    : "92dvh";
+  const shellStyle = {
+    "--terminal-sheet-height": mobileSheetHeight
+  } as CSSProperties;
+
+  useEffect(() => {
+    if (isMobileSheet) {
+      return;
+    }
+    const handleResize = () => {
+      setDesktopFrame((current) => clampDesktopFrame(current));
+    };
+    window.addEventListener("resize", handleResize);
+    handleResize();
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [isMobileSheet]);
 
   useEffect(() => {
     const terminal = terminalRef.current;
@@ -467,45 +608,185 @@ export function TerminalDock({ visible, onClose }: TerminalDockProps) {
       });
   }, []);
 
-  if (!visible) {
-    return null;
-  }
+  const finishDesktopInteraction = useCallback((event: ReactPointerEvent<HTMLElement>) => {
+    const interaction = desktopInteractionRef.current;
+    if (!interaction || interaction.pointerId !== event.pointerId) {
+      return;
+    }
+    desktopInteractionRef.current = null;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  }, []);
+
+  const updateDesktopInteraction = useCallback((event: ReactPointerEvent<HTMLElement>) => {
+    const interaction = desktopInteractionRef.current;
+    if (!interaction || interaction.pointerId !== event.pointerId) {
+      return;
+    }
+    event.preventDefault();
+    const deltaX = event.clientX - interaction.startClientX;
+    const deltaY = event.clientY - interaction.startClientY;
+    if (interaction.mode === "move") {
+      setDesktopFrame(clampDesktopFrame({
+        ...interaction.startFrame,
+        x: interaction.startFrame.x + deltaX,
+        y: interaction.startFrame.y + deltaY
+      }));
+      return;
+    }
+    setDesktopFrame(clampDesktopFrame({
+      ...interaction.startFrame,
+      width: interaction.startFrame.width + deltaX,
+      height: interaction.startFrame.height + deltaY
+    }));
+  }, []);
+
+  const startDesktopMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (isMobileSheet || event.button !== 0) {
+      return;
+    }
+    if ((event.target as HTMLElement).closest("button")) {
+      return;
+    }
+    event.preventDefault();
+    desktopInteractionRef.current = {
+      mode: "move",
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startFrame: desktopFrame
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }, [desktopFrame, isMobileSheet]);
+
+  const startDesktopResize = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (isMobileSheet || event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    desktopInteractionRef.current = {
+      mode: "resize",
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startFrame: desktopFrame
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }, [desktopFrame, isMobileSheet]);
+
+  const header = (
+    <div
+      className="grid min-h-12 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 border-b border-border px-3.5 py-1.5 md:cursor-move"
+      onPointerDown={startDesktopMove}
+      onPointerMove={updateDesktopInteraction}
+      onPointerUp={finishDesktopInteraction}
+      onPointerCancel={finishDesktopInteraction}
+    >
+      <div className="grid min-w-0 gap-0.5">
+        <span className="min-w-0 truncate font-mono text-[10px] leading-4 text-muted" title={snapshot?.cwd ?? ""}>
+          {snapshot?.cwd ?? snapshot?.command ?? ""}
+        </span>
+        <div className="flex min-w-0 items-center gap-1.5 text-[10px] leading-4">
+          <span className={cn("shrink-0 rounded-full px-1.5 py-1 text-[10px] font-semibold leading-none", terminalStatusClass[label] ?? terminalStatusClass.idle)}>{label}</span>
+          {snapshot?.pid ? <Pill className="hidden sm:inline-flex">pid {snapshot.pid}</Pill> : null}
+          <Pill className="hidden max-w-[30vw] truncate font-mono xl:inline-flex" title={metricsTitle}>diagnostics</Pill>
+          {error ? <span className={cn("hidden max-w-[26vw] truncate rounded-full px-2 py-1 text-[10px] font-medium sm:inline-flex", tone.error.badge)}>{error}</span> : null}
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        <TerminalActions
+          onStartOrAttach={startOrAttach}
+          onStop={stopTerminal}
+          canStop={canStop}
+          startActionLabel={startActionLabel}
+        />
+        <IconButton title="Hide terminal" aria-label="Hide terminal" onClick={onClose}>
+          <X size={14} />
+        </IconButton>
+      </div>
+    </div>
+  );
+
+  const terminalCanvas = (
+    <div
+      className="min-h-[160px] flex-1 bg-terminal p-3 [&_.xterm]:h-full [&_.xterm-screen]:will-change-transform [&_.xterm-viewport]:!bg-transparent"
+      ref={containerRef}
+    />
+  );
+
+  const resizeHandle = (
+    <button
+      type="button"
+      className="absolute bottom-1 right-1 hidden h-6 w-6 cursor-nwse-resize items-end justify-end rounded-[10px] text-muted transition duration-150 ease-out hover:bg-control hover:text-fg-strong md:flex"
+      title="Resize terminal"
+      aria-label="Resize terminal"
+      onPointerDown={startDesktopResize}
+      onPointerMove={updateDesktopInteraction}
+      onPointerUp={finishDesktopInteraction}
+      onPointerCancel={finishDesktopInteraction}
+    >
+      <span className="mb-1 mr-1 h-2.5 w-2.5 rounded-br-[6px] border-b border-r border-current" aria-hidden="true" />
+    </button>
+  );
 
   return (
-    <section className={cn("fixed inset-x-4 bottom-4 z-[80]", ui.popover)} aria-label="Terminal">
-      <div className="flex h-12 items-center justify-between gap-3 border-b border-border px-3.5">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className={cn("h-8 w-8", ui.iconBox)}>
-            <TerminalIcon size={14} />
-          </span>
-          <strong className="shrink-0 text-[14px] font-semibold text-fg-strong">Terminal</strong>
-          <span className={cn("rounded-full px-1.5 py-1 text-[10px] font-semibold leading-none", terminalStatusClass[label] ?? terminalStatusClass.idle)}>{label}</span>
-          {snapshot ? <small className="min-w-0 truncate font-mono text-[10px] text-muted">{snapshot.command}</small> : null}
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <IconButton title={startActionLabel} aria-label={startActionLabel} onClick={startOrAttach}>
-            {canStop ? <RotateCw size={14} /> : <Play size={14} />}
-          </IconButton>
-          <IconButton
-            title="Stop terminal process"
-            aria-label="Stop terminal process"
-            disabled={!canStop}
-            onClick={stopTerminal}
+    <AnimatePresence>
+      {visible ? (
+        <motion.div
+          key="terminal-root"
+          className="fixed inset-0 z-[80] md:pointer-events-none"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={spring}
+        >
+          <motion.div
+            key="terminal-backdrop"
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm md:hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={spring}
+            onClick={onClose}
+          />
+
+          <motion.section
+            className={cn(
+              "pointer-events-auto absolute inset-x-0 bottom-0 flex h-[var(--terminal-sheet-height)] flex-col overflow-hidden rounded-t-[28px] md:inset-auto md:rounded-[24px]",
+              ui.popover
+            )}
+            style={isMobileSheet ? shellStyle : {
+              left: desktopFrame.x,
+              top: desktopFrame.y,
+              width: desktopFrame.width,
+              height: desktopFrame.height
+            }}
+            initial={isMobileSheet ? { y: "100%", opacity: 0 } : { opacity: 0, y: 24, scale: 0.97 }}
+            animate={{
+              y: 0,
+              opacity: 1,
+              scale: 1
+            }}
+            exit={isMobileSheet ? { y: "100%", opacity: 0 } : { opacity: 0, y: 24, scale: 0.97 }}
+            transition={sheetSpring}
+            drag={isMobileSheet ? "y" : false}
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 0.4 }}
+            dragMomentum={false}
+            onDragEnd={(_event, info) => {
+              if (info.offset.y > dragDismissThreshold || info.velocity.y > 600) {
+                onClose();
+              }
+            }}
+            onClick={(event) => event.stopPropagation()}
+            aria-label="Terminal"
           >
-            <Square size={14} />
-          </IconButton>
-          <IconButton title="Hide terminal" aria-label="Hide terminal" onClick={onClose}>
-            <X size={14} />
-          </IconButton>
-        </div>
-      </div>
-      <div className="flex h-8 min-w-0 items-center gap-2 overflow-hidden border-b border-border px-3.5 text-[10px] text-muted">
-        <span className="min-w-0 flex-1 truncate font-mono">{snapshot?.cwd ?? ""}</span>
-        {snapshot?.pid ? <Pill>pid {snapshot.pid}</Pill> : null}
-        <Pill className="hidden max-w-[42vw] truncate font-mono xl:inline-flex" title={metricsTitle}>diagnostics</Pill>
-        {error ? <span className={cn("max-w-[34vw] truncate rounded-full px-2 py-1 font-medium", tone.error.badge)}>{error}</span> : null}
-      </div>
-      <div className="h-[min(32dvh,320px)] min-h-[160px] bg-terminal p-3 [&_.xterm]:h-full [&_.xterm-screen]:will-change-transform [&_.xterm-viewport]:!bg-transparent" ref={containerRef} />
-    </section>
+            <DragHandle />
+            {header}
+            {terminalCanvas}
+            {resizeHandle}
+          </motion.section>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
   );
 }

@@ -1,7 +1,7 @@
 import { ChevronDown } from "lucide-react"
 import type { ButtonHTMLAttributes, HTMLAttributes, LabelHTMLAttributes, MouseEvent, ReactNode } from "react"
 import { memo } from "react"
-import { cn, radius, ui } from "../designSystem.js"
+import { cn, displayScale, formatDisplayScale, radius, ui } from "../designSystem.js"
 
 export function IconButton({
   className,
@@ -243,6 +243,62 @@ export function SegmentButton({
     >
       {children}
     </button>
+  )
+}
+
+export function ScaleControl({
+  label,
+  value,
+  onChange,
+  min = displayScale.min,
+  max = displayScale.max,
+  step = displayScale.step,
+  className
+}: {
+  label: string
+  value: number
+  onChange: (value: number) => void
+  min?: number
+  max?: number
+  step?: number
+  className?: string
+}) {
+  return (
+    <div className={cn("w-full min-w-0", className)}>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <span className="truncate text-[13px] font-medium text-fg">{label}</span>
+        <span className="shrink-0 font-mono text-[12px] tabular-nums text-muted-strong">
+          {formatDisplayScale(value)}
+        </span>
+      </div>
+      <div className="relative">
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(event) => onChange(Number(event.target.value))}
+          className={ui.range}
+          aria-label={label}
+        />
+        <div className="pointer-events-none absolute inset-x-[9px] top-1/2 flex -translate-y-1/2 justify-between">
+          {Array.from({ length: Math.round((max - min) / step) + 1 }, (_item, index) => (
+            <span
+              key={index}
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                Math.abs(min + index * step - value) < step / 2 ? "bg-accent" : "bg-muted/65"
+              )}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="mt-2 flex justify-between font-mono text-[10px] tabular-nums text-muted">
+        <span>{formatDisplayScale(min)}</span>
+        <span>{formatDisplayScale(max)}</span>
+      </div>
+    </div>
   )
 }
 

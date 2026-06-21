@@ -13,7 +13,7 @@ import {
   Square
 } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
-import type { KeyboardEvent, MouseEvent, ReactNode, SubmitEvent } from "react"
+import type { CSSProperties, KeyboardEvent, MouseEvent, ReactNode, SubmitEvent } from "react"
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
 import type { ControlThread, SessionDisplayStatus, ThreadDetail, ThreadItem } from "../../server/domain.js"
 import { sessionDisplayStatus } from "../../server/domain.js"
@@ -50,6 +50,7 @@ export type WorkspaceProps = {
   canUseGoalMode: boolean
   canSubmitPrompt: boolean
   wrapSessionContent: boolean
+  displayScale: number
   navigatorVisible: boolean
   inspectorVisible: boolean
   onPromptChange: (value: string) => void
@@ -214,7 +215,7 @@ const MessageBlock = memo(function MessageBlock({
     >
       {message.text ? (
         <div className={cn(
-          "text-[15px] leading-7 text-fg",
+          "text-[length:var(--transcript-font-size)] leading-[var(--transcript-line-height)] text-fg",
           wrapContent ? "whitespace-pre-wrap break-words" : "overflow-x-auto whitespace-pre"
         )}>{message.text}</div>
       ) : null}
@@ -245,7 +246,7 @@ const ProcessItemBlock = memo(function ProcessItemBlock({
     >
       {message.text ? (
         <div className={cn(
-          "text-[13px] leading-6 text-fg",
+          "text-[length:var(--process-font-size)] leading-[var(--process-line-height)] text-fg",
           wrapContent ? "whitespace-pre-wrap break-words" : "overflow-x-auto whitespace-pre"
         )}>{message.text}</div>
       ) : null}
@@ -435,7 +436,7 @@ const Composer = memo(forwardRef<ComposerHandle, ComposerProps>(function Compose
         <div className={ui.composerShell}>
           <textarea
             ref={textareaRef}
-            className={cn(ui.textarea, "max-h-[160px] min-h-[30px] px-1 py-1 text-[17px] leading-7")}
+            className={cn(ui.textarea, "max-h-[160px] min-h-[30px] px-1 py-1 text-[length:var(--composer-font-size)] leading-[var(--composer-line-height)]")}
             value={prompt}
             onChange={(event) => onPromptChange(event.target.value)}
             onKeyDown={onPromptKeyDown}
@@ -596,6 +597,7 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
   promptTarget,
   goalMode,
   wrapSessionContent,
+  displayScale,
   navigatorVisible,
   inspectorVisible,
   canUseGoalMode,
@@ -620,6 +622,15 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
   const subtitle = selectedThread?.cwd ?? session?.cwd ?? project?.path ?? "Select a project to begin"
   const tokens = detail?.tokensUsed ?? session?.tokensUsed ?? 0
   const status = selectedThread ? sessionDisplayStatus(selectedThread) : (session?.status ?? "idle")
+  const contentScaleStyle = useMemo(() => ({
+    "--transcript-font-size": `${15 * displayScale}px`,
+    "--transcript-line-height": `${26 * displayScale}px`,
+    "--process-font-size": `${13 * displayScale}px`,
+    "--process-line-height": `${22 * displayScale}px`,
+    "--composer-font-size": `${17 * displayScale}px`,
+    "--composer-line-height": `${28 * displayScale}px`,
+    "--transcript-gap": `${Math.max(10, 14 * displayScale)}px`
+  }) as CSSProperties, [displayScale])
 
   useImperativeHandle(ref, () => ({
     focusPrompt: () => composerRef.current?.focusPrompt() ?? false
@@ -631,7 +642,10 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
   })
 
   return (
-    <section className={cn("flex h-full min-h-0 min-w-0 flex-col bg-app-bg text-fg", sessionContentWidthClass)}>
+    <section
+      className={cn("flex h-full min-h-0 min-w-0 flex-col bg-app-bg text-fg", sessionContentWidthClass)}
+      style={contentScaleStyle}
+    >
       <header className="hidden md:flex md:relative z-[110] md:h-16 shrink-0 items-center justify-between gap-3 md:bg-app-bg md:px-5">
         <div className="flex min-w-0 items-center gap-3">
           <LargeIconButton
@@ -675,7 +689,7 @@ export const Workspace = memo(forwardRef<WorkspaceHandle, WorkspaceProps>(functi
           transition={spring}
         >
           <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-5 pt-[calc(var(--safe-inset-top)+1rem)] md:px-8 md:pt-4">
-            <SessionContentFrame className="grid gap-3 md:gap-4">
+            <SessionContentFrame className="grid gap-[var(--transcript-gap)]">
               <AnimatePresence initial={false}>
                 {entries.length === 0 ? (
                   <motion.div

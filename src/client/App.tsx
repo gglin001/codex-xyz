@@ -14,6 +14,7 @@ import {
 import { DashboardLayout } from "./components/DashboardLayout.js";
 import { buildWorkbenchProjects, findProjectForThread } from "./components/workbenchData.js";
 import type { ComposerMode, WorkbenchSession } from "./components/workbenchTypes.js";
+import { clampDisplayScale, displayScale as displayScaleConfig } from "./designSystem.js";
 import { applyEventProjectionBatch, incrementalEventNames, type ClientProjection } from "./eventProjection.js";
 import { parseSseJsonEvent, useEventStreamSubscription } from "./eventStream.js";
 import { isMacTerminalToggleShortcut } from "./terminalShortcut.js";
@@ -46,6 +47,7 @@ const terminalVisibleStorageKey = "codex-xyz-terminal-visible";
 const navigatorVisibleStorageKey = "codex-xyz-navigator-visible";
 const inspectorVisibleStorageKey = "codex-xyz-inspector-visible";
 const wrapSessionContentStorageKey = "codex-xyz-wrap-session-content";
+const displayScaleStorageKey = "codex-xyz-display-scale";
 const TerminalDock = lazy(async () => ({
   default: (await import("./TerminalDock.js")).TerminalDock
 }));
@@ -73,6 +75,18 @@ function readStoredBoolean(key: string, fallback: boolean) {
   }
 }
 
+function readStoredDisplayScale() {
+  if (typeof window === "undefined") {
+    return displayScaleConfig.defaultValue;
+  }
+  try {
+    const value = window.localStorage.getItem(displayScaleStorageKey);
+    return value ? clampDisplayScale(Number(value)) : displayScaleConfig.defaultValue;
+  } catch {
+    return displayScaleConfig.defaultValue;
+  }
+}
+
 export type AppProps = {
   initialState?: DashboardState;
 };
@@ -96,6 +110,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
   const [wrapSessionContent, setWrapSessionContent] = useState(true);
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [preferencesReady, setPreferencesReady] = useState(false);
+  const [displayScale, setDisplayScale] = useState<number>(displayScaleConfig.defaultValue);
   const [summaryEventsReady, setSummaryEventsReady] = useState(false);
   const [detailSubscription, setDetailSubscription] = useState<DetailSubscription | null>(null);
   const selectedThreadIdRef = useRef<string | null>(null);
@@ -280,6 +295,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
     setNavigatorVisible(readStoredBoolean(navigatorVisibleStorageKey, true));
     setInspectorVisible(readStoredBoolean(inspectorVisibleStorageKey, true));
     setWrapSessionContent(readStoredBoolean(wrapSessionContentStorageKey, true));
+    setDisplayScale(readStoredDisplayScale());
     setPreferencesReady(true);
   }, []);
 
@@ -326,6 +342,17 @@ export function App({ initialState: serverInitialState }: AppProps) {
       // Keep the in-memory preference even if the browser blocks persistence.
     }
   }, [preferencesReady, wrapSessionContent]);
+
+  useEffect(() => {
+    if (!preferencesReady) {
+      return;
+    }
+    try {
+      window.localStorage.setItem(displayScaleStorageKey, displayScale.toString());
+    } catch {
+      // Keep the in-memory preference even if the browser blocks persistence.
+    }
+  }, [displayScale, preferencesReady]);
 
   useEffect(() => {
     const handleTerminalShortcut = (event: globalThis.KeyboardEvent) => {
@@ -728,6 +755,8 @@ export function App({ initialState: serverInitialState }: AppProps) {
         inspectorVisible={inspectorVisible}
         terminalVisible={terminalVisible}
         wrapSessionContent={wrapSessionContent}
+        displayScale={displayScale}
+        onDisplayScaleChange={(value) => setDisplayScale(clampDisplayScale(value))}
         sessionQuery={sessionQuery}
         defaultCwd={state.defaultCwd}
         workdir={workdir}

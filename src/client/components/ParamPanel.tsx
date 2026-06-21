@@ -13,7 +13,8 @@ import {
   Server,
   SlidersHorizontal,
   TimerReset,
-  WrapText
+  WrapText,
+  ZoomIn
 } from "lucide-react"
 import { memo } from "react"
 import type { ReactNode } from "react"
@@ -21,7 +22,7 @@ import type { ControlThread, ThreadDetail } from "../../server/domain.js"
 import { cn, tone } from "../designSystem.js"
 import { useFullscreen } from "../useFullscreen.js"
 import { formatTokens, shortId, statusLabel } from "../uiFormat.js"
-import { ControlCard, InfoTile, Pill, SettingsSection, SurfaceAction, SwitchControl } from "./uiPrimitives.js"
+import { ControlCard, InfoTile, Pill, ScaleControl, SettingsSection, SurfaceAction, SwitchControl } from "./uiPrimitives.js"
 import type { WorkbenchSession } from "./workbenchTypes.js"
 
 export type ParamPanelProps = {
@@ -30,6 +31,8 @@ export type ParamPanelProps = {
   detail: ThreadDetail | null
   selectedThread: ControlThread | null
   wrapSessionContent: boolean
+  displayScale: number
+  onDisplayScaleChange: (value: number) => void
   defaultCwd: string
   onWrapSessionContentChange: (value: boolean) => void
 }
@@ -94,6 +97,8 @@ export const ParamPanel = memo(function ParamPanel({
   detail,
   selectedThread,
   wrapSessionContent,
+  displayScale,
+  onDisplayScaleChange,
   defaultCwd,
   onWrapSessionContentChange
 }: ParamPanelProps) {
@@ -192,6 +197,18 @@ export const ParamPanel = memo(function ParamPanel({
                 onClick={toggleFullscreen}
               />
             ) : null}
+          </div>
+        </SettingsSection>
+
+        <SettingsSection icon={<ZoomIn size={13} />} title="Display">
+          <div className="grid min-w-0 gap-2.5">
+            <ControlCard className="w-full min-w-0 px-3.5 py-3">
+              <ScaleControl
+                label="Content scale"
+                value={displayScale}
+                onChange={onDisplayScaleChange}
+              />
+            </ControlCard>
           </div>
         </SettingsSection>
       </div>
