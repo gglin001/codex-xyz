@@ -67,6 +67,7 @@ function handle(message) {
         preview: "resumed without turns",
         cwd: message.params.cwd,
         model: message.params.model,
+        status: { type: "idle" },
         updatedAt: 1700000000
       },
       model: message.params.model
@@ -87,6 +88,7 @@ function handle(message) {
         preview: "forked without turns",
         cwd: message.params.cwd,
         model: message.params.model,
+        status: { type: "idle" },
         updatedAt: 1700000100
       },
       model: message.params.model

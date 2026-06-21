@@ -4,6 +4,7 @@ import { join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { Store } from "../src/server/store.js"
+import { migrateStateModel } from "../scripts/migrate-state-model.mjs"
 
 let tempDir: string
 
@@ -78,7 +79,20 @@ function createLegacyDatabase(filePath: string) {
   return db
 }
 
-describe("Store migrations", () => {
+describe("state model migration script", () => {
+  it("creates current-schema databases without requiring the migration script", () => {
+    const filePath = join(tempDir, "fresh.sqlite")
+    const store = Store.open(filePath)
+    try {
+      const db = new DatabaseSync(filePath)
+      const columns = db.prepare("PRAGMA table_info(threads)").all() as Array<{ name?: unknown }>
+      db.close()
+      expect(columns.some((row) => row.name === "last_turn_status")).toBe(true)
+    } finally {
+      store.close()
+    }
+  })
+
   it("splits legacy thread runtime status from latest turn lifecycle status", () => {
     const filePath = join(tempDir, "legacy.sqlite")
     const db = createLegacyDatabase(filePath)
@@ -147,6 +161,9 @@ describe("Store migrations", () => {
 
     db.close()
 
+    const result = migrateStateModel(filePath, { backupPath: false })
+    expect(result.changed).toBe(true)
+
     const store = Store.open(filePath)
     try {
       expect(store.getThread("thread-active")).toMatchObject({
@@ -171,5 +188,32 @@ describe("Store migrations", () => {
     } finally {
       store.close()
     }
+  })
+
+  it("requires explicit migration before opening a legacy state database", () => {
+    const filePath = join(tempDir, "legacy-unmigrated.sqlite")
+    const db = createLegacyDatabase(filePath)
+    db.prepare(`
+      INSERT INTO threads (
+        id, session_id, forked_from_id, title, preview, cwd, model,
+        status, active_turn_id, goal_objective, goal_status, goal_token_budget,
+        tokens_used, created_at, updated_at
+      )
+      VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, 0, ?, ?)
+    `).run(
+      "thread-active",
+      "session-active",
+      "Active",
+      "Active preview",
+      tempDir,
+      "gpt-test",
+      "running",
+      "turn-active",
+      "2026-01-01T00:00:00.000Z",
+      "2026-01-01T00:00:00.000Z"
+    )
+    db.close()
+
+    expect(() => Store.open(filePath)).toThrow(/Database schema is not current/)
   })
 })

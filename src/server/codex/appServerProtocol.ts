@@ -289,27 +289,18 @@ export function normalizeThreadRuntimeStatus(value: unknown): ThreadRuntimeStatu
   if (text === "idle" || text === "active" || text === "not_loaded" || text === "system_error") {
     return text;
   }
-  if (text === "running") {
-    return "active";
-  }
-  if (text === "stale") {
-    return "not_loaded";
-  }
-  if (text === "failed") {
-    return "system_error";
-  }
-  return "idle";
+  throw new Error(`Unknown app-server thread status: ${JSON.stringify(value)}`);
 }
 
 export function normalizeTurnStatus(value: unknown): TurnStatus {
   const status = String(value ?? "inProgress");
-  if (status === "inProgress" || status === "in_progress" || status === "running") {
+  if (status === "inProgress" || status === "in_progress") {
     return "in_progress";
   }
   if (status === "completed" || status === "interrupted" || status === "failed") {
     return status;
   }
-  return "in_progress";
+  throw new Error(`Unknown app-server turn status: ${JSON.stringify(value)}`);
 }
 
 function normalizeOptionalTurnId(value: unknown) {

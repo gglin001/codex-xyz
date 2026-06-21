@@ -63,16 +63,7 @@ function storedThreadStatus(value: unknown): ThreadRuntimeStatus {
   if (status === "idle" || status === "active" || status === "not_loaded" || status === "system_error") {
     return status;
   }
-  if (status === "running") {
-    return "active";
-  }
-  if (status === "stale") {
-    return "not_loaded";
-  }
-  if (status === "failed") {
-    return "system_error";
-  }
-  return "idle";
+  throw new Error(`Invalid thread status "${status}"`);
 }
 
 function storedTurnStatus(value: unknown): TurnStatus {
@@ -80,10 +71,7 @@ function storedTurnStatus(value: unknown): TurnStatus {
   if (status === "in_progress" || status === "completed" || status === "interrupted" || status === "failed") {
     return status;
   }
-  if (status === "running") {
-    return "in_progress";
-  }
-  return "interrupted";
+  throw new Error(`Invalid turn status "${status}"`);
 }
 
 function threadFromRow(row: Row): ControlThread {
@@ -152,7 +140,7 @@ export class Store {
     const db = new DatabaseSync(filePath);
     const store = new Store(db);
     store.configure();
-    store.migrate();
+    store.initializeSchema();
     return store;
   }
 
@@ -165,8 +153,7 @@ export class Store {
     this.db.exec("PRAGMA journal_mode = WAL");
   }
 
-  migrate() {
-    this.dropLegacyProjectionTablesIfNeeded();
+  initializeSchema() {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS hosts (
         id TEXT PRIMARY KEY,
@@ -241,75 +228,20 @@ export class Store {
       DROP TABLE IF EXISTS eval_runs;
       DROP TABLE IF EXISTS projects;
     `);
-    this.addColumnIfMissing("hosts", "default_cwd", "TEXT");
-    this.addColumnIfMissing("threads", "goal_token_budget", "INTEGER");
-    this.addColumnIfMissing("threads", "last_turn_status", "TEXT");
-    this.normalizeStatusVocabulary();
+    this.requireCurrentSchema();
   }
 
-  private normalizeStatusVocabulary() {
-    this.db.exec(`
-      UPDATE turns
-      SET status = CASE status
-        WHEN 'running' THEN 'in_progress'
-        ELSE status
-      END;
-
-      UPDATE threads
-      SET last_turn_status = CASE last_turn_status
-        WHEN 'running' THEN 'in_progress'
-        ELSE last_turn_status
-      END
-      WHERE last_turn_status IS NOT NULL;
-
-      UPDATE threads
-      SET last_turn_status = (
-        SELECT turns.status
-        FROM turns
-        WHERE turns.thread_id = threads.id
-        ORDER BY turns.started_at DESC, turns.id DESC
-        LIMIT 1
-      )
-      WHERE last_turn_status IS NULL;
-
-      UPDATE threads
-      SET status = CASE status
-        WHEN 'running' THEN 'active'
-        WHEN 'stale' THEN 'not_loaded'
-        WHEN 'failed' THEN CASE last_turn_status
-          WHEN 'failed' THEN 'idle'
-          ELSE 'system_error'
-        END
-        WHEN 'completed' THEN 'idle'
-        WHEN 'interrupted' THEN 'idle'
-        ELSE status
-      END;
-    `);
-  }
-
-  private addColumnIfMissing(table: string, column: string, definition: string) {
+  private requireColumn(table: string, column: string) {
     const columns = this.db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name?: unknown }>;
     if (!columns.some((row) => row.name === column)) {
-      this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+      throw new Error(`Database schema is not current: missing ${table}.${column}`);
     }
   }
 
-  private dropLegacyProjectionTablesIfNeeded() {
-    const columns = this.db.prepare("PRAGMA table_info(threads)").all() as Array<{ name?: unknown }>;
-    if (!columns.some((row) => row.name === "project_id")) {
-      return;
-    }
-    this.db.exec(`
-      DROP TABLE IF EXISTS items;
-      DROP TABLE IF EXISTS turns;
-      DROP TABLE IF EXISTS events;
-      DROP TABLE IF EXISTS threads;
-      DROP TABLE IF EXISTS queued_prompts;
-      DROP TABLE IF EXISTS tasks;
-      DROP TABLE IF EXISTS prompt_recipes;
-      DROP TABLE IF EXISTS eval_runs;
-      DROP TABLE IF EXISTS projects;
-    `);
+  private requireCurrentSchema() {
+    this.requireColumn("hosts", "default_cwd");
+    this.requireColumn("threads", "last_turn_status");
+    this.requireColumn("threads", "goal_token_budget");
   }
 
   upsertHost(input: { id: string; name: string; adapter: string; version?: string | null; defaultCwd?: string | null }) {

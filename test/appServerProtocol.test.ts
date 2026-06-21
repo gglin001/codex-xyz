@@ -3,6 +3,7 @@ import { AdapterThreadNotFoundError } from "../src/server/codex/adapter.js"
 import {
   normalizeGoal,
   normalizeThread,
+  normalizeTurnStatus,
   projectAppServerNotification,
   requestError,
   yoloApprovalResponse
@@ -48,6 +49,16 @@ describe("app-server protocol projection", () => {
     expect(normalizeGoal({ status: "blocked" }).status).toBe("blocked")
     expect(normalizeGoal({ status: "paused" }).status).toBe("paused")
     expect(normalizeGoal({ status: "complete" }).status).toBe("complete")
+  })
+
+  it("rejects unknown app-server runtime statuses", () => {
+    expect(() =>
+      normalizeThread({
+        id: "thread-1",
+        status: "running"
+      })
+    ).toThrow(/Unknown app-server thread status/)
+    expect(() => normalizeTurnStatus("running")).toThrow(/Unknown app-server turn status/)
   })
 
   it("classifies missing rollout errors as thread-not-found runtime drift", () => {
