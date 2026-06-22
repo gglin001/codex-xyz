@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { memo, useMemo, useState } from "react";
 import { codexThreadCommandLabels } from "../codexCommandLabels.js";
 import { cn, ui } from "../designSystem.js";
-import { formatFullDateTime, formatTokens } from "../uiFormat.js";
+import { formatFullDateTime, formatTokens, statusLabel } from "../uiFormat.js";
 import {
 	SessionStatusIcon,
 	sessionStatusDotClass,
@@ -52,8 +52,8 @@ function projectTitle(project: WorkbenchProject) {
 }
 
 function filterSessions(project: WorkbenchProject, query: string) {
-	const normalized = query.trim().toLowerCase();
-	if (!normalized) {
+	const queryTokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+	if (queryTokens.length === 0) {
 		return project.sessions;
 	}
 	return project.sessions.filter((session) => {
@@ -63,8 +63,16 @@ function filterSessions(project: WorkbenchProject, query: string) {
 			session.cwd,
 			session.model ?? "",
 			session.status,
-		];
-		return fields.some((field) => field.toLowerCase().includes(normalized));
+			statusLabel(session.status),
+			session.runtimeStatus,
+			statusLabel(session.runtimeStatus),
+			session.lastTurnStatus ?? "",
+			session.lastTurnStatus ? statusLabel(session.lastTurnStatus) : "",
+			session.archivedAt ? "archive archived" : "",
+		].map((field) => field.toLowerCase());
+		return queryTokens.every((token) =>
+			fields.some((field) => field.includes(token)),
+		);
 	});
 }
 
@@ -243,7 +251,7 @@ export const Sidebar = memo(function Sidebar({
 												selected ? null : "bg-transparent",
 											)}
 											selected={selected}
-											title={`${session.title}\n${formatFullDateTime(session.updatedAt)}\n${session.preview}`}
+											title={`${session.title}\n${statusLabel(session.status)}\n${formatFullDateTime(session.updatedAt)}\n${session.preview}`}
 											onClick={() => onSelectSession(session)}
 										>
 											<span
@@ -266,7 +274,8 @@ export const Sidebar = memo(function Sidebar({
 												</span>
 												<span className="truncate text-[11px] leading-4 text-muted">
 													{formatFullDateTime(session.updatedAt)} /{" "}
-													{formatTokens(session.tokensUsed)} tokens
+													{formatTokens(session.tokensUsed)} tokens /{" "}
+													{statusLabel(session.status)}
 												</span>
 												<span className="truncate text-[11px] leading-[18px] text-muted-strong">
 													{session.preview}

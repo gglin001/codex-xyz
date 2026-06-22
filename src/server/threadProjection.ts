@@ -161,6 +161,11 @@ export class ThreadProjection {
 			return;
 		}
 
+		if (event.type === "thread.archived") {
+			this.archiveThread(event.threadId);
+			return;
+		}
+
 		if (event.type === "raw") {
 			this.publish(
 				"adapter.raw",
@@ -234,10 +239,35 @@ export class ThreadProjection {
 			goalStatus: input.goalStatus,
 			goalTokenBudget: input.goalTokenBudget ?? null,
 			tokensUsed: input.tokensUsed,
+			archivedAt: null,
 			createdAt: now,
 			updatedAt: now,
 		};
 		this.store.createThread(thread);
+		return thread;
+	}
+
+	archiveThread(threadId: string) {
+		if (!this.store.getThread(threadId)) {
+			return null;
+		}
+		const activeTurnStatus = this.interruptInProgressActiveTurn(threadId);
+		const result = this.store.archiveThread(threadId);
+		if (!result.changed) {
+			return result.thread;
+		}
+		const thread =
+			activeTurnStatus && result.thread.lastTurnStatus !== activeTurnStatus
+				? (this.store.updateThread(
+						threadId,
+						{ lastTurnStatus: activeTurnStatus },
+						{ preserveUpdatedAt: true },
+					) ?? result.thread)
+				: result.thread;
+		this.publish("thread.archived", threadId, null, {
+			thread,
+			archivedAt: result.archivedAt,
+		});
 		return thread;
 	}
 

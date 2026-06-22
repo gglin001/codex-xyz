@@ -636,6 +636,12 @@ export function projectAppServerNotification(
 			status: normalizeThreadRuntimeStatus(params.status),
 		};
 	}
+	if (method === "thread/archived" && threadId) {
+		return {
+			type: "thread.archived",
+			threadId,
+		};
+	}
 	return null;
 }
 

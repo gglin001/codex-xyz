@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
+	Archive,
 	GitFork,
 	Goal,
 	Maximize2,
@@ -32,6 +33,7 @@ import {
 } from "../designSystem.js";
 import { isPromptFocusShortcut } from "../promptShortcut.js";
 import { nextThemeMode, type ThemeMode, themeModeLabels } from "../theme.js";
+import { statusLabel } from "../uiFormat.js";
 import { useFullscreen } from "../useFullscreen.js";
 import { useMobileViewportGeometry } from "../useMobileViewportGeometry.js";
 import { useSwipeGesture } from "../useSwipeGesture.js";
@@ -97,6 +99,7 @@ export type DashboardLayoutProps = {
 	onResume: () => void;
 	onFork: () => void;
 	onCompact: () => void;
+	onArchive: () => void;
 };
 
 type CommandActionBase = {
@@ -364,6 +367,8 @@ function CommandActionGlyph({
 			<GitFork size={14} />
 		) : action.kind === "thread" && action.id === "thread:compact" ? (
 			<Minimize2 size={14} />
+		) : action.kind === "thread" && action.id === "thread:archive" ? (
+			<Archive size={14} />
 		) : action.kind === "thread" && action.id === "thread:interrupt" ? (
 			<Square size={14} />
 		) : action.kind === "thread" && action.id === "thread:resume" ? (
@@ -634,6 +639,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 	onResume,
 	onFork,
 	onCompact,
+	onArchive,
 }: DashboardLayoutProps) {
 	const [mobileSheet, setMobileSheet] = useState<MobileSheet | null>(null);
 	const [commandOpen, setCommandOpen] = useState(false);
@@ -760,12 +766,26 @@ export const DashboardLayout = memo(function DashboardLayout({
 			setMobileSheet(null);
 			window.requestAnimationFrame(focusVisiblePrompt);
 		};
-		const canInterrupt = selectedThread?.status === "active" && !busy;
+		const selectedThreadArchived = Boolean(selectedThread?.archivedAt);
+		const canInterrupt =
+			selectedThread?.status === "active" && !selectedThreadArchived && !busy;
 		const canResume =
-			Boolean(selectedThreadId) && selectedThread?.status !== "active" && !busy;
-		const canFork = Boolean(selectedThreadId) && !busy;
+			Boolean(selectedThreadId) &&
+			selectedThread?.status !== "active" &&
+			!selectedThreadArchived &&
+			!busy;
+		const canFork =
+			Boolean(selectedThreadId) && !selectedThreadArchived && !busy;
 		const canCompact =
-			Boolean(selectedThreadId) && selectedThread?.status !== "active" && !busy;
+			Boolean(selectedThreadId) &&
+			selectedThread?.status !== "active" &&
+			!selectedThreadArchived &&
+			!busy;
+		const canArchive =
+			Boolean(selectedThreadId) &&
+			selectedThread?.status !== "active" &&
+			!selectedThreadArchived &&
+			!busy;
 		const actions: CommandAction[] = [
 			{
 				id: "create-session",
@@ -798,6 +818,15 @@ export const DashboardLayout = memo(function DashboardLayout({
 				disabled: !canCompact,
 				disabledDetail: "Select an idle session before compacting",
 				run: onCompact,
+			},
+			{
+				id: "thread:archive",
+				title: codexThreadCommandLabels.archive,
+				detail: "Archive the current chat",
+				kind: "thread",
+				disabled: !canArchive,
+				disabledDetail: "Select an idle session before archiving",
+				run: onArchive,
 			},
 			{
 				id: "thread:interrupt",
@@ -919,7 +948,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 				actions.push({
 					id: `session:${projectSession.id}`,
 					title: projectSession.title,
-					detail: `${project.name} / ${projectSession.cwd}`,
+					detail: `${project.name} / ${projectSession.cwd} / ${statusLabel(projectSession.status)}`,
 					kind: "session",
 					projectId: project.id,
 					status: projectSession.status,
@@ -948,6 +977,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 		selectedThread,
 		selectedThreadId,
 		createSessionAndFocusPrompt,
+		onArchive,
 		onDisplayScaleChange,
 		onCompact,
 		onFork,
@@ -1146,6 +1176,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 						onResume={onResume}
 						onFork={onFork}
 						onCompact={onCompact}
+						onArchive={onArchive}
 						onToggleNavigator={toggleNavigator}
 						onToggleInspector={toggleInspector}
 					/>
@@ -1201,6 +1232,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 					onResume={onResume}
 					onFork={onFork}
 					onCompact={onCompact}
+					onArchive={onArchive}
 					onToggleNavigator={() => openMobileSheet("navigator")}
 					onToggleInspector={() => openMobileSheet("inspector")}
 					onSwipeUp={openCommandPaletteFromSwipe}

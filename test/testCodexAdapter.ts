@@ -179,6 +179,15 @@ export class TestCodexAdapter implements CodexAdapter {
 		return thread;
 	}
 
+	async archiveThread(threadId: string) {
+		this.requireThread(threadId);
+		this.threads.delete(threadId);
+		this.emit({
+			type: "thread.archived",
+			threadId,
+		});
+	}
+
 	async renameThread(input: { threadId: string; title: string }) {
 		const thread = this.requireThread(input.threadId);
 		thread.preview = input.title;

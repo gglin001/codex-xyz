@@ -31,11 +31,18 @@ type EventReplayOptions = {
 type ThreadListOptions = {
 	limit?: number | null;
 	offset?: number | null;
+	archived?: boolean | null;
 };
 
 type ThreadUpdateOptions = {
 	updatedAt?: string | null;
 	preserveUpdatedAt?: boolean;
+};
+
+export type ArchiveThreadResult = {
+	thread: ControlThread;
+	archivedAt: string;
+	changed: boolean;
 };
 
 function readJson<T>(value: unknown, fallback: T): T {
@@ -108,6 +115,7 @@ function threadFromRow(row: Row): ControlThread {
 		goalTokenBudget:
 			typeof row.goal_token_budget === "number" ? row.goal_token_budget : null,
 		tokensUsed: scalarNumber(row.tokens_used),
+		archivedAt: nullableString(row.archived_at),
 		createdAt: scalarString(row.created_at),
 		updatedAt: scalarString(row.updated_at),
 	};
@@ -231,6 +239,7 @@ export class Store {
         goal_status TEXT,
         goal_token_budget INTEGER,
         tokens_used INTEGER NOT NULL DEFAULT 0,
+        archived_at TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
@@ -264,6 +273,7 @@ export class Store {
         created_at TEXT NOT NULL
       );
 
+      CREATE INDEX IF NOT EXISTS idx_threads_active_updated ON threads(archived_at, updated_at DESC);
       CREATE INDEX IF NOT EXISTS idx_threads_updated ON threads(updated_at DESC);
       CREATE INDEX IF NOT EXISTS idx_turns_thread ON turns(thread_id);
       CREATE INDEX IF NOT EXISTS idx_turns_thread_started ON turns(thread_id, started_at);
@@ -291,6 +301,27 @@ export class Store {
 				`Unsupported database version "${databaseVersion}"; expected "${currentDatabaseVersion}"`,
 			);
 		}
+		this.ensureCurrentSchema();
+	}
+
+	private ensureCurrentSchema() {
+		this.ensureThreadArchivedAtColumn();
+		this.db.exec(
+			"CREATE INDEX IF NOT EXISTS idx_threads_active_updated ON threads(archived_at, updated_at DESC)",
+		);
+	}
+
+	private ensureThreadArchivedAtColumn() {
+		if (!this.tableExists("threads")) {
+			return;
+		}
+		const columns = this.db
+			.prepare("PRAGMA table_info(threads)")
+			.all() as Row[];
+		if (columns.some((column) => column.name === "archived_at")) {
+			return;
+		}
+		this.db.exec("ALTER TABLE threads ADD COLUMN archived_at TEXT");
 	}
 
 	private writeDatabaseVersion() {
@@ -364,9 +395,9 @@ export class Store {
           INSERT INTO threads (
             id, session_id, forked_from_id, title, preview, cwd, model,
             status, active_turn_id, last_turn_status, goal_objective, goal_status, goal_token_budget,
-            tokens_used, created_at, updated_at
+            tokens_used, archived_at, created_at, updated_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
 			)
 			.run(
@@ -384,6 +415,7 @@ export class Store {
 				thread.goalStatus,
 				thread.goalTokenBudget,
 				thread.tokensUsed,
+				thread.archivedAt,
 				thread.createdAt,
 				thread.updatedAt,
 			);
@@ -454,9 +486,53 @@ export class Store {
 		return row ? threadFromRow(row as Row) : null;
 	}
 
-	countThreads() {
+	archiveThread(id: string, archivedAt = nowIso()): ArchiveThreadResult {
+		const existing = this.getThread(id);
+		if (!existing) {
+			throw new Error(`Thread ${id} does not exist`);
+		}
 		const row = this.db
-			.prepare("SELECT COUNT(*) AS count FROM threads")
+			.prepare("SELECT archived_at FROM threads WHERE id = ?")
+			.get(id) as Row | undefined;
+		const existingArchivedAt = nullableString(row?.archived_at);
+		if (existingArchivedAt) {
+			return {
+				thread: existing,
+				archivedAt: existingArchivedAt,
+				changed: false,
+			};
+		}
+		this.db
+			.prepare(
+				`
+          UPDATE threads SET
+            status = ?,
+            active_turn_id = ?,
+            archived_at = ?,
+            updated_at = ?
+          WHERE id = ?
+        `,
+			)
+			.run("not_loaded", null, archivedAt, archivedAt, id);
+		const thread = this.getThread(id);
+		if (!thread) {
+			throw new Error(`Thread ${id} does not exist`);
+		}
+		return {
+			thread,
+			archivedAt,
+			changed: true,
+		};
+	}
+
+	countThreads(options: Pick<ThreadListOptions, "archived"> = {}) {
+		const archived = options.archived ?? false;
+		const row = this.db
+			.prepare(
+				`SELECT COUNT(*) AS count FROM threads WHERE archived_at IS ${
+					archived ? "NOT NULL" : "NULL"
+				}`,
+			)
 			.get() as Row | undefined;
 		return row ? scalarNumber(row.count) : 0;
 	}
@@ -464,16 +540,20 @@ export class Store {
 	listThreads(options: ThreadListOptions = {}) {
 		const limit = options.limit ?? null;
 		const offset = options.offset ?? null;
+		const archived = options.archived ?? false;
+		const where = `WHERE archived_at IS ${archived ? "NOT NULL" : "NULL"}`;
 		if (limit !== null) {
 			return this.db
 				.prepare(
-					"SELECT * FROM threads ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?",
+					`SELECT * FROM threads ${where} ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?`,
 				)
 				.all(limit, offset ?? 0)
 				.map((row) => threadFromRow(row as Row));
 		}
 		return this.db
-			.prepare("SELECT * FROM threads ORDER BY updated_at DESC, id DESC")
+			.prepare(
+				`SELECT * FROM threads ${where} ORDER BY updated_at DESC, id DESC`,
+			)
 			.all()
 			.map((row) => threadFromRow(row as Row));
 	}

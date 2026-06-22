@@ -54,3 +54,17 @@ export function shouldLoadThreadSelection(
 		threadId !== options.currentDetailThreadId
 	);
 }
+
+const archivedSearchAliases = ["archive", "archived"] as const;
+
+export function queryMatchesArchivedSessions(query: string) {
+	return query
+		.trim()
+		.toLowerCase()
+		.split(/\s+/)
+		.some(
+			(token) =>
+				token.length >= 2 &&
+				archivedSearchAliases.some((alias) => alias.startsWith(token)),
+		);
+}

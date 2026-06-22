@@ -92,6 +92,21 @@ function optionalQueryInteger(url: URL, key: string, options: { min: number }) {
 	return number;
 }
 
+function optionalQueryBoolean(url: URL, key: string) {
+	const value = url.searchParams.get(key);
+	if (value === null || value.trim() === "") {
+		return null;
+	}
+	const normalized = value.trim().toLowerCase();
+	if (normalized === "true" || normalized === "1") {
+		return true;
+	}
+	if (normalized === "false" || normalized === "0") {
+		return false;
+	}
+	throw new Error(`${key} must be true or false`);
+}
+
 function pathParts(url: URL) {
 	return url.pathname
 		.split("/")
@@ -347,11 +362,17 @@ async function routeApiRequest(
 	}
 
 	if (method === "GET" && route === "api/threads") {
-		if (url.searchParams.has("limit") || url.searchParams.has("offset")) {
+		const archived = optionalQueryBoolean(url, "archived");
+		if (
+			url.searchParams.has("limit") ||
+			url.searchParams.has("offset") ||
+			archived !== null
+		) {
 			return jsonResponse(
 				service.listThreadPage({
 					limit: optionalQueryInteger(url, "limit", { min: 1 }),
 					offset: optionalQueryInteger(url, "offset", { min: 0 }),
+					archived,
 				}),
 			);
 		}
@@ -411,6 +432,10 @@ async function routeApiRequest(
 
 		if (method === "POST" && parts[3] === "compact") {
 			return jsonResponse(await service.compactThread(threadId), 201);
+		}
+
+		if (method === "POST" && parts[3] === "archive") {
+			return jsonResponse(await service.archiveThread(threadId));
 		}
 
 		if (method === "POST" && parts[3] === "interrupt") {

@@ -40,11 +40,18 @@ export function getThread(threadId: string) {
 	return request<ThreadDetail>(`/api/threads/${threadId}`);
 }
 
-export function getThreadsPage(input: { limit: number; offset: number }) {
+export function getThreadsPage(input: {
+	limit: number;
+	offset: number;
+	archived?: boolean | null;
+}) {
 	const params = new URLSearchParams({
 		limit: String(input.limit),
 		offset: String(input.offset),
 	});
+	if (input.archived !== undefined && input.archived !== null) {
+		params.set("archived", input.archived ? "true" : "false");
+	}
 	return request<ThreadPage>(`/api/threads?${params.toString()}`);
 }
 
@@ -100,6 +107,13 @@ export function forkThread(threadId: string) {
 
 export function compactThread(threadId: string) {
 	return request<Turn>(`/api/threads/${threadId}/compact`, {
+		method: "POST",
+		body: JSON.stringify({}),
+	});
+}
+
+export function archiveThread(threadId: string) {
+	return request<ControlThread>(`/api/threads/${threadId}/archive`, {
 		method: "POST",
 		body: JSON.stringify({}),
 	});

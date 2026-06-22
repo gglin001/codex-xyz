@@ -11,16 +11,19 @@ import {
 	useState,
 } from "react";
 import type {
+	ControlThread,
 	CozEvent,
 	DashboardState,
 	ThreadDetail,
 } from "../server/domain.js";
 import {
+	archiveThread,
 	compactThread,
 	createSession,
 	forkThread,
 	getState,
 	getThread,
+	getThreadsPage,
 	interruptTurn,
 	resumeThread,
 	startGoal,
@@ -58,11 +61,13 @@ import {
 } from "./theme.js";
 import {
 	choosePreferredThreadId,
+	queryMatchesArchivedSessions,
 	shouldLoadThreadSelection,
 	shouldSelectActionResult,
 } from "./threadSelection.js";
 
 const transientAlertAutoDismissMs = 10_000;
+const archivedSearchPageSize = 200;
 
 function initialState(): DashboardState {
 	return {
@@ -152,6 +157,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	const [workdir, setWorkdir] = useState("");
 	const [workdirTouched, setWorkdirTouched] = useState(false);
 	const [sessionQuery, setSessionQuery] = useState("");
+	const [archivedThreads, setArchivedThreads] = useState<ControlThread[]>([]);
 	const [composerMode, setComposerMode] = useState<ComposerMode>("thread");
 	const [busyAction, setBusyAction] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
@@ -172,6 +178,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	const selectedThreadIdRef = useRef<string | null>(null);
 	const manualSelectionSeqRef = useRef(0);
 	const refreshSeqRef = useRef(0);
+	const archivedSearchSeqRef = useRef(0);
 	const detailLoadSeqRef = useRef(0);
 	const summaryEventIdRef = useRef(0);
 	const detailEventIdRef = useRef(0);
@@ -635,9 +642,55 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		},
 	});
 
+	const shouldSearchArchivedSessions =
+		queryMatchesArchivedSessions(sessionQuery);
+
+	useEffect(() => {
+		archivedSearchSeqRef.current += 1;
+		const searchSeq = archivedSearchSeqRef.current;
+		if (!shouldSearchArchivedSessions) {
+			setArchivedThreads([]);
+			return;
+		}
+		void getThreadsPage({
+			limit: archivedSearchPageSize,
+			offset: 0,
+			archived: true,
+		})
+			.then((page) => {
+				if (archivedSearchSeqRef.current === searchSeq) {
+					setArchivedThreads(page.threads);
+				}
+			})
+			.catch((loadError: unknown) => {
+				if (archivedSearchSeqRef.current !== searchSeq) {
+					return;
+				}
+				setError(
+					loadError instanceof Error
+						? loadError.message
+						: "Failed to load archived sessions",
+				);
+			});
+	}, [shouldSearchArchivedSessions]);
+
+	const searchableThreads = useMemo(() => {
+		if (!shouldSearchArchivedSessions) {
+			return state.threads;
+		}
+		const byId = new Map<string, ControlThread>();
+		for (const thread of state.threads) {
+			byId.set(thread.id, thread);
+		}
+		for (const thread of archivedThreads) {
+			byId.set(thread.id, thread);
+		}
+		return [...byId.values()];
+	}, [archivedThreads, shouldSearchArchivedSessions, state.threads]);
+
 	const workbenchProjects = useMemo(
-		() => buildWorkbenchProjects(state.threads, state.defaultCwd),
-		[state.defaultCwd, state.threads],
+		() => buildWorkbenchProjects(searchableThreads, state.defaultCwd),
+		[searchableThreads, state.defaultCwd],
 	);
 	const selectedProject =
 		workbenchProjects.find((project) => project.id === selectedProjectId) ??
@@ -655,12 +708,15 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	}, [selectedProject, selectedThreadId]);
 	const activeThreadId = selectedWorkbenchSession?.threadId ?? null;
 	const activeThread = useMemo(
-		() => state.threads.find((thread) => thread.id === activeThreadId) ?? null,
-		[activeThreadId, state.threads],
+		() =>
+			searchableThreads.find((thread) => thread.id === activeThreadId) ?? null,
+		[activeThreadId, searchableThreads],
 	);
 	const activeDetail = detail?.id === activeThreadId ? detail : null;
 	const promptTarget =
-		composerMode === "thread" && activeThread ? "thread" : "new";
+		composerMode === "thread" && activeThread && !activeThread.archivedAt
+			? "thread"
+			: "new";
 	const trimmedWorkdir = workdir.trim();
 	const canUseGoalMode =
 		promptTarget === "new"
@@ -1027,6 +1083,29 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		);
 	}
 
+	function archiveSelectedThread() {
+		if (!activeThreadId) {
+			return;
+		}
+		const threadId = activeThreadId;
+		void runAction(
+			"Archiving thread",
+			async () => {
+				const archived = await archiveThread(threadId);
+				if (queryMatchesArchivedSessions(sessionQuery)) {
+					setArchivedThreads((current) => {
+						const next = current.filter((thread) => thread.id !== archived.id);
+						return [archived, ...next];
+					});
+				}
+				setComposerMode("thread");
+			},
+			{
+				successMessage: "Thread archived",
+			},
+		);
+	}
+
 	return (
 		<>
 			<DashboardLayout
@@ -1079,6 +1158,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				onResume={resumeSelectedThread}
 				onFork={forkSelectedThread}
 				onCompact={compactSelectedThread}
+				onArchive={archiveSelectedThread}
 			/>
 			<Suspense fallback={null}>
 				{terminalVisible ? (

@@ -36,6 +36,7 @@ export const incrementalEventNames = [
 	"thread.status",
 	"thread.runtime_lost",
 	"thread.forked",
+	"thread.archived",
 	"thread.renamed",
 	"thread.goal.updated",
 	"thread.goal.cleared",
@@ -55,6 +56,11 @@ const threadPayloadEventNames = new Set([
 ]);
 
 const insertedThreadEventNames = new Set(["thread.started", "thread.forked"]);
+const refreshThreadEventNames = new Set([
+	"thread.started",
+	"thread.forked",
+	"thread.archived",
+]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return value !== null && typeof value === "object";
@@ -270,6 +276,41 @@ function withThreadFields(
 	};
 }
 
+function withoutThread(
+	projection: ClientProjection,
+	threadId: string,
+): ClientProjection {
+	const existing = projection.state.threads.some(
+		(thread) => thread.id === threadId,
+	);
+	const detail = projection.detail?.id === threadId ? null : projection.detail;
+	if (!existing && detail === projection.detail) {
+		return projection;
+	}
+	const threads = projection.state.threads.filter(
+		(thread) => thread.id !== threadId,
+	);
+	const removedLoadedThread = existing ? 1 : 0;
+	const threadTotalCount = Math.max(
+		0,
+		projection.state.threadTotalCount - removedLoadedThread,
+	);
+	const threadNextOffset = Math.max(
+		0,
+		projection.state.threadNextOffset - removedLoadedThread,
+	);
+	return {
+		state: {
+			...projection.state,
+			threads,
+			threadTotalCount,
+			threadNextOffset,
+			threadHasMore: threadNextOffset < threadTotalCount,
+		},
+		detail,
+	};
+}
+
 function withTurn(projection: ClientProjection, turn: Turn): ClientProjection {
 	if (projection.detail?.id !== turn.threadId) {
 		return projection;
@@ -348,7 +389,7 @@ function result(
 			previous.state !== projection.state ||
 			previous.detail !== projection.detail,
 		handled,
-		needsRefresh: isInsertedThreadEvent(event.type),
+		needsRefresh: refreshThreadEventNames.has(event.type),
 	};
 }
 
@@ -438,6 +479,18 @@ export function applyEventProjection(
 		return result(
 			projection,
 			withThreadFields(projection, event.threadId, updates),
+			true,
+			event,
+		);
+	}
+
+	if (event.type === "thread.archived") {
+		if (!event.threadId) {
+			return result(projection, projection, false, event);
+		}
+		return result(
+			projection,
+			withoutThread(projection, event.threadId),
 			true,
 			event,
 		);

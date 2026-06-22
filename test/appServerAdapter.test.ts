@@ -103,6 +103,18 @@ function handle(message) {
     return
   }
 
+  if (message.method === "thread/archive") {
+    if (!/^[0-9a-f-]{36}$/i.test(message.params?.threadId ?? "")) {
+      reject(message.id, "invalid session id")
+      return
+    }
+    respond(message.id, {})
+    notify("thread/archived", {
+      threadId: message.params.threadId
+    })
+    return
+  }
+
   if (message.method === "thread/compact/start") {
     const threadId = message.params.threadId
     respond(message.id, {})
@@ -490,6 +502,23 @@ describe("AppServerCodexAdapter", () => {
 			forkedFromId: sourceThreadId,
 			preview: "forked without turns",
 		});
+	});
+
+	it("archives threads through app-server and projects archive notifications", async () => {
+		const command = createFakeCodexCommand();
+		adapter = new AppServerCodexAdapter(command);
+		const events: AdapterEvent[] = [];
+		adapter.onEvent((event) => events.push(event));
+
+		await adapter.archiveThread(sourceThreadId);
+		await new Promise((resolve) => setTimeout(resolve, 20));
+
+		expect(events).toEqual([
+			{
+				type: "thread.archived",
+				threadId: sourceThreadId,
+			},
+		]);
 	});
 
 	it("writes app-server protocol debug records as JSON lines", async () => {

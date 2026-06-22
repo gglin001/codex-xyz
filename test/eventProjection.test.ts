@@ -32,6 +32,7 @@ function thread(overrides: Partial<ControlThread> = {}): ControlThread {
 		goalStatus: null,
 		goalTokenBudget: null,
 		tokensUsed: 0,
+		archivedAt: null,
 		createdAt,
 		updatedAt: createdAt,
 		...overrides,
@@ -306,6 +307,25 @@ describe("client event projection", () => {
 		]);
 		expect(result.state.threadTotalCount).toBe(2);
 		expect(result.state.threadNextOffset).toBe(2);
+	});
+
+	it("removes archived threads from the default session projection", () => {
+		const result = applyEventProjection(
+			projection(),
+			event(
+				"thread.archived",
+				{ thread: thread({ status: "not_loaded", activeTurnId: null }) },
+				{ turnId: null },
+			),
+		);
+
+		expect(result.changed).toBe(true);
+		expect(result.handled).toBe(true);
+		expect(result.needsRefresh).toBe(true);
+		expect(result.state.threads).toEqual([]);
+		expect(result.state.threadTotalCount).toBe(0);
+		expect(result.state.threadNextOffset).toBe(0);
+		expect(result.detail).toBeNull();
 	});
 
 	it("does not insert unloaded sessions for ordinary thread metadata updates", () => {

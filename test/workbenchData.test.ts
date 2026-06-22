@@ -27,6 +27,7 @@ function thread(overrides: Partial<ControlThread> = {}): ControlThread {
 		goalStatus: null,
 		goalTokenBudget: null,
 		tokensUsed: 0,
+		archivedAt: null,
 		createdAt,
 		updatedAt: createdAt,
 		...overrides,

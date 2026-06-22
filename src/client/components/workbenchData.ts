@@ -82,6 +82,7 @@ function sessionFromThread(thread: ControlThread): WorkbenchSession {
 		goalStatus: thread.goalStatus,
 		goalTokenBudget: thread.goalTokenBudget,
 		tokensUsed: thread.tokensUsed,
+		archivedAt: thread.archivedAt,
 		createdAt: thread.createdAt,
 		updatedAt: thread.updatedAt,
 		dateBucket: bucketForDate(thread.updatedAt),

@@ -131,6 +131,16 @@ class VolatileCodexAdapter implements CodexAdapter {
 		return forkedThread;
 	}
 
+	async archiveThread(threadId: string) {
+		this.requireThread(threadId);
+		this.loadedThreads.delete(threadId);
+		this.persistedThreads.delete(threadId);
+		this.handler({
+			type: "thread.archived",
+			threadId,
+		});
+	}
+
 	async renameThread(input: { threadId: string }) {
 		this.requireThread(input.threadId);
 	}
@@ -324,6 +334,15 @@ class EagerEventCodexAdapter implements CodexAdapter {
 		return thread;
 	}
 
+	async archiveThread(threadId: string) {
+		this.requireThread(threadId);
+		this.threads.delete(threadId);
+		this.handler({
+			type: "thread.archived",
+			threadId,
+		});
+	}
+
 	async renameThread(input: { threadId: string }) {
 		this.requireThread(input.threadId);
 	}
@@ -482,6 +501,20 @@ class InterruptDriftCodexAdapter implements CodexAdapter {
 			cwd: input.cwd,
 			model: input.model,
 			promptPreview: "fork",
+		});
+	}
+
+	async archiveThread(threadId: string) {
+		if (!this.thread || this.thread.id !== threadId) {
+			throw new AdapterThreadNotFoundError(
+				threadId,
+				`thread not found: ${threadId}`,
+			);
+		}
+		this.thread = null;
+		this.handler({
+			type: "thread.archived",
+			threadId,
 		});
 	}
 
@@ -925,6 +958,35 @@ describe("ControlService", () => {
 		expect(detail.items.some((item) => item.text === "Compacted context")).toBe(
 			true,
 		);
+	});
+
+	it("archives idle app-server threads and hides them from default lists", async () => {
+		const result = await service.createSession({
+			cwd: tempDir,
+			prompt: "Archive this finished session",
+		});
+		await waitForEvents();
+
+		const threadId = result.thread?.id;
+		if (!threadId) {
+			throw new Error("Expected created thread id");
+		}
+
+		const archived = await service.archiveThread(threadId);
+		const detail = service.getThreadDetail(threadId);
+		const summaryEvents = service.replayEvents(0, { summaryOnly: true });
+
+		expect(archived).toMatchObject({
+			id: threadId,
+			status: "not_loaded",
+			activeTurnId: null,
+		});
+		expect(detail.status).toBe("not_loaded");
+		expect(service.listThreads()).toEqual([]);
+		expect(service.dashboard().threads).toEqual([]);
+		expect(
+			summaryEvents.some((event) => event.type === "thread.archived"),
+		).toBe(true);
 	});
 
 	it("forks from persisted history when the runtime thread is missing", async () => {

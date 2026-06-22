@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	choosePreferredThreadId,
+	queryMatchesArchivedSessions,
 	shouldLoadThreadSelection,
 	shouldSelectActionResult,
 } from "../src/client/threadSelection.js";
@@ -142,5 +143,25 @@ describe("thread detail selection loading", () => {
 				currentDetailThreadId: null,
 			}),
 		).toBe(true);
+	});
+});
+
+describe("archived session search matching", () => {
+	it("matches archive status aliases from short prefixes", () => {
+		expect(queryMatchesArchivedSessions("ar")).toBe(true);
+		expect(queryMatchesArchivedSessions("arch")).toBe(true);
+		expect(queryMatchesArchivedSessions("archive")).toBe(true);
+		expect(queryMatchesArchivedSessions("archived")).toBe(true);
+	});
+
+	it("matches archive aliases inside multi-word queries", () => {
+		expect(queryMatchesArchivedSessions("project arch")).toBe(true);
+		expect(queryMatchesArchivedSessions("foo archived")).toBe(true);
+	});
+
+	it("does not match unrelated or one-letter queries", () => {
+		expect(queryMatchesArchivedSessions("a")).toBe(false);
+		expect(queryMatchesArchivedSessions("running")).toBe(false);
+		expect(queryMatchesArchivedSessions("")).toBe(false);
 	});
 });

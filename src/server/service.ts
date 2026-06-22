@@ -288,6 +288,17 @@ export class ControlService {
 		return this.projection.recordTurn(result.thread, "/compact", result.value);
 	}
 
+	async archiveThread(threadId: string) {
+		const source = this.requireThread(threadId);
+		if (source.activeTurnId || source.status === "active") {
+			throw new Error("Archive requires an idle thread");
+		}
+		await this.withRuntimeThread(source, (runtimeThread) =>
+			this.adapter.archiveThread(runtimeThread.id),
+		);
+		return this.projection.archiveThread(threadId);
+	}
+
 	async setGoal(input: SetGoalInput) {
 		const source = this.requireThread(input.threadId);
 		const goal = await this.withRuntimeThread(source, (runtimeThread) =>
@@ -356,17 +367,22 @@ export class ControlService {
 		});
 	}
 
-	listThreads() {
-		return this.store.listThreads();
+	listThreads(input: { archived?: boolean | null } = {}) {
+		return this.store.listThreads({ archived: input.archived });
 	}
 
 	listThreadPage(
-		input: { limit?: number | null; offset?: number | null } = {},
+		input: {
+			limit?: number | null;
+			offset?: number | null;
+			archived?: boolean | null;
+		} = {},
 	): ThreadPage {
-		const totalCount = this.store.countThreads();
+		const archived = input.archived ?? false;
+		const totalCount = this.store.countThreads({ archived });
 		const limit = normalizePageLimit(input.limit);
 		const offset = normalizePageOffset(input.offset);
-		const threads = this.store.listThreads({ limit, offset });
+		const threads = this.store.listThreads({ limit, offset, archived });
 		const nextOffset = offset + threads.length;
 		return {
 			threads,

@@ -28,6 +28,7 @@ export type WorkbenchSession = {
 	goalStatus: GoalStatus | null;
 	goalTokenBudget: number | null;
 	tokensUsed: number;
+	archivedAt: string | null;
 	createdAt: string;
 	updatedAt: string;
 	dateBucket: DateBucket;

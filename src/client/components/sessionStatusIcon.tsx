@@ -1,4 +1,5 @@
 import {
+	Archive,
 	Circle,
 	CircleDotDashed,
 	CirclePause,
@@ -13,6 +14,7 @@ export const sessionStatusDotClass: Record<SessionDisplayStatus, string> = {
 	idle: tone.neutral.dot,
 	not_loaded: tone.stale.dot,
 	system_error: tone.error.dot,
+	archived: tone.stale.dot,
 	turn_interrupted: tone.error.dot,
 	turn_failed: tone.error.dot,
 	turn_completed: tone.completed.dot,
@@ -49,6 +51,9 @@ export function SessionStatusIcon({
 		return (
 			<CircleDotDashed size={size} className={cn(tone.stale.icon, className)} />
 		);
+	}
+	if (status === "archived") {
+		return <Archive size={size} className={cn(tone.stale.icon, className)} />;
 	}
 	return <Circle size={size} className={cn(tone.error.icon, className)} />;
 }

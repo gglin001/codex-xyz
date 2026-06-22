@@ -247,6 +247,10 @@ export class AppServerCodexAdapter implements CodexAdapter {
 		return normalizeThread(result.thread, result.model);
 	}
 
+	async archiveThread(threadId: string) {
+		await this.request("thread/archive", { threadId });
+	}
+
 	async renameThread(input: { threadId: string; title: string }) {
 		await this.request("thread/name/set", {
 			threadId: input.threadId,

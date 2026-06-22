@@ -191,6 +191,7 @@ function threadFixture(index: number): ControlThread {
 		goalStatus: null,
 		goalTokenBudget: null,
 		tokensUsed: 0,
+		archivedAt: null,
 		createdAt: timestamp,
 		updatedAt: timestamp,
 	};
@@ -458,6 +459,41 @@ describe("Next API routes", () => {
 			},
 		);
 		expect(clearedGoal.goalStatus).toBe("cleared");
+		await waitFor(
+			() => service.getThreadDetail(created.thread.id).status === "idle",
+			"goal turn completion before archive",
+		);
+
+		const archived = await json<{
+			id: string;
+			status: string;
+			archivedAt: string | null;
+		}>(`/api/threads/${created.thread.id}/archive`, {
+			method: "POST",
+			body: JSON.stringify({}),
+		});
+		expect(archived).toMatchObject({
+			id: created.thread.id,
+			status: "not_loaded",
+		});
+		expect(archived.archivedAt).toEqual(expect.any(String));
+		const stateAfterArchive = await json<DashboardState>("/api/state");
+		expect(
+			stateAfterArchive.threads.some(
+				(thread) => thread.id === created.thread.id,
+			),
+		).toBe(false);
+		const archivedPage = await json<{
+			threads: Array<{ id: string; archivedAt: string | null }>;
+			totalCount: number;
+		}>("/api/threads?archived=true&limit=10&offset=0");
+		expect(archivedPage.totalCount).toBe(1);
+		expect(archivedPage.threads).toMatchObject([
+			{
+				id: created.thread.id,
+				archivedAt: archived.archivedAt,
+			},
+		]);
 	});
 
 	it("streams terminal output over SSE and controls input over POST routes", async () => {

@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
+	Archive,
 	Bot,
 	Check,
 	Copy,
@@ -99,6 +100,7 @@ export type WorkspaceProps = {
 	onResume: () => void;
 	onFork: () => void;
 	onCompact: () => void;
+	onArchive: () => void;
 	onToggleNavigator: () => void;
 	onToggleInspector: () => void;
 	onSwipeUp?: () => void;
@@ -198,7 +200,7 @@ function statusDotClass(status: SessionDisplayStatus) {
 	if (status === "active") {
 		return tone.running.dot;
 	}
-	if (status === "not_loaded") {
+	if (status === "not_loaded" || status === "archived") {
 		return tone.stale.dot;
 	}
 	if (
@@ -478,6 +480,7 @@ type ComposerProps = Pick<
 	| "onResume"
 	| "onFork"
 	| "onCompact"
+	| "onArchive"
 > & {
 	onPromptFocus?: () => void;
 	onSwipeUp?: () => void;
@@ -510,6 +513,7 @@ const Composer = memo(
 			onResume,
 			onFork,
 			onCompact,
+			onArchive,
 			onPromptFocus,
 			onSwipeUp,
 		},
@@ -517,12 +521,26 @@ const Composer = memo(
 	) {
 		const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 		const actionBarRef = useRef<HTMLDivElement | null>(null);
-		const canInterrupt = selectedThread?.status === "active" && !busy;
+		const selectedThreadArchived = Boolean(selectedThread?.archivedAt);
+		const canInterrupt =
+			selectedThread?.status === "active" && !selectedThreadArchived && !busy;
 		const canResume =
-			Boolean(selectedThreadId) && selectedThread?.status !== "active" && !busy;
-		const canFork = Boolean(selectedThreadId) && !busy;
+			Boolean(selectedThreadId) &&
+			selectedThread?.status !== "active" &&
+			!selectedThreadArchived &&
+			!busy;
+		const canFork =
+			Boolean(selectedThreadId) && !selectedThreadArchived && !busy;
 		const canCompact =
-			Boolean(selectedThreadId) && selectedThread?.status !== "active" && !busy;
+			Boolean(selectedThreadId) &&
+			selectedThread?.status !== "active" &&
+			!selectedThreadArchived &&
+			!busy;
+		const canArchive =
+			Boolean(selectedThreadId) &&
+			selectedThread?.status !== "active" &&
+			!selectedThreadArchived &&
+			!busy;
 		const [moreActionsOpen, setMoreActionsOpen] = useState(false);
 		const submitTitle = goalMode
 			? codexThreadCommandLabels.goal
@@ -737,6 +755,22 @@ const Composer = memo(
 															type="button"
 															role="menuitem"
 															className="flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control disabled:cursor-not-allowed disabled:opacity-30"
+															disabled={!canArchive}
+															onClick={() => {
+																onArchive();
+																setMoreActionsOpen(false);
+															}}
+														>
+															<Archive
+																size={15}
+																className="shrink-0 text-muted"
+															/>
+															<span>{codexThreadCommandLabels.archive}</span>
+														</button>
+														<button
+															type="button"
+															role="menuitem"
+															className="flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control disabled:cursor-not-allowed disabled:opacity-30"
 															disabled={!canInterrupt}
 															onClick={() => {
 																onInterrupt();
@@ -820,6 +854,7 @@ export const Workspace = memo(
 			onResume,
 			onFork,
 			onCompact,
+			onArchive,
 			onToggleNavigator,
 			onToggleInspector,
 			onSwipeUp,
@@ -1078,6 +1113,7 @@ export const Workspace = memo(
 									onResume={onResume}
 									onFork={onFork}
 									onCompact={onCompact}
+									onArchive={onArchive}
 									onPromptFocus={settleMobilePromptFocus}
 									onSwipeUp={onSwipeUp}
 								/>

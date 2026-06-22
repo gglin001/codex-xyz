@@ -6,6 +6,7 @@ export type ThreadRuntimeStatus =
 export type TurnStatus = "in_progress" | "completed" | "interrupted" | "failed";
 export type SessionDisplayStatus =
 	| ThreadRuntimeStatus
+	| "archived"
 	| "turn_completed"
 	| "turn_interrupted"
 	| "turn_failed";
@@ -43,6 +44,7 @@ export type ControlThread = {
 	goalStatus: GoalStatus | null;
 	goalTokenBudget: number | null;
 	tokensUsed: number;
+	archivedAt: string | null;
 	createdAt: string;
 	updatedAt: string;
 };
@@ -74,8 +76,11 @@ export function threadRuntimeStatusFromTurnStatus(
 }
 
 export function sessionDisplayStatus(
-	thread: Pick<ControlThread, "status" | "lastTurnStatus">,
+	thread: Pick<ControlThread, "status" | "lastTurnStatus" | "archivedAt">,
 ): SessionDisplayStatus {
+	if (thread.archivedAt) {
+		return "archived";
+	}
 	if (thread.status !== "idle") {
 		return thread.status;
 	}
@@ -130,6 +135,7 @@ export const summaryEventTypes = [
 	"thread.status",
 	"thread.runtime_lost",
 	"thread.forked",
+	"thread.archived",
 	"thread.renamed",
 	"thread.goal.updated",
 	"thread.goal.cleared",

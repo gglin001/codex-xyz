@@ -106,6 +106,10 @@ export type AdapterEvent =
 			usage: AdapterTokenUsage;
 	  }
 	| {
+			type: "thread.archived";
+			threadId: string;
+	  }
+	| {
 			type: "raw";
 			threadId?: string | null;
 			turnId?: string | null;
@@ -181,6 +185,7 @@ export interface CodexAdapter {
 	}): Promise<void>;
 	interruptTurn(input: { threadId: string; turnId: string }): Promise<void>;
 	forkThread(input: ForkThreadInput): Promise<AdapterThread>;
+	archiveThread(threadId: string): Promise<void>;
 	renameThread(input: { threadId: string; title: string }): Promise<void>;
 	setGoal(input: {
 		threadId: string;
