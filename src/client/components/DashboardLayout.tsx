@@ -145,6 +145,13 @@ function isMobileViewport() {
 	);
 }
 
+function blurActiveElement() {
+	const activeElement = document.activeElement;
+	if (activeElement instanceof HTMLElement) {
+		activeElement.blur();
+	}
+}
+
 function MobileSheetHandle() {
 	return (
 		<div
@@ -371,10 +378,12 @@ function CommandActionGlyph({
 const CommandPalette = memo(function CommandPalette({
 	open,
 	actions,
+	autoFocusInput,
 	onClose,
 }: {
 	open: boolean;
 	actions: CommandAction[];
+	autoFocusInput: boolean;
 	onClose: () => void;
 }) {
 	const [query, setQuery] = useState("");
@@ -397,11 +406,14 @@ const CommandPalette = memo(function CommandPalette({
 			setActiveIndex(0);
 			return;
 		}
+		if (!autoFocusInput) {
+			return;
+		}
 		const frame = window.requestAnimationFrame(() => {
 			inputRef.current?.focus({ preventScroll: true });
 		});
 		return () => window.cancelAnimationFrame(frame);
-	}, [open]);
+	}, [autoFocusInput, open]);
 
 	const runActive = useCallback(() => {
 		const action = filteredActions[activeIndex];
@@ -605,6 +617,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 }: DashboardLayoutProps) {
 	const [mobileSheet, setMobileSheet] = useState<MobileSheet | null>(null);
 	const [commandOpen, setCommandOpen] = useState(false);
+	const [commandAutoFocusInput, setCommandAutoFocusInput] = useState(true);
 	const desktopWorkspaceRef = useRef<WorkspaceHandle | null>(null);
 	const mobileWorkspaceRef = useRef<WorkspaceHandle | null>(null);
 	const mobileSheetRef = useRef<HTMLDivElement | null>(null);
@@ -637,10 +650,35 @@ export const DashboardLayout = memo(function DashboardLayout({
 		window.requestAnimationFrame(focusVisiblePrompt);
 	}, [focusVisiblePrompt, onCreateSession]);
 
-	const openCommandPalette = useCallback(() => {
+	const openCommandPalette = useCallback(
+		(options?: { autoFocusInput?: boolean }) => {
+			const autoFocusInput = options?.autoFocusInput ?? !isMobileViewport();
+			setCommandAutoFocusInput(autoFocusInput);
+			if (!autoFocusInput) {
+				blurActiveElement();
+			}
+			setMobileSheet(null);
+			setCommandOpen(true);
+		},
+		[],
+	);
+
+	const openCommandPaletteFromSwipe = useCallback(() => {
+		openCommandPalette({ autoFocusInput: false });
+	}, [openCommandPalette]);
+
+	const toggleCommandPalette = useCallback(() => {
+		const opening = !commandOpen;
+		if (opening) {
+			const autoFocusInput = !isMobileViewport();
+			setCommandAutoFocusInput(autoFocusInput);
+			if (!autoFocusInput) {
+				blurActiveElement();
+			}
+		}
 		setMobileSheet(null);
-		setCommandOpen(true);
-	}, []);
+		setCommandOpen(opening);
+	}, [commandOpen]);
 
 	useEffect(() => {
 		const handleKeyDown = (event: globalThis.KeyboardEvent) => {
@@ -657,8 +695,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 			}
 			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
 				event.preventDefault();
-				setMobileSheet(null);
-				setCommandOpen((current) => !current);
+				toggleCommandPalette();
 			}
 		};
 
@@ -666,7 +703,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 		return () => {
 			window.removeEventListener("keydown", handleKeyDown, true);
 		};
-	}, [commandOpen, focusVisiblePrompt]);
+	}, [commandOpen, focusVisiblePrompt, toggleCommandPalette]);
 
 	useEffect(() => {
 		if (terminalVisible) {
@@ -955,7 +992,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 				className="h-10 w-full gap-2.5 px-2.5"
 				title="Open commands"
 				aria-label="Open commands"
-				onClick={openCommandPalette}
+				onClick={() => openCommandPalette()}
 			>
 				<span
 					className={cn(
@@ -1119,7 +1156,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 					onResume={onResume}
 					onToggleNavigator={() => openMobileSheet("navigator")}
 					onToggleInspector={() => openMobileSheet("inspector")}
-					onSwipeUp={openCommandPalette}
+					onSwipeUp={openCommandPaletteFromSwipe}
 				/>
 			</div>
 
@@ -1199,6 +1236,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 			<CommandPalette
 				open={commandOpen}
 				actions={commandActions}
+				autoFocusInput={commandAutoFocusInput}
 				onClose={() => setCommandOpen(false)}
 			/>
 		</main>
