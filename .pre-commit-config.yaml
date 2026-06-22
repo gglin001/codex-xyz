@@ -1,0 +1,39 @@
+exclude: |
+  (?x)(
+      .vscode/(.)* |
+      LICENSE
+  )
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-json
+        exclude: .vscode/settings.rec.json
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: check-toml
+      - id: check-xml
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: requirements-txt-fixer
+      - id: mixed-line-ending
+      - id: debug-statements
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.7
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: biome
+        name: biome
+        language: system
+        entry: |
+          bash -c '
+          pnpm exec biome check --write --no-errors-on-unmatched "$@"
+          ' --
+        types_or: [javascript, jsx, ts, tsx, css, json]
