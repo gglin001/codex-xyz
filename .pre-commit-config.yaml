@@ -36,4 +36,10 @@ repos:
           bash -c '
           pnpm exec biome check --write --no-errors-on-unmatched "$@"
           ' --
-        types_or: [javascript, jsx, ts, tsx, css, json]
+        types_or: [ts, tsx, css, json]
+      - id: tsc
+        name: tsc
+        entry: pnpm exec tsc --noEmit
+        language: system
+        pass_filenames: false
+        types_or: [ts, tsx]
