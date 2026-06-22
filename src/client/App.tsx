@@ -786,14 +786,26 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		],
 	);
 
+	const changeComposerMode = useCallback(
+		(mode: ComposerMode) => {
+			setComposerMode(mode);
+			if (mode === "new" && selectedProject?.path) {
+				setWorkdir(selectedProject.path);
+				setWorkdirTouched(false);
+			}
+		},
+		[selectedProject?.path],
+	);
+
 	const createWorkbenchSession = useCallback(() => {
 		setComposerMode("new");
 		setPrompt("");
 		setGoalMode(false);
-		if (!workdirTouched && selectedProject?.path) {
+		if (selectedProject?.path) {
 			setWorkdir(selectedProject.path);
+			setWorkdirTouched(false);
 		}
-	}, [selectedProject?.path, workdirTouched]);
+	}, [selectedProject?.path]);
 
 	async function runAction(
 		label: string,
@@ -965,7 +977,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				onPromptChange={setPrompt}
 				onPromptKeyDown={handlePromptKeyDown}
 				onPromptSubmit={submitPrompt}
-				onModeChange={setComposerMode}
+				onModeChange={changeComposerMode}
 				onWorkdirChange={updateWorkdir}
 				onGoalModeChange={updateGoalMode}
 				onInterrupt={interruptSelectedThread}

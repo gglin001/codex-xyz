@@ -2,7 +2,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
 	Bot,
 	Check,
-	Code2,
 	Copy,
 	Ellipsis,
 	Goal,
@@ -546,7 +545,7 @@ const Composer = memo(
 				) : null}
 
 				{promptTarget === "new" ? (
-					<FieldShell className="mb-3 h-9 px-3" icon={<Code2 size={14} />}>
+					<FieldShell className="mb-3 h-9 px-3">
 						<input
 							className={cn(ui.input, "font-mono text-[12px] text-fg")}
 							value={workdir}
