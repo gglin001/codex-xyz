@@ -215,7 +215,7 @@ export class TerminalController {
 					TERM: "xterm-256color",
 					COLORTERM: "truecolor",
 					FORCE_COLOR: this.env.FORCE_COLOR ?? "1",
-					CODEX_XYZ_TERMINAL: "1",
+					COZ_TERMINAL: "1",
 				},
 				encoding: "utf8",
 			});

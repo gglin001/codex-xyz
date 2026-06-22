@@ -10,7 +10,7 @@ import type {
 	ThreadItem,
 	Turn,
 	TurnStatus,
-	XyzEvent,
+	CozEvent,
 } from "./domain.js";
 import { nowIso, threadRuntimeStatusFromTurnStatus } from "./domain.js";
 import type { EventBus } from "./eventBus.js";
@@ -179,7 +179,7 @@ export class ThreadProjection {
 		threadId: string | null,
 		turnId: string | null,
 		payload: Record<string, unknown>,
-	): XyzEvent {
+	): CozEvent {
 		const event = this.store.appendEvent({
 			type,
 			threadId,

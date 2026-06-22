@@ -1,11 +1,11 @@
-import type { XyzEvent } from "./domain.js";
+import type { CozEvent } from "./domain.js";
 
-export type EventListener = (event: XyzEvent) => void;
+export type EventListener = (event: CozEvent) => void;
 
 export class EventBus {
 	private readonly listeners = new Set<EventListener>();
 
-	publish(event: XyzEvent) {
+	publish(event: CozEvent) {
 		for (const listener of this.listeners) {
 			listener(event);
 		}

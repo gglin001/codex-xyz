@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
 	title: "codex-xyz",
-	description: "codex-xyz-first Codex control plane",
+	description: "codex control plane",
 	applicationName: "codex-xyz",
 	appleWebApp: {
 		capable: true,
@@ -33,7 +33,7 @@ export const viewport: Viewport = {
 const themeBootScript = `
 (() => {
   try {
-    const mode = window.localStorage.getItem("codex-xyz-theme-mode");
+    const mode = window.localStorage.getItem("coz-theme-mode");
     document.documentElement.dataset.theme = mode === "day" ? "day" : "dark";
   } catch {
     document.documentElement.dataset.theme = "dark";

@@ -79,7 +79,7 @@ afterEach(() => {
 
 describe("TerminalController", () => {
 	it("starts the configured login shell by default", async () => {
-		tempDir = mkdtempSync(join(tmpdir(), "codex-xyz-terminal-"));
+		tempDir = mkdtempSync(join(tmpdir(), "coz-terminal-"));
 		const spawned: Array<{ file: string; args: string[] }> = [];
 		const factory: PtyFactory = (file, args, options) => {
 			spawned.push({ file, args });
@@ -100,7 +100,7 @@ describe("TerminalController", () => {
 	});
 
 	it("keeps the pty alive across subscribers and replays terminal state", async () => {
-		tempDir = mkdtempSync(join(tmpdir(), "codex-xyz-terminal-"));
+		tempDir = mkdtempSync(join(tmpdir(), "coz-terminal-"));
 		const ptys: FakePty[] = [];
 		const factory: PtyFactory = (_file, _args, options) => {
 			const fake = new FakePty(options.cols ?? 80, options.rows ?? 24);
@@ -142,7 +142,7 @@ describe("TerminalController", () => {
 	});
 
 	it("forwards input and resize operations to the active pty", async () => {
-		tempDir = mkdtempSync(join(tmpdir(), "codex-xyz-terminal-"));
+		tempDir = mkdtempSync(join(tmpdir(), "coz-terminal-"));
 		const ptys: FakePty[] = [];
 		const factory: PtyFactory = (_file, _args, options) => {
 			const fake = new FakePty(options.cols ?? 80, options.rows ?? 24);
@@ -168,7 +168,7 @@ describe("TerminalController", () => {
 	});
 
 	it("batches small output chunks before writing the headless model", async () => {
-		tempDir = mkdtempSync(join(tmpdir(), "codex-xyz-terminal-"));
+		tempDir = mkdtempSync(join(tmpdir(), "coz-terminal-"));
 		const ptys: FakePty[] = [];
 		const factory: PtyFactory = (_file, _args, options) => {
 			const fake = new FakePty(options.cols ?? 80, options.rows ?? 24);
@@ -197,7 +197,7 @@ describe("TerminalController", () => {
 	});
 
 	it("pauses and resumes the pty when output backpressure is active", async () => {
-		tempDir = mkdtempSync(join(tmpdir(), "codex-xyz-terminal-"));
+		tempDir = mkdtempSync(join(tmpdir(), "coz-terminal-"));
 		const ptys: FakePty[] = [];
 		const factory: PtyFactory = (_file, _args, options) => {
 			const fake = new FakePty(options.cols ?? 80, options.rows ?? 24);

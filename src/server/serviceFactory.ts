@@ -4,12 +4,12 @@ import { AppServerCodexAdapter } from "./codex/appServerAdapter.js";
 import { ControlService } from "./service.js";
 import { Store } from "./store.js";
 
-const dataDir = ".codex-xyz";
+const dataDir = ".coz";
 
 export function createServiceFromEnv() {
 	const cwd = /* turbopackIgnore: true */ process.cwd();
-	const codexBin = process.env.CODEX_XYZ_CODEX_BIN ?? "codex";
-	const store = Store.open(join(dataDir, "codex-xyz.sqlite"));
+	const codexBin = process.env.COZ_CODEX_BIN ?? "codex";
+	const store = Store.open(join(dataDir, "coz.sqlite"));
 	const debugLevel = readDebugLevel(process.env);
 	const adapter = new AppServerCodexAdapter(codexBin, {
 		debugLogPath: debugLevel > 0 ? join(dataDir, "debug.jsonl") : null,

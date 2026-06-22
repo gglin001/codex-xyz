@@ -1,7 +1,7 @@
 import type { ControlService } from "./service.js";
 import { createServiceFromEnv } from "./serviceFactory.js";
 
-const serviceKey = Symbol.for("codex-xyz.service");
+const serviceKey = Symbol.for("coz.service");
 
 type GlobalWithService = typeof globalThis & {
 	[serviceKey]?: ControlService;

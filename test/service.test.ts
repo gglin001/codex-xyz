@@ -498,7 +498,7 @@ class InterruptDriftCodexAdapter implements CodexAdapter {
 }
 
 beforeEach(() => {
-	tempDir = mkdtempSync(join(tmpdir(), "codex-xyz-service-"));
+	tempDir = mkdtempSync(join(tmpdir(), "coz-service-"));
 	testAdapter = new TestCodexAdapter();
 	service = new ControlService(
 		Store.open(join(tempDir, "test.sqlite")),

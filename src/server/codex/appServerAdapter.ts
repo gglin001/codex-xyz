@@ -111,7 +111,7 @@ export class AppServerCodexAdapter implements CodexAdapter {
 	private readonly debugLogger: AppServerDebugLogger | null;
 
 	constructor(
-		private readonly command = process.env.CODEX_XYZ_CODEX_BIN ?? "codex",
+		private readonly command = process.env.COZ_CODEX_BIN ?? "codex",
 		options: AppServerCodexAdapterOptions = {},
 	) {
 		const debugLogLevel = clampDebugLogLevel(options.debugLogLevel ?? 1);
@@ -130,7 +130,7 @@ export class AppServerCodexAdapter implements CodexAdapter {
 			await this.request("thread/start", {
 				cwd: input.cwd,
 				model: input.model ?? undefined,
-				serviceName: "codex-xyz",
+				serviceName: "coz",
 				threadSource: "user",
 				...yoloThreadOptions,
 			}),

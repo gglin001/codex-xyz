@@ -15,7 +15,7 @@ This repository is a Codex control-plane with a Next.js client/server app:
 - `.next/`: generated Next.js build output.
 - `debug_agent/`: untracked scratch workspace for temp files and local experiments (use this instead of `/tmp`).
 
-Runtime state defaults to `.codex-xyz/`.
+Runtime state defaults to `.coz/`.
 
 ## Project Notices
 
@@ -56,7 +56,7 @@ Before starting a dev server for manual validation, use the Next.js app URL (`ht
 ## Workspace Hygiene and Configuration
 
 - Do not commit local state, secrets, or generated runtime data.
-- Keep `.codex-xyz/`, `dot.home/`, and machine-specific Codex config out of commits.
+- Keep `.coz/`, `dot.home/`, and machine-specific Codex config out of commits.
 - Prefer documented environment variables over hard-coded URLs, ports, or binary paths.
 - When using `third_party/codex/` as reference material, keep edits scoped to this project unless upstream code is explicitly part of the task.
 - When searching under `third_party/`, prefer `rg -u` or `rg -uL` so `.gitignore` rules and symlinks do not hide relevant files.

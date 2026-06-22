@@ -4,7 +4,7 @@ import type {
 	ThreadDetail,
 	ThreadItem,
 	Turn,
-	XyzEvent,
+	CozEvent,
 } from "../server/domain.js";
 import {
 	isThreadRuntimeStatus,
@@ -71,11 +71,11 @@ function isInsertedThreadEvent(type: string) {
 	return insertedThreadEventNames.has(type);
 }
 
-function payloadRecord(event: XyzEvent) {
+function payloadRecord(event: CozEvent) {
 	return isRecord(event.payload) ? event.payload : {};
 }
 
-function payloadValue<T>(event: XyzEvent, key: string) {
+function payloadValue<T>(event: CozEvent, key: string) {
 	const value = payloadRecord(event)[key];
 	return isRecord(value) ? (value as T) : null;
 }
@@ -343,7 +343,7 @@ function result(
 	previous: ClientProjection,
 	projection: ClientProjection,
 	handled: boolean,
-	event: XyzEvent,
+	event: CozEvent,
 ): ProjectionResult {
 	return {
 		...projection,
@@ -357,7 +357,7 @@ function result(
 
 export function applyEventProjection(
 	projection: ClientProjection,
-	event: XyzEvent,
+	event: CozEvent,
 ): ProjectionResult {
 	const thread = payloadValue<ControlThread>(event, "thread");
 	if (thread && isThreadPayloadEvent(event.type)) {
@@ -470,7 +470,7 @@ export function applyEventProjection(
 
 export function applyEventProjectionBatch(
 	projection: ClientProjection,
-	events: XyzEvent[],
+	events: CozEvent[],
 ): ProjectionResult {
 	let nextProjection = projection;
 	let changed = false;

@@ -20,7 +20,7 @@ const turnId = "turn_00000000-0000-4000-8000-000000000004";
 const goalTurnId = "turn_goal_00000000-0000-4000-8000-000000000005";
 
 function createFakeCodexCommand() {
-	tempDir = mkdtempSync(join(tmpdir(), "codex-xyz-app-server-"));
+	tempDir = mkdtempSync(join(tmpdir(), "coz-app-server-"));
 	const commandPath = join(tempDir, "fake-codex.cjs");
 	writeFileSync(
 		commandPath,
@@ -443,7 +443,7 @@ describe("AppServerCodexAdapter", () => {
 
 	it("writes app-server protocol debug records as JSON lines", async () => {
 		const command = createFakeCodexCommand();
-		const debugLogPath = join(tempDir as string, ".codex-xyz", "debug.jsonl");
+		const debugLogPath = join(tempDir as string, ".coz", "debug.jsonl");
 		adapter = new AppServerCodexAdapter(command, {
 			debugLogPath,
 			debugLogLevel: 2,
@@ -487,7 +487,7 @@ describe("AppServerCodexAdapter", () => {
 
 	it("limits level 1 logs to operational records", async () => {
 		const command = createFakeCodexCommand();
-		const debugLogPath = join(tempDir as string, ".codex-xyz", "debug.jsonl");
+		const debugLogPath = join(tempDir as string, ".coz", "debug.jsonl");
 		adapter = new AppServerCodexAdapter(command, {
 			debugLogPath,
 			debugLogLevel: 1,
@@ -514,7 +514,7 @@ describe("AppServerCodexAdapter", () => {
 
 	it("keeps high-volume stream deltas out of level 2 protocol logs", async () => {
 		const command = createFakeCodexCommand();
-		const debugLogPath = join(tempDir as string, ".codex-xyz", "debug.jsonl");
+		const debugLogPath = join(tempDir as string, ".coz", "debug.jsonl");
 		adapter = new AppServerCodexAdapter(command, {
 			debugLogPath,
 			debugLogLevel: 2,
@@ -536,7 +536,7 @@ describe("AppServerCodexAdapter", () => {
 
 	it("writes high-volume stream deltas in level 3 protocol logs", async () => {
 		const command = createFakeCodexCommand();
-		const debugLogPath = join(tempDir as string, ".codex-xyz", "debug.jsonl");
+		const debugLogPath = join(tempDir as string, ".coz", "debug.jsonl");
 		adapter = new AppServerCodexAdapter(command, {
 			debugLogPath,
 			debugLogLevel: 3,

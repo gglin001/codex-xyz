@@ -10,7 +10,7 @@ import type {
 	ThreadDetail,
 	ThreadItem,
 	Turn,
-	XyzEvent,
+	CozEvent,
 } from "../src/server/domain.js";
 
 const createdAt = "2026-06-13T00:00:00.000Z";
@@ -23,7 +23,7 @@ function thread(overrides: Partial<ControlThread> = {}): ControlThread {
 		forkedFromId: null,
 		title: "Improve the console",
 		preview: "Initial prompt",
-		cwd: "/tmp/codex-xyz",
+		cwd: "/tmp/coz",
 		model: "gpt-test",
 		status: "active",
 		activeTurnId: "turn-1",
@@ -72,7 +72,7 @@ function state(overrides: Partial<DashboardState> = {}): DashboardState {
 		threadPageSize: 50,
 		threadNextOffset: threads.length,
 		threadHasMore: false,
-		defaultCwd: "/tmp/codex-xyz",
+		defaultCwd: "/tmp/coz",
 		latestEventId: 0,
 		...overrides,
 	};
@@ -100,8 +100,8 @@ function projection(): ClientProjection {
 function event(
 	type: string,
 	payload: Record<string, unknown>,
-	overrides: Partial<XyzEvent> = {},
-): XyzEvent {
+	overrides: Partial<CozEvent> = {},
+): CozEvent {
 	return {
 		id: 1,
 		type,

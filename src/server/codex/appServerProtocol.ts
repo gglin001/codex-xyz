@@ -30,8 +30,8 @@ export const yoloTurnOptions = {
 
 export const appServerInitializeParams = {
 	clientInfo: {
-		name: "codex-xyz",
-		title: "codex-xyz",
+		name: "coz",
+		title: "coz",
 		version: "0.1.0",
 	},
 	capabilities: {

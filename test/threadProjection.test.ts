@@ -3,14 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { AdapterThread } from "../src/server/codex/adapter.js";
-import type { XyzEvent } from "../src/server/domain.js";
+import type { CozEvent } from "../src/server/domain.js";
 import { EventBus } from "../src/server/eventBus.js";
 import { Store } from "../src/server/store.js";
 import { ThreadProjection } from "../src/server/threadProjection.js";
 
 let tempDir: string;
 let store: Store;
-let events: XyzEvent[];
+let events: CozEvent[];
 let projection: ThreadProjection;
 
 function adapterThread(input: Partial<AdapterThread> = {}): AdapterThread {
@@ -39,7 +39,7 @@ function createThread(input: Partial<AdapterThread> = {}) {
 }
 
 beforeEach(() => {
-	tempDir = mkdtempSync(join(tmpdir(), "codex-xyz-thread-projection-"));
+	tempDir = mkdtempSync(join(tmpdir(), "coz-thread-projection-"));
 	store = Store.open(join(tempDir, "projection.sqlite"));
 	const eventBus = new EventBus();
 	events = [];

@@ -13,7 +13,7 @@ import {
 	type ThreadRuntimeStatus,
 	type Turn,
 	type TurnStatus,
-	type XyzEvent,
+	type CozEvent,
 } from "./domain.js";
 
 type Row = Record<string, unknown>;
@@ -137,7 +137,7 @@ function itemFromRow(row: Row): ThreadItem {
 	};
 }
 
-function eventFromRow(row: Row): XyzEvent {
+function eventFromRow(row: Row): CozEvent {
 	return {
 		id: scalarNumber(row.id),
 		type: scalarString(row.type),
@@ -610,7 +610,7 @@ export class Store {
 			.map((row) => itemFromRow(row as Row));
 	}
 
-	appendEvent(input: Omit<XyzEvent, "id">) {
+	appendEvent(input: Omit<CozEvent, "id">) {
 		const result = this.db
 			.prepare(
 				"INSERT INTO events (type, thread_id, turn_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?)",

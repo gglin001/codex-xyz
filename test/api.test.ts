@@ -83,7 +83,7 @@ async function apiResponse(path: string, init: RequestInit = {}) {
 	return (
 		(await handleApiRequest(
 			service,
-			new Request(`http://codex-xyz.test${path}`, {
+			new Request(`http://coz.test${path}`, {
 				...init,
 				headers,
 			}),
@@ -197,7 +197,7 @@ function threadFixture(index: number): ControlThread {
 }
 
 beforeEach(() => {
-	tempDir = mkdtempSync(join(tmpdir(), "codex-xyz-api-"));
+	tempDir = mkdtempSync(join(tmpdir(), "coz-api-"));
 	terminalPtys = [];
 	const ptyFactory: PtyFactory = (_file, _args, options) => {
 		const fake = new FakeTerminalPty(options.cols ?? 80, options.rows ?? 24);

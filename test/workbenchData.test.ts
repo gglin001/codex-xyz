@@ -18,7 +18,7 @@ function thread(overrides: Partial<ControlThread> = {}): ControlThread {
 		forkedFromId: null,
 		title: "Implement search",
 		preview: "Add a session filter",
-		cwd: "/work/codex-xyz",
+		cwd: "/work/coz",
 		model: "gpt-test",
 		status: "idle",
 		activeTurnId: null,
@@ -38,8 +38,8 @@ describe("workbench project data", () => {
 		const projects = buildWorkbenchProjects(
 			[
 				thread({
-					id: "xyz-old",
-					cwd: "/work/codex-xyz",
+					id: "coz-old",
+					cwd: "/work/coz",
 					updatedAt: early,
 					tokensUsed: 5,
 				}),
@@ -50,8 +50,8 @@ describe("workbench project data", () => {
 					tokensUsed: 10,
 				}),
 				thread({
-					id: "xyz-middle",
-					cwd: "/work/codex-xyz",
+					id: "coz-middle",
+					cwd: "/work/coz",
 					status: "active",
 					activeTurnId: "turn-1",
 					lastTurnStatus: "in_progress",
@@ -59,20 +59,20 @@ describe("workbench project data", () => {
 					tokensUsed: 7,
 				}),
 			],
-			"/work/codex-xyz",
+			"/work/coz",
 		);
 
 		expect(projects.map((project) => project.name)).toEqual([
 			"api-server",
-			"codex-xyz",
+			"coz",
 		]);
 		expect(projects.map((project) => project.path)).toEqual([
 			"/work/api-server",
-			"/work/codex-xyz",
+			"/work/coz",
 		]);
 		expect(projects[1]?.sessions.map((session) => session.threadId)).toEqual([
-			"xyz-middle",
-			"xyz-old",
+			"coz-middle",
+			"coz-old",
 		]);
 		expect(projects[1]).toMatchObject({
 			totalSessions: 2,
@@ -82,12 +82,12 @@ describe("workbench project data", () => {
 	});
 
 	it("creates a default project when no threads are loaded", () => {
-		const projects = buildWorkbenchProjects([], "/work/codex-xyz");
+		const projects = buildWorkbenchProjects([], "/work/coz");
 
 		expect(projects).toHaveLength(1);
 		expect(projects[0]).toMatchObject({
-			id: "/work/codex-xyz",
-			name: "codex-xyz",
+			id: "/work/coz",
+			name: "coz",
 			sessions: [],
 			totalSessions: 0,
 		});

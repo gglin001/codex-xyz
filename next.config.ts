@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
 	typedRoutes: true,
 	outputFileTracingExcludes: {
 		"/*": [
-			".codex-xyz/**",
+			".coz/**",
 			"debug_agent/**",
 			"dist/**",
 			"dot.home/**",

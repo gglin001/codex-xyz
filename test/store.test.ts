@@ -10,7 +10,7 @@ let tempDir: string;
 beforeEach(() => {
 	tempDir = join(
 		tmpdir(),
-		`codex-xyz-store-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+		`coz-store-${Date.now()}-${Math.random().toString(16).slice(2)}`,
 	);
 	mkdirSync(tempDir, { recursive: true });
 });

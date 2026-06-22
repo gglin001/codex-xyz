@@ -13,7 +13,7 @@ import {
 import type {
 	DashboardState,
 	ThreadDetail,
-	XyzEvent,
+	CozEvent,
 } from "../server/domain.js";
 import {
 	createSession,
@@ -87,11 +87,11 @@ type DetailSubscription = {
 	after: number;
 };
 
-const terminalVisibleStorageKey = "codex-xyz-terminal-visible";
-const navigatorVisibleStorageKey = "codex-xyz-navigator-visible";
-const inspectorVisibleStorageKey = "codex-xyz-inspector-visible";
-const wrapSessionContentStorageKey = "codex-xyz-wrap-session-content";
-const displayScaleStorageKey = "codex-xyz-display-scale";
+const terminalVisibleStorageKey = "coz-terminal-visible";
+const navigatorVisibleStorageKey = "coz-navigator-visible";
+const inspectorVisibleStorageKey = "coz-inspector-visible";
+const wrapSessionContentStorageKey = "coz-wrap-session-content";
+const displayScaleStorageKey = "coz-display-scale";
 const TerminalDock = lazy(async () => ({
 	default: (await import("./TerminalDock.js")).TerminalDock,
 }));
@@ -171,7 +171,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	const detailLoadSeqRef = useRef(0);
 	const summaryEventIdRef = useRef(0);
 	const detailEventIdRef = useRef(0);
-	const pendingEventsRef = useRef<XyzEvent[]>([]);
+	const pendingEventsRef = useRef<CozEvent[]>([]);
 	const projectionFrameRef = useRef<number | null>(null);
 	const goalModeResetKeyRef = useRef<string | null>(null);
 	const fallbackRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -562,7 +562,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		);
 	}
 
-	function queueProjectionEvent(event: XyzEvent) {
+	function queueProjectionEvent(event: CozEvent) {
 		pendingEventsRef.current.push(event);
 		scheduleProjectionFlush();
 	}
@@ -588,7 +588,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		getPath: () => `/api/events?after=${summaryEventIdRef.current}`,
 		onEvent: (rawEvent) => {
 			try {
-				const event = parseSseJsonEvent<XyzEvent>(rawEvent);
+				const event = parseSseJsonEvent<CozEvent>(rawEvent);
 				summaryEventIdRef.current = Math.max(
 					summaryEventIdRef.current,
 					event.id,
@@ -622,7 +622,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		},
 		onEvent: (rawEvent) => {
 			try {
-				const event = parseSseJsonEvent<XyzEvent>(rawEvent);
+				const event = parseSseJsonEvent<CozEvent>(rawEvent);
 				detailEventIdRef.current = Math.max(detailEventIdRef.current, event.id);
 				queueProjectionEvent(event);
 			} catch {

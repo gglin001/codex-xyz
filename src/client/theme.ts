@@ -16,7 +16,7 @@ export type TerminalTheme = {
 };
 
 export const defaultThemeMode: ThemeMode = "dark";
-export const themeModeStorageKey = "codex-xyz-theme-mode";
+export const themeModeStorageKey = "coz-theme-mode";
 
 export const themeModeLabels: Record<ThemeMode, string> = {
 	dark: "Dark mode",

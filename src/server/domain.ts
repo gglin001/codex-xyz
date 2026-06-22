@@ -111,7 +111,7 @@ export type ThreadItem = {
 	createdAt: string;
 };
 
-export type XyzEvent = {
+export type CozEvent = {
 	id: number;
 	type: string;
 	threadId: string | null;
