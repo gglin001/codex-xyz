@@ -383,6 +383,7 @@ const CommandPalette = memo(function CommandPalette({
 }) {
 	const [query, setQuery] = useState("");
 	const [activeIndex, setActiveIndex] = useState(0);
+	const inputRef = useRef<HTMLInputElement | null>(null);
 
 	const filteredActions = useMemo(() => {
 		const normalized = query.trim().toLowerCase();
@@ -397,12 +398,13 @@ const CommandPalette = memo(function CommandPalette({
 		if (!open) {
 			setQuery("");
 			setActiveIndex(0);
+			return;
 		}
+		const frame = window.requestAnimationFrame(() => {
+			inputRef.current?.focus({ preventScroll: true });
+		});
+		return () => window.cancelAnimationFrame(frame);
 	}, [open]);
-
-	useEffect(() => {
-		setActiveIndex(0);
-	}, [query]);
 
 	const runActive = useCallback(() => {
 		const action = filteredActions[activeIndex];
@@ -457,10 +459,13 @@ const CommandPalette = memo(function CommandPalette({
 						<div className="flex h-12 items-center gap-3 border-b border-border px-3.5">
 							<Search size={16} className="text-muted" />
 							<input
+								ref={inputRef}
 								className={cn(ui.input, "h-10 text-[14px]")}
-								autoFocus
 								value={query}
-								onChange={(event) => setQuery(event.target.value)}
+								onChange={(event) => {
+									setQuery(event.target.value);
+									setActiveIndex(0);
+								}}
 								placeholder="Search projects, sessions, and panels"
 								onKeyDown={(event) => {
 									if (event.key === "Escape") {

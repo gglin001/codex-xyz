@@ -8,7 +8,6 @@ import type {
 	ControlThread,
 	GoalStatus,
 	ThreadItem,
-	ThreadRuntimeStatus,
 	Turn,
 	TurnStatus,
 	XyzEvent,

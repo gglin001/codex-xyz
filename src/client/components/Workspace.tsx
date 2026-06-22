@@ -504,7 +504,7 @@ const Composer = memo(
 			}
 			textarea.style.height = "0px";
 			textarea.style.height = `${Math.min(160, Math.max(30, textarea.scrollHeight))}px`;
-		}, [prompt]);
+		});
 
 		const focusPromptOnNextFrame = useCallback(() => {
 			window.requestAnimationFrame(() => {
@@ -671,6 +671,7 @@ const Composer = memo(
 								</div>
 							</div>
 							<button
+								type="submit"
 								className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-accent-soft bg-accent text-accent-fg shadow-control transition duration-150 ease-out hover:border-accent hover:bg-accent disabled:cursor-not-allowed disabled:border-border-soft disabled:bg-control disabled:text-muted disabled:opacity-45"
 								disabled={!canSubmitPrompt}
 								title={submitTitle}

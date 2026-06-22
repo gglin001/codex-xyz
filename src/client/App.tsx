@@ -168,6 +168,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	const detailEventIdRef = useRef(0);
 	const pendingEventsRef = useRef<XyzEvent[]>([]);
 	const projectionFrameRef = useRef<number | null>(null);
+	const goalModeResetKeyRef = useRef<string | null>(null);
 	const fallbackRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
 		null,
 	);
@@ -178,55 +179,57 @@ export function App({ initialState: serverInitialState }: AppProps) {
 
 	const busy = busyAction !== null;
 
-	function beginRefresh() {
+	const beginRefresh = useCallback(() => {
 		refreshSeqRef.current += 1;
 		return refreshSeqRef.current;
-	}
+	}, []);
 
-	function refreshIsCurrent(refreshSeq: number) {
+	const refreshIsCurrent = useCallback((refreshSeq: number) => {
 		return refreshSeqRef.current === refreshSeq;
-	}
+	}, []);
 
-	function beginManualSelection() {
+	const beginManualSelection = useCallback(() => {
 		manualSelectionSeqRef.current += 1;
 		refreshSeqRef.current += 1;
-	}
+	}, []);
 
-	function beginDetailLoad() {
+	const beginDetailLoad = useCallback(() => {
 		detailLoadSeqRef.current += 1;
 		setDetailSubscription(null);
 		return detailLoadSeqRef.current;
-	}
+	}, []);
 
-	function detailLoadIsCurrent(threadId: string, loadSeq: number) {
-		return (
-			detailLoadSeqRef.current === loadSeq &&
-			selectedThreadIdRef.current === threadId
-		);
-	}
+	const detailLoadIsCurrent = useCallback(
+		(threadId: string, loadSeq: number) => {
+			return (
+				detailLoadSeqRef.current === loadSeq &&
+				selectedThreadIdRef.current === threadId
+			);
+		},
+		[],
+	);
 
-	function commitDetailLoad(
-		threadId: string,
-		nextDetail: ThreadDetail,
-		loadSeq: number,
-	) {
-		if (!detailLoadIsCurrent(threadId, loadSeq)) {
-			return false;
-		}
-		projectionRef.current = {
-			state: projectionRef.current.state,
-			detail: nextDetail,
-		};
-		detailEventIdRef.current = nextDetail.latestEventId;
-		setDetailSubscription({
-			threadId,
-			after: nextDetail.latestEventId,
-		});
-		setDetail(nextDetail);
-		return true;
-	}
+	const commitDetailLoad = useCallback(
+		(threadId: string, nextDetail: ThreadDetail, loadSeq: number) => {
+			if (!detailLoadIsCurrent(threadId, loadSeq)) {
+				return false;
+			}
+			projectionRef.current = {
+				state: projectionRef.current.state,
+				detail: nextDetail,
+			};
+			detailEventIdRef.current = nextDetail.latestEventId;
+			setDetailSubscription({
+				threadId,
+				after: nextDetail.latestEventId,
+			});
+			setDetail(nextDetail);
+			return true;
+		},
+		[detailLoadIsCurrent],
+	);
 
-	function clearDetailForSelection(threadId: string) {
+	const clearDetailForSelection = useCallback((threadId: string) => {
 		if (projectionRef.current.detail?.id === threadId) {
 			return;
 		}
@@ -236,101 +239,122 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			detail: null,
 		};
 		setDetail(null);
-	}
+	}, []);
 
-	function clearDetail() {
+	const clearDetail = useCallback(() => {
 		setDetailSubscription(null);
 		projectionRef.current = {
 			state: projectionRef.current.state,
 			detail: null,
 		};
 		setDetail(null);
-	}
+	}, []);
 
-	async function loadThreadDetail(threadId: string, refreshSeq?: number) {
-		clearDetailForSelection(threadId);
-		const loadSeq = beginDetailLoad();
-		const nextDetail = await getThread(threadId);
-		if (refreshSeq !== undefined && !refreshIsCurrent(refreshSeq)) {
-			return false;
-		}
-		return commitDetailLoad(threadId, nextDetail, loadSeq);
-	}
+	const loadThreadDetail = useCallback(
+		async (threadId: string, refreshSeq?: number) => {
+			clearDetailForSelection(threadId);
+			const loadSeq = beginDetailLoad();
+			const nextDetail = await getThread(threadId);
+			if (refreshSeq !== undefined && !refreshIsCurrent(refreshSeq)) {
+				return false;
+			}
+			return commitDetailLoad(threadId, nextDetail, loadSeq);
+		},
+		[
+			beginDetailLoad,
+			clearDetailForSelection,
+			commitDetailLoad,
+			refreshIsCurrent,
+		],
+	);
 
-	async function refresh(
-		nextThreadId?: string | null,
-		options: { loadDetail?: boolean } = {},
-	) {
-		const refreshSeq = beginRefresh();
-		const requestedThreadId = nextThreadId ?? selectedThreadIdRef.current;
-		const shouldPreferRequestedThread = typeof nextThreadId === "string";
-		const next = await getState();
-		if (!refreshIsCurrent(refreshSeq)) {
-			return;
-		}
-		summaryEventIdRef.current = Math.max(
-			summaryEventIdRef.current,
-			next.latestEventId,
-		);
-		setState(next);
-		setSummaryEventsReady(true);
-		projectionRef.current = {
-			...projectionRef.current,
-			state: next,
-		};
-		const preferredThreadId = choosePreferredThreadId(next.threads, {
-			currentThreadId: selectedThreadIdRef.current,
-			requestedThreadId,
-			preferRequestedThread: shouldPreferRequestedThread,
-			allowFallbackSelection: true,
-		});
-		setSelectedThreadId(preferredThreadId);
-		selectedThreadIdRef.current = preferredThreadId;
-		if (preferredThreadId) {
-			clearDetailForSelection(preferredThreadId);
-			if (options.loadDetail) {
-				try {
-					await loadThreadDetail(preferredThreadId, refreshSeq);
-				} catch (detailError) {
-					if (
-						refreshIsCurrent(refreshSeq) &&
-						selectedThreadIdRef.current === preferredThreadId
-					) {
-						throw detailError;
+	const refresh = useCallback(
+		async (
+			nextThreadId?: string | null,
+			options: { loadDetail?: boolean } = {},
+		) => {
+			const refreshSeq = beginRefresh();
+			const requestedThreadId = nextThreadId ?? selectedThreadIdRef.current;
+			const shouldPreferRequestedThread = typeof nextThreadId === "string";
+			const next = await getState();
+			if (!refreshIsCurrent(refreshSeq)) {
+				return;
+			}
+			summaryEventIdRef.current = Math.max(
+				summaryEventIdRef.current,
+				next.latestEventId,
+			);
+			setState(next);
+			setSummaryEventsReady(true);
+			projectionRef.current = {
+				...projectionRef.current,
+				state: next,
+			};
+			const preferredThreadId = choosePreferredThreadId(next.threads, {
+				currentThreadId: selectedThreadIdRef.current,
+				requestedThreadId,
+				preferRequestedThread: shouldPreferRequestedThread,
+				allowFallbackSelection: true,
+			});
+			setSelectedThreadId(preferredThreadId);
+			selectedThreadIdRef.current = preferredThreadId;
+			if (preferredThreadId) {
+				clearDetailForSelection(preferredThreadId);
+				if (options.loadDetail) {
+					try {
+						await loadThreadDetail(preferredThreadId, refreshSeq);
+					} catch (detailError) {
+						if (
+							refreshIsCurrent(refreshSeq) &&
+							selectedThreadIdRef.current === preferredThreadId
+						) {
+							throw detailError;
+						}
 					}
 				}
+			} else {
+				beginDetailLoad();
+				clearDetail();
 			}
-		} else {
-			beginDetailLoad();
-			clearDetail();
-		}
-	}
+		},
+		[
+			beginDetailLoad,
+			beginRefresh,
+			clearDetail,
+			clearDetailForSelection,
+			loadThreadDetail,
+			refreshIsCurrent,
+		],
+	);
 
-	const selectThread = useCallback(async (threadId: string) => {
-		beginManualSelection();
-		const shouldLoadDetail = shouldLoadThreadSelection(threadId, {
-			currentThreadId: selectedThreadIdRef.current,
-			currentDetailThreadId: projectionRef.current.detail?.id ?? null,
-		});
-		setComposerMode("thread");
-		setError(null);
-		if (!shouldLoadDetail) {
-			return;
-		}
-		setSelectedThreadId(threadId);
-		selectedThreadIdRef.current = threadId;
-		try {
-			await loadThreadDetail(threadId);
-		} catch (selectError) {
-			if (selectedThreadIdRef.current === threadId) {
-				setError(
-					selectError instanceof Error
-						? selectError.message
-						: "Failed to load session",
-				);
+	const selectThread = useCallback(
+		async (threadId: string) => {
+			beginManualSelection();
+			const shouldLoadDetail = shouldLoadThreadSelection(threadId, {
+				currentThreadId: selectedThreadIdRef.current,
+				currentDetailThreadId: projectionRef.current.detail?.id ?? null,
+			});
+			setComposerMode("thread");
+			setError(null);
+			if (!shouldLoadDetail) {
+				return;
 			}
-		}
-	}, []);
+			setSelectedThreadId(threadId);
+			selectedThreadIdRef.current = threadId;
+			try {
+				await loadThreadDetail(threadId);
+			} catch (selectError) {
+				if (selectedThreadIdRef.current === threadId) {
+					setError(
+						selectError instanceof Error
+							? selectError.message
+							: "Failed to load session",
+					);
+				}
+			}
+		},
+		[beginManualSelection, loadThreadDetail],
+	);
 
 	useEffect(() => {
 		if (serverInitialState) {
@@ -372,7 +396,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				);
 			},
 		);
-	}, [serverInitialState]);
+	}, [loadThreadDetail, refresh, serverInitialState]);
 
 	useEffect(() => {
 		const storedThemeMode = readStoredThemeMode();
@@ -613,7 +637,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			return selectedByThread;
 		}
 		return selectedProject?.sessions[0] ?? null;
-	}, [selectedProject, selectedThreadId, workbenchProjects]);
+	}, [selectedProject, selectedThreadId]);
 	const activeThreadId = selectedWorkbenchSession?.threadId ?? null;
 	const activeThread = useMemo(
 		() => state.threads.find((thread) => thread.id === activeThreadId) ?? null,
@@ -672,6 +696,9 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		beginDetailLoad();
 		clearDetail();
 	}, [
+		beginDetailLoad,
+		beginManualSelection,
+		clearDetail,
 		selectThread,
 		selectedProject,
 		selectedThreadId,
@@ -679,8 +706,13 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	]);
 
 	useEffect(() => {
+		const resetKey = `${activeThreadId ?? ""}:${promptTarget}`;
+		if (goalModeResetKeyRef.current === resetKey) {
+			return;
+		}
+		goalModeResetKeyRef.current = resetKey;
 		setGoalMode(false);
-	}, [activeThreadId, promptTarget]);
+	});
 
 	useEffect(() => {
 		if (!canUseGoalMode) {
@@ -745,7 +777,13 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			beginDetailLoad();
 			clearDetail();
 		},
-		[selectThread, workbenchProjects],
+		[
+			beginDetailLoad,
+			beginManualSelection,
+			clearDetail,
+			selectThread,
+			workbenchProjects,
+		],
 	);
 
 	const createWorkbenchSession = useCallback(() => {

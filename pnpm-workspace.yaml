@@ -1,3 +1,7 @@
+packages:
+  - .
+  - "!third_party/codex"
+
 allowBuilds:
   esbuild: true
   node-pty: true

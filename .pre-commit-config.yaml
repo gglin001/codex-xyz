@@ -1,6 +1,7 @@
 exclude: |
   (?x)(
       .vscode/(.)* |
+      third_party/codex/(.)* |
       LICENSE
   )
 repos:

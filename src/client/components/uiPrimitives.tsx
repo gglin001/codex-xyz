@@ -2,11 +2,10 @@ import { ChevronDown } from "lucide-react";
 import type {
 	ButtonHTMLAttributes,
 	HTMLAttributes,
-	LabelHTMLAttributes,
 	MouseEvent,
 	ReactNode,
 } from "react";
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import {
 	cn,
 	displayScale,
@@ -190,12 +189,12 @@ export function FieldShell({
 	children,
 	className,
 	...props
-}: LabelHTMLAttributes<HTMLLabelElement> & {
+}: HTMLAttributes<HTMLDivElement> & {
 	icon?: ReactNode;
 	children: ReactNode;
 }) {
 	return (
-		<label
+		<div
 			className={cn("flex h-11 items-center gap-2.5 px-3", ui.field, className)}
 			{...props}
 		>
@@ -205,7 +204,7 @@ export function FieldShell({
 				</span>
 			) : null}
 			{children}
-		</label>
+		</div>
 	);
 }
 
@@ -309,6 +308,15 @@ export function ScaleControl({
 	step?: number;
 	className?: string;
 }) {
+	const tickValues = useMemo(
+		() =>
+			Array.from(
+				{ length: Math.round((max - min) / step) + 1 },
+				(_item, index) => min + index * step,
+			),
+		[max, min, step],
+	);
+
 	return (
 		<div className={cn("w-full min-w-0", className)}>
 			<div className="mb-3 flex items-center justify-between gap-3">
@@ -331,20 +339,17 @@ export function ScaleControl({
 					aria-label={label}
 				/>
 				<div className="pointer-events-none absolute inset-x-[9px] top-1/2 flex -translate-y-1/2 justify-between">
-					{Array.from(
-						{ length: Math.round((max - min) / step) + 1 },
-						(_item, index) => (
-							<span
-								key={index}
-								className={cn(
-									"h-1.5 w-1.5 rounded-full",
-									Math.abs(min + index * step - value) < step / 2
-										? "bg-accent"
-										: "bg-muted/65",
-								)}
-							/>
-						),
-					)}
+					{tickValues.map((tickValue) => (
+						<span
+							key={tickValue}
+							className={cn(
+								"h-1.5 w-1.5 rounded-full",
+								Math.abs(tickValue - value) < step / 2
+									? "bg-accent"
+									: "bg-muted/65",
+							)}
+						/>
+					))}
 				</div>
 			</div>
 			<div className="mt-2 flex justify-between font-mono text-[11px] tabular-nums text-muted">

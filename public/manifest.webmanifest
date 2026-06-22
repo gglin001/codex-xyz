@@ -1,19 +1,19 @@
 {
-  "name": "codex-xyz",
-  "short_name": "codex-xyz",
-  "description": "codex-xyz",
-  "start_url": "/",
-  "scope": "/",
-  "display": "standalone",
-  "background_color": "#0f1011",
-  "theme_color": "#0f1011",
-  "orientation": "any",
-  "icons": [
-    {
-      "src": "/icons/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
-  ]
+	"name": "codex-xyz",
+	"short_name": "codex-xyz",
+	"description": "codex-xyz",
+	"start_url": "/",
+	"scope": "/",
+	"display": "standalone",
+	"background_color": "#0f1011",
+	"theme_color": "#0f1011",
+	"orientation": "any",
+	"icons": [
+		{
+			"src": "/icons/icon.svg",
+			"sizes": "any",
+			"type": "image/svg+xml",
+			"purpose": "any maskable"
+		}
+	]
 }

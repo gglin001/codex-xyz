@@ -49,6 +49,7 @@ export default function RootLayout({
 	return (
 		<html lang="en" data-theme="dark" suppressHydrationWarning>
 			<body>
+				{/* biome-ignore lint/security/noDangerouslySetInnerHtml: Inline boot script applies the stored theme before React hydrates. */}
 				<script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
 				{children}
 			</body>

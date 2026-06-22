@@ -3,9 +3,7 @@ import type {
 	DashboardState,
 	ThreadDetail,
 	ThreadItem,
-	ThreadRuntimeStatus,
 	Turn,
-	TurnStatus,
 	XyzEvent,
 } from "../server/domain.js";
 import {

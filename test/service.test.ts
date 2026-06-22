@@ -365,7 +365,7 @@ class EagerEventCodexAdapter implements CodexAdapter {
 class InterruptDriftCodexAdapter implements CodexAdapter {
 	readonly name = "interrupt-drift";
 	readonly version = "test";
-	private handler: AdapterEventHandler = () => {};
+	handler: AdapterEventHandler = () => {};
 	private thread: AdapterThread | null = null;
 	private readonly activeTurnId = "drift_turn_1";
 

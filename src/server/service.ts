@@ -1,7 +1,6 @@
 import { statSync } from "node:fs";
 import { resolve } from "node:path";
 import {
-	type AdapterTurn,
 	type CodexAdapter,
 	isAdapterThreadNotFoundError,
 } from "./codex/adapter.js";
@@ -40,7 +39,7 @@ function isRuntimeStateMismatchError(error: unknown) {
 
 function normalizeWorkingDirectory(path: string) {
 	const resolved = resolve(path.trim());
-	let stat;
+	let stat: ReturnType<typeof statSync>;
 	try {
 		stat = statSync(resolved);
 	} catch {

@@ -7,12 +7,7 @@ import { SerializeAddon } from "@xterm/addon-serialize";
 import HeadlessModule from "@xterm/headless";
 import type { IDisposable, IPty, IPtyForkOptions } from "node-pty";
 import * as pty from "node-pty";
-import type {
-	TerminalEvent,
-	TerminalOutputEvent,
-	TerminalSnapshot,
-	TerminalStatusEvent,
-} from "./domain.js";
+import type { TerminalEvent, TerminalSnapshot } from "./domain.js";
 import { nowIso } from "./domain.js";
 
 type TerminalCommand = {
