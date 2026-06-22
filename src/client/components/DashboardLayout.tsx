@@ -421,7 +421,7 @@ const CommandPalette = memo(function CommandPalette({
 			{open ? (
 				<motion.div
 					className={cn(
-						"fixed inset-0 z-[120] flex items-start justify-center md:px-3 md:pt-[12vh]",
+						"fixed inset-0 z-[120] flex items-start justify-center md:px-6 md:pt-[clamp(56px,10vh,96px)]",
 						ui.overlay,
 					)}
 					initial={{ opacity: 0 }}
@@ -434,7 +434,7 @@ const CommandPalette = memo(function CommandPalette({
 						ref={paletteRef}
 						className={cn(
 							mobileSheetClass,
-							"px-0 md:static md:h-auto md:max-h-[calc(100dvh_-_24vh)] md:w-full md:max-w-[620px] md:rounded-[12px] md:border",
+							"px-0 md:static md:h-auto md:max-h-[min(40rem,calc(100dvh_-_7rem))] md:w-[44rem] md:max-w-[calc(100vw_-_2rem)] md:rounded-[12px] md:border",
 							ui.popover,
 						)}
 						initial={
@@ -503,7 +503,7 @@ const CommandPalette = memo(function CommandPalette({
 								}}
 							/>
 						</div>
-						<div className="mobile-keyboard-scroll min-h-0 flex-1 overflow-y-auto p-1.5 md:max-h-[420px]">
+						<div className="mobile-keyboard-scroll min-h-0 flex-1 overflow-y-auto p-1.5 md:max-h-[min(31rem,calc(100dvh_-_12rem))]">
 							{filteredActions.length === 0 ? (
 								<div className="px-3 py-8 text-center text-[13px] text-muted">
 									No commands found
