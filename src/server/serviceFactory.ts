@@ -7,19 +7,19 @@ import { Store } from "./store.js";
 const dataDir = ".codex-xyz";
 
 export function createServiceFromEnv() {
-  const cwd = /* turbopackIgnore: true */ process.cwd();
-  const codexBin = process.env.CODEX_XYZ_CODEX_BIN ?? "codex";
-  const store = Store.open(join(dataDir, "codex-xyz.sqlite"));
-  const debugLevel = readDebugLevel(process.env);
-  const adapter = new AppServerCodexAdapter(codexBin, {
-    debugLogPath: debugLevel > 0 ? join(dataDir, "debug.jsonl") : null,
-    debugLogLevel: debugLevel
-  });
-  const service = new ControlService(store, adapter);
-  service.seedLocalState({
-    cwd,
-    adapterName: adapter.name,
-    cliVersion: null
-  });
-  return service;
+	const cwd = /* turbopackIgnore: true */ process.cwd();
+	const codexBin = process.env.CODEX_XYZ_CODEX_BIN ?? "codex";
+	const store = Store.open(join(dataDir, "codex-xyz.sqlite"));
+	const debugLevel = readDebugLevel(process.env);
+	const adapter = new AppServerCodexAdapter(codexBin, {
+		debugLogPath: debugLevel > 0 ? join(dataDir, "debug.jsonl") : null,
+		debugLogLevel: debugLevel,
+	});
+	const service = new ControlService(store, adapter);
+	service.seedLocalState({
+		cwd,
+		adapterName: adapter.name,
+		cliVersion: null,
+	});
+	return service;
 }

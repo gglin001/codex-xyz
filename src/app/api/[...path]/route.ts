@@ -5,7 +5,10 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 async function route(request: Request) {
-  return (await handleApiRequest(getService(), request)) ?? Response.json({ error: "Not found" }, { status: 404 });
+	return (
+		(await handleApiRequest(getService(), request)) ??
+		Response.json({ error: "Not found" }, { status: 404 })
+	);
 }
 
 export const GET = route;

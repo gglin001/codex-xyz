@@ -1,24 +1,30 @@
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
-import { tmpdir } from "node:os"
-import { join } from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
-import type { AdapterEvent } from "../src/server/codex/adapter.js"
-import { AppServerCodexAdapter } from "../src/server/codex/appServerAdapter.js"
+import {
+	chmodSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import type { AdapterEvent } from "../src/server/codex/adapter.js";
+import { AppServerCodexAdapter } from "../src/server/codex/appServerAdapter.js";
 
-let tempDir: string | null = null
-let adapter: AppServerCodexAdapter | null = null
-const sourceThreadId = "00000000-0000-4000-8000-000000000001"
-const debugThreadId = "00000000-0000-4000-8000-000000000002"
-const forkThreadId = "00000000-0000-4000-8000-000000000003"
-const turnId = "turn_00000000-0000-4000-8000-000000000004"
-const goalTurnId = "turn_goal_00000000-0000-4000-8000-000000000005"
+let tempDir: string | null = null;
+let adapter: AppServerCodexAdapter | null = null;
+const sourceThreadId = "00000000-0000-4000-8000-000000000001";
+const debugThreadId = "00000000-0000-4000-8000-000000000002";
+const forkThreadId = "00000000-0000-4000-8000-000000000003";
+const turnId = "turn_00000000-0000-4000-8000-000000000004";
+const goalTurnId = "turn_goal_00000000-0000-4000-8000-000000000005";
 
 function createFakeCodexCommand() {
-  tempDir = mkdtempSync(join(tmpdir(), "codex-xyz-app-server-"))
-  const commandPath = join(tempDir, "fake-codex.cjs")
-  writeFileSync(
-    commandPath,
-    `#!/usr/bin/env node
+	tempDir = mkdtempSync(join(tmpdir(), "codex-xyz-app-server-"));
+	const commandPath = join(tempDir, "fake-codex.cjs");
+	writeFileSync(
+		commandPath,
+		`#!/usr/bin/env node
 let buffer = ""
 let experimentalApi = false
 
@@ -359,373 +365,392 @@ process.stdin.on("data", (chunk) => {
     newline = buffer.indexOf("\\n")
   }
 })
-`
-  )
-  chmodSync(commandPath, 0o755)
-  return commandPath
+`,
+	);
+	chmodSync(commandPath, 0o755);
+	return commandPath;
 }
 
 function readDebugRecords(debugLogPath: string) {
-  const text = readFileSync(debugLogPath, "utf8").trim()
-  if (!text) {
-    return []
-  }
-  return text.split("\n").map((line) => JSON.parse(line) as Record<string, unknown>)
+	const text = readFileSync(debugLogPath, "utf8").trim();
+	if (!text) {
+		return [];
+	}
+	return text
+		.split("\n")
+		.map((line) => JSON.parse(line) as Record<string, unknown>);
 }
 
 function debugRecordMethods(records: Array<Record<string, unknown>>) {
-  return records.flatMap((record) => {
-    const message = record.message && typeof record.message === "object" ? (record.message as Record<string, unknown>) : {}
-    return typeof message.method === "string" ? [message.method] : []
-  })
+	return records.flatMap((record) => {
+		const message =
+			record.message && typeof record.message === "object"
+				? (record.message as Record<string, unknown>)
+				: {};
+		return typeof message.method === "string" ? [message.method] : [];
+	});
 }
 
 afterEach(async () => {
-  await adapter?.close()
-  adapter = null
-  if (tempDir) {
-    rmSync(tempDir, { recursive: true, force: true })
-    tempDir = null
-  }
-})
+	await adapter?.close();
+	adapter = null;
+	if (tempDir) {
+		rmSync(tempDir, { recursive: true, force: true });
+		tempDir = null;
+	}
+});
 
 describe("AppServerCodexAdapter", () => {
-  it("opts into experimental fields before resuming without turns", async () => {
-    const command = createFakeCodexCommand()
-    adapter = new AppServerCodexAdapter(command)
+	it("opts into experimental fields before resuming without turns", async () => {
+		const command = createFakeCodexCommand();
+		adapter = new AppServerCodexAdapter(command);
 
-    const thread = await adapter.resumeThread({
-      threadId: sourceThreadId,
-      cwd: process.cwd(),
-      model: "test-model"
-    })
+		const thread = await adapter.resumeThread({
+			threadId: sourceThreadId,
+			cwd: process.cwd(),
+			model: "test-model",
+		});
 
-    expect(thread).toMatchObject({
-      id: sourceThreadId,
-      preview: "resumed without turns",
-      model: "test-model",
-      updatedAt: "2023-11-14T22:13:20.000Z"
-    })
-  })
+		expect(thread).toMatchObject({
+			id: sourceThreadId,
+			preview: "resumed without turns",
+			model: "test-model",
+			updatedAt: "2023-11-14T22:13:20.000Z",
+		});
+	});
 
-  it("normalizes app-server thread ids before callers reuse them", async () => {
-    const command = createFakeCodexCommand()
-    adapter = new AppServerCodexAdapter(command)
+	it("normalizes app-server thread ids before callers reuse them", async () => {
+		const command = createFakeCodexCommand();
+		adapter = new AppServerCodexAdapter(command);
 
-    const source = await adapter.resumeThread({
-      threadId: sourceThreadId,
-      cwd: process.cwd(),
-      model: "test-model"
-    })
-    const fork = await adapter.forkThread({
-      sourceThreadId: source.id,
-      cwd: process.cwd(),
-      model: "test-model"
-    })
+		const source = await adapter.resumeThread({
+			threadId: sourceThreadId,
+			cwd: process.cwd(),
+			model: "test-model",
+		});
+		const fork = await adapter.forkThread({
+			sourceThreadId: source.id,
+			cwd: process.cwd(),
+			model: "test-model",
+		});
 
-    expect(fork).toMatchObject({
-      id: forkThreadId,
-      forkedFromId: sourceThreadId,
-      preview: "forked without turns"
-    })
-  })
+		expect(fork).toMatchObject({
+			id: forkThreadId,
+			forkedFromId: sourceThreadId,
+			preview: "forked without turns",
+		});
+	});
 
-  it("writes app-server protocol debug records as JSON lines", async () => {
-    const command = createFakeCodexCommand()
-    const debugLogPath = join(tempDir as string, ".codex-xyz", "debug.jsonl")
-    adapter = new AppServerCodexAdapter(command, { debugLogPath, debugLogLevel: 2 })
+	it("writes app-server protocol debug records as JSON lines", async () => {
+		const command = createFakeCodexCommand();
+		const debugLogPath = join(tempDir as string, ".codex-xyz", "debug.jsonl");
+		adapter = new AppServerCodexAdapter(command, {
+			debugLogPath,
+			debugLogLevel: 2,
+		});
 
-    await adapter.resumeThread({
-      threadId: debugThreadId,
-      cwd: process.cwd(),
-      model: "test-model"
-    })
+		await adapter.resumeThread({
+			threadId: debugThreadId,
+			cwd: process.cwd(),
+			model: "test-model",
+		});
 
-    const records = readDebugRecords(debugLogPath)
+		const records = readDebugRecords(debugLogPath);
 
-    expect(records).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          target: "app-server",
-          event: "process.spawn"
-        }),
-        expect.objectContaining({
-          direction: "out",
-          message: expect.objectContaining({ method: "initialize" })
-        }),
-        expect.objectContaining({
-          direction: "out",
-          message: expect.objectContaining({ method: "thread/resume" })
-        }),
-        expect.objectContaining({
-          direction: "in",
-          message: expect.objectContaining({
-            result: expect.objectContaining({
-              thread: expect.objectContaining({ id: `thread_${debugThreadId}` })
-            })
-          })
-        })
-      ])
-    )
-  })
+		expect(records).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					target: "app-server",
+					event: "process.spawn",
+				}),
+				expect.objectContaining({
+					direction: "out",
+					message: expect.objectContaining({ method: "initialize" }),
+				}),
+				expect.objectContaining({
+					direction: "out",
+					message: expect.objectContaining({ method: "thread/resume" }),
+				}),
+				expect.objectContaining({
+					direction: "in",
+					message: expect.objectContaining({
+						result: expect.objectContaining({
+							thread: expect.objectContaining({
+								id: `thread_${debugThreadId}`,
+							}),
+						}),
+					}),
+				}),
+			]),
+		);
+	});
 
-  it("limits level 1 logs to operational records", async () => {
-    const command = createFakeCodexCommand()
-    const debugLogPath = join(tempDir as string, ".codex-xyz", "debug.jsonl")
-    adapter = new AppServerCodexAdapter(command, { debugLogPath, debugLogLevel: 1 })
+	it("limits level 1 logs to operational records", async () => {
+		const command = createFakeCodexCommand();
+		const debugLogPath = join(tempDir as string, ".codex-xyz", "debug.jsonl");
+		adapter = new AppServerCodexAdapter(command, {
+			debugLogPath,
+			debugLogLevel: 1,
+		});
 
-    await adapter.startTurn({
-      threadId: debugThreadId,
-      prompt: "Exercise basic logging"
-    })
-    await new Promise((resolve) => setTimeout(resolve, 20))
+		await adapter.startTurn({
+			threadId: debugThreadId,
+			prompt: "Exercise basic logging",
+		});
+		await new Promise((resolve) => setTimeout(resolve, 20));
 
-    const records = readDebugRecords(debugLogPath)
+		const records = readDebugRecords(debugLogPath);
 
-    expect(records).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          level: 1,
-          event: "process.spawn"
-        })
-      ])
-    )
-    expect(debugRecordMethods(records)).toEqual([])
-  })
+		expect(records).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					level: 1,
+					event: "process.spawn",
+				}),
+			]),
+		);
+		expect(debugRecordMethods(records)).toEqual([]);
+	});
 
-  it("keeps high-volume stream deltas out of level 2 protocol logs", async () => {
-    const command = createFakeCodexCommand()
-    const debugLogPath = join(tempDir as string, ".codex-xyz", "debug.jsonl")
-    adapter = new AppServerCodexAdapter(command, { debugLogPath, debugLogLevel: 2 })
+	it("keeps high-volume stream deltas out of level 2 protocol logs", async () => {
+		const command = createFakeCodexCommand();
+		const debugLogPath = join(tempDir as string, ".codex-xyz", "debug.jsonl");
+		adapter = new AppServerCodexAdapter(command, {
+			debugLogPath,
+			debugLogLevel: 2,
+		});
 
-    await adapter.startTurn({
-      threadId: debugThreadId,
-      prompt: "Exercise stream logging"
-    })
-    await new Promise((resolve) => setTimeout(resolve, 20))
+		await adapter.startTurn({
+			threadId: debugThreadId,
+			prompt: "Exercise stream logging",
+		});
+		await new Promise((resolve) => setTimeout(resolve, 20));
 
-    const records = readDebugRecords(debugLogPath)
-    const methods = debugRecordMethods(records)
+		const records = readDebugRecords(debugLogPath);
+		const methods = debugRecordMethods(records);
 
-    expect(methods).toContain("turn/start")
-    expect(methods).not.toContain("item/agentMessage/delta")
-    expect(records.some((record) => record.level === 3)).toBe(false)
-  })
+		expect(methods).toContain("turn/start");
+		expect(methods).not.toContain("item/agentMessage/delta");
+		expect(records.some((record) => record.level === 3)).toBe(false);
+	});
 
-  it("writes high-volume stream deltas in level 3 protocol logs", async () => {
-    const command = createFakeCodexCommand()
-    const debugLogPath = join(tempDir as string, ".codex-xyz", "debug.jsonl")
-    adapter = new AppServerCodexAdapter(command, { debugLogPath, debugLogLevel: 3 })
+	it("writes high-volume stream deltas in level 3 protocol logs", async () => {
+		const command = createFakeCodexCommand();
+		const debugLogPath = join(tempDir as string, ".codex-xyz", "debug.jsonl");
+		adapter = new AppServerCodexAdapter(command, {
+			debugLogPath,
+			debugLogLevel: 3,
+		});
 
-    await adapter.startTurn({
-      threadId: debugThreadId,
-      prompt: "Exercise verbose stream logging"
-    })
-    await new Promise((resolve) => setTimeout(resolve, 20))
+		await adapter.startTurn({
+			threadId: debugThreadId,
+			prompt: "Exercise verbose stream logging",
+		});
+		await new Promise((resolve) => setTimeout(resolve, 20));
 
-    const records = readDebugRecords(debugLogPath)
+		const records = readDebugRecords(debugLogPath);
 
-    expect(records).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          level: 3,
-          direction: "in",
-          message: expect.objectContaining({
-            method: "item/agentMessage/delta"
-          })
-        })
-      ])
-    )
-  })
+		expect(records).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					level: 3,
+					direction: "in",
+					message: expect.objectContaining({
+						method: "item/agentMessage/delta",
+					}),
+				}),
+			]),
+		);
+	});
 
-  it("normalizes app-server session control notifications", async () => {
-    const command = createFakeCodexCommand()
-    adapter = new AppServerCodexAdapter(command)
-    const events: AdapterEvent[] = []
-    adapter.onEvent((event) => events.push(event))
+	it("normalizes app-server session control notifications", async () => {
+		const command = createFakeCodexCommand();
+		adapter = new AppServerCodexAdapter(command);
+		const events: AdapterEvent[] = [];
+		adapter.onEvent((event) => events.push(event));
 
-    const thread = await adapter.resumeThread({
-      threadId: sourceThreadId,
-      cwd: process.cwd(),
-      model: "test-model"
-    })
-    await adapter.renameThread({
-      threadId: thread.id,
-      title: "Control surface"
-    })
-    const turn = await adapter.startTurn({
-      threadId: thread.id,
-      prompt: "Exercise controls"
-    })
-    await new Promise((resolve) => setTimeout(resolve, 20))
+		const thread = await adapter.resumeThread({
+			threadId: sourceThreadId,
+			cwd: process.cwd(),
+			model: "test-model",
+		});
+		await adapter.renameThread({
+			threadId: thread.id,
+			title: "Control surface",
+		});
+		const turn = await adapter.startTurn({
+			threadId: thread.id,
+			prompt: "Exercise controls",
+		});
+		await new Promise((resolve) => setTimeout(resolve, 20));
 
-    expect(turn).toMatchObject({
-      id: turnId,
-      status: "in_progress"
-    })
-    expect(events).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          type: "thread.renamed",
-          threadId: thread.id,
-          title: "Control surface"
-        }),
-        expect.objectContaining({
-          type: "item.created",
-          itemId: "item_command",
-          itemType: "command"
-        }),
-        expect.objectContaining({
-          type: "item.delta",
-          itemId: "item_command",
-          itemType: "command",
-          delta: "running tests"
-        }),
-        expect.objectContaining({
-          type: "item.updated",
-          itemId: "item_file",
-          itemType: "file"
-        }),
-        expect.objectContaining({
-          type: "item.updated",
-          itemId: `plan_${turnId}`,
-          itemType: "plan"
-        }),
-        expect.objectContaining({
-          type: "thread.token_usage",
-          usage: expect.objectContaining({ totalTokens: 42 })
-        }),
-        expect.objectContaining({
-          type: "thread.goal",
-          goal: expect.objectContaining({
-            objective: "Finish UX",
-            tokenBudget: 1000
-          })
-        }),
-        expect.objectContaining({
-          type: "turn.status",
-          status: "completed",
-          durationMs: 50
-        })
-      ])
-    )
-  })
+		expect(turn).toMatchObject({
+			id: turnId,
+			status: "in_progress",
+		});
+		expect(events).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					type: "thread.renamed",
+					threadId: thread.id,
+					title: "Control surface",
+				}),
+				expect.objectContaining({
+					type: "item.created",
+					itemId: "item_command",
+					itemType: "command",
+				}),
+				expect.objectContaining({
+					type: "item.delta",
+					itemId: "item_command",
+					itemType: "command",
+					delta: "running tests",
+				}),
+				expect.objectContaining({
+					type: "item.updated",
+					itemId: "item_file",
+					itemType: "file",
+				}),
+				expect.objectContaining({
+					type: "item.updated",
+					itemId: `plan_${turnId}`,
+					itemType: "plan",
+				}),
+				expect.objectContaining({
+					type: "thread.token_usage",
+					usage: expect.objectContaining({ totalTokens: 42 }),
+				}),
+				expect.objectContaining({
+					type: "thread.goal",
+					goal: expect.objectContaining({
+						objective: "Finish UX",
+						tokenBudget: 1000,
+					}),
+				}),
+				expect.objectContaining({
+					type: "turn.status",
+					status: "completed",
+					durationMs: 50,
+				}),
+			]),
+		);
+	});
 
-  it("starts goal mode by waiting for the app-server automatic turn", async () => {
-    const command = createFakeCodexCommand()
-    const events: AdapterEvent[] = []
-    adapter = new AppServerCodexAdapter(command)
-    adapter.onEvent((event) => events.push(event))
+	it("starts goal mode by waiting for the app-server automatic turn", async () => {
+		const command = createFakeCodexCommand();
+		const events: AdapterEvent[] = [];
+		adapter = new AppServerCodexAdapter(command);
+		adapter.onEvent((event) => events.push(event));
 
-    const result = await adapter.startGoal({
-      threadId: sourceThreadId,
-      objective: "Finish the automatic goal flow",
-      tokenBudget: 2048
-    })
+		const result = await adapter.startGoal({
+			threadId: sourceThreadId,
+			objective: "Finish the automatic goal flow",
+			tokenBudget: 2048,
+		});
 
-    expect(result.goal).toMatchObject({
-      objective: "Finish the automatic goal flow",
-      status: "in_progress",
-      tokenBudget: 2048
-    })
-    expect(result.turn).toMatchObject({
-      id: goalTurnId,
-      status: "in_progress"
-    })
-    expect(events).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          type: "thread.goal",
-          threadId: sourceThreadId,
-          goal: expect.objectContaining({
-            objective: "Finish the automatic goal flow"
-          })
-        }),
-        expect.objectContaining({
-          type: "turn.started",
-          threadId: sourceThreadId,
-          turnId: goalTurnId,
-          prompt: ""
-        })
-      ])
-    )
-  })
+		expect(result.goal).toMatchObject({
+			objective: "Finish the automatic goal flow",
+			status: "in_progress",
+			tokenBudget: 2048,
+		});
+		expect(result.turn).toMatchObject({
+			id: goalTurnId,
+			status: "in_progress",
+		});
+		expect(events).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					type: "thread.goal",
+					threadId: sourceThreadId,
+					goal: expect.objectContaining({
+						objective: "Finish the automatic goal flow",
+					}),
+				}),
+				expect.objectContaining({
+					type: "turn.started",
+					threadId: sourceThreadId,
+					turnId: goalTurnId,
+					prompt: "",
+				}),
+			]),
+		);
+	});
 
-  it("updates goal status without starting a goal turn", async () => {
-    const command = createFakeCodexCommand()
-    const events: AdapterEvent[] = []
-    adapter = new AppServerCodexAdapter(command)
-    adapter.onEvent((event) => events.push(event))
+	it("updates goal status without starting a goal turn", async () => {
+		const command = createFakeCodexCommand();
+		const events: AdapterEvent[] = [];
+		adapter = new AppServerCodexAdapter(command);
+		adapter.onEvent((event) => events.push(event));
 
-    const goal = await adapter.setGoalStatus({
-      threadId: sourceThreadId,
-      status: "paused"
-    })
-    await new Promise((resolve) => setTimeout(resolve, 20))
+		const goal = await adapter.setGoalStatus({
+			threadId: sourceThreadId,
+			status: "paused",
+		});
+		await new Promise((resolve) => setTimeout(resolve, 20));
 
-    expect(goal).toMatchObject({
-      objective: "Existing goal",
-      status: "paused",
-      tokenBudget: null
-    })
-    expect(events).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          type: "thread.goal",
-          threadId: sourceThreadId,
-          goal: expect.objectContaining({
-            status: "paused"
-          })
-        })
-      ])
-    )
-    expect(events.some((event) => event.type === "turn.started")).toBe(false)
-  })
+		expect(goal).toMatchObject({
+			objective: "Existing goal",
+			status: "paused",
+			tokenBudget: null,
+		});
+		expect(events).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					type: "thread.goal",
+					threadId: sourceThreadId,
+					goal: expect.objectContaining({
+						status: "paused",
+					}),
+				}),
+			]),
+		);
+		expect(events.some((event) => event.type === "turn.started")).toBe(false);
+	});
 
-  it("runs thread shell commands through app-server and projects command output", async () => {
-    const command = createFakeCodexCommand()
-    const events: AdapterEvent[] = []
-    adapter = new AppServerCodexAdapter(command)
-    adapter.onEvent((event) => events.push(event))
+	it("runs thread shell commands through app-server and projects command output", async () => {
+		const command = createFakeCodexCommand();
+		const events: AdapterEvent[] = [];
+		adapter = new AppServerCodexAdapter(command);
+		adapter.onEvent((event) => events.push(event));
 
-    const turn = await adapter.runShellCommand({
-      threadId: sourceThreadId,
-      command: "pwd"
-    })
-    await new Promise((resolve) => setTimeout(resolve, 20))
+		const turn = await adapter.runShellCommand({
+			threadId: sourceThreadId,
+			command: "pwd",
+		});
+		await new Promise((resolve) => setTimeout(resolve, 20));
 
-    expect(turn).toMatchObject({
-      id: "turn_shell_1",
-      status: "in_progress"
-    })
-    expect(events).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          type: "turn.started",
-          threadId: sourceThreadId,
-          turnId: "turn_shell_1",
-          prompt: "!pwd"
-        }),
-        expect.objectContaining({
-          type: "item.created",
-          threadId: sourceThreadId,
-          turnId: "turn_shell_1",
-          itemId: "item_command_1",
-          itemType: "command",
-          text: "$ pwd\n"
-        }),
-        expect.objectContaining({
-          type: "item.delta",
-          itemId: "item_command_1",
-          delta: "fake cwd\n"
-        }),
-        expect.objectContaining({
-          type: "turn.status",
-          threadId: sourceThreadId,
-          turnId: "turn_shell_1",
-          status: "completed"
-        })
-      ])
-    )
-  })
-})
+		expect(turn).toMatchObject({
+			id: "turn_shell_1",
+			status: "in_progress",
+		});
+		expect(events).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					type: "turn.started",
+					threadId: sourceThreadId,
+					turnId: "turn_shell_1",
+					prompt: "!pwd",
+				}),
+				expect.objectContaining({
+					type: "item.created",
+					threadId: sourceThreadId,
+					turnId: "turn_shell_1",
+					itemId: "item_command_1",
+					itemType: "command",
+					text: "$ pwd\n",
+				}),
+				expect.objectContaining({
+					type: "item.delta",
+					itemId: "item_command_1",
+					delta: "fake cwd\n",
+				}),
+				expect.objectContaining({
+					type: "turn.status",
+					threadId: sourceThreadId,
+					turnId: "turn_shell_1",
+					status: "completed",
+				}),
+			]),
+		);
+	});
+});
