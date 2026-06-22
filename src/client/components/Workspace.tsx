@@ -40,6 +40,7 @@ import type {
 } from "../../server/domain.js";
 import { sessionDisplayStatus } from "../../server/domain.js";
 import { copyToClipboard } from "../clipboard.js";
+import { codexThreadCommandLabels } from "../codexCommandLabels.js";
 import { cn, tone, ui } from "../designSystem.js";
 import { getFirstLineTextPreview } from "../textPreview.js";
 import {
@@ -524,7 +525,7 @@ const Composer = memo(
 			Boolean(selectedThreadId) && selectedThread?.status !== "active" && !busy;
 		const [moreActionsOpen, setMoreActionsOpen] = useState(false);
 		const submitTitle = goalMode
-			? "Start goal mode"
+			? codexThreadCommandLabels.goal
 			: promptTarget === "thread"
 				? "Send prompt"
 				: "Create session";
@@ -646,8 +647,8 @@ const Composer = memo(
 						>
 							<div className="flex min-w-0 items-center gap-1.5">
 								<ComposerIconButton
-									title="New session"
-									aria-label="New session"
+									title={codexThreadCommandLabels.new}
+									aria-label={codexThreadCommandLabels.new}
 									pressed={promptTarget === "new"}
 									disabled={busy}
 									onClick={() => {
@@ -662,8 +663,8 @@ const Composer = memo(
 									<Plus size={14} />
 								</ComposerIconButton>
 								<ComposerIconButton
-									title="Goal mode"
-									aria-label="Goal mode"
+									title={codexThreadCommandLabels.goal}
+									aria-label={codexThreadCommandLabels.goal}
 									pressed={goalMode}
 									disabled={!canUseGoalMode || busy}
 									onClick={() => onGoalModeChange(!goalMode)}
@@ -714,7 +715,7 @@ const Composer = memo(
 																size={15}
 																className="shrink-0 text-muted"
 															/>
-															<span>Fork thread</span>
+															<span>{codexThreadCommandLabels.fork}</span>
 														</button>
 														<button
 															type="button"
@@ -730,7 +731,7 @@ const Composer = memo(
 																size={15}
 																className="shrink-0 text-muted"
 															/>
-															<span>Compact thread</span>
+															<span>{codexThreadCommandLabels.compact}</span>
 														</button>
 														<button
 															type="button"
@@ -746,7 +747,7 @@ const Composer = memo(
 																size={15}
 																className="shrink-0 text-muted"
 															/>
-															<span>Interrupt</span>
+															<span>{codexThreadCommandLabels.interrupt}</span>
 														</button>
 														<button
 															type="button"
@@ -759,7 +760,7 @@ const Composer = memo(
 															}}
 														>
 															<Play size={15} className="shrink-0 text-muted" />
-															<span>Resume</span>
+															<span>{codexThreadCommandLabels.resume}</span>
 														</button>
 													</div>
 												</motion.div>

@@ -1,11 +1,15 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
+	GitFork,
 	Goal,
 	Maximize2,
 	Menu,
+	Minimize2,
+	Play,
 	Plus,
 	Search,
 	Settings,
+	Square,
 	Sun,
 	Terminal,
 	TextCursorInput,
@@ -19,6 +23,7 @@ import type {
 	SessionDisplayStatus,
 	ThreadDetail,
 } from "../../server/domain.js";
+import { codexThreadCommandLabels } from "../codexCommandLabels.js";
 import {
 	cn,
 	displayScale as displayScaleConfig,
@@ -105,7 +110,7 @@ type CommandActionBase = {
 
 type CommandAction =
 	| (CommandActionBase & {
-			kind: "create" | "navigator" | "terminal" | "prompt" | "view";
+			kind: "create" | "navigator" | "terminal" | "prompt" | "view" | "thread";
 	  })
 	| (CommandActionBase & {
 			kind: "project";
@@ -355,6 +360,14 @@ function CommandActionGlyph({
 	const icon =
 		action.kind === "create" ? (
 			<Plus size={14} />
+		) : action.kind === "thread" && action.id === "thread:fork" ? (
+			<GitFork size={14} />
+		) : action.kind === "thread" && action.id === "thread:compact" ? (
+			<Minimize2 size={14} />
+		) : action.kind === "thread" && action.id === "thread:interrupt" ? (
+			<Square size={14} />
+		) : action.kind === "thread" && action.id === "thread:resume" ? (
+			<Play size={14} />
 		) : action.kind === "navigator" ? (
 			<Menu size={14} />
 		) : action.kind === "terminal" ? (
@@ -747,10 +760,16 @@ export const DashboardLayout = memo(function DashboardLayout({
 			setMobileSheet(null);
 			window.requestAnimationFrame(focusVisiblePrompt);
 		};
+		const canInterrupt = selectedThread?.status === "active" && !busy;
+		const canResume =
+			Boolean(selectedThreadId) && selectedThread?.status !== "active" && !busy;
+		const canFork = Boolean(selectedThreadId) && !busy;
+		const canCompact =
+			Boolean(selectedThreadId) && selectedThread?.status !== "active" && !busy;
 		const actions: CommandAction[] = [
 			{
 				id: "create-session",
-				title: "Create new session",
+				title: codexThreadCommandLabels.new,
 				detail: "Start a fresh Codex app-server session",
 				kind: "create",
 				run: createSessionAndFocusPrompt,
@@ -761,6 +780,42 @@ export const DashboardLayout = memo(function DashboardLayout({
 				detail: "Jump to the composer input",
 				kind: "prompt",
 				run: focusPrompt,
+			},
+			{
+				id: "thread:fork",
+				title: codexThreadCommandLabels.fork,
+				detail: "Fork the current chat",
+				kind: "thread",
+				disabled: !canFork,
+				disabledDetail: "Select a session before forking",
+				run: onFork,
+			},
+			{
+				id: "thread:compact",
+				title: codexThreadCommandLabels.compact,
+				detail: "Summarize conversation to prevent hitting the context limit",
+				kind: "thread",
+				disabled: !canCompact,
+				disabledDetail: "Select an idle session before compacting",
+				run: onCompact,
+			},
+			{
+				id: "thread:interrupt",
+				title: codexThreadCommandLabels.interrupt,
+				detail: "Interrupt the active turn",
+				kind: "thread",
+				disabled: !canInterrupt,
+				disabledDetail: "No active turn is running",
+				run: onInterrupt,
+			},
+			{
+				id: "thread:resume",
+				title: codexThreadCommandLabels.resume,
+				detail: "Resume a saved chat",
+				kind: "thread",
+				disabled: !canResume,
+				disabledDetail: "Select an idle session before resuming",
+				run: onResume,
 			},
 			{
 				id: "toggle-navigator",
@@ -792,7 +847,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 			},
 			{
 				id: "settings:toggle-goal-mode",
-				title: goalMode ? "Disable goal mode" : "Enable goal mode",
+				title: codexThreadCommandLabels.goal,
 				detail: goalMode
 					? "Composer will send normal prompts"
 					: "Composer will start or continue a goal",
@@ -878,6 +933,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 		return actions;
 	}, [
 		canUseGoalMode,
+		busy,
 		displayScale,
 		focusVisiblePrompt,
 		fullscreenSupported,
@@ -889,11 +945,17 @@ export const DashboardLayout = memo(function DashboardLayout({
 		themeMode,
 		toggleFullscreen,
 		wrapSessionContent,
+		selectedThread,
+		selectedThreadId,
 		createSessionAndFocusPrompt,
 		onDisplayScaleChange,
+		onCompact,
+		onFork,
 		onGoalModeChange,
 		onInspectorVisibleChange,
+		onInterrupt,
 		onNavigatorVisibleChange,
+		onResume,
 		onThemeModeChange,
 		onWrapSessionContentChange,
 		onTerminalVisibleChange,

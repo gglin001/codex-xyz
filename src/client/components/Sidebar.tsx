@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Check, ChevronDown, Plus, Search } from "lucide-react";
 import type { ReactNode } from "react";
 import { memo, useMemo, useState } from "react";
+import { codexThreadCommandLabels } from "../codexCommandLabels.js";
 import { cn, ui } from "../designSystem.js";
 import { formatFullDateTime, formatTokens } from "../uiFormat.js";
 import {
@@ -201,8 +202,8 @@ export const Sidebar = memo(function Sidebar({
 				<ControlButton
 					className="h-9 w-9 shrink-0 bg-transparent"
 					onClick={onCreateSession}
-					title="New session"
-					aria-label="New session"
+					title={codexThreadCommandLabels.new}
+					aria-label={codexThreadCommandLabels.new}
 				>
 					<Plus size={16} />
 				</ControlButton>
