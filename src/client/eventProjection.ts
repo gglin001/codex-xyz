@@ -1,10 +1,10 @@
 import type {
 	ControlThread,
+	CozEvent,
 	DashboardState,
 	ThreadDetail,
 	ThreadItem,
 	Turn,
-	CozEvent,
 } from "../server/domain.js";
 import {
 	isThreadRuntimeStatus,

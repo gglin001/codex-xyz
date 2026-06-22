@@ -12,9 +12,7 @@ export function readDebugLevel(env: Env = process.env) {
 	}
 	const level = Number(configuredLevel);
 	if (!Number.isInteger(level) || level < 0 || level > 3) {
-		throw new Error(
-			"COZ_DEBUG_LEVEL must be an integer between 0 and 3.",
-		);
+		throw new Error("COZ_DEBUG_LEVEL must be an integer between 0 and 3.");
 	}
 	return level;
 }

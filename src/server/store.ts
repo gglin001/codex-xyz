@@ -3,6 +3,7 @@ import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import {
 	type ControlThread,
+	type CozEvent,
 	type GoalStatus,
 	type ItemType,
 	isSummaryEventType,
@@ -13,7 +14,6 @@ import {
 	type ThreadRuntimeStatus,
 	type Turn,
 	type TurnStatus,
-	type CozEvent,
 } from "./domain.js";
 
 type Row = Record<string, unknown>;

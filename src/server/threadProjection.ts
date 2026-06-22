@@ -6,11 +6,11 @@ import type {
 } from "./codex/adapter.js";
 import type {
 	ControlThread,
+	CozEvent,
 	GoalStatus,
 	ThreadItem,
 	Turn,
 	TurnStatus,
-	CozEvent,
 } from "./domain.js";
 import { nowIso, threadRuntimeStatusFromTurnStatus } from "./domain.js";
 import type { EventBus } from "./eventBus.js";

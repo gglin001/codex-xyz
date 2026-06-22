@@ -6,11 +6,11 @@ import {
 } from "../src/client/eventProjection.js";
 import type {
 	ControlThread,
+	CozEvent,
 	DashboardState,
 	ThreadDetail,
 	ThreadItem,
 	Turn,
-	CozEvent,
 } from "../src/server/domain.js";
 
 const createdAt = "2026-06-13T00:00:00.000Z";

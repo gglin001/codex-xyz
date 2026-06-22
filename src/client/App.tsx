@@ -11,9 +11,9 @@ import {
 	useState,
 } from "react";
 import type {
+	CozEvent,
 	DashboardState,
 	ThreadDetail,
-	CozEvent,
 } from "../server/domain.js";
 import {
 	createSession,
