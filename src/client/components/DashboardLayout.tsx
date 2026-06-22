@@ -138,6 +138,7 @@ type CommandActionRenderItem = {
 type MobileSheet = "navigator" | "inspector";
 
 const spring = { type: "spring", stiffness: 360, damping: 36 } as const;
+const dragDismissThreshold = 80;
 const mobileSheetClass =
 	"mobile-sheet-surface absolute inset-x-0 top-[var(--mobile-sheet-top)] flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden rounded-t-[16px] border-t";
 
@@ -384,6 +385,7 @@ const CommandPalette = memo(function CommandPalette({
 	const [query, setQuery] = useState("");
 	const [activeIndex, setActiveIndex] = useState(0);
 	const inputRef = useRef<HTMLInputElement | null>(null);
+	const paletteRef = useRef<HTMLDivElement | null>(null);
 
 	const filteredActions = useMemo(() => {
 		const normalized = query.trim().toLowerCase();
@@ -415,6 +417,10 @@ const CommandPalette = memo(function CommandPalette({
 		onClose();
 	}, [activeIndex, filteredActions, onClose]);
 
+	useSwipeGesture(paletteRef, {
+		onSwipeDown: onClose,
+	});
+
 	return (
 		<AnimatePresence>
 			{open ? (
@@ -430,6 +436,7 @@ const CommandPalette = memo(function CommandPalette({
 					onMouseDown={onClose}
 				>
 					<motion.div
+						ref={paletteRef}
 						className={cn(
 							mobileSheetClass,
 							"px-0 md:static md:h-auto md:max-h-[calc(100dvh_-_24vh)] md:w-full md:max-w-[620px] md:rounded-[12px] md:border",
@@ -451,6 +458,18 @@ const CommandPalette = memo(function CommandPalette({
 								? spring
 								: { type: "spring", stiffness: 420, damping: 34 }
 						}
+						drag={isMobileViewport() ? "y" : false}
+						dragConstraints={{ top: 0, bottom: 0 }}
+						dragElastic={{ top: 0, bottom: 0.4 }}
+						dragMomentum={false}
+						onDragEnd={(_event, info) => {
+							if (
+								info.offset.y > dragDismissThreshold ||
+								info.velocity.y > 600
+							) {
+								onClose();
+							}
+						}}
 						onMouseDown={(event) => event.stopPropagation()}
 					>
 						<div className="md:hidden">
@@ -903,29 +922,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 		onInspectorVisibleChange(!inspectorVisible);
 	}, [inspectorVisible, onInspectorVisibleChange, openMobileSheet]);
 
-	const handleMobileSwipeLeft = useCallback(() => {
-		if (mobileSheet === "navigator") {
-			setMobileSheet(null);
-			return;
-		}
-		onTerminalVisibleChange(false);
-		setMobileSheet("inspector");
-	}, [mobileSheet, onTerminalVisibleChange]);
-
-	const handleMobileSwipeRight = useCallback(() => {
-		if (mobileSheet === "inspector") {
-			setMobileSheet(null);
-			return;
-		}
-		onTerminalVisibleChange(false);
-		setMobileSheet("navigator");
-	}, [mobileSheet, onTerminalVisibleChange]);
-
 	useSwipeGesture(mobileSheetRef, {
-		onSwipeLeft:
-			mobileSheet === "navigator" ? () => setMobileSheet(null) : undefined,
-		onSwipeRight:
-			mobileSheet === "inspector" ? () => setMobileSheet(null) : undefined,
 		onSwipeDown: () => setMobileSheet(null),
 	});
 
@@ -1128,8 +1125,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 					onResume={onResume}
 					onToggleNavigator={() => openMobileSheet("navigator")}
 					onToggleInspector={() => openMobileSheet("inspector")}
-					onSwipeLeft={handleMobileSwipeLeft}
-					onSwipeRight={handleMobileSwipeRight}
 					onSwipeUp={openCommandPalette}
 				/>
 			</div>
@@ -1156,7 +1151,10 @@ export const DashboardLayout = memo(function DashboardLayout({
 							dragElastic={{ top: 0, bottom: 0.4 }}
 							dragMomentum={false}
 							onDragEnd={(_event, info) => {
-								if (info.offset.y > 80 || info.velocity.y > 600) {
+								if (
+									info.offset.y > dragDismissThreshold ||
+									info.velocity.y > 600
+								) {
 									setMobileSheet(null);
 								}
 							}}

@@ -94,10 +94,7 @@ export type WorkspaceProps = {
 	onResume: () => void;
 	onToggleNavigator: () => void;
 	onToggleInspector: () => void;
-	onSwipeLeft?: () => void;
-	onSwipeRight?: () => void;
 	onSwipeUp?: () => void;
-	onSwipeDown?: () => void;
 };
 
 export type WorkspaceHandle = {
@@ -435,6 +432,7 @@ type ComposerProps = Pick<
 	| "onResume"
 > & {
 	onPromptFocus?: () => void;
+	onSwipeUp?: () => void;
 };
 
 const Composer = memo(
@@ -461,10 +459,12 @@ const Composer = memo(
 			onInterrupt,
 			onResume,
 			onPromptFocus,
+			onSwipeUp,
 		},
 		ref,
 	) {
 		const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+		const actionBarRef = useRef<HTMLDivElement | null>(null);
 		const canInterrupt = selectedThread?.status === "active" && !busy;
 		const canResume =
 			Boolean(selectedThreadId) && selectedThread?.status !== "active" && !busy;
@@ -518,6 +518,15 @@ const Composer = memo(
 			});
 		}, []);
 
+		useSwipeGesture(
+			actionBarRef,
+			{ onSwipeUp },
+			{
+				axisLockRatio: mobileComposerSwipeAxisLockRatio,
+				directionThresholds: mobileComposerSwipeDirectionThresholds,
+			},
+		);
+
 		return (
 			<div>
 				{busyAction || notice || error ? (
@@ -564,7 +573,10 @@ const Composer = memo(
 							placeholder={placeholder}
 							disabled={busy}
 						/>
-						<div className="flex items-center justify-between gap-3 border-t border-border pt-2">
+						<div
+							ref={actionBarRef}
+							className="flex items-center justify-between gap-3 border-t border-border pt-2"
+						>
 							<div className="flex min-w-0 items-center gap-1.5">
 								<ComposerIconButton
 									title="New session"
@@ -719,10 +731,7 @@ export const Workspace = memo(
 			onResume,
 			onToggleNavigator,
 			onToggleInspector,
-			onSwipeLeft,
-			onSwipeRight,
 			onSwipeUp,
-			onSwipeDown,
 		},
 		ref,
 	) {
@@ -765,21 +774,6 @@ export const Workspace = memo(
 				focusPrompt: () => composerRef.current?.focusPrompt() ?? false,
 			}),
 			[],
-		);
-
-		useSwipeGesture(
-			composerShellRef,
-			{
-				onSwipeLeft,
-				onSwipeRight,
-				onSwipeUp,
-				onSwipeDown,
-			},
-			{
-				axisLockRatio: mobileComposerSwipeAxisLockRatio,
-				directionThresholds: mobileComposerSwipeDirectionThresholds,
-				ignoreInteractive: true,
-			},
 		);
 
 		useEffect(() => {
@@ -975,6 +969,7 @@ export const Workspace = memo(
 									onInterrupt={onInterrupt}
 									onResume={onResume}
 									onPromptFocus={settleMobilePromptFocus}
+									onSwipeUp={onSwipeUp}
 								/>
 							</SessionContentFrame>
 						</div>
