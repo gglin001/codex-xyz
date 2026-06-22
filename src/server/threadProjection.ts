@@ -314,12 +314,7 @@ export class ThreadProjection {
 			(updates.lastTurnStatus !== undefined &&
 				thread.lastTurnStatus !== updates.lastTurnStatus) ||
 			thread.preview !== updates.preview;
-		const updatedAtChanged = Boolean(
-			adapterThread.updatedAt && adapterThread.updatedAt !== thread.updatedAt,
-		);
-		const changed = fieldsChanged || updatedAtChanged;
-
-		const updated = changed
+		const updated = fieldsChanged
 			? this.store.updateThread(
 					thread.id,
 					updates,
@@ -337,7 +332,7 @@ export class ThreadProjection {
 
 		return {
 			thread: updated,
-			updated: changed,
+			updated: fieldsChanged,
 		};
 	}
 

@@ -106,6 +106,44 @@ describe("ThreadProjection", () => {
 		expect(events.map((event) => event.type)).toEqual(["thread.status"]);
 	});
 
+	it("ignores runtime snapshot timestamp churn when session fields are unchanged", () => {
+		const originalUpdatedAt = "2026-01-01T00:00:00.000Z";
+		const runtimeUpdatedAt = "2026-01-01T00:10:00.000Z";
+		const thread = createThread({ updatedAt: originalUpdatedAt });
+		events = [];
+
+		const result = projection.applyRuntimeThreadSnapshot(thread, {
+			...adapterThread({ updatedAt: runtimeUpdatedAt }),
+		});
+
+		const detail = store.getThreadDetail("thread-1");
+		expect(result.updated).toBe(false);
+		expect(detail?.updatedAt).toBe(originalUpdatedAt);
+		expect(events).toEqual([]);
+	});
+
+	it("accepts runtime snapshot timestamps when session status changes", () => {
+		const originalUpdatedAt = "2026-01-01T00:00:00.000Z";
+		const runtimeUpdatedAt = "2026-01-01T00:10:00.000Z";
+		const thread = createThread({ updatedAt: originalUpdatedAt });
+		events = [];
+
+		const result = projection.applyRuntimeThreadSnapshot(thread, {
+			...adapterThread({
+				status: "not_loaded",
+				updatedAt: runtimeUpdatedAt,
+			}),
+		});
+
+		const detail = store.getThreadDetail("thread-1");
+		expect(result.updated).toBe(true);
+		expect(detail).toMatchObject({
+			status: "not_loaded",
+			updatedAt: runtimeUpdatedAt,
+		});
+		expect(events.map((event) => event.type)).toEqual(["thread.status"]);
+	});
+
 	it("projects goal updates and explicit goal clearing", () => {
 		createThread();
 
