@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { spawn } from "node:child_process";
 
 const uiUrl = process.env.COZ_UI_URL || "http://127.0.0.1:1123";

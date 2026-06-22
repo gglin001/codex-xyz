@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { execFile } from "node:child_process";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
