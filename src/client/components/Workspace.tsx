@@ -4,6 +4,7 @@ import {
 	Check,
 	Copy,
 	Ellipsis,
+	GitFork,
 	Goal,
 	Menu,
 	Play,
@@ -91,6 +92,7 @@ export type WorkspaceProps = {
 	onGoalModeChange: (value: boolean) => void;
 	onInterrupt: () => void;
 	onResume: () => void;
+	onFork: () => void;
 	onToggleNavigator: () => void;
 	onToggleInspector: () => void;
 	onSwipeUp?: () => void;
@@ -429,6 +431,7 @@ type ComposerProps = Pick<
 	| "onGoalModeChange"
 	| "onInterrupt"
 	| "onResume"
+	| "onFork"
 > & {
 	onPromptFocus?: () => void;
 	onSwipeUp?: () => void;
@@ -457,6 +460,7 @@ const Composer = memo(
 			onGoalModeChange,
 			onInterrupt,
 			onResume,
+			onFork,
 			onPromptFocus,
 			onSwipeUp,
 		},
@@ -467,6 +471,7 @@ const Composer = memo(
 		const canInterrupt = selectedThread?.status === "active" && !busy;
 		const canResume =
 			Boolean(selectedThreadId) && selectedThread?.status !== "active" && !busy;
+		const canFork = Boolean(selectedThreadId) && !busy;
 		const [moreActionsOpen, setMoreActionsOpen] = useState(false);
 		const submitTitle = goalMode
 			? "Start goal mode"
@@ -604,6 +609,14 @@ const Composer = memo(
 								</ComposerIconButton>
 								<span className="hidden md:contents">
 									<ComposerIconButton
+										title="Fork thread"
+										aria-label="Fork thread"
+										disabled={!canFork}
+										onClick={onFork}
+									>
+										<GitFork size={14} />
+									</ComposerIconButton>
+									<ComposerIconButton
 										title="Interrupt"
 										aria-label="Interrupt"
 										disabled={!canInterrupt}
@@ -647,6 +660,21 @@ const Composer = memo(
 													transition={spring}
 												>
 													<div className="p-1">
+														<button
+															type="button"
+															className="flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control disabled:cursor-not-allowed disabled:opacity-30"
+															disabled={!canFork}
+															onClick={() => {
+																onFork();
+																setMoreActionsOpen(false);
+															}}
+														>
+															<GitFork
+																size={15}
+																className="shrink-0 text-muted"
+															/>
+															<span>Fork thread</span>
+														</button>
 														<button
 															type="button"
 															className="flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control disabled:cursor-not-allowed disabled:opacity-30"
@@ -728,6 +756,7 @@ export const Workspace = memo(
 			onGoalModeChange,
 			onInterrupt,
 			onResume,
+			onFork,
 			onToggleNavigator,
 			onToggleInspector,
 			onSwipeUp,
@@ -967,6 +996,7 @@ export const Workspace = memo(
 									onGoalModeChange={onGoalModeChange}
 									onInterrupt={onInterrupt}
 									onResume={onResume}
+									onFork={onFork}
 									onPromptFocus={settleMobilePromptFocus}
 									onSwipeUp={onSwipeUp}
 								/>

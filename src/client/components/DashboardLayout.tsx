@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
+	GitFork,
 	Goal,
 	Maximize2,
 	Menu,
@@ -89,6 +90,7 @@ export type DashboardLayoutProps = {
 	onGoalModeChange: (value: boolean) => void;
 	onInterrupt: () => void;
 	onResume: () => void;
+	onFork: () => void;
 };
 
 type CommandActionBase = {
@@ -102,7 +104,7 @@ type CommandActionBase = {
 
 type CommandAction =
 	| (CommandActionBase & {
-			kind: "create" | "navigator" | "terminal" | "prompt" | "view";
+			kind: "create" | "fork" | "navigator" | "terminal" | "prompt" | "view";
 	  })
 	| (CommandActionBase & {
 			kind: "project";
@@ -352,6 +354,8 @@ function CommandActionGlyph({
 	const icon =
 		action.kind === "create" ? (
 			<Plus size={14} />
+		) : action.kind === "fork" ? (
+			<GitFork size={14} />
 		) : action.kind === "navigator" ? (
 			<Menu size={14} />
 		) : action.kind === "terminal" ? (
@@ -614,6 +618,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 	onGoalModeChange,
 	onInterrupt,
 	onResume,
+	onFork,
 }: DashboardLayoutProps) {
 	const [mobileSheet, setMobileSheet] = useState<MobileSheet | null>(null);
 	const [commandOpen, setCommandOpen] = useState(false);
@@ -751,6 +756,17 @@ export const DashboardLayout = memo(function DashboardLayout({
 				detail: "Start a fresh Codex app-server session",
 				kind: "create",
 				run: createSessionAndFocusPrompt,
+			},
+			{
+				id: "fork-thread",
+				title: "Fork current thread",
+				detail: "Create an app-server fork from the selected thread",
+				kind: "fork",
+				disabled: !selectedThreadId || busy,
+				disabledDetail: busy
+					? "Wait for the current action to finish"
+					: "Select a thread before forking",
+				run: onFork,
 			},
 			{
 				id: "focus-prompt",
@@ -901,6 +917,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 		canDecreaseScale,
 		canIncreaseScale,
 		canUseGoalMode,
+		busy,
 		displayScale,
 		focusVisiblePrompt,
 		fullscreenSupported,
@@ -915,6 +932,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 		createSessionAndFocusPrompt,
 		onDisplayScaleChange,
 		onGoalModeChange,
+		onFork,
 		onInspectorVisibleChange,
 		onNavigatorVisibleChange,
 		onThemeModeChange,
@@ -923,6 +941,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 		onProjectChange,
 		onSelectSession,
 		projects,
+		selectedThreadId,
 	]);
 
 	const toggleDesktopTerminal = useCallback(() => {
@@ -1103,6 +1122,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 						onGoalModeChange={onGoalModeChange}
 						onInterrupt={onInterrupt}
 						onResume={onResume}
+						onFork={onFork}
 						onToggleNavigator={toggleNavigator}
 						onToggleInspector={toggleInspector}
 					/>
@@ -1154,6 +1174,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 					onGoalModeChange={onGoalModeChange}
 					onInterrupt={onInterrupt}
 					onResume={onResume}
+					onFork={onFork}
 					onToggleNavigator={() => openMobileSheet("navigator")}
 					onToggleInspector={() => openMobileSheet("inspector")}
 					onSwipeUp={openCommandPaletteFromSwipe}

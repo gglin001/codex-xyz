@@ -17,7 +17,7 @@ import {
 } from "./domain.js";
 import { EventBus } from "./eventBus.js";
 import {
-	type RuntimeContinuation,
+	type RuntimeForkInput,
 	type RuntimeThreadActionOptions,
 	RuntimeThreadCoordinator,
 } from "./runtimeThread.js";
@@ -95,8 +95,7 @@ export class ControlService {
 		this.runtimeThreads = new RuntimeThreadCoordinator({
 			resumeThread: (thread) => this.resumeRuntimeThread(thread),
 			markThreadLost: (thread) => this.projection.markRuntimeThreadLost(thread),
-			createContinuationThread: (thread, continuation) =>
-				this.createContinuationThread(thread, continuation),
+			forkThread: (thread, input) => this.forkRuntimeThread(thread, input),
 			notResumableError: (thread) =>
 				new Error(
 					`Thread ${thread.id} is not loaded by Codex and could not be resumed`,
@@ -259,6 +258,25 @@ export class ControlService {
 		return this.store.getThread(threadId);
 	}
 
+	async forkThread(input: {
+		threadId: string;
+		cwd?: string | null;
+		model?: string | null;
+		title?: string | null;
+	}) {
+		const source = this.requireThread(input.threadId);
+		const cwd = input.cwd ? normalizeWorkingDirectory(input.cwd) : source.cwd;
+		const title = input.title?.trim() || `Fork of ${source.title}`;
+		return this.createForkedThread(source, {
+			cwd,
+			model: input.model ?? source.model,
+			title,
+			preview: source.preview,
+			eventReason: "manual",
+			markSourceLost: false,
+		});
+	}
+
 	async setGoal(input: SetGoalInput) {
 		const source = this.requireThread(input.threadId);
 		const goal = await this.withRuntimeThread(source, (runtimeThread) =>
@@ -413,7 +431,7 @@ export class ControlService {
 					model: input.model ?? runtimeThread.model,
 				}),
 			{
-				continuation: {
+				fork: {
 					prompt: input.prompt,
 					model: input.model ?? thread.model,
 				},
@@ -439,7 +457,7 @@ export class ControlService {
 						runtimeThread.id === thread.id ? runtimeThread.activeTurnId : null,
 				}),
 			{
-				continuation: {
+				fork: {
 					prompt: `!${command}`,
 					model: thread.model,
 				},
@@ -495,29 +513,53 @@ export class ControlService {
 		return this.store.getThread(thread.id);
 	}
 
-	private async createContinuationThread(
+	private async forkRuntimeThread(
 		source: ControlThread,
-		continuation: RuntimeContinuation,
+		input: RuntimeForkInput,
 	) {
-		this.projection.markRuntimeThreadLost(source);
-		const adapterThread = await this.adapter.startThread({
+		return this.createForkedThread(source, {
 			cwd: source.cwd,
-			promptPreview: titleFromPrompt(continuation.prompt),
-			model: continuation.model,
+			model: input.model,
+			title: source.title,
+			preview: input.prompt,
+			eventReason: "runtime_missing",
+			markSourceLost: true,
+		});
+	}
+
+	private async createForkedThread(
+		source: ControlThread,
+		input: {
+			cwd: string;
+			model: string | null;
+			title: string;
+			preview: string;
+			eventReason: "manual" | "runtime_missing";
+			markSourceLost: boolean;
+		},
+	) {
+		if (input.markSourceLost) {
+			this.projection.markRuntimeThreadLost(source);
+		}
+		const adapterThread = await this.adapter.forkThread({
+			sourceThreadId: source.id,
+			cwd: input.cwd,
+			model: input.model,
 		});
 		const thread = this.projection.createThread({
 			adapterThread,
-			title: source.title,
+			title: input.title,
 			forkedFromId: source.id,
 			goalObjective: source.goalObjective,
 			goalStatus: source.goalStatus,
 			goalTokenBudget: source.goalTokenBudget,
-			preview: continuation.prompt,
+			preview: input.preview,
 			tokensUsed: source.tokensUsed,
 		});
-		this.projection.publish("thread.continued", thread.id, null, {
+		this.projection.publish("thread.forked", thread.id, null, {
 			thread,
 			sourceThreadId: source.id,
+			reason: input.eventReason,
 		});
 		return thread;
 	}

@@ -91,6 +91,13 @@ export function resumeThread(threadId: string) {
 	});
 }
 
+export function forkThread(threadId: string) {
+	return request<ControlThread>(`/api/threads/${threadId}/fork`, {
+		method: "POST",
+		body: JSON.stringify({}),
+	});
+}
+
 export function startGoal(
 	threadId: string,
 	objective: string,

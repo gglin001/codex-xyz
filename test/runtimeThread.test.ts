@@ -33,7 +33,7 @@ describe("RuntimeThreadCoordinator", () => {
 		const coordinator = new RuntimeThreadCoordinator({
 			resumeThread: vi.fn(),
 			markThreadLost: vi.fn(),
-			createContinuationThread: vi.fn(),
+			forkThread: vi.fn(),
 			notResumableError: (runtimeThread) =>
 				new Error(`lost ${runtimeThread.id}`),
 		});
@@ -60,7 +60,7 @@ describe("RuntimeThreadCoordinator", () => {
 		const coordinator = new RuntimeThreadCoordinator({
 			resumeThread: vi.fn(async () => resumed),
 			markThreadLost: vi.fn(),
-			createContinuationThread: vi.fn(),
+			forkThread: vi.fn(),
 			notResumableError: (runtimeThread) =>
 				new Error(`lost ${runtimeThread.id}`),
 		});
@@ -78,7 +78,7 @@ describe("RuntimeThreadCoordinator", () => {
 		const coordinator = new RuntimeThreadCoordinator({
 			resumeThread: vi.fn(async () => null),
 			markThreadLost,
-			createContinuationThread: vi.fn(),
+			forkThread: vi.fn(),
 			notResumableError: (runtimeThread) =>
 				new Error(`lost ${runtimeThread.id}`),
 		});
@@ -91,37 +91,70 @@ describe("RuntimeThreadCoordinator", () => {
 		expect(markThreadLost).toHaveBeenCalledWith(source);
 	});
 
-	it("creates a continuation when a continuable action cannot be resumed", async () => {
+	it("forks when a continuable action cannot be resumed", async () => {
 		const source = thread();
-		const continuation = thread("thread-2");
+		const fork = thread("thread-2");
 		const action = vi
 			.fn()
 			.mockRejectedValueOnce(new AdapterThreadNotFoundError(source.id))
-			.mockResolvedValueOnce("continued");
-		const createContinuationThread = vi.fn(async () => continuation);
+			.mockResolvedValueOnce("forked");
+		const forkThread = vi.fn(async () => fork);
 		const coordinator = new RuntimeThreadCoordinator({
 			resumeThread: vi.fn(async () => null),
 			markThreadLost: vi.fn(),
-			createContinuationThread,
+			forkThread,
 			notResumableError: (runtimeThread) =>
 				new Error(`lost ${runtimeThread.id}`),
 		});
 		const options = {
-			continuation: {
+			fork: {
 				prompt: "Continue from here",
 				model: "model-b",
 			},
 		};
 
 		await expect(coordinator.run(source, action, options)).resolves.toEqual({
-			thread: continuation,
-			value: "continued",
+			thread: fork,
+			value: "forked",
 		});
-		expect(createContinuationThread).toHaveBeenCalledWith(
-			source,
-			options.continuation,
-		);
-		expect(action).toHaveBeenLastCalledWith(continuation);
+		expect(forkThread).toHaveBeenCalledWith(source, options.fork);
+		expect(action).toHaveBeenLastCalledWith(fork);
+	});
+
+	it("forks from the resumed snapshot when a continuable retry loses runtime", async () => {
+		const source = thread();
+		const resumed = {
+			...source,
+			status: "idle" as const,
+			preview: "Fresh runtime preview",
+		};
+		const fork = thread("thread-2");
+		const action = vi
+			.fn()
+			.mockRejectedValueOnce(new AdapterThreadNotFoundError(source.id))
+			.mockRejectedValueOnce(new AdapterThreadNotFoundError(source.id))
+			.mockResolvedValueOnce("forked");
+		const forkThread = vi.fn(async () => fork);
+		const options = {
+			fork: {
+				prompt: "Retry on a fork",
+				model: "model-b",
+			},
+		};
+		const coordinator = new RuntimeThreadCoordinator({
+			resumeThread: vi.fn(async () => resumed),
+			markThreadLost: vi.fn(),
+			forkThread,
+			notResumableError: (runtimeThread) =>
+				new Error(`lost ${runtimeThread.id}`),
+		});
+
+		await expect(coordinator.run(source, action, options)).resolves.toEqual({
+			thread: fork,
+			value: "forked",
+		});
+		expect(forkThread).toHaveBeenCalledWith(resumed, options.fork);
+		expect(action).toHaveBeenLastCalledWith(fork);
 	});
 
 	it("marks not loaded and rethrows adapter loss after a non-continuable resumed retry fails", async () => {
@@ -139,7 +172,7 @@ describe("RuntimeThreadCoordinator", () => {
 		const coordinator = new RuntimeThreadCoordinator({
 			resumeThread: vi.fn(async () => resumed),
 			markThreadLost,
-			createContinuationThread: vi.fn(),
+			forkThread: vi.fn(),
 			notResumableError: (runtimeThread) =>
 				new Error(`lost ${runtimeThread.id}`),
 		});

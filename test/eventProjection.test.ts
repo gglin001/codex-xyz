@@ -276,9 +276,9 @@ describe("client event projection", () => {
 		expect(result.state.threadNextOffset).toBe(2);
 	});
 
-	it("projects continuation threads as inserted threads that require relationship refresh", () => {
-		const continuation = thread({
-			id: "thread-continued",
+	it("projects forked threads as inserted threads that require relationship refresh", () => {
+		const fork = thread({
+			id: "thread-forked",
 			sessionId: "session-1",
 			forkedFromId: "thread-1",
 			activeTurnId: null,
@@ -287,12 +287,13 @@ describe("client event projection", () => {
 		const result = applyEventProjection(
 			projection(),
 			event(
-				"thread.continued",
+				"thread.forked",
 				{
-					thread: continuation,
+					thread: fork,
 					sourceThreadId: "thread-1",
+					reason: "manual",
 				},
-				{ threadId: "thread-continued", turnId: null },
+				{ threadId: "thread-forked", turnId: null },
 			),
 		);
 
@@ -300,7 +301,7 @@ describe("client event projection", () => {
 		expect(result.handled).toBe(true);
 		expect(result.needsRefresh).toBe(true);
 		expect(result.state.threads.map((candidate) => candidate.id)).toEqual([
-			"thread-continued",
+			"thread-forked",
 			"thread-1",
 		]);
 		expect(result.state.threadTotalCount).toBe(2);

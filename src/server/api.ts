@@ -396,6 +396,19 @@ async function routeApiRequest(
 			return jsonResponse(await service.resumeThread(threadId));
 		}
 
+		if (method === "POST" && parts[3] === "fork") {
+			const body = await readJson(request);
+			return jsonResponse(
+				await service.forkThread({
+					threadId,
+					cwd: optionalString(body, "cwd"),
+					model: optionalString(body, "model"),
+					title: optionalString(body, "title"),
+				}),
+				201,
+			);
+		}
+
 		if (method === "POST" && parts[3] === "interrupt") {
 			return jsonResponse(await service.interruptTurn(threadId));
 		}

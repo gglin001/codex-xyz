@@ -32,7 +32,8 @@ class VolatileCodexAdapter implements CodexAdapter {
 	readonly name = "volatile";
 	readonly version = "test";
 	private handler: AdapterEventHandler = () => {};
-	private readonly threads = new Map<string, AdapterThread>();
+	private readonly loadedThreads = new Map<string, AdapterThread>();
+	private readonly persistedThreads = new Map<string, AdapterThread>();
 	private readonly missingGoalThreads = new Set<string>();
 	private readonly timers = new Set<NodeJS.Timeout>();
 	private nextThread = 1;
@@ -43,7 +44,7 @@ class VolatileCodexAdapter implements CodexAdapter {
 	}
 
 	forgetThread(threadId: string) {
-		this.threads.delete(threadId);
+		this.loadedThreads.delete(threadId);
 	}
 
 	failSetGoal(threadId: string) {
@@ -61,7 +62,8 @@ class VolatileCodexAdapter implements CodexAdapter {
 			model: input.model ?? "volatile-model",
 			status: "idle",
 		};
-		this.threads.set(id, thread);
+		this.loadedThreads.set(id, thread);
+		this.persistedThreads.set(id, thread);
 		return thread;
 	}
 
@@ -105,17 +107,20 @@ class VolatileCodexAdapter implements CodexAdapter {
 	}
 
 	async forkThread(input: ForkThreadInput): Promise<AdapterThread> {
-		const source = this.requireThread(input.sourceThreadId);
+		const source = this.requirePersistedThread(input.sourceThreadId);
 		const fork = await this.startThread({
 			cwd: input.cwd,
 			model: input.model ?? source.model,
 			promptPreview: `Fork of ${source.preview}`,
 		});
-		return {
+		const forkedThread = {
 			...fork,
 			sessionId: source.sessionId,
 			forkedFromId: source.id,
 		};
+		this.loadedThreads.set(forkedThread.id, forkedThread);
+		this.persistedThreads.set(forkedThread.id, forkedThread);
+		return forkedThread;
 	}
 
 	async renameThread(input: { threadId: string }) {
@@ -185,7 +190,18 @@ class VolatileCodexAdapter implements CodexAdapter {
 	}
 
 	private requireThread(threadId: string) {
-		const thread = this.threads.get(threadId);
+		const thread = this.loadedThreads.get(threadId);
+		if (!thread) {
+			throw new AdapterThreadNotFoundError(
+				threadId,
+				`thread not found: ${threadId}`,
+			);
+		}
+		return thread;
+	}
+
+	private requirePersistedThread(threadId: string) {
+		const thread = this.persistedThreads.get(threadId);
 		if (!thread) {
 			throw new AdapterThreadNotFoundError(
 				threadId,
@@ -815,7 +831,49 @@ describe("ControlService", () => {
 		expect(cleared?.goalStatus).toBe("cleared");
 	});
 
-	it("continues on a new thread when the persisted runtime thread is missing", async () => {
+	it("forks an app-server thread and continues work on the fork", async () => {
+		const result = await service.createSession({
+			cwd: tempDir,
+			prompt: "Build the source conversation before forking",
+		});
+		await waitForEvents();
+
+		const sourceThreadId = result.thread?.id;
+		if (!sourceThreadId) {
+			throw new Error("Expected created thread id");
+		}
+
+		const fork = await service.forkThread({ threadId: sourceThreadId });
+		expect(fork).toMatchObject({
+			sessionId: sourceThreadId,
+			forkedFromId: sourceThreadId,
+			title: "Fork of Build the source conversation before forking",
+			cwd: tempDir,
+			status: "idle",
+		});
+		expect(service.getThreadDetail(sourceThreadId).status).toBe("idle");
+		expect(
+			service
+				.replayEvents(0, { summaryOnly: true })
+				.some((event) => event.type === "thread.forked"),
+		).toBe(true);
+
+		const turn = await service.startTurn({
+			threadId: fork.id,
+			prompt: "Continue only on the fork",
+		});
+		await waitForEvents();
+
+		expect(turn.threadId).toBe(fork.id);
+		expect(service.getThreadDetail(fork.id).forkedFromId).toBe(sourceThreadId);
+		expect(
+			service
+				.getThreadDetail(fork.id)
+				.items.some((item) => item.text.includes("Continue only on the fork")),
+		).toBe(true);
+	});
+
+	it("forks from persisted history when the runtime thread is missing", async () => {
 		await service.close();
 		const adapter = new VolatileCodexAdapter();
 		service = new ControlService(
@@ -853,7 +911,7 @@ describe("ControlService", () => {
 		);
 	});
 
-	it("marks a thread not loaded when resume succeeds but a non-continuation action still loses runtime", async () => {
+	it("marks a thread not loaded when resume succeeds but a non-forking action still loses runtime", async () => {
 		await service.close();
 		const adapter = new VolatileCodexAdapter();
 		service = new ControlService(

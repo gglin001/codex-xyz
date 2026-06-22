@@ -129,7 +129,7 @@ export const summaryEventTypes = [
 	"thread.resumed",
 	"thread.status",
 	"thread.runtime_lost",
-	"thread.continued",
+	"thread.forked",
 	"thread.renamed",
 	"thread.goal.updated",
 	"thread.goal.cleared",

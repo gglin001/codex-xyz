@@ -388,6 +388,20 @@ describe("Next API routes", () => {
 			status: "idle",
 		});
 
+		const forked = await json<{
+			id: string;
+			forkedFromId: string | null;
+			title: string;
+		}>(`/api/threads/${created.thread.id}/fork`, {
+			method: "POST",
+			body: JSON.stringify({}),
+		});
+		expect(forked.id).not.toBe(created.thread.id);
+		expect(forked).toMatchObject({
+			forkedFromId: created.thread.id,
+			title: "Fork of Keep this turn open for steering",
+		});
+
 		const goalStart = await json<{
 			goal: { tokenBudget: number | null };
 			turn: { threadId: string; prompt: string };

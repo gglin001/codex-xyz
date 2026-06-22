@@ -35,7 +35,7 @@ export const incrementalEventNames = [
 	"thread.resumed",
 	"thread.status",
 	"thread.runtime_lost",
-	"thread.continued",
+	"thread.forked",
 	"thread.renamed",
 	"thread.goal.updated",
 	"thread.goal.cleared",
@@ -47,17 +47,14 @@ const threadPayloadEventNames = new Set([
 	"thread.started",
 	"thread.resumed",
 	"thread.runtime_lost",
-	"thread.continued",
+	"thread.forked",
 	"thread.renamed",
 	"thread.goal.updated",
 	"thread.goal.cleared",
 	"thread.token_usage",
 ]);
 
-const insertedThreadEventNames = new Set([
-	"thread.started",
-	"thread.continued",
-]);
+const insertedThreadEventNames = new Set(["thread.started", "thread.forked"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return value !== null && typeof value === "object";

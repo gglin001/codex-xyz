@@ -1,13 +1,13 @@
 import { isAdapterThreadNotFoundError } from "./codex/adapter.js";
 import type { ControlThread } from "./domain.js";
 
-export type RuntimeContinuation = {
+export type RuntimeForkInput = {
 	prompt: string;
 	model: string | null;
 };
 
 export type RuntimeThreadActionOptions = {
-	continuation?: RuntimeContinuation;
+	fork?: RuntimeForkInput;
 };
 
 export type RuntimeThreadActionResult<T> = {
@@ -18,9 +18,9 @@ export type RuntimeThreadActionResult<T> = {
 type RuntimeThreadCoordinatorInput = {
 	resumeThread: (thread: ControlThread) => Promise<ControlThread | null>;
 	markThreadLost: (thread: ControlThread) => void;
-	createContinuationThread: (
+	forkThread: (
 		thread: ControlThread,
-		continuation: RuntimeContinuation,
+		input: RuntimeForkInput,
 	) => Promise<ControlThread>;
 	notResumableError: (thread: ControlThread) => Error;
 };
@@ -44,8 +44,10 @@ export class RuntimeThreadCoordinator {
 			}
 		}
 
+		let forkSource = thread;
 		const resumedThread = await this.input.resumeThread(thread);
 		if (resumedThread) {
+			forkSource = resumedThread;
 			try {
 				return {
 					thread: resumedThread,
@@ -55,25 +57,22 @@ export class RuntimeThreadCoordinator {
 				if (!isAdapterThreadNotFoundError(error)) {
 					throw error;
 				}
-				if (!options.continuation) {
+				if (!options.fork) {
 					this.input.markThreadLost(thread);
 					throw error;
 				}
 			}
 		}
 
-		if (!options.continuation) {
+		if (!options.fork) {
 			this.input.markThreadLost(thread);
 			throw this.input.notResumableError(thread);
 		}
 
-		const continuation = await this.input.createContinuationThread(
-			thread,
-			options.continuation,
-		);
+		const fork = await this.input.forkThread(forkSource, options.fork);
 		return {
-			thread: continuation,
-			value: await action(continuation),
+			thread: fork,
+			value: await action(fork),
 		};
 	}
 }

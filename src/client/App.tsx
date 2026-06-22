@@ -17,6 +17,7 @@ import type {
 } from "../server/domain.js";
 import {
 	createSession,
+	forkThread,
 	getState,
 	getThread,
 	interruptTurn,
@@ -957,6 +958,25 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		);
 	}
 
+	function forkSelectedThread() {
+		if (!activeThreadId) {
+			return;
+		}
+		const threadId = activeThreadId;
+		void runAction(
+			"Forking thread",
+			async () => {
+				const thread = await forkThread(threadId);
+				setComposerMode("thread");
+				return thread.id;
+			},
+			{
+				selectResult: true,
+				successMessage: "Thread forked",
+			},
+		);
+	}
+
 	return (
 		<>
 			<DashboardLayout
@@ -1005,6 +1025,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				onGoalModeChange={updateGoalMode}
 				onInterrupt={interruptSelectedThread}
 				onResume={resumeSelectedThread}
+				onFork={forkSelectedThread}
 			/>
 			<Suspense fallback={null}>
 				{terminalVisible ? (
