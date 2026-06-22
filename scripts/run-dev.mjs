@@ -12,11 +12,10 @@ try {
 	);
 
 	const child = spawn(
-		"npx",
-		["next", "dev", "--hostname", hostname, "--port", port],
+		"pnpm",
+		["exec", "next", "dev", "--hostname", hostname, "--port", port],
 		{
 			stdio: "inherit",
-			shell: true,
 		},
 	);
 
