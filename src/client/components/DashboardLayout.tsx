@@ -34,12 +34,7 @@ import { useSwipeGesture } from "../useSwipeGesture.js";
 import { ParamPanel } from "./ParamPanel.js";
 import { Sidebar } from "./Sidebar.js";
 import { SessionStatusIcon } from "./sessionStatusIcon.js";
-import {
-	AvatarBadge,
-	Keycap,
-	MenuItemButton,
-	SurfaceAction,
-} from "./uiPrimitives.js";
+import { AvatarBadge, MenuItemButton, SurfaceAction } from "./uiPrimitives.js";
 import { Workspace, type WorkspaceHandle } from "./Workspace.js";
 import type {
 	ComposerMode,
@@ -485,7 +480,7 @@ const CommandPalette = memo(function CommandPalette({
 									setQuery(event.target.value);
 									setActiveIndex(0);
 								}}
-								placeholder="Search projects, sessions, and panels"
+								placeholder="Search Anything"
 								onKeyDown={(event) => {
 									if (event.key === "Escape") {
 										event.preventDefault();
@@ -507,7 +502,6 @@ const CommandPalette = memo(function CommandPalette({
 									}
 								}}
 							/>
-							<Keycap>Esc</Keycap>
 						</div>
 						<div className="mobile-keyboard-scroll min-h-0 flex-1 overflow-y-auto p-1.5 md:max-h-[420px]">
 							{filteredActions.length === 0 ? (
