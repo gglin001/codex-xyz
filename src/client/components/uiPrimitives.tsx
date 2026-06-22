@@ -319,7 +319,7 @@ export function ScaleControl({
 
 	return (
 		<div className={cn("w-full min-w-0", className)}>
-			<div className="mb-3 flex items-center justify-between gap-3">
+			<div className="mb-2 flex items-center justify-between gap-3">
 				<span className="truncate text-[13px] font-medium text-fg">
 					{label}
 				</span>
@@ -338,23 +338,19 @@ export function ScaleControl({
 					className={ui.range}
 					aria-label={label}
 				/>
-				<div className="pointer-events-none absolute inset-x-[9px] top-1/2 flex -translate-y-1/2 justify-between">
+				<div className="pointer-events-none absolute inset-x-[5px] top-1/2 flex -translate-y-1/2 justify-between">
 					{tickValues.map((tickValue) => (
 						<span
 							key={tickValue}
 							className={cn(
 								"h-1.5 w-1.5 rounded-full",
 								Math.abs(tickValue - value) < step / 2
-									? "bg-accent"
-									: "bg-muted/65",
+									? "bg-fg-strong"
+									: "bg-muted-strong",
 							)}
 						/>
 					))}
 				</div>
-			</div>
-			<div className="mt-2 flex justify-between font-mono text-[11px] tabular-nums text-muted">
-				<span>{formatDisplayScale(min)}</span>
-				<span>{formatDisplayScale(max)}</span>
 			</div>
 		</div>
 	);

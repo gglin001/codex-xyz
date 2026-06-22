@@ -75,7 +75,7 @@ const focusRing =
 const interactiveRow = `${interactiveTransition} hover:bg-control-hover`;
 const controlBase = `${radius.control} border border-border bg-control text-fg shadow-control ${interactiveTransition} hover:border-border-strong hover:bg-control-hover hover:text-fg-strong ${focusRing} ${disabledState}`;
 const sliderThumb =
-	"[&::-webkit-slider-thumb]:h-[18px] [&::-webkit-slider-thumb]:w-[18px] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-border-strong [&::-webkit-slider-thumb]:bg-fg [&::-webkit-slider-thumb]:shadow-control [&::-moz-range-thumb]:h-[18px] [&::-moz-range-thumb]:w-[18px] [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border [&::-moz-range-thumb]:border-border-strong [&::-moz-range-thumb]:bg-fg";
+	"[&::-webkit-slider-thumb]:h-[10px] [&::-webkit-slider-thumb]:w-[10px] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-0 [&::-webkit-slider-thumb]:bg-fg-strong [&::-webkit-slider-thumb]:shadow-none [&::-moz-range-thumb]:h-[10px] [&::-moz-range-thumb]:w-[10px] [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-fg-strong";
 
 export const ui = {
 	appShell: "bg-app-bg text-fg antialiased",
@@ -113,7 +113,7 @@ export const ui = {
 		"min-w-0 flex-1 border-0 bg-transparent text-fg-strong placeholder:text-muted focus:outline-none disabled:opacity-60",
 	textarea:
 		"block w-full resize-none border-0 bg-transparent text-fg-strong placeholder:text-muted focus:outline-none disabled:opacity-60",
-	range: `h-2 w-full cursor-pointer appearance-none rounded-full border border-border bg-control accent-accent ${sliderThumb} ${interactiveTransition} hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring`,
+	range: `block h-2 w-full cursor-pointer appearance-none rounded-full border border-border bg-control accent-accent ${sliderThumb} ${interactiveTransition} hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring`,
 	row: interactiveRow,
 	meta: "text-muted",
 	subtleMeta: "text-[12px] text-muted",

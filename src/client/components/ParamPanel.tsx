@@ -9,14 +9,12 @@ import {
 	ListTree,
 	Maximize2,
 	Minimize2,
-	Moon,
 	Play,
 	Server,
 	SlidersHorizontal,
 	Sun,
 	TimerReset,
 	WrapText,
-	ZoomIn,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { memo } from "react";
@@ -31,7 +29,6 @@ import {
 	ScaleControl,
 	SettingsSection,
 	SurfaceAction,
-	SwitchControl,
 } from "./uiPrimitives.js";
 import type { WorkbenchSession } from "./workbenchTypes.js";
 
@@ -75,49 +72,33 @@ function runtimeStatusTone(status: string | null | undefined) {
 	return tone.neutral.dot;
 }
 
-function SettingsToggleRow({
+function SettingsIconToggle({
 	checked,
 	icon,
-	title,
-	description,
+	label,
+	title = label,
 	onClick,
 }: {
 	checked: boolean;
 	icon: ReactNode;
-	title: string;
-	description: string;
+	label: string;
+	title?: string;
 	onClick: () => void;
 }) {
 	return (
 		<SurfaceAction
 			className={cn(
-				"min-h-11 w-full justify-between gap-3 px-3 py-2.5 text-[13px] font-medium",
+				"h-9 w-9 justify-center p-0",
 				checked ? null : "text-muted-strong",
 			)}
 			selected={checked}
+			title={title}
+			aria-label={label}
 			onClick={onClick}
 		>
-			<span className="inline-flex min-w-0 flex-1 items-center gap-2">
-				<span
-					className={cn("shrink-0", checked ? "text-accent" : "text-muted")}
-				>
-					{icon}
-				</span>
-				<span className="min-w-0">
-					<span
-						className={cn(
-							"block truncate",
-							checked ? "text-fg-strong" : "text-fg",
-						)}
-					>
-						{title}
-					</span>
-					<span className="block truncate text-[11px] font-normal text-muted">
-						{description}
-					</span>
-				</span>
+			<span className={cn("shrink-0", checked ? "text-accent" : "text-muted")}>
+				{icon}
 			</span>
-			<SwitchControl checked={checked} />
 		</SurfaceAction>
 	);
 }
@@ -302,71 +283,55 @@ export const ParamPanel = memo(function ParamPanel({
 					</div>
 				</SettingsSection>
 
-				<SettingsSection icon={<Sun size={13} />} title="Appearance">
-					<div className="grid min-w-0 gap-2">
-						<SettingsToggleRow
-							checked={themeMode === "day"}
-							icon={
-								themeMode === "day" ? <Sun size={14} /> : <Moon size={14} />
-							}
-							title="Day mode"
-							description={
-								themeMode === "day"
-									? "Apple-style light interface"
-									: "Switch to the light interface"
-							}
-							onClick={() => onThemeModeChange(nextThemeMode(themeMode))}
-						/>
-					</div>
-				</SettingsSection>
-
 				<SettingsSection
 					icon={<SlidersHorizontal size={13} />}
-					title="Transcript View"
+					title="Settings"
 				>
 					<div className="grid min-w-0 gap-2">
-						<SettingsToggleRow
-							checked={wrapSessionContent}
-							icon={<WrapText size={14} />}
-							title="Wrap session content"
-							description={
-								wrapSessionContent
-									? "Long transcript lines wrap"
-									: "Long transcript lines scroll"
-							}
-							onClick={() => onWrapSessionContentChange(!wrapSessionContent)}
-						/>
-						{fullscreenSupported ? (
-							<SettingsToggleRow
-								checked={isFullscreen}
-								icon={
-									isFullscreen ? (
-										<Minimize2 size={14} />
-									) : (
-										<Maximize2 size={14} />
-									)
-								}
-								title="Full screen"
-								description={
-									isFullscreen
-										? "Exit browser full screen mode"
-										: "Use the entire screen"
-								}
-								onClick={onToggleFullscreen}
-							/>
-						) : null}
-					</div>
-				</SettingsSection>
-
-				<SettingsSection icon={<ZoomIn size={13} />} title="Display">
-					<div className="grid min-w-0 gap-2">
-						<ControlCard className="w-full min-w-0 bg-field/70 px-3 py-3">
+						<ControlCard className="w-full min-w-0 bg-field/70 px-3 py-2.5">
 							<ScaleControl
-								label="Content scale"
+								label="Scale"
 								value={displayScale}
 								onChange={onDisplayScaleChange}
 							/>
 						</ControlCard>
+						<div className="flex min-w-0 flex-wrap gap-2">
+							<SettingsIconToggle
+								checked={themeMode === "day"}
+								icon={<Sun size={15} />}
+								label="Day mode"
+								title={themeMode === "day" ? "Use dark mode" : "Use day mode"}
+								onClick={() => onThemeModeChange(nextThemeMode(themeMode))}
+							/>
+							<SettingsIconToggle
+								checked={wrapSessionContent}
+								icon={<WrapText size={15} />}
+								label="Wrap session content"
+								title={
+									wrapSessionContent
+										? "Disable transcript wrap"
+										: "Enable transcript wrap"
+								}
+								onClick={() => onWrapSessionContentChange(!wrapSessionContent)}
+							/>
+							{fullscreenSupported ? (
+								<SettingsIconToggle
+									checked={isFullscreen}
+									icon={
+										isFullscreen ? (
+											<Minimize2 size={15} />
+										) : (
+											<Maximize2 size={15} />
+										)
+									}
+									label="Full screen"
+									title={
+										isFullscreen ? "Exit full screen" : "Enter full screen"
+									}
+									onClick={onToggleFullscreen}
+								/>
+							) : null}
+						</div>
 					</div>
 				</SettingsSection>
 			</div>
