@@ -77,6 +77,11 @@ type RunActionOptions = {
 	successMessage?: string;
 };
 
+type RefreshOptions = {
+	loadDetail?: boolean;
+	syncSelectedProject?: boolean;
+};
+
 type DetailSubscription = {
 	threadId: string;
 	after: number;
@@ -269,10 +274,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	);
 
 	const refresh = useCallback(
-		async (
-			nextThreadId?: string | null,
-			options: { loadDetail?: boolean } = {},
-		) => {
+		async (nextThreadId?: string | null, options: RefreshOptions = {}) => {
 			const refreshSeq = beginRefresh();
 			const requestedThreadId = nextThreadId ?? selectedThreadIdRef.current;
 			const shouldPreferRequestedThread = typeof nextThreadId === "string";
@@ -298,6 +300,15 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			});
 			setSelectedThreadId(preferredThreadId);
 			selectedThreadIdRef.current = preferredThreadId;
+			if (options.syncSelectedProject && preferredThreadId) {
+				const nextProject = findProjectForThread(
+					buildWorkbenchProjects(next.threads, next.defaultCwd),
+					preferredThreadId,
+				);
+				if (nextProject) {
+					setSelectedProjectId(nextProject.id);
+				}
+			}
 			if (preferredThreadId) {
 				clearDetailForSelection(preferredThreadId);
 				if (options.loadDetail) {
@@ -786,10 +797,14 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		],
 	);
 
-	const changeComposerMode = useCallback(
-		(mode: ComposerMode) => {
-			setComposerMode(mode);
-			if (mode === "new" && selectedProject?.path) {
+	const enterNewSessionDraft = useCallback(
+		(options: { clearPrompt?: boolean } = {}) => {
+			setComposerMode("new");
+			if (options.clearPrompt) {
+				setPrompt("");
+			}
+			setGoalMode(false);
+			if (selectedProject?.path) {
 				setWorkdir(selectedProject.path);
 				setWorkdirTouched(false);
 			}
@@ -797,15 +812,20 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		[selectedProject?.path],
 	);
 
+	const changeComposerMode = useCallback(
+		(mode: ComposerMode) => {
+			if (mode === "new") {
+				enterNewSessionDraft();
+				return;
+			}
+			setComposerMode(mode);
+		},
+		[enterNewSessionDraft],
+	);
+
 	const createWorkbenchSession = useCallback(() => {
-		setComposerMode("new");
-		setPrompt("");
-		setGoalMode(false);
-		if (selectedProject?.path) {
-			setWorkdir(selectedProject.path);
-			setWorkdirTouched(false);
-		}
-	}, [selectedProject?.path]);
+		enterNewSessionDraft({ clearPrompt: true });
+	}, [enterNewSessionDraft]);
 
 	async function runAction(
 		label: string,
@@ -825,7 +845,10 @@ export function App({ initialState: serverInitialState }: AppProps) {
 					currentSelectionSeq: manualSelectionSeqRef.current,
 				})
 			) {
-				await refresh(nextThreadId, { loadDetail: true });
+				await refresh(nextThreadId, {
+					loadDetail: true,
+					syncSelectedProject: true,
+				});
 			} else {
 				await refresh();
 			}
