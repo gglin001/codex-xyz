@@ -402,6 +402,27 @@ describe("Next API routes", () => {
 			title: "Fork of Keep this turn open for steering",
 		});
 
+		const compact = await json<{ threadId: string; prompt: string }>(
+			`/api/threads/${created.thread.id}/compact`,
+			{
+				method: "POST",
+				body: JSON.stringify({}),
+			},
+		);
+		expect(compact).toMatchObject({
+			threadId: created.thread.id,
+			prompt: "/compact",
+		});
+		await waitFor(
+			() => service.getThreadDetail(created.thread.id).status === "idle",
+			"compact completion",
+		);
+		expect(
+			service
+				.getThreadDetail(created.thread.id)
+				.items.some((item) => item.text === "Compacted context"),
+		).toBe(true);
+
 		const goalStart = await json<{
 			goal: { tokenBudget: number | null };
 			turn: { threadId: string; prompt: string };

@@ -133,6 +133,10 @@ export type RunShellCommandInput = {
 	activeTurnId?: string | null;
 };
 
+export type CompactThreadInput = {
+	threadId: string;
+};
+
 export type ResumeThreadInput = {
 	threadId: string;
 	cwd: string;
@@ -169,6 +173,7 @@ export interface CodexAdapter {
 	resumeThread(input: ResumeThreadInput): Promise<AdapterThread>;
 	startTurn(input: StartTurnAdapterInput): Promise<AdapterTurn>;
 	runShellCommand(input: RunShellCommandInput): Promise<AdapterTurn>;
+	compactThread(input: CompactThreadInput): Promise<AdapterTurn>;
 	steerTurn(input: {
 		threadId: string;
 		turnId: string;

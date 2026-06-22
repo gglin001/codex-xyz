@@ -10,6 +10,7 @@ import {
 	AdapterThreadNotFoundError,
 	type AdapterTurn,
 	type CodexAdapter,
+	type CompactThreadInput,
 	type ForkThreadInput,
 	type ResumeThreadInput,
 	type RunShellCommandInput,
@@ -95,6 +96,13 @@ class VolatileCodexAdapter implements CodexAdapter {
 		return this.startTurn({
 			threadId: input.threadId,
 			prompt: `!${input.command}`,
+		});
+	}
+
+	async compactThread(input: CompactThreadInput): Promise<AdapterTurn> {
+		return this.startTurn({
+			threadId: input.threadId,
+			prompt: "/compact",
 		});
 	}
 
@@ -284,6 +292,14 @@ class EagerEventCodexAdapter implements CodexAdapter {
 		});
 	}
 
+	async compactThread(input: CompactThreadInput): Promise<AdapterTurn> {
+		return this.startTurn({
+			threadId: input.threadId,
+			prompt: "/compact",
+			model: null,
+		});
+	}
+
 	async steerTurn(input: { threadId: string }) {
 		this.requireThread(input.threadId);
 	}
@@ -440,6 +456,14 @@ class InterruptDriftCodexAdapter implements CodexAdapter {
 		return this.startTurn({
 			threadId: input.threadId,
 			prompt: `!${input.command}`,
+			model: null,
+		});
+	}
+
+	async compactThread(input: CompactThreadInput): Promise<AdapterTurn> {
+		return this.startTurn({
+			threadId: input.threadId,
+			prompt: "/compact",
 			model: null,
 		});
 	}
@@ -871,6 +895,36 @@ describe("ControlService", () => {
 				.getThreadDetail(fork.id)
 				.items.some((item) => item.text.includes("Continue only on the fork")),
 		).toBe(true);
+	});
+
+	it("starts an app-server compact turn and records the compaction item", async () => {
+		const result = await service.createSession({
+			cwd: tempDir,
+			prompt: "Build the source conversation before compacting",
+		});
+		await waitForEvents();
+
+		const threadId = result.thread?.id;
+		if (!threadId) {
+			throw new Error("Expected created thread id");
+		}
+
+		const turn = await service.compactThread(threadId);
+		expect(turn).toMatchObject({
+			threadId,
+			prompt: "/compact",
+			status: "in_progress",
+		});
+		await waitForEvents();
+
+		const detail = service.getThreadDetail(threadId);
+		expect(detail.status).toBe("idle");
+		expect(detail.turns.some((candidate) => candidate.id === turn.id)).toBe(
+			true,
+		);
+		expect(detail.items.some((item) => item.text === "Compacted context")).toBe(
+			true,
+		);
 	});
 
 	it("forks from persisted history when the runtime thread is missing", async () => {

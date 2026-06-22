@@ -277,6 +277,17 @@ export class ControlService {
 		});
 	}
 
+	async compactThread(threadId: string) {
+		const source = this.requireThread(threadId);
+		if (source.activeTurnId || source.status === "active") {
+			throw new Error("Compact requires an idle thread");
+		}
+		const result = await this.runRuntimeAction(source, (runtimeThread) =>
+			this.adapter.compactThread({ threadId: runtimeThread.id }),
+		);
+		return this.projection.recordTurn(result.thread, "/compact", result.value);
+	}
+
 	async setGoal(input: SetGoalInput) {
 		const source = this.requireThread(input.threadId);
 		const goal = await this.withRuntimeThread(source, (runtimeThread) =>

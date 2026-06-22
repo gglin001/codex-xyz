@@ -8,6 +8,7 @@ import type {
 	AdapterThread,
 	AdapterTurn,
 	CodexAdapter,
+	CompactThreadInput,
 	ForkThreadInput,
 	ResumeThreadInput,
 	RunShellCommandInput,
@@ -189,6 +190,25 @@ export class AppServerCodexAdapter implements CodexAdapter {
 			await this.request("thread/shellCommand", {
 				threadId: input.threadId,
 				command,
+			});
+			return await turnStarted.promise;
+		} catch (error) {
+			turnStarted.cancel(
+				error instanceof Error ? error : new Error(String(error)),
+			);
+			throw error;
+		}
+	}
+
+	async compactThread(input: CompactThreadInput): Promise<AdapterTurn> {
+		const turnStarted = this.waitForTurnStart(
+			input.threadId,
+			"/compact",
+			"thread/compact/start did not start a turn",
+		);
+		try {
+			await this.request("thread/compact/start", {
+				threadId: input.threadId,
 			});
 			return await turnStarted.promise;
 		} catch (error) {

@@ -409,6 +409,10 @@ async function routeApiRequest(
 			);
 		}
 
+		if (method === "POST" && parts[3] === "compact") {
+			return jsonResponse(await service.compactThread(threadId), 201);
+		}
+
 		if (method === "POST" && parts[3] === "interrupt") {
 			return jsonResponse(await service.interruptTurn(threadId));
 		}

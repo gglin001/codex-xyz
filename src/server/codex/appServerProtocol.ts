@@ -272,6 +272,14 @@ export function normalizeThreadItem(value: unknown) {
 			data: { sourceType: itemType, raw: item },
 		};
 	}
+	if (itemType === "contextCompaction") {
+		return {
+			itemId: id,
+			itemType: "system" as const,
+			text: "Compacted context",
+			data: { sourceType: itemType, raw: item },
+		};
+	}
 	return {
 		itemId: id,
 		itemType: "system" as const,

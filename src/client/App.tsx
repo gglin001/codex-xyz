@@ -16,6 +16,7 @@ import type {
 	ThreadDetail,
 } from "../server/domain.js";
 import {
+	compactThread,
 	createSession,
 	forkThread,
 	getState,
@@ -977,6 +978,25 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		);
 	}
 
+	function compactSelectedThread() {
+		if (!activeThreadId) {
+			return;
+		}
+		const threadId = activeThreadId;
+		void runAction(
+			"Compacting thread",
+			async () => {
+				const turn = await compactThread(threadId);
+				setComposerMode("thread");
+				return turn.threadId;
+			},
+			{
+				selectResult: true,
+				successMessage: "Compact started",
+			},
+		);
+	}
+
 	return (
 		<>
 			<DashboardLayout
@@ -1026,6 +1046,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				onInterrupt={interruptSelectedThread}
 				onResume={resumeSelectedThread}
 				onFork={forkSelectedThread}
+				onCompact={compactSelectedThread}
 			/>
 			<Suspense fallback={null}>
 				{terminalVisible ? (

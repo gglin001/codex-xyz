@@ -4,6 +4,7 @@ import {
 	Goal,
 	Maximize2,
 	Menu,
+	Minimize2,
 	Plus,
 	Search,
 	Settings,
@@ -91,6 +92,7 @@ export type DashboardLayoutProps = {
 	onInterrupt: () => void;
 	onResume: () => void;
 	onFork: () => void;
+	onCompact: () => void;
 };
 
 type CommandActionBase = {
@@ -104,7 +106,14 @@ type CommandActionBase = {
 
 type CommandAction =
 	| (CommandActionBase & {
-			kind: "create" | "fork" | "navigator" | "terminal" | "prompt" | "view";
+			kind:
+				| "compact"
+				| "create"
+				| "fork"
+				| "navigator"
+				| "terminal"
+				| "prompt"
+				| "view";
 	  })
 	| (CommandActionBase & {
 			kind: "project";
@@ -354,6 +363,8 @@ function CommandActionGlyph({
 	const icon =
 		action.kind === "create" ? (
 			<Plus size={14} />
+		) : action.kind === "compact" ? (
+			<Minimize2 size={14} />
 		) : action.kind === "fork" ? (
 			<GitFork size={14} />
 		) : action.kind === "navigator" ? (
@@ -619,6 +630,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 	onInterrupt,
 	onResume,
 	onFork,
+	onCompact,
 }: DashboardLayoutProps) {
 	const [mobileSheet, setMobileSheet] = useState<MobileSheet | null>(null);
 	const [commandOpen, setCommandOpen] = useState(false);
@@ -767,6 +779,20 @@ export const DashboardLayout = memo(function DashboardLayout({
 					? "Wait for the current action to finish"
 					: "Select a thread before forking",
 				run: onFork,
+			},
+			{
+				id: "compact-thread",
+				title: "Compact current thread",
+				detail: "Summarize context on the selected thread",
+				kind: "compact",
+				disabled:
+					!selectedThreadId || selectedThread?.status === "active" || busy,
+				disabledDetail: busy
+					? "Wait for the current action to finish"
+					: selectedThread?.status === "active"
+						? "Wait for the active turn to finish"
+						: "Select a thread before compacting",
+				run: onCompact,
 			},
 			{
 				id: "focus-prompt",
@@ -930,6 +956,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 		toggleFullscreen,
 		wrapSessionContent,
 		createSessionAndFocusPrompt,
+		onCompact,
 		onDisplayScaleChange,
 		onGoalModeChange,
 		onFork,
@@ -941,6 +968,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 		onProjectChange,
 		onSelectSession,
 		projects,
+		selectedThread,
 		selectedThreadId,
 	]);
 
@@ -1123,6 +1151,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 						onInterrupt={onInterrupt}
 						onResume={onResume}
 						onFork={onFork}
+						onCompact={onCompact}
 						onToggleNavigator={toggleNavigator}
 						onToggleInspector={toggleInspector}
 					/>
@@ -1175,6 +1204,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 					onInterrupt={onInterrupt}
 					onResume={onResume}
 					onFork={onFork}
+					onCompact={onCompact}
 					onToggleNavigator={() => openMobileSheet("navigator")}
 					onToggleInspector={() => openMobileSheet("inspector")}
 					onSwipeUp={openCommandPaletteFromSwipe}

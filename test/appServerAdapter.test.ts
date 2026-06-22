@@ -18,6 +18,7 @@ const debugThreadId = "00000000-0000-4000-8000-000000000002";
 const forkThreadId = "00000000-0000-4000-8000-000000000003";
 const turnId = "turn_00000000-0000-4000-8000-000000000004";
 const goalTurnId = "turn_goal_00000000-0000-4000-8000-000000000005";
+const compactTurnId = "turn_compact_00000000-0000-4000-8000-000000000006";
 
 function createFakeCodexCommand() {
 	tempDir = mkdtempSync(join(tmpdir(), "coz-app-server-"));
@@ -98,6 +99,56 @@ function handle(message) {
         updatedAt: 1700000100
       },
       model: message.params.model
+    })
+    return
+  }
+
+  if (message.method === "thread/compact/start") {
+    const threadId = message.params.threadId
+    respond(message.id, {})
+    notify("turn/started", {
+      threadId,
+      turn: {
+        id: "${compactTurnId}",
+        items: [],
+        itemsView: { type: "all" },
+        status: "inProgress",
+        error: null,
+        startedAt: 1,
+        completedAt: null,
+        durationMs: null
+      }
+    })
+    notify("item/started", {
+      threadId,
+      turnId: "${compactTurnId}",
+      startedAtMs: 1,
+      item: {
+        type: "contextCompaction",
+        id: "item_compact"
+      }
+    })
+    notify("item/completed", {
+      threadId,
+      turnId: "${compactTurnId}",
+      completedAtMs: 2,
+      item: {
+        type: "contextCompaction",
+        id: "item_compact"
+      }
+    })
+    notify("turn/completed", {
+      threadId,
+      turn: {
+        id: "${compactTurnId}",
+        items: [],
+        itemsView: { type: "all" },
+        status: "completed",
+        error: null,
+        startedAt: 1,
+        completedAt: 2,
+        durationMs: 25
+      }
     })
     return
   }
@@ -705,6 +756,46 @@ describe("AppServerCodexAdapter", () => {
 			]),
 		);
 		expect(events.some((event) => event.type === "turn.started")).toBe(false);
+	});
+
+	it("starts thread compaction through app-server and projects context item", async () => {
+		const command = createFakeCodexCommand();
+		const events: AdapterEvent[] = [];
+		adapter = new AppServerCodexAdapter(command);
+		adapter.onEvent((event) => events.push(event));
+
+		const turn = await adapter.compactThread({ threadId: sourceThreadId });
+		await new Promise((resolve) => setTimeout(resolve, 20));
+
+		expect(turn).toMatchObject({
+			id: compactTurnId,
+			status: "in_progress",
+		});
+		expect(events).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					type: "turn.started",
+					threadId: sourceThreadId,
+					turnId: compactTurnId,
+					prompt: "/compact",
+				}),
+				expect.objectContaining({
+					type: "item.created",
+					threadId: sourceThreadId,
+					turnId: compactTurnId,
+					itemId: "item_compact",
+					itemType: "system",
+					text: "Compacted context",
+				}),
+				expect.objectContaining({
+					type: "turn.status",
+					threadId: sourceThreadId,
+					turnId: compactTurnId,
+					status: "completed",
+					durationMs: 25,
+				}),
+			]),
+		);
 	});
 
 	it("runs thread shell commands through app-server and projects command output", async () => {

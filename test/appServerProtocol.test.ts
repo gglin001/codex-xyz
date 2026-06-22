@@ -132,6 +132,24 @@ describe("app-server protocol projection", () => {
 			itemType: "command",
 			text: "$ pnpm test\nok\n[completed, exit 0]",
 		});
+
+		expect(
+			projectAppServerNotification("item/started", {
+				threadId: "thread-1",
+				turnId: "turn-compact",
+				item: {
+					type: "contextCompaction",
+					id: "item-compact",
+				},
+			}),
+		).toMatchObject({
+			type: "item.created",
+			threadId: "thread-1",
+			turnId: "turn-compact",
+			itemId: "item-compact",
+			itemType: "system",
+			text: "Compacted context",
+		});
 	});
 
 	it("projects turn, status, goal, and token notifications", () => {

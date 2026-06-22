@@ -98,6 +98,13 @@ export function forkThread(threadId: string) {
 	});
 }
 
+export function compactThread(threadId: string) {
+	return request<Turn>(`/api/threads/${threadId}/compact`, {
+		method: "POST",
+		body: JSON.stringify({}),
+	});
+}
+
 export function startGoal(
 	threadId: string,
 	objective: string,

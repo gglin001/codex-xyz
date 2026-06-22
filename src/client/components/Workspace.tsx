@@ -7,6 +7,7 @@ import {
 	GitFork,
 	Goal,
 	Menu,
+	Minimize2,
 	Play,
 	Plus,
 	Send,
@@ -93,6 +94,7 @@ export type WorkspaceProps = {
 	onInterrupt: () => void;
 	onResume: () => void;
 	onFork: () => void;
+	onCompact: () => void;
 	onToggleNavigator: () => void;
 	onToggleInspector: () => void;
 	onSwipeUp?: () => void;
@@ -432,6 +434,7 @@ type ComposerProps = Pick<
 	| "onInterrupt"
 	| "onResume"
 	| "onFork"
+	| "onCompact"
 > & {
 	onPromptFocus?: () => void;
 	onSwipeUp?: () => void;
@@ -461,6 +464,7 @@ const Composer = memo(
 			onInterrupt,
 			onResume,
 			onFork,
+			onCompact,
 			onPromptFocus,
 			onSwipeUp,
 		},
@@ -472,6 +476,8 @@ const Composer = memo(
 		const canResume =
 			Boolean(selectedThreadId) && selectedThread?.status !== "active" && !busy;
 		const canFork = Boolean(selectedThreadId) && !busy;
+		const canCompact =
+			Boolean(selectedThreadId) && selectedThread?.status !== "active" && !busy;
 		const [moreActionsOpen, setMoreActionsOpen] = useState(false);
 		const submitTitle = goalMode
 			? "Start goal mode"
@@ -617,6 +623,14 @@ const Composer = memo(
 										<GitFork size={14} />
 									</ComposerIconButton>
 									<ComposerIconButton
+										title="Compact thread"
+										aria-label="Compact thread"
+										disabled={!canCompact}
+										onClick={onCompact}
+									>
+										<Minimize2 size={14} />
+									</ComposerIconButton>
+									<ComposerIconButton
 										title="Interrupt"
 										aria-label="Interrupt"
 										disabled={!canInterrupt}
@@ -674,6 +688,21 @@ const Composer = memo(
 																className="shrink-0 text-muted"
 															/>
 															<span>Fork thread</span>
+														</button>
+														<button
+															type="button"
+															className="flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control disabled:cursor-not-allowed disabled:opacity-30"
+															disabled={!canCompact}
+															onClick={() => {
+																onCompact();
+																setMoreActionsOpen(false);
+															}}
+														>
+															<Minimize2
+																size={15}
+																className="shrink-0 text-muted"
+															/>
+															<span>Compact thread</span>
 														</button>
 														<button
 															type="button"
@@ -757,6 +786,7 @@ export const Workspace = memo(
 			onInterrupt,
 			onResume,
 			onFork,
+			onCompact,
 			onToggleNavigator,
 			onToggleInspector,
 			onSwipeUp,
@@ -997,6 +1027,7 @@ export const Workspace = memo(
 									onInterrupt={onInterrupt}
 									onResume={onResume}
 									onFork={onFork}
+									onCompact={onCompact}
 									onPromptFocus={settleMobilePromptFocus}
 									onSwipeUp={onSwipeUp}
 								/>

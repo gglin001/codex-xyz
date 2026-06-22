@@ -8,6 +8,7 @@ import {
 	AdapterThreadNotFoundError,
 	type AdapterTurn,
 	type CodexAdapter,
+	type CompactThreadInput,
 	type ForkThreadInput,
 	type ResumeThreadInput,
 	type RunShellCommandInput,
@@ -102,6 +103,25 @@ export class TestCodexAdapter implements CodexAdapter {
 		}
 
 		setTimeout(() => this.emitShellCommandOutput(input, turnId, running), 0);
+		return { id: turnId, status: "in_progress" };
+	}
+
+	async compactThread(input: CompactThreadInput): Promise<AdapterTurn> {
+		const thread = this.requireThread(input.threadId);
+		if (thread.activeTurnId) {
+			throw new Error("thread already has an active turn");
+		}
+		const turnId = `turn_${randomUUID()}`;
+		const running: RunningTurn = {
+			threadId: input.threadId,
+			turnId,
+			startedAt: Date.now(),
+			completed: false,
+		};
+		thread.activeTurnId = turnId;
+		thread.status = "active";
+		this.running.set(turnId, running);
+		setTimeout(() => this.emitCompactOutput(input, turnId, running), 0);
 		return { id: turnId, status: "in_progress" };
 	}
 
@@ -396,6 +416,32 @@ export class TestCodexAdapter implements CodexAdapter {
 		if (!input.activeTurnId) {
 			this.completeTurn(running, "completed");
 		}
+	}
+
+	private emitCompactOutput(
+		input: CompactThreadInput,
+		turnId: string,
+		running: RunningTurn,
+	) {
+		if (this.closed || running.completed) {
+			return;
+		}
+
+		this.emit({
+			type: "thread.status",
+			threadId: input.threadId,
+			status: "active",
+		});
+		this.emit({
+			type: "item.created",
+			threadId: input.threadId,
+			turnId,
+			itemId: `item_compact_${randomUUID()}`,
+			itemType: "system",
+			text: "Compacted context",
+			data: { sourceType: "contextCompaction" },
+		});
+		this.completeTurn(running, "completed");
 	}
 
 	private completeTurn(
