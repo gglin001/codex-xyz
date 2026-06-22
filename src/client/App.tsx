@@ -62,6 +62,8 @@ import {
 	shouldSelectActionResult,
 } from "./threadSelection.js";
 
+const transientAlertAutoDismissMs = 10_000;
+
 function initialState(): DashboardState {
 	return {
 		threads: [],
@@ -733,6 +735,34 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		}
 	}, [canUseGoalMode]);
 
+	useEffect(() => {
+		if (!notice) {
+			return;
+		}
+		const timer = window.setTimeout(() => {
+			setNotice(null);
+		}, transientAlertAutoDismissMs);
+		return () => window.clearTimeout(timer);
+	}, [notice]);
+
+	useEffect(() => {
+		if (!error) {
+			return;
+		}
+		const timer = window.setTimeout(() => {
+			setError(null);
+		}, transientAlertAutoDismissMs);
+		return () => window.clearTimeout(timer);
+	}, [error]);
+
+	const dismissNotice = useCallback(() => {
+		setNotice(null);
+	}, []);
+
+	const dismissError = useCallback(() => {
+		setError(null);
+	}, []);
+
 	const updateWorkdir = useCallback((value: string) => {
 		setWorkdir(value);
 		setWorkdirTouched(true);
@@ -1023,7 +1053,9 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				busy={busy}
 				busyAction={busyAction}
 				notice={notice}
+				onDismissNotice={dismissNotice}
 				error={error}
+				onDismissError={dismissError}
 				prompt={prompt}
 				promptTarget={promptTarget}
 				goalMode={goalMode}

@@ -60,7 +60,9 @@ export type DashboardLayoutProps = {
 	busy: boolean;
 	busyAction: string | null;
 	notice: string | null;
+	onDismissNotice: () => void;
 	error: string | null;
+	onDismissError: () => void;
 	prompt: string;
 	promptTarget: ComposerMode;
 	goalMode: boolean;
@@ -590,7 +592,9 @@ export const DashboardLayout = memo(function DashboardLayout({
 	busy,
 	busyAction,
 	notice,
+	onDismissNotice,
 	error,
+	onDismissError,
 	prompt,
 	promptTarget,
 	goalMode,
@@ -1058,7 +1062,9 @@ export const DashboardLayout = memo(function DashboardLayout({
 						busy={busy}
 						busyAction={busyAction}
 						notice={notice}
+						onDismissNotice={onDismissNotice}
 						error={error}
+						onDismissError={onDismissError}
 						prompt={prompt}
 						promptTarget={promptTarget}
 						goalMode={goalMode}
@@ -1111,7 +1117,9 @@ export const DashboardLayout = memo(function DashboardLayout({
 					busy={busy}
 					busyAction={busyAction}
 					notice={notice}
+					onDismissNotice={onDismissNotice}
 					error={error}
+					onDismissError={onDismissError}
 					prompt={prompt}
 					promptTarget={promptTarget}
 					goalMode={goalMode}

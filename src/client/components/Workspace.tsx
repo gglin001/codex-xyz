@@ -13,6 +13,7 @@ import {
 	Send,
 	Settings,
 	Square,
+	X,
 } from "lucide-react";
 import type {
 	CSSProperties,
@@ -75,7 +76,9 @@ export type WorkspaceProps = {
 	busy: boolean;
 	busyAction: string | null;
 	notice: string | null;
+	onDismissNotice: () => void;
 	error: string | null;
+	onDismissError: () => void;
 	prompt: string;
 	promptTarget: ComposerMode;
 	goalMode: boolean;
@@ -248,6 +251,43 @@ const CopyTextButton = memo(function CopyTextButton({
 	);
 });
 
+const DismissibleAlert = memo(function DismissibleAlert({
+	message,
+	onDismiss,
+	toneClass,
+	buttonClassName,
+	dismissLabel,
+	role = "status",
+}: {
+	message: string;
+	onDismiss: () => void;
+	toneClass: string;
+	buttonClassName: string;
+	dismissLabel: string;
+	role?: "status" | "alert";
+}) {
+	return (
+		<div
+			className={cn(ui.alert, toneClass, "flex items-center gap-2 pr-2")}
+			role={role}
+		>
+			<span className="min-w-0 flex-1 break-words leading-5">{message}</span>
+			<button
+				type="button"
+				className={cn(
+					"inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] transition duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring",
+					buttonClassName,
+				)}
+				aria-label={dismissLabel}
+				title={dismissLabel}
+				onClick={onDismiss}
+			>
+				<X size={13} />
+			</button>
+		</div>
+	);
+});
+
 const MessageBlock = memo(function MessageBlock({
 	message,
 	wrapContent,
@@ -417,7 +457,9 @@ type ComposerProps = Pick<
 	| "busy"
 	| "busyAction"
 	| "notice"
+	| "onDismissNotice"
 	| "error"
+	| "onDismissError"
 	| "prompt"
 	| "promptTarget"
 	| "goalMode"
@@ -447,7 +489,9 @@ const Composer = memo(
 			busy,
 			busyAction,
 			notice,
+			onDismissNotice,
 			error,
+			onDismissError,
 			prompt,
 			promptTarget,
 			goalMode,
@@ -547,10 +591,23 @@ const Composer = memo(
 							</div>
 						) : null}
 						{notice ? (
-							<div className={cn(ui.alert, tone.running.alert)}>{notice}</div>
+							<DismissibleAlert
+								message={notice}
+								onDismiss={onDismissNotice}
+								toneClass={tone.running.alert}
+								buttonClassName="text-current opacity-70 hover:bg-emerald-300/10 hover:opacity-100"
+								dismissLabel="Dismiss notice"
+							/>
 						) : null}
 						{error ? (
-							<div className={cn(ui.alert, tone.error.alert)}>{error}</div>
+							<DismissibleAlert
+								message={error}
+								onDismiss={onDismissError}
+								toneClass={tone.error.alert}
+								buttonClassName="text-current opacity-70 hover:bg-rose-300/10 hover:opacity-100"
+								dismissLabel="Dismiss error"
+								role="alert"
+							/>
 						) : null}
 					</div>
 				) : null}
@@ -740,7 +797,9 @@ export const Workspace = memo(
 			busy,
 			busyAction,
 			notice,
+			onDismissNotice,
 			error,
+			onDismissError,
 			prompt,
 			promptTarget,
 			goalMode,
@@ -998,7 +1057,9 @@ export const Workspace = memo(
 									busy={busy}
 									busyAction={busyAction}
 									notice={notice}
+									onDismissNotice={onDismissNotice}
 									error={error}
+									onDismissError={onDismissError}
 									prompt={prompt}
 									promptTarget={promptTarget}
 									goalMode={goalMode}
