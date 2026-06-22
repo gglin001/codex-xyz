@@ -613,45 +613,13 @@ const Composer = memo(
 								>
 									<Goal size={14} />
 								</ComposerIconButton>
-								<span className="hidden md:contents">
-									<ComposerIconButton
-										title="Fork thread"
-										aria-label="Fork thread"
-										disabled={!canFork}
-										onClick={onFork}
-									>
-										<GitFork size={14} />
-									</ComposerIconButton>
-									<ComposerIconButton
-										title="Compact thread"
-										aria-label="Compact thread"
-										disabled={!canCompact}
-										onClick={onCompact}
-									>
-										<Minimize2 size={14} />
-									</ComposerIconButton>
-									<ComposerIconButton
-										title="Interrupt"
-										aria-label="Interrupt"
-										disabled={!canInterrupt}
-										onClick={onInterrupt}
-									>
-										<Square size={14} />
-									</ComposerIconButton>
-									<ComposerIconButton
-										title="Resume"
-										aria-label="Resume"
-										disabled={!canResume}
-										onClick={onResume}
-									>
-										<Play size={14} />
-									</ComposerIconButton>
-								</span>
-								<div className="relative z-10 md:hidden">
+								<div className="relative z-10">
 									<ComposerIconButton
 										title="More actions"
 										aria-label="More actions"
 										pressed={moreActionsOpen}
+										aria-haspopup="menu"
+										aria-expanded={moreActionsOpen}
 										onClick={() => setMoreActionsOpen((v) => !v)}
 									>
 										<Ellipsis size={14} />
@@ -668,6 +636,7 @@ const Composer = memo(
 												/>
 												<motion.div
 													className="absolute bottom-full left-0 z-20 mb-2 w-44 rounded-[12px] border border-border bg-detail shadow-popover"
+													role="menu"
 													initial={{ opacity: 0, y: 6 }}
 													animate={{ opacity: 1, y: 0 }}
 													exit={{ opacity: 0, y: 6 }}
@@ -676,6 +645,7 @@ const Composer = memo(
 													<div className="p-1">
 														<button
 															type="button"
+															role="menuitem"
 															className="flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control disabled:cursor-not-allowed disabled:opacity-30"
 															disabled={!canFork}
 															onClick={() => {
@@ -691,6 +661,7 @@ const Composer = memo(
 														</button>
 														<button
 															type="button"
+															role="menuitem"
 															className="flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control disabled:cursor-not-allowed disabled:opacity-30"
 															disabled={!canCompact}
 															onClick={() => {
@@ -706,6 +677,7 @@ const Composer = memo(
 														</button>
 														<button
 															type="button"
+															role="menuitem"
 															className="flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control disabled:cursor-not-allowed disabled:opacity-30"
 															disabled={!canInterrupt}
 															onClick={() => {
@@ -721,6 +693,7 @@ const Composer = memo(
 														</button>
 														<button
 															type="button"
+															role="menuitem"
 															className="flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control disabled:cursor-not-allowed disabled:opacity-30"
 															disabled={!canResume}
 															onClick={() => {
@@ -837,27 +810,41 @@ export const Workspace = memo(
 		useEffect(() => {
 			const root = rootRef.current;
 			const composerShell = composerShellRef.current;
+			const transcriptScroll = transcriptScrollRef.current;
 			if (!root || !composerShell) {
 				return;
 			}
 
 			let frame: number | null = null;
-			const updateComposerHeight = () => {
+			const updateComposerMetrics = () => {
 				frame = null;
 				root.style.setProperty(
 					"--composer-height",
 					`${Math.ceil(composerShell.getBoundingClientRect().height)}px`,
+				);
+				const scrollbarWidth = transcriptScroll
+					? Math.max(
+							0,
+							transcriptScroll.offsetWidth - transcriptScroll.clientWidth,
+						)
+					: 0;
+				root.style.setProperty(
+					"--transcript-scrollbar-width",
+					`${Math.ceil(scrollbarWidth)}px`,
 				);
 			};
 			const scheduleUpdate = () => {
 				if (frame !== null) {
 					return;
 				}
-				frame = window.requestAnimationFrame(updateComposerHeight);
+				frame = window.requestAnimationFrame(updateComposerMetrics);
 			};
 
 			const observer = new ResizeObserver(scheduleUpdate);
 			observer.observe(composerShell);
+			if (transcriptScroll) {
+				observer.observe(transcriptScroll);
+			}
 			scheduleUpdate();
 
 			return () => {
@@ -866,6 +853,7 @@ export const Workspace = memo(
 				}
 				observer.disconnect();
 				root.style.removeProperty("--composer-height");
+				root.style.removeProperty("--transcript-scrollbar-width");
 			};
 		}, []);
 
@@ -955,7 +943,7 @@ export const Workspace = memo(
 					>
 						<div
 							ref={transcriptScrollRef}
-							className="mobile-transcript-scroll min-h-0 flex-1 overflow-y-auto scroll-mask-y-t px-4 pt-[calc(var(--safe-inset-top)+1rem)] md:px-8 md:pb-5 md:pt-5"
+							className="mobile-transcript-scroll min-h-0 flex-1 overflow-y-auto scroll-mask-y-t px-4 pt-[calc(var(--safe-inset-top)+1rem)] [scrollbar-gutter:stable] md:px-8 md:pb-5 md:pt-5"
 						>
 							<SessionContentFrame className="grid gap-[var(--transcript-gap)]">
 								<AnimatePresence initial={false}>
@@ -1001,7 +989,7 @@ export const Workspace = memo(
 
 						<div
 							ref={composerShellRef}
-							className="mobile-composer-bar relative z-[70] shrink-0 border-t border-border bg-app-bg/95 px-4 pt-2 md:z-auto md:px-8 md:pb-3"
+							className="mobile-composer-bar relative z-[80] shrink-0 overflow-visible border-t border-border bg-app-bg/95 pl-4 pr-[calc(1rem+var(--transcript-scrollbar-width,0px))] pt-2 md:pl-8 md:pr-[calc(2rem+var(--transcript-scrollbar-width,0px))] md:pb-3"
 						>
 							<SessionContentFrame>
 								<Composer

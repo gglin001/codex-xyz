@@ -1,10 +1,8 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
-	GitFork,
 	Goal,
 	Maximize2,
 	Menu,
-	Minimize2,
 	Plus,
 	Search,
 	Settings,
@@ -22,7 +20,6 @@ import type {
 	ThreadDetail,
 } from "../../server/domain.js";
 import {
-	clampDisplayScale,
 	cn,
 	displayScale as displayScaleConfig,
 	formatDisplayScale,
@@ -106,14 +103,7 @@ type CommandActionBase = {
 
 type CommandAction =
 	| (CommandActionBase & {
-			kind:
-				| "compact"
-				| "create"
-				| "fork"
-				| "navigator"
-				| "terminal"
-				| "prompt"
-				| "view";
+			kind: "create" | "navigator" | "terminal" | "prompt" | "view";
 	  })
 	| (CommandActionBase & {
 			kind: "project";
@@ -363,10 +353,6 @@ function CommandActionGlyph({
 	const icon =
 		action.kind === "create" ? (
 			<Plus size={14} />
-		) : action.kind === "compact" ? (
-			<Minimize2 size={14} />
-		) : action.kind === "fork" ? (
-			<GitFork size={14} />
 		) : action.kind === "navigator" ? (
 			<Menu size={14} />
 		) : action.kind === "terminal" ? (
@@ -728,10 +714,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 		}
 	}, [terminalVisible]);
 
-	const scaleStep = displayScaleConfig.step;
-	const canDecreaseScale = displayScale > displayScaleConfig.min;
-	const canIncreaseScale = displayScale < displayScaleConfig.max;
-
 	const commandActions = useMemo<CommandAction[]>(() => {
 		const setNavigatorVisible = () => {
 			if (isMobileViewport()) {
@@ -768,31 +750,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 				detail: "Start a fresh Codex app-server session",
 				kind: "create",
 				run: createSessionAndFocusPrompt,
-			},
-			{
-				id: "fork-thread",
-				title: "Fork current thread",
-				detail: "Create an app-server fork from the selected thread",
-				kind: "fork",
-				disabled: !selectedThreadId || busy,
-				disabledDetail: busy
-					? "Wait for the current action to finish"
-					: "Select a thread before forking",
-				run: onFork,
-			},
-			{
-				id: "compact-thread",
-				title: "Compact current thread",
-				detail: "Summarize context on the selected thread",
-				kind: "compact",
-				disabled:
-					!selectedThreadId || selectedThread?.status === "active" || busy,
-				disabledDetail: busy
-					? "Wait for the current action to finish"
-					: selectedThread?.status === "active"
-						? "Wait for the active turn to finish"
-						: "Select a thread before compacting",
-				run: onCompact,
 			},
 			{
 				id: "focus-prompt",
@@ -866,30 +823,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 				run: () => onWrapSessionContentChange(!wrapSessionContent),
 			},
 			{
-				id: "settings:decrease-scale",
-				title: "Decrease content scale",
-				detail: `Current scale ${formatDisplayScale(displayScale)}`,
-				kind: "settingsItem",
-				settingsGroupId: "panel",
-				icon: "zoom",
-				disabled: !canDecreaseScale,
-				disabledDetail: `Already at minimum scale ${formatDisplayScale(displayScaleConfig.min)}`,
-				run: () =>
-					onDisplayScaleChange(clampDisplayScale(displayScale - scaleStep)),
-			},
-			{
-				id: "settings:increase-scale",
-				title: "Increase content scale",
-				detail: `Current scale ${formatDisplayScale(displayScale)}`,
-				kind: "settingsItem",
-				settingsGroupId: "panel",
-				icon: "zoom",
-				disabled: !canIncreaseScale,
-				disabledDetail: `Already at maximum scale ${formatDisplayScale(displayScaleConfig.max)}`,
-				run: () =>
-					onDisplayScaleChange(clampDisplayScale(displayScale + scaleStep)),
-			},
-			{
 				id: "settings:reset-scale",
 				title: "Reset content scale",
 				detail: `Return to ${formatDisplayScale(displayScaleConfig.defaultValue)}`,
@@ -940,10 +873,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 
 		return actions;
 	}, [
-		canDecreaseScale,
-		canIncreaseScale,
 		canUseGoalMode,
-		busy,
 		displayScale,
 		focusVisiblePrompt,
 		fullscreenSupported,
@@ -956,10 +886,8 @@ export const DashboardLayout = memo(function DashboardLayout({
 		toggleFullscreen,
 		wrapSessionContent,
 		createSessionAndFocusPrompt,
-		onCompact,
 		onDisplayScaleChange,
 		onGoalModeChange,
-		onFork,
 		onInspectorVisibleChange,
 		onNavigatorVisibleChange,
 		onThemeModeChange,
@@ -968,8 +896,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 		onProjectChange,
 		onSelectSession,
 		projects,
-		selectedThread,
-		selectedThreadId,
 	]);
 
 	const toggleDesktopTerminal = useCallback(() => {
