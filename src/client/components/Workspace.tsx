@@ -181,7 +181,7 @@ function messageSurfaceClass(message: ChatMessage) {
 
 function headerMeta(value: string) {
 	return (
-		<span className="max-w-[34vw] truncate whitespace-nowrap text-[11px] text-muted sm:max-w-none">
+		<span className="block min-w-0 truncate whitespace-nowrap text-[11px] text-muted">
 			{value}
 		</span>
 	);

@@ -434,8 +434,8 @@ export const CollapsibleCard = memo(function CollapsibleCard({
 			: "flex w-full items-center gap-2 border-b border-border bg-control/35";
 	const headerButtonClass =
 		surface === "outline"
-			? "flex min-w-0 flex-1 items-center justify-between gap-3 text-left"
-			: "group flex min-w-0 flex-1 items-center justify-between gap-3 text-left hover:bg-control-hover";
+			? "flex min-w-0 flex-1 items-center gap-3 text-left"
+			: "group flex min-w-0 flex-1 items-center gap-3 text-left hover:bg-control-hover";
 
 	return (
 		<article className={cn(cardClass, className)}>
@@ -451,10 +451,10 @@ export const CollapsibleCard = memo(function CollapsibleCard({
 					title={expanded ? `Collapse ${title}` : `Expand ${title}`}
 					onClick={onToggle}
 				>
-					<span className="min-w-0">
+					<span className="min-w-0 shrink-0 max-w-[70%]">
 						<span className={cn("block truncate", titleClass)}>{title}</span>
 					</span>
-					{meta ? <span className="shrink-0">{meta}</span> : null}
+					{meta ? <span className="min-w-0 flex-1">{meta}</span> : null}
 				</button>
 				{meta || actions ? (
 					<div
