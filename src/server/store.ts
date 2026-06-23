@@ -288,8 +288,13 @@ export class Store {
 
       CREATE TABLE threads (
         id TEXT PRIMARY KEY,
+        -- TODO: migrate this storage naming once the app-server thread
+        -- lineage model settles. session_id stores Codex's shared fork-tree id,
+        -- while user-facing code now treats thread as the primary concept.
         session_id TEXT NOT NULL,
         forked_from_id TEXT REFERENCES threads(id) ON DELETE SET NULL,
+        -- TODO: rename title to name in a schema migration to match Codex
+        -- app-server's user-facing Thread.name field.
         title TEXT NOT NULL,
         preview TEXT NOT NULL,
         cwd TEXT NOT NULL,

@@ -141,7 +141,7 @@ describe("client event projection", () => {
 		expect(result.detail?.items[0].text).toBe("Working\nDone");
 	});
 
-	it("keeps projection identity for transcript events from non-selected sessions", () => {
+	it("keeps projection identity for transcript events from non-selected threads", () => {
 		const current = projection();
 		const result = applyEventProjection(
 			current,
@@ -327,7 +327,7 @@ describe("client event projection", () => {
 		expect(result.state.threadNextCursor).toBeNull();
 	});
 
-	it("removes archived threads from the default session projection", () => {
+	it("removes archived threads from the default thread projection", () => {
 		const result = applyEventProjection(
 			projection(),
 			event(
@@ -346,7 +346,7 @@ describe("client event projection", () => {
 		expect(result.detail).toBeNull();
 	});
 
-	it("does not insert unloaded sessions for ordinary thread metadata updates", () => {
+	it("does not insert unloaded threads for ordinary thread metadata updates", () => {
 		const current = projection();
 		const backgroundThread = thread({
 			id: "thread-background",

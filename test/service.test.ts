@@ -614,8 +614,8 @@ afterEach(async () => {
 });
 
 describe("ControlService", () => {
-	it("creates a session, starts a turn, records transcript items, and completes", async () => {
-		const result = await service.createSession({
+	it("creates a thread, starts a turn, records transcript items, and completes", async () => {
+		const result = await service.createThread({
 			cwd: tempDir,
 			prompt: "Implement local test support",
 		});
@@ -638,8 +638,8 @@ describe("ControlService", () => {
 		).toBe(true);
 	});
 
-	it("creates a goal session and starts the first goal turn", async () => {
-		const result = await service.createSession({
+	it("creates a goal thread and starts the first goal turn", async () => {
+		const result = await service.createThread({
 			cwd: tempDir,
 			prompt: "Finish the first-version MVP",
 			goalMode: true,
@@ -678,7 +678,7 @@ describe("ControlService", () => {
 	});
 
 	it("keeps dashboard snapshots and summary event replay separate from transcript detail", async () => {
-		const result = await service.createSession({
+		const result = await service.createThread({
 			cwd: tempDir,
 			prompt: "Exercise summary replay",
 		});
@@ -730,7 +730,7 @@ describe("ControlService", () => {
 			cliVersion: adapter.version,
 		});
 
-		const result = await service.createSession({
+		const result = await service.createThread({
 			cwd: tempDir,
 			prompt: "Prompt with eager adapter events",
 		});
@@ -751,7 +751,7 @@ describe("ControlService", () => {
 	});
 
 	it("runs bang-prefixed prompts as app-server shell commands", async () => {
-		const result = await service.createSession({
+		const result = await service.createThread({
 			cwd: tempDir,
 			prompt: "!pwd",
 		});
@@ -780,8 +780,8 @@ describe("ControlService", () => {
 		).toBe(false);
 	});
 
-	it("steers the active turn for default submissions while a session is running", async () => {
-		const result = await service.createSession({
+	it("steers the active turn for default submissions while a thread is running", async () => {
+		const result = await service.createThread({
 			cwd: tempDir,
 			prompt: "Keep this turn open for steering approval",
 		});
@@ -808,7 +808,7 @@ describe("ControlService", () => {
 	});
 
 	it("starts a new turn when default submission finds no runtime active turn", async () => {
-		const result = await service.createSession({
+		const result = await service.createThread({
 			cwd: tempDir,
 			prompt: "Keep this turn open for steering approval",
 		});
@@ -853,7 +853,7 @@ describe("ControlService", () => {
 			cliVersion: adapter.version,
 		});
 
-		const result = await service.createSession({
+		const result = await service.createThread({
 			cwd: tempDir,
 			prompt: "Start a turn that drifts before interrupt",
 		});
@@ -879,8 +879,8 @@ describe("ControlService", () => {
 		});
 	});
 
-	it("supports the core goal controls on an existing idle session", async () => {
-		const result = await service.createSession({
+	it("supports the core goal controls on an existing idle thread", async () => {
+		const result = await service.createThread({
 			cwd: tempDir,
 			prompt: "Finish setup before goal controls",
 		});
@@ -918,7 +918,7 @@ describe("ControlService", () => {
 	});
 
 	it("forks an app-server thread and continues work on the fork", async () => {
-		const result = await service.createSession({
+		const result = await service.createThread({
 			cwd: tempDir,
 			prompt: "Build the source conversation before forking",
 		});
@@ -960,7 +960,7 @@ describe("ControlService", () => {
 	});
 
 	it("starts an app-server compact turn and records the compaction item", async () => {
-		const result = await service.createSession({
+		const result = await service.createThread({
 			cwd: tempDir,
 			prompt: "Build the source conversation before compacting",
 		});
@@ -990,9 +990,9 @@ describe("ControlService", () => {
 	});
 
 	it("archives idle app-server threads and hides them from default lists", async () => {
-		const result = await service.createSession({
+		const result = await service.createThread({
 			cwd: tempDir,
-			prompt: "Archive this finished session",
+			prompt: "Archive this finished thread",
 		});
 		await waitForEvents();
 
@@ -1031,7 +1031,7 @@ describe("ControlService", () => {
 			cliVersion: adapter.version,
 		});
 
-		const result = await service.createSession({
+		const result = await service.createThread({
 			cwd: tempDir,
 			prompt: "Archive after runtime disappears",
 		});
@@ -1086,7 +1086,7 @@ describe("ControlService", () => {
 			cliVersion: adapter.version,
 		});
 
-		const result = await service.createSession({
+		const result = await service.createThread({
 			cwd: tempDir,
 			prompt: "Initial runtime thread",
 		});
@@ -1124,7 +1124,7 @@ describe("ControlService", () => {
 			cliVersion: adapter.version,
 		});
 
-		const result = await service.createSession({
+		const result = await service.createThread({
 			cwd: tempDir,
 			prompt: "Initial runtime thread",
 		});

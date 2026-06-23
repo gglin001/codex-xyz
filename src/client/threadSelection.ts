@@ -57,7 +57,7 @@ export function shouldLoadThreadSelection(
 
 const archivedSearchAliases = ["archive", "archived"] as const;
 
-export function queryMatchesArchivedSessions(query: string) {
+export function queryMatchesArchivedThreads(query: string) {
 	return query
 		.trim()
 		.toLowerCase()

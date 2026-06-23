@@ -4,7 +4,7 @@
 	"private": true,
 	"packageManager": "pnpm@11.0.3",
 	"type": "module",
-	"description": "Codex control plane for managing multiple sessions.",
+	"description": "Codex control plane for managing multiple threads.",
 	"scripts": {
 		"generate:codex": "node scripts/generate-codex-types.mjs",
 		"upgrade:v4": "node scripts/upgrade-v3-to-v4.mjs",

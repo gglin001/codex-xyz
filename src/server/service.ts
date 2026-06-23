@@ -6,7 +6,7 @@ import {
 } from "./codex/adapter.js";
 import {
 	type ControlThread,
-	type CreateSessionInput,
+	type CreateThreadInput,
 	type DashboardState,
 	type SetGoalInput,
 	type SetGoalStatusInput,
@@ -145,7 +145,7 @@ export class ControlService {
 		};
 	}
 
-	async createSession(input: CreateSessionInput) {
+	async createThread(input: CreateThreadInput) {
 		const cwd = normalizeWorkingDirectory(input.cwd);
 		const title = input.title?.trim() || titleFromPrompt(input.prompt);
 		const adapterThread = await this.adapter.startThread({

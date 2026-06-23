@@ -5,10 +5,7 @@ import { memo, useMemo, useState } from "react";
 import { codexThreadCommandLabels } from "../codexCommandLabels.js";
 import { cn, ui } from "../designSystem.js";
 import { formatFullDateTime, formatTokens, statusLabel } from "../uiFormat.js";
-import {
-	SessionStatusIcon,
-	sessionStatusDotClass,
-} from "./sessionStatusIcon.js";
+import { ThreadStatusIcon, threadStatusDotClass } from "./threadStatusIcon.js";
 import {
 	AvatarBadge,
 	ControlButton,
@@ -21,19 +18,19 @@ import {
 import type {
 	DateBucket,
 	WorkbenchProject,
-	WorkbenchSession,
+	WorkbenchThread,
 } from "./workbenchTypes.js";
 
 export type SidebarProps = {
 	className?: string;
 	projects: WorkbenchProject[];
 	selectedProjectId: string;
-	selectedSessionId: string | null;
-	sessionQuery: string;
+	selectedThreadKey: string | null;
+	threadQuery: string;
 	onProjectChange: (projectId: string) => void;
-	onSessionQueryChange: (value: string) => void;
-	onSelectSession: (session: WorkbenchSession) => void;
-	onCreateSession: () => void;
+	onThreadQueryChange: (value: string) => void;
+	onSelectThread: (thread: WorkbenchThread) => void;
+	onCreateThread: () => void;
 	footer?: ReactNode;
 };
 
@@ -42,33 +39,33 @@ const bucketOrder: DateBucket[] = ["Today", "Yesterday", "Older"];
 function projectTitle(project: WorkbenchProject) {
 	const parts = [
 		project.path,
-		`${project.totalSessions} sessions`,
+		`${project.totalThreads} threads`,
 		`${formatTokens(project.tokenTotal)} tokens`,
 	];
-	if (project.runningSessions > 0) {
-		parts.push(`${project.runningSessions} running`);
+	if (project.runningThreads > 0) {
+		parts.push(`${project.runningThreads} running`);
 	}
 	return parts.join("\n");
 }
 
-function filterSessions(project: WorkbenchProject, query: string) {
+function filterThreads(project: WorkbenchProject, query: string) {
 	const queryTokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
 	if (queryTokens.length === 0) {
-		return project.sessions;
+		return project.threads;
 	}
-	return project.sessions.filter((session) => {
+	return project.threads.filter((thread) => {
 		const fields = [
-			session.title,
-			session.preview,
-			session.cwd,
-			session.model ?? "",
-			session.status,
-			statusLabel(session.status),
-			session.runtimeStatus,
-			statusLabel(session.runtimeStatus),
-			session.lastTurnStatus ?? "",
-			session.lastTurnStatus ? statusLabel(session.lastTurnStatus) : "",
-			session.archivedAt ? "archive archived" : "",
+			thread.title,
+			thread.preview,
+			thread.cwd,
+			thread.model ?? "",
+			thread.status,
+			statusLabel(thread.status),
+			thread.runtimeStatus,
+			statusLabel(thread.runtimeStatus),
+			thread.lastTurnStatus ?? "",
+			thread.lastTurnStatus ? statusLabel(thread.lastTurnStatus) : "",
+			thread.archivedAt ? "archive archived" : "",
 		].map((field) => field.toLowerCase());
 		return queryTokens.every((token) =>
 			fields.some((field) => field.includes(token)),
@@ -76,45 +73,44 @@ function filterSessions(project: WorkbenchProject, query: string) {
 	});
 }
 
-function groupSessions(sessions: WorkbenchSession[]) {
-	const grouped = new Map<DateBucket, WorkbenchSession[]>();
+function groupThreads(threads: WorkbenchThread[]) {
+	const grouped = new Map<DateBucket, WorkbenchThread[]>();
 	for (const bucket of bucketOrder) {
 		grouped.set(bucket, []);
 	}
-	for (const session of sessions) {
-		grouped.get(session.dateBucket)?.push(session);
+	for (const thread of threads) {
+		grouped.get(thread.dateBucket)?.push(thread);
 	}
 	return bucketOrder
 		.map((bucket) => ({
 			bucket,
-			sessions: grouped.get(bucket) ?? [],
+			threads: grouped.get(bucket) ?? [],
 		}))
-		.filter((group) => group.sessions.length > 0);
+		.filter((group) => group.threads.length > 0);
 }
 
 export const Sidebar = memo(function Sidebar({
 	className,
 	projects,
 	selectedProjectId,
-	selectedSessionId,
-	sessionQuery,
+	selectedThreadKey,
+	threadQuery,
 	onProjectChange,
-	onSessionQueryChange,
-	onSelectSession,
-	onCreateSession,
+	onThreadQueryChange,
+	onSelectThread,
+	onCreateThread,
 	footer,
 }: SidebarProps) {
 	const [projectMenuOpen, setProjectMenuOpen] = useState(false);
 	const selectedProject =
 		projects.find((project) => project.id === selectedProjectId) ?? projects[0];
-	const visibleSessions = useMemo(
-		() =>
-			selectedProject ? filterSessions(selectedProject, sessionQuery) : [],
-		[selectedProject, sessionQuery],
+	const visibleThreads = useMemo(
+		() => (selectedProject ? filterThreads(selectedProject, threadQuery) : []),
+		[selectedProject, threadQuery],
 	);
-	const sessionGroups = useMemo(
-		() => groupSessions(visibleSessions),
-		[visibleSessions],
+	const threadGroups = useMemo(
+		() => groupThreads(visibleThreads),
+		[visibleThreads],
 	);
 
 	return (
@@ -181,7 +177,7 @@ export const Sidebar = memo(function Sidebar({
 											{project.name}
 										</span>
 										<span className="block truncate text-[11px] text-muted">
-											{project.totalSessions} sessions /{" "}
+											{project.totalThreads} threads /{" "}
 											{formatTokens(project.tokenTotal)} tokens
 										</span>
 									</span>
@@ -200,16 +196,16 @@ export const Sidebar = memo(function Sidebar({
 					<FieldShell icon={<Search size={14} />} className="h-9 w-full">
 						<input
 							className={cn(ui.input, "text-[13px]")}
-							value={sessionQuery}
-							onChange={(event) => onSessionQueryChange(event.target.value)}
-							placeholder="Search sessions"
-							aria-label="Search sessions"
+							value={threadQuery}
+							onChange={(event) => onThreadQueryChange(event.target.value)}
+							placeholder="Search threads"
+							aria-label="Search threads"
 						/>
 					</FieldShell>
 				</div>
 				<ControlButton
 					className="h-9 w-9 shrink-0 bg-transparent"
-					onClick={onCreateSession}
+					onClick={onCreateThread}
 					title={codexThreadCommandLabels.new}
 					aria-label={codexThreadCommandLabels.new}
 				>
@@ -227,58 +223,58 @@ export const Sidebar = memo(function Sidebar({
 						transition={{ type: "spring", stiffness: 360, damping: 34 }}
 						className="grid gap-5"
 					>
-						{sessionGroups.length === 0 ? (
+						{threadGroups.length === 0 ? (
 							<ControlCard className="border-dashed bg-transparent px-3 py-7 text-center text-[12px] text-muted">
-								{sessionQuery.trim()
-									? "No matching sessions"
-									: "No Codex sessions yet"}
+								{threadQuery.trim()
+									? "No matching threads"
+									: "No Codex threads yet"}
 							</ControlCard>
 						) : null}
-						{sessionGroups.map((group) => (
+						{threadGroups.map((group) => (
 							<section key={group.bucket} className="grid gap-1">
 								<div className="px-2 pb-1 text-[11px] font-medium uppercase tracking-normal text-muted-strong">
 									{group.bucket}
 								</div>
-								{group.sessions.map((session) => {
+								{group.threads.map((thread) => {
 									const selected =
-										selectedSessionId === session.id ||
-										selectedSessionId === session.threadId;
+										selectedThreadKey === thread.id ||
+										selectedThreadKey === thread.threadId;
 									return (
 										<NavAction
-											key={session.id}
+											key={thread.id}
 											className={cn(
 												"group w-full items-start gap-2 px-2.5 py-2",
 												selected ? null : "bg-transparent",
 											)}
 											selected={selected}
-											title={`${session.title}\n${statusLabel(session.status)}\n${formatFullDateTime(session.updatedAt)}\n${session.preview}`}
-											onClick={() => onSelectSession(session)}
+											title={`${thread.title}\n${statusLabel(thread.status)}\n${formatFullDateTime(thread.updatedAt)}\n${thread.preview}`}
+											onClick={() => onSelectThread(thread)}
 										>
 											<span
 												className="mt-1 flex h-4 w-4 shrink-0 items-center justify-center"
 												aria-hidden="true"
 											>
-												<SessionStatusIcon status={session.status} />
+												<ThreadStatusIcon status={thread.status} />
 											</span>
 											<span className="grid min-w-0 flex-1 grid-rows-[19px_15px_18px]">
 												<span className="flex min-w-0 items-center gap-2">
 													<span className="truncate text-[13px] font-medium leading-5">
-														{session.title}
+														{thread.title}
 													</span>
 													<span
 														className={cn(
 															"h-1.5 w-1.5 shrink-0 rounded-full",
-															sessionStatusDotClass[session.status],
+															threadStatusDotClass[thread.status],
 														)}
 													/>
 												</span>
 												<span className="truncate text-[11px] leading-4 text-muted">
-													{formatFullDateTime(session.updatedAt)} /{" "}
-													{formatTokens(session.tokensUsed)} tokens /{" "}
-													{statusLabel(session.status)}
+													{formatFullDateTime(thread.updatedAt)} /{" "}
+													{formatTokens(thread.tokensUsed)} tokens /{" "}
+													{statusLabel(thread.status)}
 												</span>
 												<span className="truncate text-[11px] leading-[18px] text-muted-strong">
-													{session.preview}
+													{thread.preview}
 												</span>
 											</span>
 										</NavAction>

@@ -267,7 +267,7 @@ export function TerminalDock({
 	} | null>(null);
 	const terminalRef = useRef<XTerm | null>(null);
 	const fitAddonRef = useRef<FitAddon | null>(null);
-	const startSessionRef = useRef<(() => Promise<void>) | null>(null);
+	const startThreadRef = useRef<(() => Promise<void>) | null>(null);
 	const inputFlushRef = useRef<(() => void) | null>(null);
 	const [snapshot, setSnapshot] = useState<TerminalSnapshot | null>(null);
 	const [connection, setConnection] = useState<ConnectionStatus>("idle");
@@ -587,7 +587,7 @@ export function TerminalDock({
 		const binaryDisposable = terminal.onBinary(queueInput);
 		const resizeObserver = new ResizeObserver(scheduleResize);
 		resizeObserver.observe(containerRef.current);
-		startSessionRef.current = startOrAttach;
+		startThreadRef.current = startOrAttach;
 
 		window.requestAnimationFrame(() => {
 			if (!disposed) {
@@ -597,7 +597,7 @@ export function TerminalDock({
 
 		return () => {
 			disposed = true;
-			startSessionRef.current = null;
+			startThreadRef.current = null;
 			inputFlushRef.current = null;
 			flushHttpInput();
 			if (reconnectTimer) {
@@ -633,7 +633,7 @@ export function TerminalDock({
 	}, [themeOptions, visible]);
 
 	const startOrAttach = useCallback(() => {
-		void startSessionRef.current?.();
+		void startThreadRef.current?.();
 	}, []);
 
 	const stopTerminal = useCallback(() => {

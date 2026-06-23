@@ -17,7 +17,7 @@ function thread(overrides: Partial<ControlThread> = {}): ControlThread {
 		sessionId: "session-1",
 		forkedFromId: null,
 		title: "Implement search",
-		preview: "Add a session filter",
+		preview: "Add a thread filter",
 		cwd: "/work/coz",
 		model: "gpt-test",
 		status: "idle",
@@ -35,7 +35,7 @@ function thread(overrides: Partial<ControlThread> = {}): ControlThread {
 }
 
 describe("workbench project data", () => {
-	it("groups sessions by cwd and sorts projects and sessions by recency", () => {
+	it("groups threads by cwd and sorts projects and threads by recency", () => {
 		const projects = buildWorkbenchProjects(
 			[
 				thread({
@@ -71,13 +71,12 @@ describe("workbench project data", () => {
 			"/work/api-server",
 			"/work/coz",
 		]);
-		expect(projects[1]?.sessions.map((session) => session.threadId)).toEqual([
-			"coz-middle",
-			"coz-old",
-		]);
+		expect(
+			projects[1]?.threads.map((threadSummary) => threadSummary.threadId),
+		).toEqual(["coz-middle", "coz-old"]);
 		expect(projects[1]).toMatchObject({
-			totalSessions: 2,
-			runningSessions: 1,
+			totalThreads: 2,
+			runningThreads: 1,
 			tokenTotal: 12,
 		});
 	});
@@ -89,8 +88,8 @@ describe("workbench project data", () => {
 		expect(projects[0]).toMatchObject({
 			id: "/work/coz",
 			name: "coz",
-			sessions: [],
-			totalSessions: 0,
+			threads: [],
+			totalThreads: 0,
 		});
 	});
 

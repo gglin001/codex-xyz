@@ -19,7 +19,7 @@ import type {
 import {
 	archiveThread,
 	compactThread,
-	createSession,
+	createThread,
 	forkThread,
 	getState,
 	getThread,
@@ -37,7 +37,7 @@ import {
 } from "./components/workbenchData.js";
 import type {
 	ComposerMode,
-	WorkbenchSession,
+	WorkbenchThread,
 } from "./components/workbenchTypes.js";
 import {
 	clampDisplayScale,
@@ -62,7 +62,7 @@ import {
 } from "./theme.js";
 import {
 	choosePreferredThreadId,
-	queryMatchesArchivedSessions,
+	queryMatchesArchivedThreads,
 	shouldLoadThreadSelection,
 	shouldSelectActionResult,
 } from "./threadSelection.js";
@@ -126,7 +126,8 @@ type ResetEvent = {
 const terminalVisibleStorageKey = "coz-terminal-visible";
 const navigatorVisibleStorageKey = "coz-navigator-visible";
 const inspectorVisibleStorageKey = "coz-inspector-visible";
-const wrapSessionContentStorageKey = "coz-wrap-session-content";
+// Keep the existing key so current users retain their transcript wrap preference.
+const wrapThreadContentStorageKey = "coz-wrap-session-content";
 const displayScaleStorageKey = "coz-display-scale";
 const TerminalDock = lazy(async () => ({
 	default: (await import("./TerminalDock.js")).TerminalDock,
@@ -185,7 +186,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	const [goalMode, setGoalMode] = useState(false);
 	const [workdir, setWorkdir] = useState("");
 	const [workdirTouched, setWorkdirTouched] = useState(false);
-	const [sessionQuery, setSessionQuery] = useState("");
+	const [threadQuery, setThreadQuery] = useState("");
 	const [archivedThreads, setArchivedThreads] = useState<ControlThread[]>([]);
 	const [composerMode, setComposerMode] = useState<ComposerMode>("thread");
 	const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -194,7 +195,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	const [terminalVisible, setTerminalVisible] = useState(false);
 	const [navigatorVisible, setNavigatorVisible] = useState(true);
 	const [inspectorVisible, setInspectorVisible] = useState(true);
-	const [wrapSessionContent, setWrapSessionContent] = useState(true);
+	const [wrapThreadContent, setWrapThreadContent] = useState(true);
 	const [themeMode, setThemeMode] = useState<ThemeMode>(defaultThemeMode);
 	const [selectedProjectId, setSelectedProjectId] = useState(
 		() => appInitialSelection.selectedProjectId,
@@ -403,7 +404,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 					setError(
 						selectError instanceof Error
 							? selectError.message
-							: "Failed to load session",
+							: "Failed to load thread",
 					);
 				}
 			}
@@ -435,7 +436,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 						setError(
 							loadError instanceof Error
 								? loadError.message
-								: "Failed to load session",
+								: "Failed to load thread",
 						);
 					}
 				});
@@ -460,9 +461,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		setTerminalVisible(readStoredTerminalVisible());
 		setNavigatorVisible(readStoredBoolean(navigatorVisibleStorageKey, true));
 		setInspectorVisible(readStoredBoolean(inspectorVisibleStorageKey, true));
-		setWrapSessionContent(
-			readStoredBoolean(wrapSessionContentStorageKey, true),
-		);
+		setWrapThreadContent(readStoredBoolean(wrapThreadContentStorageKey, true));
 		setDisplayScale(readStoredDisplayScale());
 		setPreferencesReady(true);
 	}, []);
@@ -523,13 +522,13 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		}
 		try {
 			window.localStorage.setItem(
-				wrapSessionContentStorageKey,
-				wrapSessionContent ? "true" : "false",
+				wrapThreadContentStorageKey,
+				wrapThreadContent ? "true" : "false",
 			);
 		} catch {
 			// Keep the in-memory preference even if the browser blocks persistence.
 		}
-	}, [preferencesReady, wrapSessionContent]);
+	}, [preferencesReady, wrapThreadContent]);
 
 	useEffect(() => {
 		if (!preferencesReady) {
@@ -714,13 +713,12 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		},
 	});
 
-	const shouldSearchArchivedSessions =
-		queryMatchesArchivedSessions(sessionQuery);
+	const shouldSearchArchivedThreads = queryMatchesArchivedThreads(threadQuery);
 
 	useEffect(() => {
 		archivedSearchSeqRef.current += 1;
 		const searchSeq = archivedSearchSeqRef.current;
-		if (!shouldSearchArchivedSessions) {
+		if (!shouldSearchArchivedThreads) {
 			setArchivedThreads([]);
 			return;
 		}
@@ -740,13 +738,13 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				setError(
 					loadError instanceof Error
 						? loadError.message
-						: "Failed to load archived sessions",
+						: "Failed to load archived threads",
 				);
 			});
-	}, [shouldSearchArchivedSessions]);
+	}, [shouldSearchArchivedThreads]);
 
 	const searchableThreads = useMemo(() => {
-		if (!shouldSearchArchivedSessions) {
+		if (!shouldSearchArchivedThreads) {
 			return state.threads;
 		}
 		const byId = new Map<string, ControlThread>();
@@ -757,7 +755,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			byId.set(thread.id, thread);
 		}
 		return [...byId.values()];
-	}, [archivedThreads, shouldSearchArchivedSessions, state.threads]);
+	}, [archivedThreads, shouldSearchArchivedThreads, state.threads]);
 
 	const workbenchProjects = useMemo(
 		() => buildWorkbenchProjects(searchableThreads, state.defaultCwd),
@@ -767,17 +765,17 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		workbenchProjects.find((project) => project.id === selectedProjectId) ??
 		workbenchProjects[0] ??
 		null;
-	const selectedWorkbenchSession = useMemo(() => {
+	const selectedWorkbenchThread = useMemo(() => {
 		const selectedByThread =
-			selectedProject?.sessions.find(
-				(session) => session.threadId === selectedThreadId,
+			selectedProject?.threads.find(
+				(threadSummary) => threadSummary.threadId === selectedThreadId,
 			) ?? null;
 		if (selectedByThread) {
 			return selectedByThread;
 		}
-		return selectedProject?.sessions[0] ?? null;
+		return selectedProject?.threads[0] ?? null;
 	}, [selectedProject, selectedThreadId]);
-	const activeThreadId = selectedWorkbenchSession?.threadId ?? null;
+	const activeThreadId = selectedWorkbenchThread?.threadId ?? null;
 	const activeThread = useMemo(
 		() =>
 			searchableThreads.find((thread) => thread.id === activeThreadId) ?? null,
@@ -816,7 +814,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	}, [selectedProjectId, workbenchProjects]);
 
 	useEffect(() => {
-		const projectThreadId = selectedWorkbenchSession?.threadId ?? null;
+		const projectThreadId = selectedWorkbenchThread?.threadId ?? null;
 		if (projectThreadId === selectedThreadId) {
 			return;
 		}
@@ -844,7 +842,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		selectThread,
 		selectedProject,
 		selectedThreadId,
-		selectedWorkbenchSession,
+		selectedWorkbenchThread,
 	]);
 
 	useEffect(() => {
@@ -899,22 +897,25 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		setGoalMode(value);
 	}, []);
 
-	const selectWorkbenchSession = useCallback(
+	const selectWorkbenchThread = useCallback(
 		(
-			session: WorkbenchSession,
-			options: { clearSessionQuery?: boolean } = {},
+			threadSummary: WorkbenchThread,
+			options: { clearThreadQuery?: boolean } = {},
 		) => {
-			const project = findProjectForThread(workbenchProjects, session.threadId);
+			const project = findProjectForThread(
+				workbenchProjects,
+				threadSummary.threadId,
+			);
 			if (project) {
 				setSelectedProjectId(project.id);
 			}
-			if (options.clearSessionQuery) {
-				setSessionQuery("");
+			if (options.clearThreadQuery) {
+				setThreadQuery("");
 			}
 			setComposerMode("thread");
 			setError(null);
 			setNotice(null);
-			void selectThread(session.threadId);
+			void selectThread(threadSummary.threadId);
 		},
 		[selectThread, workbenchProjects],
 	);
@@ -925,13 +926,13 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				workbenchProjects.find((candidate) => candidate.id === projectId) ??
 				null;
 			setSelectedProjectId(projectId);
-			setSessionQuery("");
+			setThreadQuery("");
 			setError(null);
 			setNotice(null);
-			const nextSession = project?.sessions[0] ?? null;
-			if (nextSession) {
+			const nextThread = project?.threads[0] ?? null;
+			if (nextThread) {
 				setComposerMode("thread");
-				void selectThread(nextSession.threadId);
+				void selectThread(nextThread.threadId);
 				return;
 			}
 			setComposerMode("new");
@@ -956,7 +957,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		],
 	);
 
-	const enterNewSessionDraft = useCallback(
+	const enterNewThreadDraft = useCallback(
 		(options: { clearPrompt?: boolean } = {}) => {
 			setComposerMode("new");
 			if (options.clearPrompt) {
@@ -974,17 +975,17 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	const changeComposerMode = useCallback(
 		(mode: ComposerMode) => {
 			if (mode === "new") {
-				enterNewSessionDraft();
+				enterNewThreadDraft();
 				return;
 			}
 			setComposerMode(mode);
 		},
-		[enterNewSessionDraft],
+		[enterNewThreadDraft],
 	);
 
-	const createWorkbenchSession = useCallback(() => {
-		enterNewSessionDraft({ clearPrompt: true });
-	}, [enterNewSessionDraft]);
+	const createWorkbenchThread = useCallback(() => {
+		enterNewThreadDraft({ clearPrompt: true });
+	}, [enterNewThreadDraft]);
 
 	async function runAction(
 		label: string,
@@ -1055,13 +1056,13 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		}
 
 		void runAction(
-			goalMode ? "Creating goal session" : "Creating session",
+			goalMode ? "Creating goal thread" : "Creating thread",
 			async () => {
-				const result = await createSession({
+				const result = await createThread({
 					cwd: trimmedWorkdir,
 					prompt: currentPrompt,
 					goalMode,
-					model: activeThread?.model ?? selectedWorkbenchSession?.model ?? null,
+					model: activeThread?.model ?? selectedWorkbenchThread?.model ?? null,
 				});
 				if (result.thread?.cwd) {
 					setWorkdir(result.thread.cwd);
@@ -1107,12 +1108,12 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		}
 		const threadId = activeThreadId;
 		void runAction(
-			"Resuming session",
+			"Resuming thread",
 			async () => {
 				const thread = await resumeThread(threadId);
 				return thread.id;
 			},
-			{ successMessage: "Session resumed" },
+			{ successMessage: "Thread resumed" },
 		);
 	}
 
@@ -1163,7 +1164,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			"Archiving thread",
 			async () => {
 				const archived = await archiveThread(threadId);
-				if (queryMatchesArchivedSessions(sessionQuery)) {
+				if (queryMatchesArchivedThreads(threadQuery)) {
 					setArchivedThreads((current) => {
 						const next = current.filter((thread) => thread.id !== archived.id);
 						return [archived, ...next];
@@ -1192,22 +1193,22 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			<DashboardLayout
 				projects={workbenchProjects}
 				selectedProjectId={selectedProjectId}
-				selectedSessionId={selectedWorkbenchSession?.id ?? activeThreadId}
-				session={selectedWorkbenchSession}
+				selectedThreadKey={selectedWorkbenchThread?.id ?? activeThreadId}
+				threadSummary={selectedWorkbenchThread}
 				detail={activeDetail}
 				selectedThread={activeThread}
 				selectedThreadId={activeThreadId}
 				navigatorVisible={navigatorVisible}
 				inspectorVisible={inspectorVisible}
 				terminalVisible={terminalVisible}
-				wrapSessionContent={wrapSessionContent}
+				wrapThreadContent={wrapThreadContent}
 				themeMode={themeMode}
 				onThemeModeChange={setThemeMode}
 				displayScale={displayScale}
 				onDisplayScaleChange={(value) =>
 					setDisplayScale(clampDisplayScale(value))
 				}
-				sessionQuery={sessionQuery}
+				threadQuery={threadQuery}
 				defaultCwd={state.defaultCwd}
 				workdir={workdir}
 				busy={busy}
@@ -1223,11 +1224,11 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				canSubmitPrompt={canSubmitPrompt}
 				onNavigatorVisibleChange={setNavigatorVisible}
 				onInspectorVisibleChange={setInspectorVisible}
-				onWrapSessionContentChange={setWrapSessionContent}
+				onWrapThreadContentChange={setWrapThreadContent}
 				onProjectChange={changeWorkbenchProject}
-				onSelectSession={selectWorkbenchSession}
-				onCreateSession={createWorkbenchSession}
-				onSessionQueryChange={setSessionQuery}
+				onSelectThread={selectWorkbenchThread}
+				onCreateThread={createWorkbenchThread}
+				onThreadQueryChange={setThreadQuery}
 				onTerminalVisibleChange={setTerminalVisible}
 				onPromptChange={setPrompt}
 				onPromptKeyDown={handlePromptKeyDown}

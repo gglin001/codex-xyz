@@ -461,7 +461,7 @@ async function routeApiRequest(
 	if (method === "POST" && route === "api/threads") {
 		const body = await readJson(request);
 		return jsonResponse(
-			await service.createSession({
+			await service.createThread({
 				cwd: requireString(body, "cwd"),
 				prompt: requireString(body, "prompt"),
 				goalMode: optionalBoolean(body, "goalMode"),

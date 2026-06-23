@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	choosePreferredThreadId,
-	queryMatchesArchivedSessions,
+	queryMatchesArchivedThreads,
 	shouldLoadThreadSelection,
 	shouldSelectActionResult,
 } from "../src/client/threadSelection.js";
@@ -146,22 +146,22 @@ describe("thread detail selection loading", () => {
 	});
 });
 
-describe("archived session search matching", () => {
+describe("archived thread search matching", () => {
 	it("matches archive status aliases from short prefixes", () => {
-		expect(queryMatchesArchivedSessions("ar")).toBe(true);
-		expect(queryMatchesArchivedSessions("arch")).toBe(true);
-		expect(queryMatchesArchivedSessions("archive")).toBe(true);
-		expect(queryMatchesArchivedSessions("archived")).toBe(true);
+		expect(queryMatchesArchivedThreads("ar")).toBe(true);
+		expect(queryMatchesArchivedThreads("arch")).toBe(true);
+		expect(queryMatchesArchivedThreads("archive")).toBe(true);
+		expect(queryMatchesArchivedThreads("archived")).toBe(true);
 	});
 
 	it("matches archive aliases inside multi-word queries", () => {
-		expect(queryMatchesArchivedSessions("project arch")).toBe(true);
-		expect(queryMatchesArchivedSessions("foo archived")).toBe(true);
+		expect(queryMatchesArchivedThreads("project arch")).toBe(true);
+		expect(queryMatchesArchivedThreads("foo archived")).toBe(true);
 	});
 
 	it("does not match unrelated or one-letter queries", () => {
-		expect(queryMatchesArchivedSessions("a")).toBe(false);
-		expect(queryMatchesArchivedSessions("running")).toBe(false);
-		expect(queryMatchesArchivedSessions("")).toBe(false);
+		expect(queryMatchesArchivedThreads("a")).toBe(false);
+		expect(queryMatchesArchivedThreads("running")).toBe(false);
+		expect(queryMatchesArchivedThreads("")).toBe(false);
 	});
 });

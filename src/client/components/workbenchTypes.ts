@@ -1,7 +1,7 @@
 import type {
 	ControlThread,
 	GoalStatus,
-	SessionDisplayStatus,
+	ThreadDisplayStatus,
 	ThreadRuntimeStatus,
 	TurnStatus,
 } from "../../server/domain.js";
@@ -11,7 +11,7 @@ export type ComposerMode = "thread" | "new";
 
 export type ProjectAccent = "emerald" | "violet" | "sky" | "slate";
 
-export type WorkbenchSession = {
+export type WorkbenchThread = {
 	id: string;
 	threadId: string;
 	sessionId: string;
@@ -20,7 +20,7 @@ export type WorkbenchSession = {
 	preview: string;
 	cwd: string;
 	model: string | null;
-	status: SessionDisplayStatus;
+	status: ThreadDisplayStatus;
 	runtimeStatus: ThreadRuntimeStatus;
 	activeTurnId: string | null;
 	lastTurnStatus: TurnStatus | null;
@@ -41,8 +41,8 @@ export type WorkbenchProject = {
 	path: string;
 	initials: string;
 	accent: ProjectAccent;
-	sessions: WorkbenchSession[];
-	totalSessions: number;
-	runningSessions: number;
+	threads: WorkbenchThread[];
+	totalThreads: number;
+	runningThreads: number;
 	tokenTotal: number;
 };

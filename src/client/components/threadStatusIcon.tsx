@@ -6,10 +6,10 @@ import {
 	CircleStop,
 	Loader2,
 } from "lucide-react";
-import type { SessionDisplayStatus } from "../../server/domain.js";
+import type { ThreadDisplayStatus } from "../../server/domain.js";
 import { cn, tone } from "../designSystem.js";
 
-export const sessionStatusDotClass: Record<SessionDisplayStatus, string> = {
+export const threadStatusDotClass: Record<ThreadDisplayStatus, string> = {
 	active: tone.running.dot,
 	idle: tone.neutral.dot,
 	not_loaded: tone.stale.dot,
@@ -20,12 +20,12 @@ export const sessionStatusDotClass: Record<SessionDisplayStatus, string> = {
 	turn_completed: tone.completed.dot,
 };
 
-export function SessionStatusIcon({
+export function ThreadStatusIcon({
 	status,
 	size = 14,
 	className,
 }: {
-	status: SessionDisplayStatus;
+	status: ThreadDisplayStatus;
 	size?: number;
 	className?: string;
 }) {

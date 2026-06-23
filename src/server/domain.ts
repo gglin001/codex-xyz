@@ -4,7 +4,7 @@ export type ThreadRuntimeStatus =
 	| "not_loaded"
 	| "system_error";
 export type TurnStatus = "in_progress" | "completed" | "interrupted" | "failed";
-export type SessionDisplayStatus =
+export type ThreadDisplayStatus =
 	| ThreadRuntimeStatus
 	| "archived"
 	| "turn_completed"
@@ -75,9 +75,9 @@ export function threadRuntimeStatusFromTurnStatus(
 	return status === "in_progress" ? "active" : "idle";
 }
 
-export function sessionDisplayStatus(
+export function threadDisplayStatus(
 	thread: Pick<ControlThread, "status" | "lastTurnStatus" | "archivedAt">,
-): SessionDisplayStatus {
+): ThreadDisplayStatus {
 	if (thread.archivedAt) {
 		return "archived";
 	}
@@ -262,7 +262,7 @@ export type TerminalStatusEvent = {
 
 export type TerminalEvent = TerminalOutputEvent | TerminalStatusEvent;
 
-export type CreateSessionInput = {
+export type CreateThreadInput = {
 	cwd: string;
 	prompt: string;
 	goalMode?: boolean | null;
@@ -294,7 +294,7 @@ export function nowIso() {
 export function titleFromPrompt(prompt: string) {
 	const collapsed = prompt.trim().replace(/\s+/g, " ");
 	if (collapsed.length <= 72) {
-		return collapsed || "Untitled session";
+		return collapsed || "Untitled thread";
 	}
 	return `${collapsed.slice(0, 69)}...`;
 }

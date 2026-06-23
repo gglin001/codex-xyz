@@ -109,7 +109,7 @@ describe("ThreadProjection", () => {
 		expect(events.map((event) => event.type)).toEqual(["thread.status"]);
 	});
 
-	it("ignores runtime snapshot timestamp churn when session fields are unchanged", () => {
+	it("ignores runtime snapshot timestamp churn when thread fields are unchanged", () => {
 		const originalUpdatedAt = "2026-01-01T00:00:00.000Z";
 		const runtimeUpdatedAt = "2026-01-01T00:10:00.000Z";
 		const thread = createThread({ updatedAt: originalUpdatedAt });
@@ -125,7 +125,7 @@ describe("ThreadProjection", () => {
 		expect(events).toEqual([]);
 	});
 
-	it("accepts runtime snapshot timestamps when session status changes", () => {
+	it("accepts runtime snapshot timestamps when thread status changes", () => {
 		const originalUpdatedAt = "2026-01-01T00:00:00.000Z";
 		const runtimeUpdatedAt = "2026-01-01T00:10:00.000Z";
 		const thread = createThread({ updatedAt: originalUpdatedAt });

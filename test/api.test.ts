@@ -181,7 +181,7 @@ function threadFixture(index: number): ControlThread {
 		id: `thread-${String(index).padStart(3, "0")}`,
 		sessionId: `session-${String(index).padStart(3, "0")}`,
 		forkedFromId: null,
-		title: `Session ${index}`,
+		title: `Thread ${index}`,
 		preview: `Preview ${index}`,
 		cwd: tempDir,
 		model: "test-codex",
@@ -249,7 +249,7 @@ describe("Next API routes", () => {
 		expect(testAdapter.restartCount).toBe(1);
 	});
 
-	it("serves dashboard state and can create a local session", async () => {
+	it("serves dashboard state and can create a local thread", async () => {
 		const state = await json<DashboardState>("/api/state");
 		expect(state.defaultCwd).toBe(tempDir);
 		expect(state.latestEventId).toBe(0);
@@ -275,13 +275,13 @@ describe("Next API routes", () => {
 				.map((item) => item.text)
 				.join("\n")
 				.includes("Test run started");
-		}, "session transcript");
+		}, "thread transcript");
 
 		const nextState = await json<DashboardState>("/api/state");
 		expect(nextState.latestEventId).toBeGreaterThan(0);
 	});
 
-	it("creates a goal session from a direct thread request", async () => {
+	it("creates a goal thread from a direct thread request", async () => {
 		const created = await json<{
 			goal: { objective: string; status: string } | null;
 			thread: {
@@ -436,7 +436,7 @@ describe("Next API routes", () => {
 		expect(text).toBe(": connected\n\n");
 	});
 
-	it("controls a running session through core API routes", async () => {
+	it("controls a running thread through core API routes", async () => {
 		const created = await json<{ thread: { id: string } }>("/api/threads", {
 			method: "POST",
 			body: JSON.stringify({

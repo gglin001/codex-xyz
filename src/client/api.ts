@@ -79,7 +79,7 @@ export function getThreadsPage(input: {
 	return request<ThreadPage>(`/api/threads?${params.toString()}`);
 }
 
-export function createSession(input: {
+export function createThread(input: {
 	cwd: string;
 	prompt: string;
 	goalMode?: boolean | null;

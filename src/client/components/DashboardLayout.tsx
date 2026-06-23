@@ -34,8 +34,8 @@ import {
 } from "react";
 import type {
 	ControlThread,
-	SessionDisplayStatus,
 	ThreadDetail,
+	ThreadDisplayStatus,
 } from "../../server/domain.js";
 import { codexThreadCommandLabels } from "../codexCommandLabels.js";
 import {
@@ -51,29 +51,29 @@ import { useFullscreen } from "../useFullscreen.js";
 import { useMobileViewportGeometry } from "../useMobileViewportGeometry.js";
 import { ParamPanel } from "./ParamPanel.js";
 import { Sidebar } from "./Sidebar.js";
-import { SessionStatusIcon } from "./sessionStatusIcon.js";
+import { ThreadStatusIcon } from "./threadStatusIcon.js";
 import { AvatarBadge, MenuItemButton, SurfaceAction } from "./uiPrimitives.js";
 import { Workspace, type WorkspaceHandle } from "./Workspace.js";
 import type {
 	ComposerMode,
 	WorkbenchProject,
-	WorkbenchSession,
+	WorkbenchThread,
 } from "./workbenchTypes.js";
 
 export type DashboardLayoutProps = {
 	projects: WorkbenchProject[];
 	selectedProjectId: string;
-	selectedSessionId: string | null;
-	session: WorkbenchSession | null;
+	selectedThreadKey: string | null;
+	threadSummary: WorkbenchThread | null;
 	detail: ThreadDetail | null;
 	selectedThread: ControlThread | null;
 	selectedThreadId: string | null;
 	navigatorVisible: boolean;
 	inspectorVisible: boolean;
 	terminalVisible: boolean;
-	wrapSessionContent: boolean;
+	wrapThreadContent: boolean;
 	themeMode: ThemeMode;
-	sessionQuery: string;
+	threadQuery: string;
 	defaultCwd: string;
 	workdir: string;
 	busy: boolean;
@@ -89,17 +89,17 @@ export type DashboardLayoutProps = {
 	canSubmitPrompt: boolean;
 	onNavigatorVisibleChange: (visible: boolean) => void;
 	onInspectorVisibleChange: (visible: boolean) => void;
-	onWrapSessionContentChange: (value: boolean) => void;
+	onWrapThreadContentChange: (value: boolean) => void;
 	onThemeModeChange: (mode: ThemeMode) => void;
 	displayScale: number;
 	onDisplayScaleChange: (value: number) => void;
 	onProjectChange: (projectId: string) => void;
-	onSelectSession: (
-		session: WorkbenchSession,
-		options?: { clearSessionQuery?: boolean },
+	onSelectThread: (
+		threadSummary: WorkbenchThread,
+		options?: { clearThreadQuery?: boolean },
 	) => void;
-	onCreateSession: () => void;
-	onSessionQueryChange: (value: string) => void;
+	onCreateThread: () => void;
+	onThreadQueryChange: (value: string) => void;
 	onTerminalVisibleChange: (visible: boolean) => void;
 	onPromptChange: (value: string) => void;
 	onPromptKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
@@ -134,9 +134,9 @@ type CommandAction =
 			projectInitials: string;
 	  })
 	| (CommandActionBase & {
-			kind: "session";
+			kind: "thread";
 			projectId: string;
-			status: SessionDisplayStatus;
+			status: ThreadDisplayStatus;
 	  })
 	| (CommandActionBase & {
 			kind: "settingsGroup";
@@ -259,7 +259,7 @@ function commandActionMatches(action: CommandAction, normalizedQuery: string) {
 }
 
 function commandParentId(action: CommandAction) {
-	if (action.kind === "session") {
+	if (action.kind === "thread") {
 		return `project:${action.projectId}`;
 	}
 	if (action.kind === "settingsItem") {
@@ -398,7 +398,7 @@ function CommandActionGlyph({
 		);
 	}
 
-	if (action.kind === "session") {
+	if (action.kind === "thread") {
 		return (
 			<span
 				className="relative flex h-8 w-12 shrink-0 items-center"
@@ -417,7 +417,7 @@ function CommandActionGlyph({
 						ui.iconBox,
 					)}
 				>
-					<SessionStatusIcon status={action.status} />
+					<ThreadStatusIcon status={action.status} />
 				</span>
 			</span>
 		);
@@ -726,17 +726,17 @@ const CommandPalette = memo(function CommandPalette({
 export const DashboardLayout = memo(function DashboardLayout({
 	projects,
 	selectedProjectId,
-	selectedSessionId,
-	session,
+	selectedThreadKey,
+	threadSummary,
 	detail,
 	selectedThread,
 	selectedThreadId,
 	navigatorVisible,
 	inspectorVisible,
 	terminalVisible,
-	wrapSessionContent,
+	wrapThreadContent,
 	themeMode,
-	sessionQuery,
+	threadQuery,
 	defaultCwd,
 	workdir,
 	busy,
@@ -752,14 +752,14 @@ export const DashboardLayout = memo(function DashboardLayout({
 	canSubmitPrompt,
 	onNavigatorVisibleChange,
 	onInspectorVisibleChange,
-	onWrapSessionContentChange,
+	onWrapThreadContentChange,
 	onThemeModeChange,
 	displayScale,
 	onDisplayScaleChange,
 	onProjectChange,
-	onSelectSession,
-	onCreateSession,
-	onSessionQueryChange,
+	onSelectThread,
+	onCreateThread,
+	onThreadQueryChange,
 	onTerminalVisibleChange,
 	onPromptChange,
 	onPromptKeyDown,
@@ -804,10 +804,10 @@ export const DashboardLayout = memo(function DashboardLayout({
 		return workspace?.focusPrompt() ?? false;
 	}, []);
 
-	const createSessionAndFocusPrompt = useCallback(() => {
-		onCreateSession();
+	const createThreadAndFocusPrompt = useCallback(() => {
+		onCreateThread();
 		window.requestAnimationFrame(focusVisiblePrompt);
-	}, [focusVisiblePrompt, onCreateSession]);
+	}, [focusVisiblePrompt, onCreateThread]);
 
 	const openCommandPalette = useCallback(
 		(options?: { autoFocusInput?: boolean }) => {
@@ -929,8 +929,8 @@ export const DashboardLayout = memo(function DashboardLayout({
 			},
 			{
 				id: "toggle-navigator",
-				title: "Sessions",
-				detail: "Open the project and session list",
+				title: "Threads",
+				detail: "Open the project and thread list",
 				kind: "navigator",
 				run: setNavigatorVisible,
 			},
@@ -963,13 +963,13 @@ export const DashboardLayout = memo(function DashboardLayout({
 			{
 				id: "settings:toggle-wrap",
 				title: "Wrap",
-				detail: wrapSessionContent
+				detail: wrapThreadContent
 					? "Long transcript lines will scroll horizontally"
 					: "Long transcript lines will wrap",
 				kind: "settingsItem",
 				settingsGroupId: "panel",
 				icon: "wrap",
-				run: () => onWrapSessionContentChange(!wrapSessionContent),
+				run: () => onWrapThreadContentChange(!wrapThreadContent),
 			},
 			{
 				id: "settings:reset-scale",
@@ -1020,7 +1020,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 				slashGroupId: "root",
 				icon: "archive",
 				disabled: !canArchive,
-				disabledDetail: "Select an idle session before archiving",
+				disabledDetail: "Select an idle thread before archiving",
 				run: onArchive,
 			},
 			{
@@ -1031,7 +1031,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 				slashGroupId: "root",
 				icon: "compact",
 				disabled: !canCompact,
-				disabledDetail: "Select an idle session before compacting",
+				disabledDetail: "Select an idle thread before compacting",
 				run: onCompact,
 			},
 			{
@@ -1053,7 +1053,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 				slashGroupId: "root",
 				icon: "fork",
 				disabled: !canFork,
-				disabledDetail: "Select a session before forking",
+				disabledDetail: "Select a thread before forking",
 				run: onFork,
 			},
 			{
@@ -1067,17 +1067,17 @@ export const DashboardLayout = memo(function DashboardLayout({
 				icon: "goal",
 				disabled: !goalMode && !canUseGoalMode,
 				disabledDetail:
-					"Select a session or working directory before using goal mode",
+					"Select a thread or working directory before using goal mode",
 				run: () => onGoalModeChange(!goalMode),
 			},
 			{
 				id: "slash:new",
 				title: codexThreadCommandLabels.new,
-				detail: "Start a fresh Codex app-server session",
+				detail: "Start a fresh Codex app-server thread",
 				kind: "slashItem",
 				slashGroupId: "root",
 				icon: "new",
-				run: createSessionAndFocusPrompt,
+				run: createThreadAndFocusPrompt,
 			},
 			{
 				id: "slash:resume",
@@ -1087,7 +1087,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 				slashGroupId: "root",
 				icon: "resume",
 				disabled: !canResume,
-				disabledDetail: "Select an idle session before resuming",
+				disabledDetail: "Select an idle thread before resuming",
 				run: onResume,
 			},
 		];
@@ -1102,16 +1102,16 @@ export const DashboardLayout = memo(function DashboardLayout({
 				projectInitials: project.initials,
 				run: () => onProjectChange(project.id),
 			});
-			for (const projectSession of project.sessions) {
+			for (const projectThread of project.threads) {
 				actions.push({
-					id: `session:${projectSession.id}`,
-					title: projectSession.title,
-					detail: `${project.name} / ${projectSession.cwd} / ${statusLabel(projectSession.status)}`,
-					kind: "session",
+					id: `thread:${projectThread.id}`,
+					title: projectThread.title,
+					detail: `${project.name} / ${projectThread.cwd} / ${statusLabel(projectThread.status)}`,
+					kind: "thread",
 					projectId: project.id,
-					status: projectSession.status,
+					status: projectThread.status,
 					run: () => {
-						onSelectSession(projectSession, { clearSessionQuery: true });
+						onSelectThread(projectThread, { clearThreadQuery: true });
 					},
 				});
 			}
@@ -1129,10 +1129,10 @@ export const DashboardLayout = memo(function DashboardLayout({
 		navigatorVisible,
 		themeMode,
 		toggleFullscreen,
-		wrapSessionContent,
+		wrapThreadContent,
 		selectedThread,
 		selectedThreadId,
-		createSessionAndFocusPrompt,
+		createThreadAndFocusPrompt,
 		onArchive,
 		onDisplayScaleChange,
 		onCompact,
@@ -1143,11 +1143,11 @@ export const DashboardLayout = memo(function DashboardLayout({
 		onNavigatorVisibleChange,
 		onResume,
 		onThemeModeChange,
-		onWrapSessionContentChange,
+		onWrapThreadContentChange,
 		onTerminalVisibleChange,
 		onProjectChange,
 		onRestartCodexAppServer,
-		onSelectSession,
+		onSelectThread,
 		projects,
 	]);
 
@@ -1244,27 +1244,27 @@ export const DashboardLayout = memo(function DashboardLayout({
 		<Sidebar
 			projects={projects}
 			selectedProjectId={selectedProjectId}
-			selectedSessionId={selectedSessionId}
-			sessionQuery={sessionQuery}
+			selectedThreadKey={selectedThreadKey}
+			threadQuery={threadQuery}
 			onProjectChange={onProjectChange}
-			onSessionQueryChange={onSessionQueryChange}
-			onSelectSession={onSelectSession}
-			onCreateSession={createSessionAndFocusPrompt}
+			onThreadQueryChange={onThreadQueryChange}
+			onSelectThread={onSelectThread}
+			onCreateThread={createThreadAndFocusPrompt}
 			footer={sidebarFooter}
 		/>
 	);
 
 	const inspector = (
 		<ParamPanel
-			session={session}
+			threadSummary={threadSummary}
 			detail={detail}
 			selectedThread={selectedThread}
-			wrapSessionContent={wrapSessionContent}
+			wrapThreadContent={wrapThreadContent}
 			themeMode={themeMode}
 			displayScale={displayScale}
 			onDisplayScaleChange={onDisplayScaleChange}
 			defaultCwd={defaultCwd}
-			onWrapSessionContentChange={onWrapSessionContentChange}
+			onWrapThreadContentChange={onWrapThreadContentChange}
 			onThemeModeChange={onThemeModeChange}
 			fullscreenSupported={fullscreenSupported}
 			isFullscreen={isFullscreen}
@@ -1301,7 +1301,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 					<Workspace
 						ref={desktopWorkspaceRef}
 						project={selectedProject}
-						session={session}
+						threadSummary={threadSummary}
 						detail={detail}
 						selectedThread={selectedThread}
 						selectedThreadId={selectedThreadId}
@@ -1317,7 +1317,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 						goalMode={goalMode}
 						canUseGoalMode={canUseGoalMode}
 						canSubmitPrompt={canSubmitPrompt}
-						wrapSessionContent={wrapSessionContent}
+						wrapThreadContent={wrapThreadContent}
 						displayScale={displayScale}
 						navigatorVisible={navigatorVisible}
 						inspectorVisible={inspectorVisible}
@@ -1357,7 +1357,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 				<Workspace
 					ref={mobileWorkspaceRef}
 					project={selectedProject}
-					session={session}
+					threadSummary={threadSummary}
 					detail={detail}
 					selectedThread={selectedThread}
 					selectedThreadId={selectedThreadId}
@@ -1373,7 +1373,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 					goalMode={goalMode}
 					canUseGoalMode={canUseGoalMode}
 					canSubmitPrompt={canSubmitPrompt}
-					wrapSessionContent={wrapSessionContent}
+					wrapThreadContent={wrapThreadContent}
 					displayScale={displayScale}
 					navigatorVisible={mobileSheet === "navigator"}
 					inspectorVisible={mobileSheet === "inspector"}
@@ -1436,31 +1436,31 @@ export const DashboardLayout = memo(function DashboardLayout({
 									className="border-r-0"
 									projects={projects}
 									selectedProjectId={selectedProjectId}
-									selectedSessionId={selectedSessionId}
-									sessionQuery={sessionQuery}
+									selectedThreadKey={selectedThreadKey}
+									threadQuery={threadQuery}
 									onProjectChange={onProjectChange}
-									onSessionQueryChange={onSessionQueryChange}
-									onSelectSession={(nextSession) => {
-										onSelectSession(nextSession);
+									onThreadQueryChange={onThreadQueryChange}
+									onSelectThread={(nextThread) => {
+										onSelectThread(nextThread);
 										setMobileSheet(null);
 									}}
-									onCreateSession={() => {
-										createSessionAndFocusPrompt();
+									onCreateThread={() => {
+										createThreadAndFocusPrompt();
 										setMobileSheet(null);
 									}}
 								/>
 							) : (
 								<ParamPanel
 									className="border-l-0"
-									session={session}
+									threadSummary={threadSummary}
 									detail={detail}
 									selectedThread={selectedThread}
-									wrapSessionContent={wrapSessionContent}
+									wrapThreadContent={wrapThreadContent}
 									themeMode={themeMode}
 									displayScale={displayScale}
 									onDisplayScaleChange={onDisplayScaleChange}
 									defaultCwd={defaultCwd}
-									onWrapSessionContentChange={onWrapSessionContentChange}
+									onWrapThreadContentChange={onWrapThreadContentChange}
 									onThemeModeChange={onThemeModeChange}
 									fullscreenSupported={fullscreenSupported}
 									isFullscreen={isFullscreen}

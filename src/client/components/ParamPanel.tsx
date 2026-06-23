@@ -31,19 +31,19 @@ import {
 	SettingsSection,
 	SurfaceAction,
 } from "./uiPrimitives.js";
-import type { WorkbenchSession } from "./workbenchTypes.js";
+import type { WorkbenchThread } from "./workbenchTypes.js";
 
 export type ParamPanelProps = {
 	className?: string;
-	session: WorkbenchSession | null;
+	threadSummary: WorkbenchThread | null;
 	detail: ThreadDetail | null;
 	selectedThread: ControlThread | null;
-	wrapSessionContent: boolean;
+	wrapThreadContent: boolean;
 	themeMode: ThemeMode;
 	displayScale: number;
 	onDisplayScaleChange: (value: number) => void;
 	defaultCwd: string;
-	onWrapSessionContentChange: (value: boolean) => void;
+	onWrapThreadContentChange: (value: boolean) => void;
 	onThemeModeChange: (mode: ThemeMode) => void;
 	fullscreenSupported: boolean;
 	isFullscreen: boolean;
@@ -134,15 +134,15 @@ function SettingsIconButton({
 
 export const ParamPanel = memo(function ParamPanel({
 	className,
-	session,
+	threadSummary,
 	detail,
 	selectedThread,
-	wrapSessionContent,
+	wrapThreadContent,
 	themeMode,
 	displayScale,
 	onDisplayScaleChange,
 	defaultCwd,
-	onWrapSessionContentChange,
+	onWrapThreadContentChange,
 	onThemeModeChange,
 	fullscreenSupported,
 	isFullscreen,
@@ -150,12 +150,12 @@ export const ParamPanel = memo(function ParamPanel({
 	restartCodexAppServerDisabled,
 	onRestartCodexAppServer,
 }: ParamPanelProps) {
-	const thread = selectedThread ?? session?.thread ?? null;
+	const thread = selectedThread ?? threadSummary?.thread ?? null;
 	const status = thread?.status ?? "idle";
 	const model = thread?.model ?? "default Codex model";
 	const tokenBudget = thread?.goalTokenBudget ?? null;
 	const contextTokens =
-		detail?.tokensUsed ?? thread?.tokensUsed ?? session?.tokensUsed ?? 0;
+		detail?.tokensUsed ?? thread?.tokensUsed ?? threadSummary?.tokensUsed ?? 0;
 	const contextLimit = tokenBudget ?? Math.max(contextTokens, 1);
 	const tokenRatio = tokenBudget ? clamp(contextTokens / tokenBudget, 0, 1) : 0;
 	const tokenPercent = Math.round(tokenRatio * 100);
@@ -205,19 +205,18 @@ export const ParamPanel = memo(function ParamPanel({
 					</div>
 				</SettingsSection>
 
-				<SettingsSection icon={<ListTree size={13} />} title="Session">
+				<SettingsSection icon={<ListTree size={13} />} title="Thread">
 					<div className="grid min-w-0 gap-2">
 						<InfoTile
 							icon={<Hash size={13} />}
-							label="Thread"
-							value={thread ? shortId(thread.id) : "No thread selected"}
-							mono
+							label="Name"
+							value={thread?.title || threadSummary?.title || "Untitled thread"}
 							layout="inline"
 						/>
 						<InfoTile
 							icon={<Hash size={13} />}
-							label="Session"
-							value={thread ? shortId(thread.sessionId) : "New session draft"}
+							label="ID"
+							value={thread ? shortId(thread.id) : "No thread selected"}
 							mono
 							layout="inline"
 						/>
@@ -233,7 +232,7 @@ export const ParamPanel = memo(function ParamPanel({
 						<InfoTile
 							icon={<FolderGit2 size={13} />}
 							label="Working directory"
-							value={thread?.cwd ?? session?.cwd ?? defaultCwd}
+							value={thread?.cwd ?? threadSummary?.cwd ?? defaultCwd}
 							mono
 						/>
 						{thread?.forkedFromId ? (
@@ -341,15 +340,15 @@ export const ParamPanel = memo(function ParamPanel({
 								onClick={() => onThemeModeChange(nextThemeMode(themeMode))}
 							/>
 							<SettingsIconToggle
-								checked={wrapSessionContent}
+								checked={wrapThreadContent}
 								icon={<WrapText size={15} />}
-								label="Wrap session content"
+								label="Wrap thread content"
 								title={
-									wrapSessionContent
+									wrapThreadContent
 										? "Disable transcript wrap"
 										: "Enable transcript wrap"
 								}
-								onClick={() => onWrapSessionContentChange(!wrapSessionContent)}
+								onClick={() => onWrapThreadContentChange(!wrapThreadContent)}
 							/>
 							{fullscreenSupported ? (
 								<SettingsIconToggle

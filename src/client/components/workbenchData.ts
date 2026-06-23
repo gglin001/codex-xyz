@@ -1,12 +1,12 @@
 import {
 	type ControlThread,
-	sessionDisplayStatus,
+	threadDisplayStatus,
 } from "../../server/domain.js";
 import type {
 	DateBucket,
 	ProjectAccent,
 	WorkbenchProject,
-	WorkbenchSession,
+	WorkbenchThread,
 } from "./workbenchTypes.js";
 
 const accentCycle: ProjectAccent[] = ["emerald", "violet", "sky", "slate"];
@@ -64,17 +64,17 @@ function stableIndex(value: string, modulo: number) {
 	return hash;
 }
 
-function sessionFromThread(thread: ControlThread): WorkbenchSession {
+function workbenchThreadFromThread(thread: ControlThread): WorkbenchThread {
 	return {
 		id: thread.id,
 		threadId: thread.id,
 		sessionId: thread.sessionId,
 		forkedFromId: thread.forkedFromId,
-		title: thread.title || "Untitled Codex session",
+		title: thread.title || "Untitled Codex thread",
 		preview: thread.preview || "No transcript preview yet.",
 		cwd: thread.cwd || "Unknown workdir",
 		model: thread.model,
-		status: sessionDisplayStatus(thread),
+		status: threadDisplayStatus(thread),
 		runtimeStatus: thread.status,
 		activeTurnId: thread.activeTurnId,
 		lastTurnStatus: thread.lastTurnStatus,
@@ -90,30 +90,30 @@ function sessionFromThread(thread: ControlThread): WorkbenchSession {
 	};
 }
 
-function sortSessions(sessions: WorkbenchSession[]) {
-	return [...sessions].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+function sortThreads(threads: WorkbenchThread[]) {
+	return [...threads].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
 function projectFromPath(
 	path: string,
-	sessions: WorkbenchSession[],
+	threads: WorkbenchThread[],
 ): WorkbenchProject {
 	const name = basename(path);
 	const accent = accentCycle[stableIndex(path, accentCycle.length)] ?? "slate";
-	const sortedSessions = sortSessions(sessions);
+	const sortedThreads = sortThreads(threads);
 	return {
 		id: path,
 		name,
 		path,
 		initials: initialsForName(name),
 		accent,
-		sessions: sortedSessions,
-		totalSessions: sortedSessions.length,
-		runningSessions: sortedSessions.filter(
-			(session) => session.runtimeStatus === "active",
+		threads: sortedThreads,
+		totalThreads: sortedThreads.length,
+		runningThreads: sortedThreads.filter(
+			(thread) => thread.runtimeStatus === "active",
 		).length,
-		tokenTotal: sortedSessions.reduce(
-			(total, session) => total + session.tokensUsed,
+		tokenTotal: sortedThreads.reduce(
+			(total, thread) => total + thread.tokensUsed,
 			0,
 		),
 	};
@@ -128,16 +128,16 @@ export function buildWorkbenchProjects(
 	threads: ControlThread[],
 	defaultCwd: string,
 ): WorkbenchProject[] {
-	const grouped = new Map<string, WorkbenchSession[]>();
+	const grouped = new Map<string, WorkbenchThread[]>();
 
 	for (const thread of threads) {
-		const session = sessionFromThread(thread);
-		const key = session.cwd;
-		const sessions = grouped.get(key);
-		if (sessions) {
-			sessions.push(session);
+		const workbenchThread = workbenchThreadFromThread(thread);
+		const key = workbenchThread.cwd;
+		const projectThreads = grouped.get(key);
+		if (projectThreads) {
+			projectThreads.push(workbenchThread);
 		} else {
-			grouped.set(key, [session]);
+			grouped.set(key, [workbenchThread]);
 		}
 	}
 
@@ -146,10 +146,10 @@ export function buildWorkbenchProjects(
 	}
 
 	return [...grouped.entries()]
-		.map(([path, sessions]) => projectFromPath(path, sessions))
+		.map(([path, threads]) => projectFromPath(path, threads))
 		.sort((a, b) => {
-			const aLatest = a.sessions[0]?.updatedAt ?? "";
-			const bLatest = b.sessions[0]?.updatedAt ?? "";
+			const aLatest = a.threads[0]?.updatedAt ?? "";
+			const bLatest = b.threads[0]?.updatedAt ?? "";
 			return bLatest.localeCompare(aLatest) || a.name.localeCompare(b.name);
 		});
 }
@@ -163,7 +163,7 @@ export function findProjectForThread(
 	}
 	return (
 		projects.find((project) =>
-			project.sessions.some((session) => session.threadId === threadId),
+			project.threads.some((thread) => thread.threadId === threadId),
 		) ?? null
 	);
 }

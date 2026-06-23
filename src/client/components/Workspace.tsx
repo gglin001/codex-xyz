@@ -35,11 +35,11 @@ import {
 } from "react";
 import type {
 	ControlThread,
-	SessionDisplayStatus,
 	ThreadDetail,
+	ThreadDisplayStatus,
 	ThreadItem,
 } from "../../server/domain.js";
-import { sessionDisplayStatus } from "../../server/domain.js";
+import { threadDisplayStatus } from "../../server/domain.js";
 import { copyToClipboard } from "../clipboard.js";
 import { codexThreadCommandLabels } from "../codexCommandLabels.js";
 import { cn, tone, ui } from "../designSystem.js";
@@ -65,12 +65,12 @@ import {
 import type {
 	ComposerMode,
 	WorkbenchProject,
-	WorkbenchSession,
+	WorkbenchThread,
 } from "./workbenchTypes.js";
 
 export type WorkspaceProps = {
 	project: WorkbenchProject | null;
-	session: WorkbenchSession | null;
+	threadSummary: WorkbenchThread | null;
 	detail: ThreadDetail | null;
 	selectedThread: ControlThread | null;
 	selectedThreadId: string | null;
@@ -86,7 +86,7 @@ export type WorkspaceProps = {
 	goalMode: boolean;
 	canUseGoalMode: boolean;
 	canSubmitPrompt: boolean;
-	wrapSessionContent: boolean;
+	wrapThreadContent: boolean;
 	displayScale: number;
 	navigatorVisible: boolean;
 	inspectorVisible: boolean;
@@ -123,16 +123,16 @@ type ChatMessage = {
 };
 
 const spring = { type: "spring", stiffness: 340, damping: 34 } as const;
-const sessionContentWidthClass = "[--session-content-width:900px]";
-const sessionContentFrameClass =
-	"mx-auto w-full min-w-0 max-w-[var(--session-content-width)]";
+const threadContentWidthClass = "[--thread-content-width:900px]";
+const threadContentFrameClass =
+	"mx-auto w-full min-w-0 max-w-[var(--thread-content-width)]";
 const mobileHandleClass = "h-1 w-14 rounded-full bg-border-strong";
 const mobileComposerSwipeAxisLockRatio = 1.15;
 const mobileComposerSwipeDirectionThresholds = {
 	up: 88,
 };
 
-function SessionContentFrame({
+function ThreadContentFrame({
 	children,
 	className,
 }: {
@@ -140,7 +140,7 @@ function SessionContentFrame({
 	className?: string;
 }) {
 	return (
-		<div className={cn(sessionContentFrameClass, className)}>{children}</div>
+		<div className={cn(threadContentFrameClass, className)}>{children}</div>
 	);
 }
 
@@ -197,7 +197,7 @@ function headerMeta(value: string) {
 	);
 }
 
-function statusDotClass(status: SessionDisplayStatus) {
+function statusDotClass(status: ThreadDisplayStatus) {
 	if (status === "active") {
 		return tone.running.dot;
 	}
@@ -444,12 +444,12 @@ const EmptyTranscript = memo(function EmptyTranscript({
 			<h2 className="text-[15px] font-semibold text-fg-strong">
 				{hasThread
 					? "Waiting for Codex transcript"
-					: "No Codex session selected"}
+					: "No Codex thread selected"}
 			</h2>
 			<p className="mx-auto mt-2 max-w-md text-[13px] leading-6 text-muted">
 				{hasThread
-					? "This app-server thread has no persisted transcript items yet. Send a prompt or resume the session to continue."
-					: `Create a Codex app-server session for ${projectPath} or select an existing thread from the navigator.`}
+					? "This app-server thread has no persisted transcript items yet. Send a prompt or resume the thread to continue."
+					: `Create a Codex app-server thread for ${projectPath} or select an existing thread from the navigator.`}
 			</p>
 		</div>
 	);
@@ -547,12 +547,12 @@ const Composer = memo(
 			? codexThreadCommandLabels.goal
 			: promptTarget === "thread"
 				? "Send prompt"
-				: "Create session";
+				: "Create thread";
 		const placeholder = goalMode
 			? "Describe the goal objective"
 			: promptTarget === "thread"
 				? "Start typing a prompt"
-				: "Start a new Codex session";
+				: "Start a new Codex thread";
 
 		useImperativeHandle(
 			ref,
@@ -832,7 +832,7 @@ export const Workspace = memo(
 	forwardRef<WorkspaceHandle, WorkspaceProps>(function Workspace(
 		{
 			project,
-			session,
+			threadSummary,
 			detail,
 			selectedThread,
 			selectedThreadId,
@@ -846,7 +846,7 @@ export const Workspace = memo(
 			prompt,
 			promptTarget,
 			goalMode,
-			wrapSessionContent,
+			wrapThreadContent,
 			displayScale,
 			navigatorVisible,
 			inspectorVisible,
@@ -878,16 +878,16 @@ export const Workspace = memo(
 			[detail],
 		);
 		const title =
-			selectedThread?.title ?? session?.title ?? "New Codex session";
+			selectedThread?.title ?? threadSummary?.title ?? "New Codex thread";
 		const subtitle =
 			selectedThread?.cwd ??
-			session?.cwd ??
+			threadSummary?.cwd ??
 			project?.path ??
 			"Select a project to begin";
-		const tokens = detail?.tokensUsed ?? session?.tokensUsed ?? 0;
+		const tokens = detail?.tokensUsed ?? threadSummary?.tokensUsed ?? 0;
 		const status = selectedThread
-			? sessionDisplayStatus(selectedThread)
-			: (session?.status ?? "idle");
+			? threadDisplayStatus(selectedThread)
+			: (threadSummary?.status ?? "idle");
 		const contentScaleStyle = useMemo(
 			() =>
 				({
@@ -989,15 +989,15 @@ export const Workspace = memo(
 				ref={rootRef}
 				className={cn(
 					"flex h-full min-h-0 min-w-0 flex-col bg-app-bg text-fg",
-					sessionContentWidthClass,
+					threadContentWidthClass,
 				)}
 				style={contentScaleStyle}
 			>
 				<header className="hidden md:flex md:relative z-[110] md:h-14 shrink-0 items-center justify-between gap-3 border-b border-border md:bg-app-bg/95 md:px-5">
 					<div className="flex min-w-0 items-center gap-3">
 						<LargeIconButton
-							title={navigatorVisible ? "Hide sessions" : "Open sessions"}
-							aria-label={navigatorVisible ? "Hide sessions" : "Open sessions"}
+							title={navigatorVisible ? "Hide threads" : "Open threads"}
+							aria-label={navigatorVisible ? "Hide threads" : "Open threads"}
 							pressed={navigatorVisible}
 							onClick={onToggleNavigator}
 						>
@@ -1048,7 +1048,7 @@ export const Workspace = memo(
 							ref={transcriptScrollRef}
 							className="mobile-transcript-scroll min-h-0 flex-1 overflow-y-auto scroll-mask-y-t px-4 pt-[calc(var(--safe-inset-top)+1rem)] [scrollbar-gutter:stable] md:px-8 md:pb-5 md:pt-5"
 						>
-							<SessionContentFrame className="grid gap-[var(--transcript-gap)]">
+							<ThreadContentFrame className="grid gap-[var(--transcript-gap)]">
 								<AnimatePresence initial={false}>
 									{entries.length === 0 ? (
 										<motion.div
@@ -1076,25 +1076,25 @@ export const Workspace = memo(
 											{entry.kind === "process" ? (
 												<ProcessOutputBlock
 													entry={entry}
-													wrapContent={wrapSessionContent}
+													wrapContent={wrapThreadContent}
 												/>
 											) : (
 												<MessageBlock
 													message={messageFromItem(entry.item)}
-													wrapContent={wrapSessionContent}
+													wrapContent={wrapThreadContent}
 												/>
 											)}
 										</motion.div>
 									))}
 								</AnimatePresence>
-							</SessionContentFrame>
+							</ThreadContentFrame>
 						</div>
 
 						<div
 							ref={composerShellRef}
 							className="mobile-composer-bar relative z-[80] shrink-0 overflow-visible border-t border-border bg-app-bg/95 pl-4 pr-[calc(1rem+var(--transcript-scrollbar-width,0px))] pt-2 md:pl-8 md:pr-[calc(2rem+var(--transcript-scrollbar-width,0px))] md:pb-3"
 						>
-							<SessionContentFrame>
+							<ThreadContentFrame>
 								<Composer
 									ref={composerRef}
 									workdir={workdir}
@@ -1125,7 +1125,7 @@ export const Workspace = memo(
 									onPromptFocus={settleMobilePromptFocus}
 									onSwipeUp={onSwipeUp}
 								/>
-							</SessionContentFrame>
+							</ThreadContentFrame>
 						</div>
 					</motion.div>
 				</div>
