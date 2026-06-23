@@ -117,7 +117,7 @@ export type ThreadItem = {
 };
 
 export type CozEvent = {
-	id: number;
+	id?: number;
 	type: string;
 	threadId: string | null;
 	turnId: string | null;
@@ -152,12 +152,17 @@ export type ThreadDetail = ControlThread & {
 	latestEventId: number;
 };
 
+export type ThreadPageCursor = {
+	updatedAt: string;
+	id: string;
+};
+
 export type ThreadPage = {
 	threads: ControlThread[];
 	totalCount: number;
-	offset: number;
 	limit: number;
-	nextOffset: number;
+	cursor: ThreadPageCursor | null;
+	nextCursor: ThreadPageCursor | null;
 	hasMore: boolean;
 };
 
@@ -165,7 +170,7 @@ export type DashboardState = {
 	threads: ControlThread[];
 	threadTotalCount: number;
 	threadPageSize: number;
-	threadNextOffset: number;
+	threadNextCursor: ThreadPageCursor | null;
 	threadHasMore: boolean;
 	defaultCwd: string;
 	latestEventId: number;

@@ -2,6 +2,7 @@ import type {
 	ControlThread,
 	CozEvent,
 	DashboardState,
+	ItemType,
 	ThreadDetail,
 	ThreadItem,
 	Turn,
@@ -41,7 +42,6 @@ export const incrementalEventNames = [
 	"thread.goal.updated",
 	"thread.goal.cleared",
 	"thread.token_usage",
-	"adapter.raw",
 ] as const;
 
 const threadPayloadEventNames = new Set([
@@ -181,6 +181,11 @@ function updateById<T extends { id: string }>(
 	return next;
 }
 
+function nextThreadCursor(threads: ControlThread[], hasMore: boolean) {
+	const thread = hasMore ? threads.at(-1) : null;
+	return thread ? { updatedAt: thread.updatedAt, id: thread.id } : null;
+}
+
 function withThread(
 	projection: ClientProjection,
 	thread: ControlThread,
@@ -213,10 +218,7 @@ function withThread(
 		missing && options.countInsert === true
 			? projection.state.threadTotalCount + 1
 			: projection.state.threadTotalCount;
-	const threadNextOffset =
-		missing && options.countInsert === true
-			? projection.state.threadNextOffset + 1
-			: projection.state.threadNextOffset;
+	const threadHasMore = threads.length < threadTotalCount;
 	const detail =
 		projection.detail?.id === thread.id
 			? mergeIfChanged<ThreadDetail>(
@@ -227,23 +229,21 @@ function withThread(
 	if (
 		threads === projection.state.threads &&
 		detail === projection.detail &&
-		threadTotalCount === projection.state.threadTotalCount &&
-		threadNextOffset === projection.state.threadNextOffset
+		threadTotalCount === projection.state.threadTotalCount
 	) {
 		return projection;
 	}
 	return {
 		state:
 			threads === projection.state.threads &&
-			threadTotalCount === projection.state.threadTotalCount &&
-			threadNextOffset === projection.state.threadNextOffset
+			threadTotalCount === projection.state.threadTotalCount
 				? projection.state
 				: {
 						...projection.state,
 						threads,
 						threadTotalCount,
-						threadNextOffset,
-						threadHasMore: threadNextOffset < threadTotalCount,
+						threadNextCursor: nextThreadCursor(threads, threadHasMore),
+						threadHasMore,
 					},
 		detail,
 	};
@@ -295,17 +295,14 @@ function withoutThread(
 		0,
 		projection.state.threadTotalCount - removedLoadedThread,
 	);
-	const threadNextOffset = Math.max(
-		0,
-		projection.state.threadNextOffset - removedLoadedThread,
-	);
+	const threadHasMore = threads.length < threadTotalCount;
 	return {
 		state: {
 			...projection.state,
 			threads,
 			threadTotalCount,
-			threadNextOffset,
-			threadHasMore: threadNextOffset < threadTotalCount,
+			threadNextCursor: nextThreadCursor(threads, threadHasMore),
+			threadHasMore,
 		},
 		detail,
 	};
@@ -375,6 +372,52 @@ function withThreadItem(
 			items,
 		},
 	};
+}
+
+function deltaItemType(value: unknown): ItemType {
+	if (
+		value === "user" ||
+		value === "agent" ||
+		value === "plan" ||
+		value === "command" ||
+		value === "file" ||
+		value === "system"
+	) {
+		return value;
+	}
+	return "agent";
+}
+
+function withThreadItemDelta(
+	projection: ClientProjection,
+	event: CozEvent,
+): ClientProjection | null {
+	if (!event.threadId) {
+		return null;
+	}
+	if (!projection.detail || projection.detail.id !== event.threadId) {
+		return projection;
+	}
+	const payload = payloadRecord(event);
+	const itemId = payload.itemId;
+	const delta = payload.delta;
+	if (typeof itemId !== "string" || typeof delta !== "string") {
+		return null;
+	}
+	const itemType = deltaItemType(payload.itemType);
+	const existing = projection.detail.items.find((item) => item.id === itemId);
+	const item = existing
+		? { ...existing, text: `${existing.text}${delta}` }
+		: {
+				id: itemId,
+				threadId: event.threadId,
+				turnId: event.turnId,
+				type: itemType,
+				text: delta,
+				data: { synthesized: true },
+				createdAt: event.createdAt,
+			};
+	return withThreadItem(projection, item);
 }
 
 function result(
@@ -496,11 +539,15 @@ export function applyEventProjection(
 		);
 	}
 
-	if (
-		event.type === "item.created" ||
-		event.type === "item.updated" ||
-		event.type === "item.delta"
-	) {
+	if (event.type === "item.delta") {
+		const next = withThreadItemDelta(projection, event);
+		if (!next) {
+			return result(projection, projection, false, event);
+		}
+		return result(projection, next, true, event);
+	}
+
+	if (event.type === "item.created" || event.type === "item.updated") {
 		const item = payloadValue<ThreadItem>(event, "item");
 		if (!item) {
 			return result(projection, projection, false, event);
@@ -511,9 +558,7 @@ export function applyEventProjection(
 	return result(
 		projection,
 		projection,
-		event.type === "turn.steered" ||
-			event.type === "turn.interrupt.requested" ||
-			event.type === "adapter.raw",
+		event.type === "turn.steered" || event.type === "turn.interrupt.requested",
 		event,
 	);
 }

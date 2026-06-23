@@ -82,6 +82,9 @@ describe("ThreadProjection", () => {
 			"turn.started",
 			"item.delta",
 		]);
+		expect(
+			store.listEvents(0, { threadId: "thread-1" }).map((event) => event.type),
+		).toEqual(["turn.started"]);
 	});
 
 	it("updates an active thread from an idle runtime snapshot and interrupts the active turn", () => {

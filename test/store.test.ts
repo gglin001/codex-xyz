@@ -101,12 +101,12 @@ describe("store database version", () => {
 		);
 	});
 
-	it("rejects previous v1 databases", () => {
-		const filePath = join(tempDir, "v1.sqlite");
-		createDatabaseWithVersion(filePath, "v1");
+	it("rejects previous-version databases", () => {
+		const filePath = join(tempDir, "v2.sqlite");
+		createDatabaseWithVersion(filePath, "v2");
 
 		expect(() => Store.open(filePath)).toThrow(
-			`Unsupported database version "v1"; expected "${currentDatabaseVersion}"`,
+			`Unsupported database version "v2"; expected "${currentDatabaseVersion}"`,
 		);
 	});
 

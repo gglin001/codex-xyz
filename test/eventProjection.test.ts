@@ -71,7 +71,12 @@ function state(overrides: Partial<DashboardState> = {}): DashboardState {
 		threads,
 		threadTotalCount: threads.length,
 		threadPageSize: 50,
-		threadNextOffset: threads.length,
+		threadNextCursor: threads.length
+			? {
+					updatedAt: threads[threads.length - 1].updatedAt,
+					id: threads[threads.length - 1].id,
+				}
+			: null,
 		threadHasMore: false,
 		defaultCwd: "/tmp/coz",
 		latestEventId: 0,
@@ -116,10 +121,13 @@ function event(
 
 describe("client event projection", () => {
 	it("updates transcript items from high-frequency item events without a fallback refresh", () => {
-		const updatedItem = item({ text: "Working\nDone" });
 		const result = applyEventProjection(
 			projection(),
-			event("item.delta", { item: updatedItem }),
+			event("item.delta", {
+				itemId: "item-1",
+				delta: "\nDone",
+				itemType: "agent",
+			}),
 		);
 
 		expect(result.changed).toBe(true);
@@ -131,16 +139,15 @@ describe("client event projection", () => {
 
 	it("keeps projection identity for transcript events from non-selected sessions", () => {
 		const current = projection();
-		const backgroundItem = item({
-			id: "item-background",
-			threadId: "thread-background",
-			text: "Background update",
-		});
 		const result = applyEventProjection(
 			current,
 			event(
 				"item.delta",
-				{ item: backgroundItem },
+				{
+					itemId: "item-background",
+					delta: "Background update",
+					itemType: "agent",
+				},
 				{ threadId: "thread-background" },
 			),
 		);
@@ -154,10 +161,13 @@ describe("client event projection", () => {
 
 	it("keeps projection identity for duplicate selected transcript payloads", () => {
 		const current = projection();
-		const duplicateItem = item();
 		const result = applyEventProjection(
 			current,
-			event("item.delta", { item: duplicateItem }),
+			event("item.delta", {
+				itemId: "item-1",
+				delta: "",
+				itemType: "agent",
+			}),
 		);
 
 		expect(result.changed).toBe(false);
@@ -182,7 +192,11 @@ describe("client event projection", () => {
 		};
 		const result = applyEventProjection(
 			currentWithItems,
-			event("item.delta", { item: { ...latestItem, text: "Latest update" } }),
+			event("item.delta", {
+				itemId: "item-2",
+				delta: " update",
+				itemType: "agent",
+			}),
 		);
 
 		expect(result.detail?.items.map((candidate) => candidate.id)).toEqual([
@@ -274,7 +288,7 @@ describe("client event projection", () => {
 			"thread-1",
 		]);
 		expect(result.state.threadTotalCount).toBe(2);
-		expect(result.state.threadNextOffset).toBe(2);
+		expect(result.state.threadNextCursor).toBeNull();
 	});
 
 	it("projects forked threads as inserted threads that require relationship refresh", () => {
@@ -306,7 +320,7 @@ describe("client event projection", () => {
 			"thread-1",
 		]);
 		expect(result.state.threadTotalCount).toBe(2);
-		expect(result.state.threadNextOffset).toBe(2);
+		expect(result.state.threadNextCursor).toBeNull();
 	});
 
 	it("removes archived threads from the default session projection", () => {
@@ -324,7 +338,7 @@ describe("client event projection", () => {
 		expect(result.needsRefresh).toBe(true);
 		expect(result.state.threads).toEqual([]);
 		expect(result.state.threadTotalCount).toBe(0);
-		expect(result.state.threadNextOffset).toBe(0);
+		expect(result.state.threadNextCursor).toBeNull();
 		expect(result.detail).toBeNull();
 	});
 
@@ -354,10 +368,14 @@ describe("client event projection", () => {
 
 	it("applies queued high-frequency events as one ordered projection", () => {
 		const result = applyEventProjectionBatch(projection(), [
-			event("item.delta", { item: item({ text: "Working." }) }, { id: 2 }),
 			event(
 				"item.delta",
-				{ item: item({ text: "Working. Done." }) },
+				{ itemId: "item-1", delta: ".", itemType: "agent" },
+				{ id: 2 },
+			),
+			event(
+				"item.delta",
+				{ itemId: "item-1", delta: " Done.", itemType: "agent" },
 				{ id: 3 },
 			),
 			event("turn.status", { status: "completed" }, { id: 4 }),
@@ -377,11 +395,9 @@ describe("client event projection", () => {
 			event(
 				"item.delta",
 				{
-					item: item({
-						id: "item-background",
-						threadId: "thread-background",
-						text: "Background update",
-					}),
+					itemId: "item-background",
+					delta: "Background update",
+					itemType: "agent",
 				},
 				{ id: 2, threadId: "thread-background" },
 			),

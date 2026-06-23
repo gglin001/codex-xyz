@@ -13,6 +13,7 @@ import {
 	type StartTurnInput,
 	type ThreadDetail,
 	type ThreadPage,
+	type ThreadPageCursor,
 	titleFromPrompt,
 } from "./domain.js";
 import { EventBus } from "./eventBus.js";
@@ -73,11 +74,11 @@ function normalizePageLimit(value?: number | null) {
 	return Math.min(maxThreadPageSize, Math.max(1, Math.floor(value)));
 }
 
-function normalizePageOffset(value?: number | null) {
-	if (value === undefined || value === null) {
-		return 0;
-	}
-	return Math.max(0, Math.floor(value));
+function pageCursorFromThreads(
+	threads: ControlThread[],
+): ThreadPageCursor | null {
+	const thread = threads.at(-1);
+	return thread ? { updatedAt: thread.updatedAt, id: thread.id } : null;
 }
 
 export class ControlService {
@@ -125,16 +126,18 @@ export class ControlService {
 		const latestEventId = this.store.getLatestEventId();
 		const totalCount = this.store.countThreads();
 		const limit = defaultThreadPageSize;
-		const threads =
+		const pageThreads =
 			totalCount <= defaultThreadPageSize
 				? this.store.listThreads()
-				: this.store.listThreads({ limit: defaultThreadPageSize, offset: 0 });
+				: this.store.listThreads({ limit: defaultThreadPageSize + 1 });
+		const threadHasMore = pageThreads.length > limit;
+		const threads = threadHasMore ? pageThreads.slice(0, limit) : pageThreads;
 		return {
 			threads,
 			threadTotalCount: totalCount,
 			threadPageSize: limit,
-			threadNextOffset: threads.length,
-			threadHasMore: threads.length < totalCount,
+			threadNextCursor: threadHasMore ? pageCursorFromThreads(threads) : null,
+			threadHasMore,
 			defaultCwd: this.store.getDefaultCwd() ?? this.defaultCwd,
 			latestEventId,
 		};
@@ -148,16 +151,20 @@ export class ControlService {
 			promptPreview: titleFromPrompt(input.prompt),
 			model: input.model ?? null,
 		});
-		const thread = this.projection.createThread({
-			adapterThread,
-			title,
-			goalObjective: null,
-			goalStatus: null,
-			goalTokenBudget: null,
-			preview: title,
-			tokensUsed: 0,
-		});
-		this.projection.publish("thread.started", thread.id, null, { thread });
+		const thread = this.projection.createThread(
+			{
+				adapterThread,
+				title,
+				goalObjective: null,
+				goalStatus: null,
+				goalTokenBudget: null,
+				preview: title,
+				tokensUsed: 0,
+			},
+			{
+				type: "thread.started",
+			},
+		);
 
 		if (input.goalMode) {
 			const goalStart = await this.startGoal({
@@ -377,23 +384,28 @@ export class ControlService {
 	listThreadPage(
 		input: {
 			limit?: number | null;
-			offset?: number | null;
+			cursor?: ThreadPageCursor | null;
 			archived?: boolean | null;
 		} = {},
 	): ThreadPage {
 		const archived = input.archived ?? false;
 		const totalCount = this.store.countThreads({ archived });
 		const limit = normalizePageLimit(input.limit);
-		const offset = normalizePageOffset(input.offset);
-		const threads = this.store.listThreads({ limit, offset, archived });
-		const nextOffset = offset + threads.length;
+		const cursor = input.cursor ?? null;
+		const pageThreads = this.store.listThreads({
+			limit: limit + 1,
+			cursor,
+			archived,
+		});
+		const hasMore = pageThreads.length > limit;
+		const threads = hasMore ? pageThreads.slice(0, limit) : pageThreads;
 		return {
 			threads,
 			totalCount,
-			offset,
 			limit,
-			nextOffset,
-			hasMore: nextOffset < totalCount,
+			cursor,
+			nextCursor: hasMore ? pageCursorFromThreads(threads) : null,
+			hasMore,
 		};
 	}
 
@@ -576,21 +588,25 @@ export class ControlService {
 			cwd: input.cwd,
 			model: input.model,
 		});
-		const thread = this.projection.createThread({
-			adapterThread,
-			title: input.title,
-			forkedFromId: source.id,
-			goalObjective: source.goalObjective,
-			goalStatus: source.goalStatus,
-			goalTokenBudget: source.goalTokenBudget,
-			preview: input.preview,
-			tokensUsed: source.tokensUsed,
-		});
-		this.projection.publish("thread.forked", thread.id, null, {
-			thread,
-			sourceThreadId: source.id,
-			reason: input.eventReason,
-		});
+		const thread = this.projection.createThread(
+			{
+				adapterThread,
+				title: input.title,
+				forkedFromId: source.id,
+				goalObjective: source.goalObjective,
+				goalStatus: source.goalStatus,
+				goalTokenBudget: source.goalTokenBudget,
+				preview: input.preview,
+				tokensUsed: source.tokensUsed,
+			},
+			{
+				type: "thread.forked",
+				payload: {
+					sourceThreadId: source.id,
+					reason: input.eventReason,
+				},
+			},
+		);
 		return thread;
 	}
 

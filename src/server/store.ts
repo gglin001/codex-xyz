@@ -8,7 +8,6 @@ import {
 	type ItemType,
 	isSummaryEventType,
 	nowIso,
-	summaryEventTypes,
 	type ThreadDetail,
 	type ThreadItem,
 	type ThreadRuntimeStatus,
@@ -18,7 +17,7 @@ import {
 
 type Row = Record<string, unknown>;
 
-export const currentDatabaseVersion = "v2";
+export const currentDatabaseVersion = "v3";
 
 const databaseMetadataTable = "database_metadata";
 const databaseVersionKey = "database_version";
@@ -30,7 +29,10 @@ type EventReplayOptions = {
 
 type ThreadListOptions = {
 	limit?: number | null;
-	offset?: number | null;
+	cursor?: {
+		updatedAt: string;
+		id: string;
+	} | null;
 	archived?: boolean | null;
 };
 
@@ -96,6 +98,10 @@ function storedTurnStatus(value: unknown): TurnStatus {
 	throw new Error(`Invalid turn status "${status}"`);
 }
 
+function eventSummaryValue(type: string) {
+	return isSummaryEventType(type) ? 1 : 0;
+}
+
 function threadFromRow(row: Row): ControlThread {
 	return {
 		id: scalarString(row.id),
@@ -157,6 +163,8 @@ function eventFromRow(row: Row): CozEvent {
 }
 
 export class Store {
+	private transactionDepth = 0;
+
 	constructor(private readonly db: DatabaseSync) {}
 
 	static open(filePath: string) {
@@ -181,7 +189,32 @@ export class Store {
 
 	configure() {
 		this.db.exec("PRAGMA foreign_keys = ON");
+		this.db.exec("PRAGMA busy_timeout = 5000");
 		this.db.exec("PRAGMA journal_mode = WAL");
+		this.db.exec("PRAGMA synchronous = NORMAL");
+		this.db.exec("PRAGMA temp_store = MEMORY");
+	}
+
+	transaction<T>(body: () => T): T {
+		if (this.transactionDepth > 0) {
+			return body();
+		}
+		this.transactionDepth += 1;
+		let started = false;
+		try {
+			this.db.exec("BEGIN IMMEDIATE");
+			started = true;
+			const result = body();
+			this.db.exec("COMMIT");
+			return result;
+		} catch (error) {
+			if (started) {
+				this.db.exec("ROLLBACK");
+			}
+			throw error;
+		} finally {
+			this.transactionDepth -= 1;
+		}
 	}
 
 	initializeSchema() {
@@ -227,16 +260,16 @@ export class Store {
       CREATE TABLE threads (
         id TEXT PRIMARY KEY,
         session_id TEXT NOT NULL,
-        forked_from_id TEXT,
+        forked_from_id TEXT REFERENCES threads(id) ON DELETE SET NULL,
         title TEXT NOT NULL,
         preview TEXT NOT NULL,
         cwd TEXT NOT NULL,
         model TEXT,
-        status TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('idle', 'active', 'not_loaded', 'system_error')),
         active_turn_id TEXT,
-        last_turn_status TEXT,
+        last_turn_status TEXT CHECK (last_turn_status IS NULL OR last_turn_status IN ('in_progress', 'completed', 'interrupted', 'failed')),
         goal_objective TEXT,
-        goal_status TEXT,
+        goal_status TEXT CHECK (goal_status IS NULL OR goal_status IN ('in_progress', 'paused', 'blocked', 'usage_limited', 'budget_limited', 'complete', 'cleared')),
         goal_token_budget INTEGER,
         tokens_used INTEGER NOT NULL DEFAULT 0,
         archived_at TEXT,
@@ -247,7 +280,7 @@ export class Store {
       CREATE TABLE turns (
         id TEXT PRIMARY KEY,
         thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
-        status TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('in_progress', 'completed', 'interrupted', 'failed')),
         prompt TEXT NOT NULL,
         started_at TEXT NOT NULL,
         completed_at TEXT,
@@ -258,7 +291,7 @@ export class Store {
         id TEXT PRIMARY KEY,
         thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
         turn_id TEXT REFERENCES turns(id) ON DELETE CASCADE,
-        type TEXT NOT NULL,
+        type TEXT NOT NULL CHECK (type IN ('user', 'agent', 'plan', 'command', 'file', 'system')),
         text TEXT NOT NULL,
         data_json TEXT NOT NULL,
         created_at TEXT NOT NULL
@@ -267,21 +300,22 @@ export class Store {
       CREATE TABLE events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         type TEXT NOT NULL,
-        thread_id TEXT,
-        turn_id TEXT,
+        thread_id TEXT REFERENCES threads(id) ON DELETE CASCADE,
+        turn_id TEXT REFERENCES turns(id) ON DELETE CASCADE,
+        is_summary INTEGER NOT NULL CHECK (is_summary IN (0, 1)),
         payload_json TEXT NOT NULL,
         created_at TEXT NOT NULL
       );
 
-      CREATE INDEX IF NOT EXISTS idx_threads_active_updated ON threads(archived_at, updated_at DESC);
-      CREATE INDEX IF NOT EXISTS idx_threads_updated ON threads(updated_at DESC);
-      CREATE INDEX IF NOT EXISTS idx_turns_thread ON turns(thread_id);
-      CREATE INDEX IF NOT EXISTS idx_turns_thread_started ON turns(thread_id, started_at);
-      CREATE INDEX IF NOT EXISTS idx_items_thread ON items(thread_id);
-      CREATE INDEX IF NOT EXISTS idx_items_thread_created ON items(thread_id, created_at);
-      CREATE INDEX IF NOT EXISTS idx_events_thread ON events(thread_id);
+      CREATE INDEX IF NOT EXISTS idx_threads_active_updated_id ON threads(archived_at, updated_at DESC, id DESC);
+      CREATE INDEX IF NOT EXISTS idx_threads_cwd_active_updated_id ON threads(cwd, archived_at, updated_at DESC, id DESC);
+      CREATE INDEX IF NOT EXISTS idx_threads_session_id ON threads(session_id);
+      CREATE INDEX IF NOT EXISTS idx_threads_status_updated_id ON threads(status, updated_at DESC, id DESC);
+      CREATE INDEX IF NOT EXISTS idx_threads_forked_from_id ON threads(forked_from_id) WHERE forked_from_id IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_turns_thread_started_id ON turns(thread_id, started_at, id);
+      CREATE INDEX IF NOT EXISTS idx_items_thread_created_id ON items(thread_id, created_at, id);
       CREATE INDEX IF NOT EXISTS idx_events_thread_id ON events(thread_id, id);
-      CREATE INDEX IF NOT EXISTS idx_events_type_id ON events(type, id);
+      CREATE INDEX IF NOT EXISTS idx_events_summary_id ON events(is_summary, id);
     `);
 	}
 
@@ -518,22 +552,28 @@ export class Store {
 
 	listThreads(options: ThreadListOptions = {}) {
 		const limit = options.limit ?? null;
-		const offset = options.offset ?? null;
+		const cursor = options.cursor ?? null;
 		const archived = options.archived ?? false;
-		const where = `WHERE archived_at IS ${archived ? "NOT NULL" : "NULL"}`;
+		const conditions = [`archived_at IS ${archived ? "NOT NULL" : "NULL"}`];
+		const params: Array<string | number> = [];
+		if (cursor) {
+			conditions.push("(updated_at < ? OR (updated_at = ? AND id < ?))");
+			params.push(cursor.updatedAt, cursor.updatedAt, cursor.id);
+		}
+		const where = `WHERE ${conditions.join(" AND ")}`;
 		if (limit !== null) {
 			return this.db
 				.prepare(
-					`SELECT * FROM threads ${where} ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?`,
+					`SELECT * FROM threads ${where} ORDER BY updated_at DESC, id DESC LIMIT ?`,
 				)
-				.all(limit, offset ?? 0)
+				.all(...params, limit)
 				.map((row) => threadFromRow(row as Row));
 		}
 		return this.db
 			.prepare(
 				`SELECT * FROM threads ${where} ORDER BY updated_at DESC, id DESC`,
 			)
-			.all()
+			.all(...params)
 			.map((row) => threadFromRow(row as Row));
 	}
 
@@ -598,7 +638,7 @@ export class Store {
 	listTurns(threadId: string) {
 		return this.db
 			.prepare(
-				"SELECT * FROM turns WHERE thread_id = ? ORDER BY started_at ASC",
+				"SELECT * FROM turns WHERE thread_id = ? ORDER BY started_at ASC, id ASC",
 			)
 			.all(threadId)
 			.map((row) => turnFromRow(row as Row));
@@ -663,21 +703,23 @@ export class Store {
 	listItems(threadId: string) {
 		return this.db
 			.prepare(
-				"SELECT * FROM items WHERE thread_id = ? ORDER BY created_at ASC",
+				"SELECT * FROM items WHERE thread_id = ? ORDER BY created_at ASC, id ASC",
 			)
 			.all(threadId)
 			.map((row) => itemFromRow(row as Row));
 	}
 
 	appendEvent(input: Omit<CozEvent, "id">) {
+		const type = input.type;
 		const result = this.db
 			.prepare(
-				"INSERT INTO events (type, thread_id, turn_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?)",
+				"INSERT INTO events (type, thread_id, turn_id, is_summary, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?)",
 			)
 			.run(
-				input.type,
+				type,
 				input.threadId,
 				input.turnId,
+				eventSummaryValue(type),
 				JSON.stringify(input.payload),
 				input.createdAt,
 			);
@@ -715,10 +757,7 @@ export class Store {
 		}
 
 		if (options.summaryOnly) {
-			conditions.push(
-				`type IN (${summaryEventTypes.map(() => "?").join(", ")})`,
-			);
-			params.push(...summaryEventTypes);
+			conditions.push("is_summary = 1");
 		}
 
 		return this.db

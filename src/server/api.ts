@@ -107,6 +107,24 @@ function optionalQueryBoolean(url: URL, key: string) {
 	throw new Error(`${key} must be true or false`);
 }
 
+function optionalThreadPageCursor(url: URL) {
+	const updatedAt = url.searchParams.get("cursorUpdatedAt");
+	const id = url.searchParams.get("cursorId");
+	if (
+		(updatedAt === null || updatedAt.trim() === "") &&
+		(id === null || id.trim() === "")
+	) {
+		return null;
+	}
+	if (!updatedAt?.trim() || !id?.trim()) {
+		throw new Error("cursorUpdatedAt and cursorId must be provided together");
+	}
+	return {
+		updatedAt: updatedAt.trim(),
+		id: id.trim(),
+	};
+}
+
 function pathParts(url: URL) {
 	return url.pathname
 		.split("/")
@@ -365,13 +383,14 @@ async function routeApiRequest(
 		const archived = optionalQueryBoolean(url, "archived");
 		if (
 			url.searchParams.has("limit") ||
-			url.searchParams.has("offset") ||
+			url.searchParams.has("cursorUpdatedAt") ||
+			url.searchParams.has("cursorId") ||
 			archived !== null
 		) {
 			return jsonResponse(
 				service.listThreadPage({
 					limit: optionalQueryInteger(url, "limit", { min: 1 }),
-					offset: optionalQueryInteger(url, "offset", { min: 0 }),
+					cursor: optionalThreadPageCursor(url),
 					archived,
 				}),
 			);

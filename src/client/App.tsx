@@ -74,7 +74,7 @@ function initialState(): DashboardState {
 		threads: [],
 		threadTotalCount: 0,
 		threadPageSize: 50,
-		threadNextOffset: 0,
+		threadNextCursor: null,
 		threadHasMore: false,
 		defaultCwd: "",
 		latestEventId: 0,
@@ -601,6 +601,10 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		scheduleProjectionFlush();
 	}
 
+	function advanceEventCursor(current: number, event: CozEvent) {
+		return typeof event.id === "number" ? Math.max(current, event.id) : current;
+	}
+
 	useEffect(() => {
 		return () => {
 			if (fallbackRefreshTimerRef.current) {
@@ -623,9 +627,9 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		onEvent: (rawEvent) => {
 			try {
 				const event = parseSseJsonEvent<CozEvent>(rawEvent);
-				summaryEventIdRef.current = Math.max(
+				summaryEventIdRef.current = advanceEventCursor(
 					summaryEventIdRef.current,
-					event.id,
+					event,
 				);
 				queueProjectionEvent(event);
 			} catch {
@@ -657,7 +661,10 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		onEvent: (rawEvent) => {
 			try {
 				const event = parseSseJsonEvent<CozEvent>(rawEvent);
-				detailEventIdRef.current = Math.max(detailEventIdRef.current, event.id);
+				detailEventIdRef.current = advanceEventCursor(
+					detailEventIdRef.current,
+					event,
+				);
 				queueProjectionEvent(event);
 			} catch {
 				scheduleFallbackRefresh();
@@ -677,7 +684,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		}
 		void getThreadsPage({
 			limit: archivedSearchPageSize,
-			offset: 0,
 			archived: true,
 		})
 			.then((page) => {

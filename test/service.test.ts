@@ -1025,7 +1025,6 @@ describe("ControlService", () => {
 		const archivedPage = service.listThreadPage({
 			archived: true,
 			limit: 10,
-			offset: 0,
 		});
 
 		expect(archived).toMatchObject({

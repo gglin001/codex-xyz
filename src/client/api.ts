@@ -5,6 +5,7 @@ import type {
 	TerminalSnapshot,
 	ThreadDetail,
 	ThreadPage,
+	ThreadPageCursor,
 	Turn,
 } from "../server/domain.js";
 
@@ -42,13 +43,16 @@ export function getThread(threadId: string) {
 
 export function getThreadsPage(input: {
 	limit: number;
-	offset: number;
+	cursor?: ThreadPageCursor | null;
 	archived?: boolean | null;
 }) {
 	const params = new URLSearchParams({
 		limit: String(input.limit),
-		offset: String(input.offset),
 	});
+	if (input.cursor) {
+		params.set("cursorUpdatedAt", input.cursor.updatedAt);
+		params.set("cursorId", input.cursor.id);
+	}
 	if (input.archived !== undefined && input.archived !== null) {
 		params.set("archived", input.archived ? "true" : "false");
 	}

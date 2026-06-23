@@ -306,14 +306,22 @@ describe("Next API routes", () => {
 		const state = await json<DashboardState>("/api/state");
 		expect(state.threads).toHaveLength(50);
 		expect(state.threadTotalCount).toBe(55);
-		expect(state.threadNextOffset).toBe(50);
+		expect(state.threadNextCursor).toEqual({
+			updatedAt: "2026-06-13T00:00:06.000Z",
+			id: "thread-006",
+		});
 		expect(state.threadHasMore).toBe(true);
 		expect(state.threads[0].id).toBe("thread-055");
 
-		const page = await json<ThreadPage>("/api/threads?limit=50&offset=50");
+		const page = await json<ThreadPage>(
+			`/api/threads?limit=50&cursorUpdatedAt=${encodeURIComponent(
+				state.threadNextCursor?.updatedAt ?? "",
+			)}&cursorId=${encodeURIComponent(state.threadNextCursor?.id ?? "")}`,
+		);
 		expect(page.threads).toHaveLength(5);
 		expect(page.totalCount).toBe(55);
-		expect(page.nextOffset).toBe(55);
+		expect(page.cursor).toEqual(state.threadNextCursor);
+		expect(page.nextCursor).toBeNull();
 		expect(page.hasMore).toBe(false);
 		expect(page.threads.map((thread) => thread.id)).toEqual([
 			"thread-005",
@@ -486,7 +494,7 @@ describe("Next API routes", () => {
 		const archivedPage = await json<{
 			threads: Array<{ id: string; archivedAt: string | null }>;
 			totalCount: number;
-		}>("/api/threads?archived=true&limit=10&offset=0");
+		}>("/api/threads?archived=true&limit=10");
 		expect(archivedPage.totalCount).toBe(1);
 		expect(archivedPage.threads).toMatchObject([
 			{
