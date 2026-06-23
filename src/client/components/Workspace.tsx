@@ -661,8 +661,12 @@ const Composer = memo(
 						/>
 						<div
 							ref={actionBarRef}
-							className="flex items-center justify-between gap-3 border-t border-border pt-2"
+							className="relative flex items-center justify-between gap-3 border-t border-border pt-2"
 						>
+							<span
+								className="pointer-events-none absolute bottom-0 left-1/2 h-1 w-10 -translate-x-1/2 rounded-full bg-border-strong md:hidden"
+								aria-hidden="true"
+							/>
 							<div className="flex min-w-0 items-center gap-1.5">
 								<ComposerIconButton
 									title={codexThreadCommandLabels.new}

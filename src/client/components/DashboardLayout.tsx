@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useDragControls } from "framer-motion";
 import {
 	Archive,
 	GitFork,
@@ -17,8 +17,20 @@ import {
 	WrapText,
 	ZoomIn,
 } from "lucide-react";
-import type { KeyboardEvent, SubmitEvent } from "react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type {
+	KeyboardEvent,
+	PointerEvent as ReactPointerEvent,
+	SubmitEvent,
+} from "react";
+import {
+	forwardRef,
+	memo,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import type {
 	ControlThread,
 	SessionDisplayStatus,
@@ -36,7 +48,6 @@ import { nextThemeMode, type ThemeMode, themeModeLabels } from "../theme.js";
 import { statusLabel } from "../uiFormat.js";
 import { useFullscreen } from "../useFullscreen.js";
 import { useMobileViewportGeometry } from "../useMobileViewportGeometry.js";
-import { useSwipeGesture } from "../useSwipeGesture.js";
 import { ParamPanel } from "./ParamPanel.js";
 import { Sidebar } from "./Sidebar.js";
 import { SessionStatusIcon } from "./sessionStatusIcon.js";
@@ -179,15 +190,56 @@ function blurActiveElement() {
 	}
 }
 
-function MobileSheetHandle() {
-	return (
-		<div
-			className="pointer-events-none flex h-7 shrink-0 items-start justify-center pt-2"
-			aria-hidden="true"
-		>
-			<span className="h-1 w-10 rounded-full bg-border-strong" />
-		</div>
-	);
+type MobileSheetHandleProps = {
+	onPointerDown?: (event: ReactPointerEvent<HTMLDivElement>) => void;
+};
+
+const MobileSheetHandle = forwardRef<HTMLDivElement, MobileSheetHandleProps>(
+	function MobileSheetHandle({ onPointerDown }, ref) {
+		return (
+			<div
+				ref={ref}
+				className={cn(
+					"flex h-7 shrink-0 items-start justify-center pt-2",
+					onPointerDown
+						? "cursor-grab touch-none active:cursor-grabbing"
+						: "pointer-events-none",
+				)}
+				onPointerDown={onPointerDown}
+				aria-hidden="true"
+			>
+				<span className="h-1 w-10 rounded-full bg-border-strong" />
+			</div>
+		);
+	},
+);
+
+function shouldStartSheetDrag(event: ReactPointerEvent<HTMLDivElement>) {
+	return event.pointerType !== "mouse" || event.button === 0;
+}
+
+function startSheetDrag(
+	event: ReactPointerEvent<HTMLDivElement>,
+	dragControls: ReturnType<typeof useDragControls>,
+) {
+	if (!shouldStartSheetDrag(event)) {
+		return;
+	}
+	dragControls.start(event);
+}
+
+function isMobileSheetDragEnabled() {
+	return isMobileViewport();
+}
+
+function startMobileSheetDrag(
+	event: ReactPointerEvent<HTMLDivElement>,
+	dragControls: ReturnType<typeof useDragControls>,
+) {
+	if (!isMobileSheetDragEnabled()) {
+		return;
+	}
+	startSheetDrag(event, dragControls);
 }
 
 function commandActionMatches(action: CommandAction, normalizedQuery: string) {
@@ -477,7 +529,7 @@ const CommandPalette = memo(function CommandPalette({
 	const [query, setQuery] = useState("");
 	const [activeIndex, setActiveIndex] = useState(0);
 	const inputRef = useRef<HTMLInputElement | null>(null);
-	const paletteRef = useRef<HTMLDivElement | null>(null);
+	const dragControls = useDragControls();
 
 	const filteredActions = useMemo(() => {
 		const normalized = query.trim().toLowerCase();
@@ -512,10 +564,6 @@ const CommandPalette = memo(function CommandPalette({
 		onClose();
 	}, [activeIndex, filteredActions, onClose]);
 
-	useSwipeGesture(paletteRef, {
-		onSwipeDown: onClose,
-	});
-
 	return (
 		<AnimatePresence>
 			{open ? (
@@ -531,7 +579,6 @@ const CommandPalette = memo(function CommandPalette({
 					onMouseDown={onClose}
 				>
 					<motion.div
-						ref={paletteRef}
 						className={cn(
 							mobileSheetClass,
 							"px-0 md:static md:h-auto md:max-h-[min(40rem,calc(100dvh_-_7rem))] md:w-[44rem] md:max-w-[calc(100vw_-_2rem)] md:rounded-[12px] md:border",
@@ -554,6 +601,8 @@ const CommandPalette = memo(function CommandPalette({
 								: { type: "spring", stiffness: 420, damping: 34 }
 						}
 						drag={isMobileViewport() ? "y" : false}
+						dragControls={dragControls}
+						dragListener={false}
 						dragConstraints={{ top: 0, bottom: 0 }}
 						dragElastic={{ top: 0, bottom: 0.4 }}
 						dragMomentum={false}
@@ -568,7 +617,11 @@ const CommandPalette = memo(function CommandPalette({
 						onMouseDown={(event) => event.stopPropagation()}
 					>
 						<div className="md:hidden">
-							<MobileSheetHandle />
+							<MobileSheetHandle
+								onPointerDown={(event) => {
+									startMobileSheetDrag(event, dragControls);
+								}}
+							/>
 						</div>
 						<div className="flex h-12 items-center gap-3 border-b border-border px-3.5">
 							<Search size={16} className="text-muted" />
@@ -713,7 +766,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 	const [commandAutoFocusInput, setCommandAutoFocusInput] = useState(true);
 	const desktopWorkspaceRef = useRef<WorkspaceHandle | null>(null);
 	const mobileWorkspaceRef = useRef<WorkspaceHandle | null>(null);
-	const mobileSheetRef = useRef<HTMLDivElement | null>(null);
+	const mobileSheetDragControls = useDragControls();
 	const {
 		isFullscreen,
 		toggle: toggleFullscreen,
@@ -862,6 +915,13 @@ export const DashboardLayout = memo(function DashboardLayout({
 				run: focusPrompt,
 			},
 			{
+				id: "toggle-navigator",
+				title: "Sessions",
+				detail: "Open the project and session list",
+				kind: "navigator",
+				run: setNavigatorVisible,
+			},
+			{
 				id: "open-terminal",
 				title: "Terminal",
 				detail: "Open the terminal dock",
@@ -1006,13 +1066,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 				disabledDetail: "Select an idle session before resuming",
 				run: onResume,
 			},
-			{
-				id: "toggle-navigator",
-				title: "Sessions",
-				detail: "Open the project and session list",
-				kind: "navigator",
-				run: setNavigatorVisible,
-			},
 		];
 
 		for (const project of projects) {
@@ -1100,10 +1153,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 		}
 		onInspectorVisibleChange(!inspectorVisible);
 	}, [inspectorVisible, onInspectorVisibleChange, openMobileSheet]);
-
-	useSwipeGesture(mobileSheetRef, {
-		onSwipeDown: () => setMobileSheet(null),
-	});
 
 	const sidebarFooter = (
 		<div className="shrink-0 border-t border-border p-3">
@@ -1329,13 +1378,14 @@ export const DashboardLayout = memo(function DashboardLayout({
 						onMouseDown={() => setMobileSheet(null)}
 					>
 						<motion.div
-							ref={mobileSheetRef}
 							className={cn(mobileSheetClass, ui.backdropPanel)}
 							initial={{ y: "100%", opacity: 0 }}
 							animate={{ y: 0, opacity: 1 }}
 							exit={{ y: "100%", opacity: 0 }}
 							transition={spring}
 							drag="y"
+							dragControls={mobileSheetDragControls}
+							dragListener={false}
 							dragConstraints={{ top: 0, bottom: 0 }}
 							dragElastic={{ top: 0, bottom: 0.4 }}
 							dragMomentum={false}
@@ -1349,7 +1399,11 @@ export const DashboardLayout = memo(function DashboardLayout({
 							}}
 							onMouseDown={(event) => event.stopPropagation()}
 						>
-							<MobileSheetHandle />
+							<MobileSheetHandle
+								onPointerDown={(event) => {
+									startSheetDrag(event, mobileSheetDragControls);
+								}}
+							/>
 							{mobileSheet === "navigator" ? (
 								<Sidebar
 									className="border-r-0"
