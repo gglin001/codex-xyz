@@ -81,6 +81,23 @@ function initialState(): DashboardState {
 	};
 }
 
+function initialSelection(state: DashboardState) {
+	const selectedThreadId = choosePreferredThreadId(state.threads, {
+		currentThreadId: null,
+		requestedThreadId: null,
+		preferRequestedThread: false,
+		allowFallbackSelection: true,
+	});
+	const projects = buildWorkbenchProjects(state.threads, state.defaultCwd);
+	const selectedProject =
+		findProjectForThread(projects, selectedThreadId) ?? projects[0] ?? null;
+
+	return {
+		selectedProjectId: selectedProject?.id ?? "",
+		selectedThreadId,
+	};
+}
+
 type RunActionOptions = {
 	selectResult?: boolean;
 	successMessage?: string;
@@ -147,10 +164,12 @@ export type AppProps = {
 };
 
 export function App({ initialState: serverInitialState }: AppProps) {
-	const [state, setState] = useState<DashboardState>(
-		() => serverInitialState ?? initialState(),
+	const appInitialState = serverInitialState ?? initialState();
+	const appInitialSelection = initialSelection(appInitialState);
+	const [state, setState] = useState<DashboardState>(() => appInitialState);
+	const [selectedThreadId, setSelectedThreadId] = useState<string | null>(
+		() => appInitialSelection.selectedThreadId,
 	);
-	const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
 	const [detail, setDetail] = useState<ThreadDetail | null>(null);
 	const [prompt, setPrompt] = useState("");
 	const [goalMode, setGoalMode] = useState(false);
@@ -167,7 +186,9 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	const [inspectorVisible, setInspectorVisible] = useState(true);
 	const [wrapSessionContent, setWrapSessionContent] = useState(true);
 	const [themeMode, setThemeMode] = useState<ThemeMode>(defaultThemeMode);
-	const [selectedProjectId, setSelectedProjectId] = useState("");
+	const [selectedProjectId, setSelectedProjectId] = useState(
+		() => appInitialSelection.selectedProjectId,
+	);
 	const [preferencesReady, setPreferencesReady] = useState(false);
 	const [displayScale, setDisplayScale] = useState<number>(
 		displayScaleConfig.defaultValue,
@@ -175,7 +196,9 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	const [summaryEventsReady, setSummaryEventsReady] = useState(false);
 	const [detailSubscription, setDetailSubscription] =
 		useState<DetailSubscription | null>(null);
-	const selectedThreadIdRef = useRef<string | null>(null);
+	const selectedThreadIdRef = useRef<string | null>(
+		appInitialSelection.selectedThreadId,
+	);
 	const manualSelectionSeqRef = useRef(0);
 	const refreshSeqRef = useRef(0);
 	const archivedSearchSeqRef = useRef(0);
@@ -189,7 +212,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		null,
 	);
 	const projectionRef = useRef<ClientProjection>({
-		state: serverInitialState ?? initialState(),
+		state: appInitialState,
 		detail: null,
 	});
 
