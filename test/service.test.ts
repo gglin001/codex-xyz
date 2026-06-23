@@ -200,6 +200,14 @@ class VolatileCodexAdapter implements CodexAdapter {
 		this.requireThread(threadId);
 	}
 
+	async restartAppServer() {
+		return {
+			status: "restarted" as const,
+			pid: null,
+			socketPath: "volatile://codex-app-server",
+		};
+	}
+
 	async close() {
 		for (const timer of this.timers) {
 			clearTimeout(timer);
@@ -397,6 +405,14 @@ class EagerEventCodexAdapter implements CodexAdapter {
 		this.requireThread(threadId);
 	}
 
+	async restartAppServer() {
+		return {
+			status: "restarted" as const,
+			pid: null,
+			socketPath: "eager://codex-app-server",
+		};
+	}
+
 	async close() {
 		this.threads.clear();
 	}
@@ -563,6 +579,14 @@ class InterruptDriftCodexAdapter implements CodexAdapter {
 	}
 
 	async clearGoal() {}
+
+	async restartAppServer() {
+		return {
+			status: "restarted" as const,
+			pid: null,
+			socketPath: "drift://codex-app-server",
+		};
+	}
 
 	async close() {
 		this.thread = null;

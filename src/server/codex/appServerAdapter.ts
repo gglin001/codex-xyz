@@ -1,13 +1,26 @@
-import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
-import { appendFileSync, mkdirSync } from "node:fs";
-import { dirname } from "node:path";
-import { createInterface, type Interface } from "node:readline";
+import {
+	type ChildProcess,
+	type SpawnOptions,
+	spawn,
+} from "node:child_process";
+import {
+	appendFileSync,
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
+import { createConnection } from "node:net";
+import { dirname, join, resolve } from "node:path";
+import WebSocket from "ws";
 import type {
 	AdapterEvent,
 	AdapterEventHandler,
 	AdapterThread,
 	AdapterTurn,
 	CodexAdapter,
+	CodexAppServerRestartResult,
 	CompactThreadInput,
 	ForkThreadInput,
 	ResumeThreadInput,
@@ -59,9 +72,35 @@ type PendingTurnStartHandle = {
 };
 
 export type AppServerCodexAdapterOptions = {
+	dataDir: string;
 	debugLogPath?: string | null;
 	debugLogLevel?: number | null;
+	socketPath?: string | null;
+	pidPath?: string | null;
 };
+
+type AppServerPersistentTransportOptions = {
+	dataDir: string;
+	socketPath: string;
+	pidPath: string;
+};
+
+type AppServerListenerProcess = ChildProcess & {
+	unref?: () => void;
+};
+
+type AppServerListenerState = {
+	pid: number | null;
+	socketPath: string;
+};
+
+const appServerSocketName = "codex-app-server.sock";
+const appServerPidName = "codex-app-server.pid";
+const appServerStartupTimeoutMs = 10_000;
+const appServerPollIntervalMs = 50;
+const appServerExitTimeoutMs = 2_000;
+const appServerWebSocketPath = "/rpc";
+const appServerMaxWebSocketPayloadBytes = 128 << 20;
 
 class AppServerDebugLogger {
 	private disabled = false;
@@ -102,19 +141,29 @@ class AppServerDebugLogger {
 export class AppServerCodexAdapter implements CodexAdapter {
 	readonly name = "app-server";
 	readonly version: string | null = null;
-	private process: ChildProcessWithoutNullStreams | null = null;
-	private stdout: Interface | null = null;
+	private connection: WebSocket | null = null;
 	private nextId = 1;
 	private readonly pending = new Map<number | string, PendingRequest>();
 	private readonly pendingTurnStarts = new Map<string, PendingTurnStart[]>();
 	private eventHandler: AdapterEventHandler = () => {};
 	private initialized = false;
 	private readonly debugLogger: AppServerDebugLogger | null;
+	private readonly persistent: AppServerPersistentTransportOptions;
 
 	constructor(
 		private readonly command = process.env.COZ_CODEX_BIN ?? "codex",
-		options: AppServerCodexAdapterOptions = {},
+		options: AppServerCodexAdapterOptions,
 	) {
+		const dataDir = resolve(options.dataDir);
+		this.persistent = {
+			dataDir,
+			socketPath: options.socketPath
+				? resolve(options.socketPath)
+				: join(dataDir, appServerSocketName),
+			pidPath: options.pidPath
+				? resolve(options.pidPath)
+				: join(dataDir, appServerPidName),
+		};
 		const debugLogLevel = clampDebugLogLevel(options.debugLogLevel ?? 1);
 		this.debugLogger =
 			options.debugLogPath && debugLogLevel > 0
@@ -320,24 +369,40 @@ export class AppServerCodexAdapter implements CodexAdapter {
 		await this.request("thread/goal/clear", { threadId });
 	}
 
+	async restartAppServer(): Promise<CodexAppServerRestartResult> {
+		await this.disconnectConnection("app-server adapter restarting");
+		await this.stopPersistentAppServer();
+		const listener = await this.ensurePersistentAppServer();
+		await this.ensureStarted();
+		return {
+			status: "restarted",
+			pid: listener.pid,
+			socketPath: listener.socketPath,
+		};
+	}
+
 	async close() {
+		await this.disconnectConnection("app-server adapter closed");
+	}
+
+	private async disconnectConnection(reason: string) {
+		const error = new Error(reason);
 		for (const pending of this.pending.values()) {
 			clearTimeout(pending.timeout);
-			pending.reject(new Error("app-server adapter closed"));
+			pending.reject(error);
 		}
 		this.pending.clear();
 		for (const pending of this.pendingTurnStarts.values()) {
 			for (const turnStart of pending) {
 				clearTimeout(turnStart.timeout);
-				turnStart.reject(new Error("app-server adapter closed"));
+				turnStart.reject(error);
 			}
 		}
 		this.pendingTurnStarts.clear();
-		this.stdout?.close();
-		this.process?.kill("SIGTERM");
-		this.process = null;
-		this.stdout = null;
+		const connection = this.connection;
+		this.connection = null;
 		this.initialized = false;
+		closeWebSocket(connection);
 	}
 
 	private waitForTurnStart(
@@ -431,64 +496,168 @@ export class AppServerCodexAdapter implements CodexAdapter {
 	}
 
 	private async ensureStarted() {
-		if (this.initialized) {
+		if (this.initialized && this.connection?.readyState === WebSocket.OPEN) {
 			return;
 		}
-		if (!this.process) {
-			const child = spawn(this.command, ["app-server", "--stdio"], {
-				stdio: ["pipe", "pipe", "pipe"],
-				env: process.env,
-			});
-			this.writeDebug({
-				event: "process.spawn",
-				command: this.command,
-				args: ["app-server", "--stdio"],
-				pid: child.pid ?? null,
-			});
-			this.process = child;
-			this.stdout = createInterface({ input: child.stdout });
-			this.stdout.on("line", (line) => this.handleLine(line));
-			child.stderr.on("data", (chunk: Buffer) => {
-				const text = chunk.toString("utf8").trim();
-				if (text) {
-					this.writeDebug({
-						event: "stderr",
-						direction: "in",
-						text,
-					});
-					this.emitRaw("app-server/stderr", { text });
-				}
-			});
-			child.on("exit", (code, signal) => {
-				this.writeDebug({
-					event: "process.exit",
-					code: code ?? null,
-					signal: signal ?? null,
-				});
-				const exitError = new Error(
-					`app-server exited with code ${code ?? "null"} signal ${signal ?? "null"}`,
-				);
-				for (const pending of this.pending.values()) {
-					clearTimeout(pending.timeout);
-					pending.reject(exitError);
-				}
-				this.pending.clear();
-				for (const pending of this.pendingTurnStarts.values()) {
-					for (const turnStart of pending) {
-						clearTimeout(turnStart.timeout);
-						turnStart.reject(exitError);
-					}
-				}
-				this.pendingTurnStarts.clear();
-				if (this.process === child) {
-					this.stdout?.close();
-					this.process = null;
-					this.stdout = null;
-					this.initialized = false;
-				}
-			});
+		this.initialized = false;
+		if (this.connection?.readyState !== WebSocket.OPEN) {
+			const connection = await this.openConnection();
+			this.attachConnection(connection);
 		}
-		await this.initialize();
+		try {
+			await this.initialize();
+		} catch (error) {
+			await this.disconnectConnection("app-server adapter initialize failed");
+			throw error;
+		}
+	}
+
+	private async openConnection() {
+		await this.ensurePersistentAppServer();
+		const connection = await openAppServerWebSocket(
+			this.persistent.socketPath,
+			appServerStartupTimeoutMs,
+		);
+		this.writeDebug({
+			event: "connection.open",
+			socketPath: this.persistent.socketPath,
+		});
+		return connection;
+	}
+
+	private attachConnection(connection: WebSocket) {
+		this.connection = connection;
+		connection.on("message", (data, isBinary) => {
+			if (isBinary) {
+				this.writeDebug({
+					event: "message",
+					direction: "in",
+					parsed: false,
+					line: "[binary websocket message]",
+				});
+				this.emitRaw("app-server/unparsed", {
+					line: "[binary websocket message]",
+				});
+				return;
+			}
+			const text = rawWebSocketDataToText(data);
+			if (text) {
+				this.handlePayload(text);
+			}
+		});
+		connection.on("error", (error) => {
+			this.writeDebug({
+				event: "connection.error",
+				socketPath: this.persistent.socketPath,
+				text: error.message,
+			});
+			this.emitRaw("app-server/stderr", { text: error.message });
+		});
+		connection.on("close", (code, reason) => {
+			this.writeDebug({
+				event: "connection.close",
+				socketPath: this.persistent.socketPath,
+				code,
+				reason: reason.toString("utf8"),
+			});
+			this.handleConnectionClosed(
+				connection,
+				new Error(
+					`app-server websocket closed with code ${code} reason ${reason.toString("utf8")}`,
+				),
+			);
+		});
+	}
+
+	private spawnAppServerProcess(
+		args: string[],
+		options: SpawnOptions,
+	): AppServerListenerProcess {
+		const child = spawn(
+			this.command,
+			args,
+			options,
+		) as AppServerListenerProcess;
+		this.writeDebug({
+			event: "process.spawn",
+			command: this.command,
+			args,
+			pid: child.pid ?? null,
+		});
+		return child;
+	}
+
+	private async ensurePersistentAppServer(): Promise<AppServerListenerState> {
+		mkdirSync(this.persistent.dataDir, { recursive: true });
+		if (await appServerAcceptsConnections(this.persistent.socketPath)) {
+			return {
+				pid: this.readPersistentAppServerPid(),
+				socketPath: this.persistent.socketPath,
+			};
+		}
+		this.removeStalePersistentFiles();
+
+		const args = [
+			"app-server",
+			"--listen",
+			`unix://${this.persistent.socketPath}`,
+		];
+		const child = this.spawnAppServerProcess(args, {
+			stdio: ["ignore", "ignore", "ignore"],
+			env: process.env,
+			detached: true,
+		});
+		writeFileSync(this.persistent.pidPath, String(child.pid ?? ""), "utf8");
+		child.unref?.();
+		await waitForSocket(this.persistent.socketPath, appServerStartupTimeoutMs);
+		return {
+			pid: child.pid ?? null,
+			socketPath: this.persistent.socketPath,
+		};
+	}
+
+	private async stopPersistentAppServer() {
+		const socketWasAccepting = await appServerAcceptsConnections(
+			this.persistent.socketPath,
+		);
+		if (!socketWasAccepting) {
+			this.removeStalePersistentFiles();
+			return;
+		}
+
+		const pid = this.readPersistentAppServerPid();
+		if (pid === null) {
+			throw new Error(
+				`Cannot restart app-server on ${this.persistent.socketPath}: missing pid file`,
+			);
+		}
+
+		try {
+			process.kill(pid, "SIGTERM");
+		} catch (error) {
+			if (!isMissingProcessError(error)) {
+				throw error;
+			}
+		}
+		await waitForProcessExit(pid, appServerExitTimeoutMs);
+		await waitForSocketClose(
+			this.persistent.socketPath,
+			appServerExitTimeoutMs,
+		);
+		this.removeStalePersistentFiles();
+	}
+
+	private readPersistentAppServerPid() {
+		if (!existsSync(this.persistent.pidPath)) {
+			return null;
+		}
+		const value = Number(readFileSync(this.persistent.pidPath, "utf8").trim());
+		return Number.isInteger(value) && value > 0 ? value : null;
+	}
+
+	private removeStalePersistentFiles() {
+		rmSync(this.persistent.pidPath, { force: true });
+		rmSync(this.persistent.socketPath, { force: true });
 	}
 
 	private async initialize() {
@@ -523,8 +692,28 @@ export class AppServerCodexAdapter implements CodexAdapter {
 		this.initialized = true;
 	}
 
-	private handleLine(line: string) {
-		const trimmed = line.trim();
+	private handleConnectionClosed(connection: WebSocket, error: Error) {
+		if (this.connection !== connection) {
+			return;
+		}
+		for (const pending of this.pending.values()) {
+			clearTimeout(pending.timeout);
+			pending.reject(error);
+		}
+		this.pending.clear();
+		for (const pending of this.pendingTurnStarts.values()) {
+			for (const turnStart of pending) {
+				clearTimeout(turnStart.timeout);
+				turnStart.reject(error);
+			}
+		}
+		this.pendingTurnStarts.clear();
+		this.connection = null;
+		this.initialized = false;
+	}
+
+	private handlePayload(payload: string) {
+		const trimmed = payload.trim();
 		if (!trimmed) {
 			return;
 		}
@@ -642,8 +831,9 @@ export class AppServerCodexAdapter implements CodexAdapter {
 	}
 
 	private send(message: JsonRpcMessage) {
-		if (!this.process) {
-			throw new Error("app-server process is not started");
+		const connection = this.connection;
+		if (!connection || connection.readyState !== WebSocket.OPEN) {
+			throw new Error("app-server websocket is not connected");
 		}
 		this.writeDebug({
 			event: "message",
@@ -651,6 +841,188 @@ export class AppServerCodexAdapter implements CodexAdapter {
 			parsed: true,
 			message,
 		});
-		this.process.stdin.write(`${JSON.stringify(message)}\n`);
+		connection.send(JSON.stringify(message), (error) => {
+			if (!error) {
+				return;
+			}
+			this.writeDebug({
+				event: "connection.error",
+				socketPath: this.persistent.socketPath,
+				text: error.message,
+			});
+			this.handleConnectionClosed(connection, error);
+		});
 	}
+}
+
+async function waitForSocket(socketPath: string, timeoutMs: number) {
+	const deadline = Date.now() + timeoutMs;
+	let lastError: Error | null = null;
+	while (Date.now() < deadline) {
+		try {
+			if (await appServerAcceptsConnections(socketPath)) {
+				return;
+			}
+		} catch (error) {
+			lastError = error instanceof Error ? error : new Error(String(error));
+		}
+		await delay(appServerPollIntervalMs);
+	}
+	throw new Error(
+		lastError
+			? `app-server did not become ready on ${socketPath}: ${lastError.message}`
+			: `app-server did not become ready on ${socketPath}`,
+	);
+}
+
+async function waitForSocketClose(socketPath: string, timeoutMs: number) {
+	const deadline = Date.now() + timeoutMs;
+	while (Date.now() < deadline) {
+		if (!(await appServerAcceptsConnections(socketPath))) {
+			return;
+		}
+		await delay(appServerPollIntervalMs);
+	}
+	throw new Error(
+		`app-server did not stop accepting connections on ${socketPath}`,
+	);
+}
+
+async function appServerAcceptsConnections(socketPath: string) {
+	try {
+		const connection = await openAppServerWebSocket(socketPath, 500);
+		closeWebSocket(connection);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+function openAppServerWebSocket(
+	socketPath: string,
+	timeoutMs: number,
+): Promise<WebSocket> {
+	return new Promise((resolve, reject) => {
+		const connection = new WebSocket(
+			`ws://localhost${appServerWebSocketPath}`,
+			{
+				createConnection: (() =>
+					createConnection(socketPath)) as typeof createConnection,
+				handshakeTimeout: timeoutMs,
+				maxPayload: appServerMaxWebSocketPayloadBytes,
+				perMessageDeflate: false,
+			},
+		);
+		let settled = false;
+		const settle = (action: () => void) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			connection.off("open", onOpen);
+			connection.off("error", onError);
+			connection.off("close", onClose);
+			action();
+		};
+		const onOpen = () => settle(() => resolve(connection));
+		const onError = (error: Error) =>
+			settle(() => {
+				closeWebSocket(connection);
+				reject(error);
+			});
+		const onClose = (code: number, reason: Buffer) =>
+			settle(() => {
+				reject(
+					new Error(
+						`app-server websocket closed during connect with code ${code} reason ${reason.toString("utf8")}`,
+					),
+				);
+			});
+		connection.once("open", onOpen);
+		connection.once("error", onError);
+		connection.once("close", onClose);
+	});
+}
+
+function closeWebSocket(connection: WebSocket | null) {
+	if (!connection) {
+		return;
+	}
+	if (
+		connection.readyState === WebSocket.OPEN ||
+		connection.readyState === WebSocket.CONNECTING
+	) {
+		connection.close();
+	}
+	setTimeout(() => {
+		if (connection.readyState !== WebSocket.CLOSED) {
+			connection.terminate();
+		}
+	}, 250).unref();
+}
+
+function rawWebSocketDataToText(data: WebSocket.RawData) {
+	if (typeof data === "string") {
+		return data;
+	}
+	if (Buffer.isBuffer(data)) {
+		return data.toString("utf8");
+	}
+	if (Array.isArray(data)) {
+		return Buffer.concat(data).toString("utf8");
+	}
+	if (data instanceof ArrayBuffer) {
+		return Buffer.from(data).toString("utf8");
+	}
+	return "";
+}
+
+async function waitForProcessExit(pid: number, timeoutMs: number) {
+	const deadline = Date.now() + timeoutMs;
+	while (Date.now() < deadline) {
+		if (!processExists(pid)) {
+			return;
+		}
+		await delay(appServerPollIntervalMs);
+	}
+	try {
+		process.kill(pid, "SIGKILL");
+	} catch (error) {
+		if (!isMissingProcessError(error)) {
+			throw error;
+		}
+		return;
+	}
+	const killDeadline = Date.now() + timeoutMs;
+	while (Date.now() < killDeadline) {
+		if (!processExists(pid)) {
+			return;
+		}
+		await delay(appServerPollIntervalMs);
+	}
+	throw new Error(`app-server process ${pid} did not exit`);
+}
+
+function processExists(pid: number) {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch (error) {
+		if (isMissingProcessError(error)) {
+			return false;
+		}
+		throw error;
+	}
+}
+
+function isMissingProcessError(error: unknown) {
+	return (
+		error instanceof Error &&
+		"code" in error &&
+		(error as NodeJS.ErrnoException).code === "ESRCH"
+	);
+}
+
+function delay(ms: number) {
+	return new Promise((resolve) => setTimeout(resolve, ms));
 }

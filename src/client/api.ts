@@ -1,4 +1,5 @@
 import type {
+	CodexAppServerRestartResponse,
 	ControlThread,
 	DashboardState,
 	GoalStatus,
@@ -184,6 +185,16 @@ export function clearGoal(threadId: string) {
 	return request<ControlThread>(`/api/threads/${threadId}/goal`, {
 		method: "DELETE",
 	});
+}
+
+export function restartCodexAppServer() {
+	return request<CodexAppServerRestartResponse>(
+		"/api/runtime/app-server/restart",
+		{
+			method: "POST",
+			body: JSON.stringify({}),
+		},
+	);
 }
 
 export function getTerminal() {

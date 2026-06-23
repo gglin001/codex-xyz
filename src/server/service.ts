@@ -379,6 +379,14 @@ export class ControlService {
 		});
 	}
 
+	async restartCodexAppServer() {
+		const result = await this.adapter.restartAppServer();
+		return {
+			...result,
+			message: "Codex app-server restarted",
+		};
+	}
+
 	listThreads(input: { archived?: boolean | null } = {}) {
 		return this.store.listThreads({ archived: input.archived });
 	}

@@ -25,6 +25,7 @@ import {
 	getThread,
 	getThreadsPage,
 	interruptTurn,
+	restartCodexAppServer,
 	resumeThread,
 	startGoal,
 	startTurn,
@@ -1176,6 +1177,16 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		);
 	}
 
+	function restartCodexAppServerFromSettings() {
+		void runAction(
+			"Restarting app-server",
+			async () => {
+				await restartCodexAppServer();
+			},
+			{ successMessage: "Codex app-server restarted" },
+		);
+	}
+
 	return (
 		<>
 			<DashboardLayout
@@ -1229,6 +1240,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				onFork={forkSelectedThread}
 				onCompact={compactSelectedThread}
 				onArchive={archiveSelectedThread}
+				onRestartCodexAppServer={restartCodexAppServerFromSettings}
 			/>
 			<Suspense fallback={null}>
 				{terminalVisible ? (

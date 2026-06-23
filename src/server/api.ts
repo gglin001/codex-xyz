@@ -410,6 +410,10 @@ async function routeApiRequest(
 	const parts = pathParts(url);
 	const route = parts.join("/");
 
+	if (method === "POST" && route === "api/runtime/app-server/restart") {
+		return jsonResponse(await service.restartCodexAppServer());
+	}
+
 	if (method === "POST" && route === "api/terminal/start") {
 		const body = await readJson(request);
 		return jsonResponse(

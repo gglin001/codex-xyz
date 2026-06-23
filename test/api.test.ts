@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { handleApiRequest } from "../src/server/api.js";
 import type {
+	CodexAppServerRestartResponse,
 	ControlThread,
 	DashboardState,
 	TerminalSnapshot,
@@ -230,6 +231,24 @@ afterEach(async () => {
 });
 
 describe("Next API routes", () => {
+	it("restarts the Codex app-server through the runtime route", async () => {
+		const result = await json<CodexAppServerRestartResponse>(
+			"/api/runtime/app-server/restart",
+			{
+				method: "POST",
+				body: JSON.stringify({}),
+			},
+		);
+
+		expect(result).toMatchObject({
+			status: "restarted",
+			pid: null,
+			socketPath: "test://codex-app-server",
+			message: "Codex app-server restarted",
+		});
+		expect(testAdapter.restartCount).toBe(1);
+	});
+
 	it("serves dashboard state and can create a local session", async () => {
 		const state = await json<DashboardState>("/api/state");
 		expect(state.defaultCwd).toBe(tempDir);

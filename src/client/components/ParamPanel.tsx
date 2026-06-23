@@ -10,6 +10,7 @@ import {
 	Maximize2,
 	Minimize2,
 	Play,
+	RefreshCw,
 	Server,
 	SlidersHorizontal,
 	Sun,
@@ -47,6 +48,8 @@ export type ParamPanelProps = {
 	fullscreenSupported: boolean;
 	isFullscreen: boolean;
 	onToggleFullscreen: () => void;
+	restartCodexAppServerDisabled: boolean;
+	onRestartCodexAppServer: () => void;
 };
 
 function clamp(value: number, min: number, max: number) {
@@ -118,6 +121,8 @@ export const ParamPanel = memo(function ParamPanel({
 	fullscreenSupported,
 	isFullscreen,
 	onToggleFullscreen,
+	restartCodexAppServerDisabled,
+	onRestartCodexAppServer,
 }: ParamPanelProps) {
 	const thread = selectedThread ?? session?.thread ?? null;
 	const status = thread?.status ?? "idle";
@@ -167,10 +172,22 @@ export const ParamPanel = memo(function ParamPanel({
 						<InfoTile
 							icon={<Cpu size={13} />}
 							label="Adapter"
-							value="codex app-server --stdio"
+							value="codex app-server socket"
 							mono
 							layout="inline"
 						/>
+						<SurfaceAction
+							className="h-9 w-full justify-between gap-2 px-2.5 text-[12px]"
+							title="Restart Codex app-server"
+							aria-label="Restart Codex app-server"
+							disabled={restartCodexAppServerDisabled}
+							onClick={onRestartCodexAppServer}
+						>
+							<span className="min-w-0 truncate font-medium">
+								Restart app-server
+							</span>
+							<RefreshCw size={14} className="shrink-0 text-muted" />
+						</SurfaceAction>
 					</div>
 				</SettingsSection>
 

@@ -195,6 +195,13 @@ export type DashboardState = {
 	latestEventId: number;
 };
 
+export type CodexAppServerRestartResponse = {
+	status: "restarted";
+	pid: number | null;
+	socketPath: string;
+	message: string;
+};
+
 export type TerminalProcessStatus =
 	| "idle"
 	| "starting"

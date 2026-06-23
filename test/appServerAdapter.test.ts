@@ -26,24 +26,31 @@ function createFakeCodexCommand() {
 	writeFileSync(
 		commandPath,
 		`#!/usr/bin/env node
-let buffer = ""
-let experimentalApi = false
+const fs = require("node:fs")
+const http = require("node:http")
+const WebSocket = require("ws")
+
+let output = process.stdout
+
+function writeJson(message) {
+  output.write(JSON.stringify(message) + "\\n")
+}
 
 function respond(id, result) {
-  process.stdout.write(JSON.stringify({ id, result }) + "\\n")
+  writeJson({ id, result })
 }
 
 function notify(method, params) {
-  process.stdout.write(JSON.stringify({ method, params }) + "\\n")
+  writeJson({ method, params })
 }
 
 function reject(id, message) {
-  process.stdout.write(JSON.stringify({ id, error: { message } }) + "\\n")
+  writeJson({ id, error: { message } })
 }
 
-function handle(message) {
+function handle(message, state) {
   if (message.method === "initialize") {
-    experimentalApi = message.params?.capabilities?.experimentalApi === true
+    state.experimentalApi = message.params?.capabilities?.experimentalApi === true
     respond(message.id, {
       userAgent: "fake-codex",
       codexHome: process.cwd(),
@@ -58,7 +65,7 @@ function handle(message) {
   }
 
   if (message.method === "thread/resume") {
-    if (message.params?.excludeTurns === true && !experimentalApi) {
+    if (message.params?.excludeTurns === true && !state.experimentalApi) {
       reject(message.id, "thread/resume.excludeTurns requires experimentalApi capability")
       return
     }
@@ -329,7 +336,7 @@ function handle(message) {
     const turnId = "turn_shell_1"
     const itemId = "item_command_1"
     respond(message.id, {})
-    process.stdout.write(JSON.stringify({
+    writeJson({
       method: "turn/started",
       params: {
         threadId: message.params.threadId,
@@ -344,8 +351,8 @@ function handle(message) {
           durationMs: null
         }
       }
-    }) + "\\n")
-    process.stdout.write(JSON.stringify({
+    })
+    writeJson({
       method: "item/started",
       params: {
         threadId: message.params.threadId,
@@ -365,8 +372,8 @@ function handle(message) {
           durationMs: null
         }
       }
-    }) + "\\n")
-    process.stdout.write(JSON.stringify({
+    })
+    writeJson({
       method: "item/commandExecution/outputDelta",
       params: {
         threadId: message.params.threadId,
@@ -374,8 +381,8 @@ function handle(message) {
         itemId,
         delta: "fake cwd\\n"
       }
-    }) + "\\n")
-    process.stdout.write(JSON.stringify({
+    })
+    writeJson({
       method: "item/completed",
       params: {
         threadId: message.params.threadId,
@@ -395,8 +402,8 @@ function handle(message) {
           durationMs: 1
         }
       }
-    }) + "\\n")
-    process.stdout.write(JSON.stringify({
+    })
+    writeJson({
       method: "turn/completed",
       params: {
         threadId: message.params.threadId,
@@ -411,27 +418,97 @@ function handle(message) {
           durationMs: 1
         }
       }
-    }) + "\\n")
+    })
   }
 }
 
-process.stdin.setEncoding("utf8")
-process.stdin.on("data", (chunk) => {
-  buffer += chunk
-  let newline = buffer.indexOf("\\n")
-  while (newline !== -1) {
-    const line = buffer.slice(0, newline).trim()
-    buffer = buffer.slice(newline + 1)
-    if (line) {
-      handle(JSON.parse(line))
+function serveWebSocket(socket) {
+  const state = { experimentalApi: false }
+  const out = {
+    write(text) {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(text)
+      }
     }
-    newline = buffer.indexOf("\\n")
   }
+  socket.on("message", (data, isBinary) => {
+    if (isBinary) {
+      return
+    }
+    const currentOutput = output
+    output = out
+    try {
+      const text = Buffer.isBuffer(data) ? data.toString("utf8") : String(data)
+      const lines = text.split("\\n")
+      for (const rawLine of lines) {
+        const line = rawLine.trim()
+        if (line) {
+          handle(JSON.parse(line), state)
+        }
+      }
+    } finally {
+      output = currentOutput
+    }
+  })
+}
+
+function socketPathFromListenArg(value) {
+  const prefix = "unix://"
+  if (!value?.startsWith(prefix)) {
+    throw new Error("expected unix:// listen URL")
+  }
+  return value.slice(prefix.length)
+}
+
+async function main() {
+  const args = process.argv.slice(2)
+  if (args[0] !== "app-server") {
+    throw new Error("expected app-server command")
+  }
+  if (args[1] === "--listen") {
+    const socketPath = socketPathFromListenArg(args[2])
+    fs.rmSync(socketPath, { force: true })
+    const server = http.createServer()
+    const wsServer = new WebSocket.Server({
+      server,
+      path: "/rpc",
+      perMessageDeflate: false
+    })
+    wsServer.on("connection", (socket) => serveWebSocket(socket))
+    server.listen(socketPath)
+    process.on("SIGTERM", () => {
+      wsServer.close()
+      server.close(() => process.exit(0))
+      setTimeout(() => process.exit(0), 50).unref()
+    })
+    return
+  }
+  throw new Error("unexpected app-server mode")
+}
+
+main().catch((error) => {
+  console.error(error.stack || error.message)
+  process.exit(1)
 })
 `,
 	);
 	chmodSync(commandPath, 0o755);
 	return commandPath;
+}
+
+function appServerOptions(
+	options: Partial<{
+		debugLogPath: string | null;
+		debugLogLevel: number | null;
+	}> = {},
+) {
+	if (!tempDir) {
+		throw new Error("Expected test temp dir");
+	}
+	return {
+		dataDir: join(tempDir, ".coz"),
+		...options,
+	};
 }
 
 function readDebugRecords(debugLogPath: string) {
@@ -454,9 +531,75 @@ function debugRecordMethods(records: Array<Record<string, unknown>>) {
 	});
 }
 
+function appServerPidPath() {
+	if (!tempDir) {
+		throw new Error("Expected test temp dir");
+	}
+	return join(tempDir, ".coz", "codex-app-server.pid");
+}
+
+function appServerSocketPath() {
+	if (!tempDir) {
+		throw new Error("Expected test temp dir");
+	}
+	return join(tempDir, ".coz", "codex-app-server.sock");
+}
+
+function readAppServerPid() {
+	try {
+		const pid = Number(readFileSync(appServerPidPath(), "utf8").trim());
+		return Number.isInteger(pid) && pid > 0 ? pid : null;
+	} catch {
+		return null;
+	}
+}
+
+function processExists(pid: number) {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch (error) {
+		return !(
+			error instanceof Error &&
+			"code" in error &&
+			(error as NodeJS.ErrnoException).code === "ESRCH"
+		);
+	}
+}
+
+async function waitForProcessExit(pid: number) {
+	const deadline = Date.now() + 1_000;
+	while (Date.now() < deadline) {
+		if (!processExists(pid)) {
+			return;
+		}
+		await new Promise((resolve) => setTimeout(resolve, 20));
+	}
+}
+
+async function stopFakePersistentAppServer() {
+	const pid = readAppServerPid();
+	if (pid === null) {
+		return;
+	}
+	try {
+		process.kill(pid, "SIGTERM");
+	} catch {
+		return;
+	}
+	await waitForProcessExit(pid);
+	if (!processExists(pid)) {
+		return;
+	}
+	try {
+		process.kill(pid, "SIGKILL");
+	} catch {}
+}
+
 afterEach(async () => {
 	await adapter?.close();
 	adapter = null;
+	await stopFakePersistentAppServer();
 	if (tempDir) {
 		rmSync(tempDir, { recursive: true, force: true });
 		tempDir = null;
@@ -464,9 +607,67 @@ afterEach(async () => {
 });
 
 describe("AppServerCodexAdapter", () => {
+	it("reuses the persistent app-server across adapter instances", async () => {
+		const command = createFakeCodexCommand();
+		const options = appServerOptions();
+		adapter = new AppServerCodexAdapter(command, options);
+
+		const firstThread = await adapter.resumeThread({
+			threadId: sourceThreadId,
+			cwd: process.cwd(),
+			model: "test-model",
+		});
+		const firstPid = readAppServerPid();
+
+		expect(firstThread.id).toBe(sourceThreadId);
+		expect(firstPid).toEqual(expect.any(Number));
+
+		await adapter.close();
+		adapter = new AppServerCodexAdapter(command, options);
+
+		const secondThread = await adapter.resumeThread({
+			threadId: debugThreadId,
+			cwd: process.cwd(),
+			model: "test-model",
+		});
+
+		expect(secondThread.id).toBe(debugThreadId);
+		expect(readAppServerPid()).toBe(firstPid);
+	});
+
+	it("restarts the persistent app-server and reconnects the socket", async () => {
+		const command = createFakeCodexCommand();
+		adapter = new AppServerCodexAdapter(command, appServerOptions());
+
+		await adapter.resumeThread({
+			threadId: sourceThreadId,
+			cwd: process.cwd(),
+			model: "test-model",
+		});
+		const firstPid = readAppServerPid();
+
+		const result = await adapter.restartAppServer();
+		const secondPid = readAppServerPid();
+		const thread = await adapter.resumeThread({
+			threadId: debugThreadId,
+			cwd: process.cwd(),
+			model: "test-model",
+		});
+
+		expect(firstPid).toEqual(expect.any(Number));
+		expect(secondPid).toEqual(expect.any(Number));
+		expect(secondPid).not.toBe(firstPid);
+		expect(result).toEqual({
+			status: "restarted",
+			pid: secondPid,
+			socketPath: appServerSocketPath(),
+		});
+		expect(thread.id).toBe(debugThreadId);
+	});
+
 	it("opts into experimental fields before resuming without turns", async () => {
 		const command = createFakeCodexCommand();
-		adapter = new AppServerCodexAdapter(command);
+		adapter = new AppServerCodexAdapter(command, appServerOptions());
 
 		const thread = await adapter.resumeThread({
 			threadId: sourceThreadId,
@@ -484,7 +685,7 @@ describe("AppServerCodexAdapter", () => {
 
 	it("normalizes app-server thread ids before callers reuse them", async () => {
 		const command = createFakeCodexCommand();
-		adapter = new AppServerCodexAdapter(command);
+		adapter = new AppServerCodexAdapter(command, appServerOptions());
 
 		const source = await adapter.resumeThread({
 			threadId: sourceThreadId,
@@ -506,7 +707,7 @@ describe("AppServerCodexAdapter", () => {
 
 	it("archives threads through app-server and projects archive notifications", async () => {
 		const command = createFakeCodexCommand();
-		adapter = new AppServerCodexAdapter(command);
+		adapter = new AppServerCodexAdapter(command, appServerOptions());
 		const events: AdapterEvent[] = [];
 		adapter.onEvent((event) => events.push(event));
 
@@ -524,10 +725,13 @@ describe("AppServerCodexAdapter", () => {
 	it("writes app-server protocol debug records as JSON lines", async () => {
 		const command = createFakeCodexCommand();
 		const debugLogPath = join(tempDir as string, ".coz", "debug.jsonl");
-		adapter = new AppServerCodexAdapter(command, {
-			debugLogPath,
-			debugLogLevel: 2,
-		});
+		adapter = new AppServerCodexAdapter(
+			command,
+			appServerOptions({
+				debugLogPath,
+				debugLogLevel: 2,
+			}),
+		);
 
 		await adapter.resumeThread({
 			threadId: debugThreadId,
@@ -536,6 +740,11 @@ describe("AppServerCodexAdapter", () => {
 		});
 
 		const records = readDebugRecords(debugLogPath);
+		const spawnedArgs = records.flatMap((record) =>
+			record.event === "process.spawn" && Array.isArray(record.args)
+				? [record.args]
+				: [],
+		);
 
 		expect(records).toEqual(
 			expect.arrayContaining([
@@ -563,15 +772,22 @@ describe("AppServerCodexAdapter", () => {
 				}),
 			]),
 		);
+		expect(spawnedArgs).toEqual([
+			["app-server", "--listen", `unix://${appServerSocketPath()}`],
+		]);
+		expect(spawnedArgs.flat()).not.toContain("proxy");
 	});
 
 	it("limits level 1 logs to operational records", async () => {
 		const command = createFakeCodexCommand();
 		const debugLogPath = join(tempDir as string, ".coz", "debug.jsonl");
-		adapter = new AppServerCodexAdapter(command, {
-			debugLogPath,
-			debugLogLevel: 1,
-		});
+		adapter = new AppServerCodexAdapter(
+			command,
+			appServerOptions({
+				debugLogPath,
+				debugLogLevel: 1,
+			}),
+		);
 
 		await adapter.startTurn({
 			threadId: debugThreadId,
@@ -595,10 +811,13 @@ describe("AppServerCodexAdapter", () => {
 	it("keeps high-volume stream deltas out of level 2 protocol logs", async () => {
 		const command = createFakeCodexCommand();
 		const debugLogPath = join(tempDir as string, ".coz", "debug.jsonl");
-		adapter = new AppServerCodexAdapter(command, {
-			debugLogPath,
-			debugLogLevel: 2,
-		});
+		adapter = new AppServerCodexAdapter(
+			command,
+			appServerOptions({
+				debugLogPath,
+				debugLogLevel: 2,
+			}),
+		);
 
 		await adapter.startTurn({
 			threadId: debugThreadId,
@@ -617,10 +836,13 @@ describe("AppServerCodexAdapter", () => {
 	it("writes high-volume stream deltas in level 3 protocol logs", async () => {
 		const command = createFakeCodexCommand();
 		const debugLogPath = join(tempDir as string, ".coz", "debug.jsonl");
-		adapter = new AppServerCodexAdapter(command, {
-			debugLogPath,
-			debugLogLevel: 3,
-		});
+		adapter = new AppServerCodexAdapter(
+			command,
+			appServerOptions({
+				debugLogPath,
+				debugLogLevel: 3,
+			}),
+		);
 
 		await adapter.startTurn({
 			threadId: debugThreadId,
@@ -645,7 +867,7 @@ describe("AppServerCodexAdapter", () => {
 
 	it("normalizes app-server session control notifications", async () => {
 		const command = createFakeCodexCommand();
-		adapter = new AppServerCodexAdapter(command);
+		adapter = new AppServerCodexAdapter(command, appServerOptions());
 		const events: AdapterEvent[] = [];
 		adapter.onEvent((event) => events.push(event));
 
@@ -719,7 +941,7 @@ describe("AppServerCodexAdapter", () => {
 	it("starts goal mode by waiting for the app-server automatic turn", async () => {
 		const command = createFakeCodexCommand();
 		const events: AdapterEvent[] = [];
-		adapter = new AppServerCodexAdapter(command);
+		adapter = new AppServerCodexAdapter(command, appServerOptions());
 		adapter.onEvent((event) => events.push(event));
 
 		const result = await adapter.startGoal({
@@ -759,7 +981,7 @@ describe("AppServerCodexAdapter", () => {
 	it("updates goal status without starting a goal turn", async () => {
 		const command = createFakeCodexCommand();
 		const events: AdapterEvent[] = [];
-		adapter = new AppServerCodexAdapter(command);
+		adapter = new AppServerCodexAdapter(command, appServerOptions());
 		adapter.onEvent((event) => events.push(event));
 
 		const goal = await adapter.setGoalStatus({
@@ -790,7 +1012,7 @@ describe("AppServerCodexAdapter", () => {
 	it("starts thread compaction through app-server and projects context item", async () => {
 		const command = createFakeCodexCommand();
 		const events: AdapterEvent[] = [];
-		adapter = new AppServerCodexAdapter(command);
+		adapter = new AppServerCodexAdapter(command, appServerOptions());
 		adapter.onEvent((event) => events.push(event));
 
 		const turn = await adapter.compactThread({ threadId: sourceThreadId });
@@ -830,7 +1052,7 @@ describe("AppServerCodexAdapter", () => {
 	it("runs thread shell commands through app-server and projects command output", async () => {
 		const command = createFakeCodexCommand();
 		const events: AdapterEvent[] = [];
-		adapter = new AppServerCodexAdapter(command);
+		adapter = new AppServerCodexAdapter(command, appServerOptions());
 		adapter.onEvent((event) => events.push(event));
 
 		const turn = await adapter.runShellCommand({

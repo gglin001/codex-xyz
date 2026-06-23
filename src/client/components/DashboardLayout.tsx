@@ -8,6 +8,7 @@ import {
 	Minimize2,
 	Play,
 	Plus,
+	RefreshCw,
 	Search,
 	Settings,
 	Square,
@@ -111,6 +112,7 @@ export type DashboardLayoutProps = {
 	onFork: () => void;
 	onCompact: () => void;
 	onArchive: () => void;
+	onRestartCodexAppServer: () => void;
 };
 
 type CommandActionBase = {
@@ -143,7 +145,14 @@ type CommandAction =
 	| (CommandActionBase & {
 			kind: "settingsItem";
 			settingsGroupId: string;
-			icon: "fullscreen" | "goal" | "settings" | "theme" | "wrap" | "zoom";
+			icon:
+				| "fullscreen"
+				| "goal"
+				| "restart"
+				| "settings"
+				| "theme"
+				| "wrap"
+				| "zoom";
 	  })
 	| (CommandActionBase & {
 			kind: "slashGroup";
@@ -467,6 +476,8 @@ function CommandActionGlyph({
 				<ZoomIn size={14} />
 			) : action.icon === "fullscreen" ? (
 				<Maximize2 size={14} />
+			) : action.icon === "restart" ? (
+				<RefreshCw size={14} />
 			) : (
 				<Settings size={14} />
 			);
@@ -761,6 +772,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 	onFork,
 	onCompact,
 	onArchive,
+	onRestartCodexAppServer,
 }: DashboardLayoutProps) {
 	const [mobileSheet, setMobileSheet] = useState<MobileSheet | null>(null);
 	const [commandOpen, setCommandOpen] = useState(false);
@@ -982,6 +994,17 @@ export const DashboardLayout = memo(function DashboardLayout({
 				run: toggleFullscreen,
 			},
 			{
+				id: "settings:restart-app-server",
+				title: "Restart app-server",
+				detail: "Restart the Codex app-server process",
+				kind: "settingsItem",
+				settingsGroupId: "panel",
+				icon: "restart",
+				disabled: busy,
+				disabledDetail: "Another action is running",
+				run: onRestartCodexAppServer,
+			},
+			{
 				id: "slash:root",
 				title: "/",
 				detail: "Jump to the composer input",
@@ -1123,6 +1146,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 		onWrapSessionContentChange,
 		onTerminalVisibleChange,
 		onProjectChange,
+		onRestartCodexAppServer,
 		onSelectSession,
 		projects,
 	]);
@@ -1245,6 +1269,8 @@ export const DashboardLayout = memo(function DashboardLayout({
 			fullscreenSupported={fullscreenSupported}
 			isFullscreen={isFullscreen}
 			onToggleFullscreen={toggleFullscreen}
+			restartCodexAppServerDisabled={busy}
+			onRestartCodexAppServer={onRestartCodexAppServer}
 		/>
 	);
 
@@ -1439,6 +1465,8 @@ export const DashboardLayout = memo(function DashboardLayout({
 									fullscreenSupported={fullscreenSupported}
 									isFullscreen={isFullscreen}
 									onToggleFullscreen={toggleFullscreen}
+									restartCodexAppServerDisabled={busy}
+									onRestartCodexAppServer={onRestartCodexAppServer}
 								/>
 							)}
 						</motion.div>

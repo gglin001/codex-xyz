@@ -119,6 +119,12 @@ export type AdapterEvent =
 
 export type AdapterEventHandler = (event: AdapterEvent) => void;
 
+export type CodexAppServerRestartResult = {
+	status: "restarted";
+	pid: number | null;
+	socketPath: string;
+};
+
 export type StartThreadInput = {
 	cwd: string;
 	promptPreview: string;
@@ -203,5 +209,6 @@ export interface CodexAdapter {
 	}): Promise<AdapterGoalStart>;
 	getGoal(threadId: string): Promise<AdapterGoal | null>;
 	clearGoal(threadId: string): Promise<void>;
+	restartAppServer(): Promise<CodexAppServerRestartResult>;
 	close(): Promise<void>;
 }

@@ -32,6 +32,7 @@ type RunningTurn = {
 export class TestCodexAdapter implements CodexAdapter {
 	readonly name = "test";
 	readonly version = "test";
+	restartCount = 0;
 	private handler: AdapterEventHandler = () => {};
 	private readonly threads = new Map<string, TestThread>();
 	private readonly running = new Map<string, RunningTurn>();
@@ -258,6 +259,15 @@ export class TestCodexAdapter implements CodexAdapter {
 
 	async clearGoal(threadId: string) {
 		this.requireThread(threadId).goal = null;
+	}
+
+	async restartAppServer() {
+		this.restartCount += 1;
+		return {
+			status: "restarted" as const,
+			pid: null,
+			socketPath: "test://codex-app-server",
+		};
 	}
 
 	completeActiveTurn(

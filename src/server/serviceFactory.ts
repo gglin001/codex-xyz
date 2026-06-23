@@ -12,6 +12,7 @@ export function createServiceFromEnv() {
 	const store = Store.open(join(dataDir, "coz.sqlite"));
 	const debugLevel = readDebugLevel(process.env);
 	const adapter = new AppServerCodexAdapter(codexBin, {
+		dataDir,
 		debugLogPath: debugLevel > 0 ? join(dataDir, "debug.jsonl") : null,
 		debugLogLevel: debugLevel,
 	});
