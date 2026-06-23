@@ -723,17 +723,17 @@ const Composer = memo(
 															type="button"
 															role="menuitem"
 															className="flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control disabled:cursor-not-allowed disabled:opacity-30"
-															disabled={!canFork}
+															disabled={!canArchive}
 															onClick={() => {
-																onFork();
+																onArchive();
 																setMoreActionsOpen(false);
 															}}
 														>
-															<GitFork
+															<Archive
 																size={15}
 																className="shrink-0 text-muted"
 															/>
-															<span>{codexThreadCommandLabels.fork}</span>
+															<span>{codexThreadCommandLabels.archive}</span>
 														</button>
 														<button
 															type="button"
@@ -755,22 +755,6 @@ const Composer = memo(
 															type="button"
 															role="menuitem"
 															className="flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control disabled:cursor-not-allowed disabled:opacity-30"
-															disabled={!canArchive}
-															onClick={() => {
-																onArchive();
-																setMoreActionsOpen(false);
-															}}
-														>
-															<Archive
-																size={15}
-																className="shrink-0 text-muted"
-															/>
-															<span>{codexThreadCommandLabels.archive}</span>
-														</button>
-														<button
-															type="button"
-															role="menuitem"
-															className="flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control disabled:cursor-not-allowed disabled:opacity-30"
 															disabled={!canInterrupt}
 															onClick={() => {
 																onInterrupt();
@@ -782,6 +766,22 @@ const Composer = memo(
 																className="shrink-0 text-muted"
 															/>
 															<span>{codexThreadCommandLabels.interrupt}</span>
+														</button>
+														<button
+															type="button"
+															role="menuitem"
+															className="flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control disabled:cursor-not-allowed disabled:opacity-30"
+															disabled={!canFork}
+															onClick={() => {
+																onFork();
+																setMoreActionsOpen(false);
+															}}
+														>
+															<GitFork
+																size={15}
+																className="shrink-0 text-muted"
+															/>
+															<span>{codexThreadCommandLabels.fork}</span>
 														</button>
 														<button
 															type="button"

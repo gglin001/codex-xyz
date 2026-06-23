@@ -113,7 +113,7 @@ type CommandActionBase = {
 
 type CommandAction =
 	| (CommandActionBase & {
-			kind: "create" | "navigator" | "terminal" | "prompt" | "view" | "thread";
+			kind: "navigator" | "terminal" | "prompt";
 	  })
 	| (CommandActionBase & {
 			kind: "project";
@@ -133,6 +133,22 @@ type CommandAction =
 			kind: "settingsItem";
 			settingsGroupId: string;
 			icon: "fullscreen" | "goal" | "settings" | "theme" | "wrap" | "zoom";
+	  })
+	| (CommandActionBase & {
+			kind: "slashGroup";
+			slashGroupId: string;
+	  })
+	| (CommandActionBase & {
+			kind: "slashItem";
+			slashGroupId: string;
+			icon:
+				| "archive"
+				| "compact"
+				| "fork"
+				| "goal"
+				| "interrupt"
+				| "new"
+				| "resume";
 	  });
 
 type CommandActionRenderItem = {
@@ -186,6 +202,9 @@ function commandParentId(action: CommandAction) {
 	}
 	if (action.kind === "settingsItem") {
 		return `settings:${action.settingsGroupId}`;
+	}
+	if (action.kind === "slashItem") {
+		return `slash:${action.slashGroupId}`;
 	}
 	return null;
 }
@@ -296,6 +315,27 @@ function CommandActionGlyph({
 		);
 	}
 
+	if (action.kind === "slashGroup") {
+		return (
+			<span
+				className="relative flex h-8 w-8 shrink-0 items-center justify-center"
+				aria-hidden="true"
+			>
+				{parentHasVisibleChildren ? (
+					<span className="absolute left-4 top-8 h-2 border-l border-border" />
+				) : null}
+				<span
+					className={cn(
+						"h-8 w-8 border border-border font-mono text-[16px] text-muted-strong",
+						ui.iconBox,
+					)}
+				>
+					/
+				</span>
+			</span>
+		);
+	}
+
 	if (action.kind === "session") {
 		return (
 			<span
@@ -316,6 +356,47 @@ function CommandActionGlyph({
 					)}
 				>
 					<SessionStatusIcon status={action.status} />
+				</span>
+			</span>
+		);
+	}
+
+	if (action.kind === "slashItem") {
+		const itemIcon =
+			action.icon === "archive" ? (
+				<Archive size={14} />
+			) : action.icon === "compact" ? (
+				<Minimize2 size={14} />
+			) : action.icon === "fork" ? (
+				<GitFork size={14} />
+			) : action.icon === "goal" ? (
+				<Goal size={14} />
+			) : action.icon === "interrupt" ? (
+				<Square size={14} />
+			) : action.icon === "new" ? (
+				<Plus size={14} />
+			) : (
+				<Play size={14} />
+			);
+		return (
+			<span
+				className="relative flex h-8 w-12 shrink-0 items-center"
+				aria-hidden="true"
+			>
+				<span
+					className={cn(
+						"absolute left-2 border-l border-border",
+						lastVisibleChild ? "-top-2 h-6" : "-top-2 -bottom-2",
+					)}
+				/>
+				<span className="absolute left-2 top-4 w-3 border-t border-border" />
+				<span
+					className={cn(
+						"absolute right-0 top-0 h-8 w-8 border border-border text-muted-strong",
+						ui.iconBox,
+					)}
+				>
+					{itemIcon}
 				</span>
 			</span>
 		);
@@ -361,26 +442,12 @@ function CommandActionGlyph({
 	}
 
 	const icon =
-		action.kind === "create" ? (
-			<Plus size={14} />
-		) : action.kind === "thread" && action.id === "thread:fork" ? (
-			<GitFork size={14} />
-		) : action.kind === "thread" && action.id === "thread:compact" ? (
-			<Minimize2 size={14} />
-		) : action.kind === "thread" && action.id === "thread:archive" ? (
-			<Archive size={14} />
-		) : action.kind === "thread" && action.id === "thread:interrupt" ? (
-			<Square size={14} />
-		) : action.kind === "thread" && action.id === "thread:resume" ? (
-			<Play size={14} />
-		) : action.kind === "navigator" ? (
+		action.kind === "navigator" ? (
 			<Menu size={14} />
 		) : action.kind === "terminal" ? (
 			<Terminal size={14} />
-		) : action.kind === "prompt" ? (
-			<TextCursorInput size={14} />
 		) : (
-			<WrapText size={14} />
+			<TextCursorInput size={14} />
 		);
 
 	return (
@@ -788,78 +855,15 @@ export const DashboardLayout = memo(function DashboardLayout({
 			!busy;
 		const actions: CommandAction[] = [
 			{
-				id: "create-session",
-				title: codexThreadCommandLabels.new,
-				detail: "Start a fresh Codex app-server session",
-				kind: "create",
-				run: createSessionAndFocusPrompt,
-			},
-			{
 				id: "focus-prompt",
-				title: "Focus prompt",
+				title: "Prompt",
 				detail: "Jump to the composer input",
 				kind: "prompt",
 				run: focusPrompt,
 			},
 			{
-				id: "thread:fork",
-				title: codexThreadCommandLabels.fork,
-				detail: "Fork the current chat",
-				kind: "thread",
-				disabled: !canFork,
-				disabledDetail: "Select a session before forking",
-				run: onFork,
-			},
-			{
-				id: "thread:compact",
-				title: codexThreadCommandLabels.compact,
-				detail: "Summarize conversation to prevent hitting the context limit",
-				kind: "thread",
-				disabled: !canCompact,
-				disabledDetail: "Select an idle session before compacting",
-				run: onCompact,
-			},
-			{
-				id: "thread:archive",
-				title: codexThreadCommandLabels.archive,
-				detail: "Archive the current chat",
-				kind: "thread",
-				disabled: !canArchive,
-				disabledDetail: "Select an idle session before archiving",
-				run: onArchive,
-			},
-			{
-				id: "thread:interrupt",
-				title: codexThreadCommandLabels.interrupt,
-				detail: "Interrupt the active turn",
-				kind: "thread",
-				disabled: !canInterrupt,
-				disabledDetail: "No active turn is running",
-				run: onInterrupt,
-			},
-			{
-				id: "thread:resume",
-				title: codexThreadCommandLabels.resume,
-				detail: "Resume a saved chat",
-				kind: "thread",
-				disabled: !canResume,
-				disabledDetail: "Select an idle session before resuming",
-				run: onResume,
-			},
-			{
-				id: "toggle-navigator",
-				title: isMobileViewport()
-					? "Open sessions"
-					: navigatorVisible
-						? "Hide sessions"
-						: "Show sessions",
-				detail: "Open the project and session list",
-				kind: "navigator",
-				run: setNavigatorVisible,
-			},
-			{
 				id: "open-terminal",
-				title: terminalVisible ? "Show terminal" : "Open terminal",
+				title: "Terminal",
 				detail: "Open the terminal dock",
 				kind: "terminal",
 				run: showTerminal,
@@ -875,22 +879,8 @@ export const DashboardLayout = memo(function DashboardLayout({
 				run: setInspectorVisible,
 			},
 			{
-				id: "settings:toggle-goal-mode",
-				title: codexThreadCommandLabels.goal,
-				detail: goalMode
-					? "Composer will send normal prompts"
-					: "Composer will start or continue a goal",
-				kind: "settingsItem",
-				settingsGroupId: "panel",
-				icon: "goal",
-				disabled: !goalMode && !canUseGoalMode,
-				disabledDetail:
-					"Select a session or working directory before using goal mode",
-				run: () => onGoalModeChange(!goalMode),
-			},
-			{
 				id: "settings:toggle-theme",
-				title: themeMode === "day" ? "Use dark mode" : "Use day mode",
+				title: "Theme",
 				detail: `Current appearance ${themeModeLabels[themeMode]}`,
 				kind: "settingsItem",
 				settingsGroupId: "panel",
@@ -899,9 +889,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 			},
 			{
 				id: "settings:toggle-wrap",
-				title: wrapSessionContent
-					? "Disable transcript wrap"
-					: "Enable transcript wrap",
+				title: "Wrap",
 				detail: wrapSessionContent
 					? "Long transcript lines will scroll horizontally"
 					: "Long transcript lines will wrap",
@@ -912,7 +900,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 			},
 			{
 				id: "settings:reset-scale",
-				title: "Reset content scale",
+				title: "Scale",
 				detail: `Return to ${formatDisplayScale(displayScaleConfig.defaultValue)}`,
 				kind: "settingsItem",
 				settingsGroupId: "panel",
@@ -923,7 +911,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 			},
 			{
 				id: "settings:toggle-fullscreen",
-				title: isFullscreen ? "Exit full screen" : "Enter full screen",
+				title: "Fullscreen",
 				detail: "Use the whole browser viewport",
 				kind: "settingsItem",
 				settingsGroupId: "panel",
@@ -932,12 +920,105 @@ export const DashboardLayout = memo(function DashboardLayout({
 				disabledDetail: "Full screen is not available in this browser",
 				run: toggleFullscreen,
 			},
+			{
+				id: "slash:root",
+				title: "/",
+				detail: "Jump to the composer input",
+				kind: "slashGroup",
+				slashGroupId: "root",
+				run: focusPrompt,
+			},
+			{
+				id: "slash:archive",
+				title: codexThreadCommandLabels.archive,
+				detail: "Archive the current chat",
+				kind: "slashItem",
+				slashGroupId: "root",
+				icon: "archive",
+				disabled: !canArchive,
+				disabledDetail: "Select an idle session before archiving",
+				run: onArchive,
+			},
+			{
+				id: "slash:compact",
+				title: codexThreadCommandLabels.compact,
+				detail: "Summarize conversation to prevent hitting the context limit",
+				kind: "slashItem",
+				slashGroupId: "root",
+				icon: "compact",
+				disabled: !canCompact,
+				disabledDetail: "Select an idle session before compacting",
+				run: onCompact,
+			},
+			{
+				id: "slash:interrupt",
+				title: codexThreadCommandLabels.interrupt,
+				detail: "Interrupt the active turn",
+				kind: "slashItem",
+				slashGroupId: "root",
+				icon: "interrupt",
+				disabled: !canInterrupt,
+				disabledDetail: "No active turn is running",
+				run: onInterrupt,
+			},
+			{
+				id: "slash:fork",
+				title: codexThreadCommandLabels.fork,
+				detail: "Fork the current chat",
+				kind: "slashItem",
+				slashGroupId: "root",
+				icon: "fork",
+				disabled: !canFork,
+				disabledDetail: "Select a session before forking",
+				run: onFork,
+			},
+			{
+				id: "slash:goal",
+				title: codexThreadCommandLabels.goal,
+				detail: goalMode
+					? "Composer will send normal prompts"
+					: "Composer will start or continue a goal",
+				kind: "slashItem",
+				slashGroupId: "root",
+				icon: "goal",
+				disabled: !goalMode && !canUseGoalMode,
+				disabledDetail:
+					"Select a session or working directory before using goal mode",
+				run: () => onGoalModeChange(!goalMode),
+			},
+			{
+				id: "slash:new",
+				title: codexThreadCommandLabels.new,
+				detail: "Start a fresh Codex app-server session",
+				kind: "slashItem",
+				slashGroupId: "root",
+				icon: "new",
+				run: createSessionAndFocusPrompt,
+			},
+			{
+				id: "slash:resume",
+				title: codexThreadCommandLabels.resume,
+				detail: "Resume a saved chat",
+				kind: "slashItem",
+				slashGroupId: "root",
+				icon: "resume",
+				disabled: !canResume,
+				disabledDetail: "Select an idle session before resuming",
+				run: onResume,
+			},
+			{
+				id: "toggle-navigator",
+				title: "Sessions",
+				detail: "Open the project and session list",
+				kind: "navigator",
+				run: setNavigatorVisible,
+			},
 		];
 
 		for (const project of projects) {
 			actions.push({
 				id: `project:${project.id}`,
-				title: `Switch to ${project.name}`,
+				title: project.name,
 				detail: project.path,
 				kind: "project",
 				projectId: project.id,
@@ -968,9 +1049,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 		fullscreenSupported,
 		goalMode,
 		inspectorVisible,
-		isFullscreen,
 		navigatorVisible,
-		terminalVisible,
 		themeMode,
 		toggleFullscreen,
 		wrapSessionContent,
