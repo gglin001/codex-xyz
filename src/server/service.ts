@@ -293,6 +293,9 @@ export class ControlService {
 		if (source.activeTurnId || source.status === "active") {
 			throw new Error("Archive requires an idle thread");
 		}
+		if (source.status === "not_loaded") {
+			return this.projection.archiveThread(threadId);
+		}
 		await this.withRuntimeThread(source, (runtimeThread) =>
 			this.adapter.archiveThread(runtimeThread.id),
 		);

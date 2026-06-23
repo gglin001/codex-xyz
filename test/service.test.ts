@@ -989,6 +989,62 @@ describe("ControlService", () => {
 		).toBe(true);
 	});
 
+	it("archives not-loaded app-server threads without resuming them", async () => {
+		await service.close();
+		const adapter = new VolatileCodexAdapter();
+		service = new ControlService(
+			Store.open(join(tempDir, "volatile-archive.sqlite")),
+			adapter,
+		);
+		service.seedLocalState({
+			cwd: tempDir,
+			adapterName: adapter.name,
+			cliVersion: adapter.version,
+		});
+
+		const result = await service.createSession({
+			cwd: tempDir,
+			prompt: "Archive after runtime disappears",
+		});
+		await waitForEvents();
+
+		const threadId = result.thread?.id;
+		if (!threadId) {
+			throw new Error("Expected created thread id");
+		}
+
+		adapter.forgetThread(threadId);
+		await expect(service.resumeThread(threadId)).rejects.toThrow(
+			/is not loaded by Codex and could not be resumed/,
+		);
+
+		const archived = await service.archiveThread(threadId);
+		if (!archived) {
+			throw new Error("Expected archived thread");
+		}
+		const archivedPage = service.listThreadPage({
+			archived: true,
+			limit: 10,
+			offset: 0,
+		});
+
+		expect(archived).toMatchObject({
+			id: threadId,
+			status: "not_loaded",
+			activeTurnId: null,
+			archivedAt: expect.any(String),
+		});
+		expect(service.listThreads()).toEqual([]);
+		expect(archivedPage.totalCount).toBe(1);
+		expect(archivedPage.threads).toMatchObject([
+			{
+				id: threadId,
+				status: "not_loaded",
+				archivedAt: archived.archivedAt,
+			},
+		]);
+	});
+
 	it("forks from persisted history when the runtime thread is missing", async () => {
 		await service.close();
 		const adapter = new VolatileCodexAdapter();
