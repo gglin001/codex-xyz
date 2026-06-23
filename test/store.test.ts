@@ -33,13 +33,13 @@ function createUnversionedDatabase(filePath: string) {
 function createDatabaseWithVersion(filePath: string, version: string) {
 	const db = new DatabaseSync(filePath);
 	db.exec(`
-    CREATE TABLE database_metadata (
+    CREATE TABLE metadata (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
   `);
-	db.prepare("INSERT INTO database_metadata (key, value) VALUES (?, ?)").run(
-		"database_version",
+	db.prepare("INSERT INTO metadata (key, value) VALUES (?, ?)").run(
+		"version",
 		version,
 	);
 	db.close();
@@ -50,7 +50,7 @@ function threadFixture(id: string): ControlThread {
 		id,
 		sessionId: id,
 		forkedFromId: null,
-		title: `Thread ${id}`,
+		name: `Thread ${id}`,
 		preview: "Preview",
 		cwd: tempDir,
 		model: "test-model",
@@ -74,8 +74,8 @@ describe("store database version", () => {
 		try {
 			const db = new DatabaseSync(filePath);
 			const row = db
-				.prepare("SELECT value FROM database_metadata WHERE key = ?")
-				.get("database_version") as { value?: unknown } | undefined;
+				.prepare("SELECT value FROM metadata WHERE key = ?")
+				.get("version") as { value?: unknown } | undefined;
 			db.close();
 			expect(row?.value).toBe(currentDatabaseVersion);
 		} finally {
@@ -102,11 +102,11 @@ describe("store database version", () => {
 	});
 
 	it("rejects previous-version databases", () => {
-		const filePath = join(tempDir, "v3.sqlite");
-		createDatabaseWithVersion(filePath, "v3");
+		const filePath = join(tempDir, "v4.sqlite");
+		createDatabaseWithVersion(filePath, "v4");
 
 		expect(() => Store.open(filePath)).toThrow(
-			`Unsupported database version "v3"; expected "${currentDatabaseVersion}"`,
+			`Unsupported database version "v4"; expected "${currentDatabaseVersion}"`,
 		);
 	});
 

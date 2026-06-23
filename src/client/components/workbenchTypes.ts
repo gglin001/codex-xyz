@@ -16,7 +16,7 @@ export type WorkbenchThread = {
 	threadId: string;
 	sessionId: string;
 	forkedFromId: string | null;
-	title: string;
+	name: string;
 	preview: string;
 	cwd: string;
 	model: string | null;

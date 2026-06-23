@@ -163,6 +163,14 @@ function createV3Database(filePath: string) {
 		"2026-06-13T00:00:00.000Z",
 	);
 	insertEvent.run(
+		"thread.renamed",
+		"thread-1",
+		null,
+		1,
+		'{"title":"Thread renamed","thread":{"id":"thread-1"}}',
+		"2026-06-13T00:00:00.050Z",
+	);
+	insertEvent.run(
 		"item.delta",
 		"thread-1",
 		"turn-1",
@@ -189,20 +197,28 @@ function createV3Database(filePath: string) {
 	db.close();
 }
 
-describe("v3 to v4 migration", () => {
-	it("compacts item event payloads and produces a current database", () => {
+describe("database migrations", () => {
+	it("upgrades v3 databases through v5", () => {
 		const filePath = join(tempDir, "coz.sqlite");
 		createV3Database(filePath);
 
 		execFileSync(process.execPath, ["scripts/upgrade-v3-to-v4.mjs", filePath], {
 			stdio: "pipe",
 		});
+		execFileSync(process.execPath, ["scripts/upgrade-v4-to-v5.mjs", filePath], {
+			stdio: "pipe",
+		});
 
 		const db = new DatabaseSync(filePath);
 		try {
 			const version = db
-				.prepare("SELECT value FROM database_metadata WHERE key = ?")
-				.get("database_version") as { value?: unknown } | undefined;
+				.prepare("SELECT value FROM metadata WHERE key = ?")
+				.get("version") as { value?: unknown } | undefined;
+			const legacyMetadata = db
+				.prepare(
+					"SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+				)
+				.get("database_metadata") as { name?: unknown } | undefined;
 			const events = db
 				.prepare(
 					"SELECT type, is_summary, payload_json, payload_bytes FROM events ORDER BY id",
@@ -218,14 +234,28 @@ describe("v3 to v4 migration", () => {
 				.get("item-1") as
 				| { text: string; text_length: number; updated_at: string }
 				| undefined;
+			const thread = db
+				.prepare("SELECT name FROM threads WHERE id = ?")
+				.get("thread-1") as { name?: unknown } | undefined;
+			const host = db
+				.prepare("SELECT runtime FROM hosts WHERE id = ?")
+				.get("local") as { runtime?: unknown } | undefined;
 
 			expect(version?.value).toBe(currentDatabaseVersion);
+			expect(legacyMetadata).toBeUndefined();
+			expect(thread?.name).toBe("Thread 1");
+			expect(host?.runtime).toBe("test");
 			expect(events.map((event) => event.type)).toEqual([
 				"thread.started",
+				"thread.name.updated",
 				"item.updated",
 			]);
-			expect(events[1]?.payload_json).not.toContain("Hello world");
 			expect(JSON.parse(events[1]?.payload_json ?? "{}")).toEqual({
+				name: "Thread renamed",
+				thread: { id: "thread-1" },
+			});
+			expect(events[2]?.payload_json).not.toContain("Hello world");
+			expect(JSON.parse(events[2]?.payload_json ?? "{}")).toEqual({
 				itemRef: {
 					id: "item-1",
 					threadId: "thread-1",
@@ -235,8 +265,8 @@ describe("v3 to v4 migration", () => {
 					createdAt: "2026-06-13T00:00:00.000Z",
 				},
 			});
-			expect(events[1]?.payload_bytes).toBe(
-				Buffer.byteLength(events[1]?.payload_json ?? "", "utf8"),
+			expect(events[2]?.payload_bytes).toBe(
+				Buffer.byteLength(events[2]?.payload_json ?? "", "utf8"),
 			);
 			expect(item).toEqual({
 				text: "Hello world",

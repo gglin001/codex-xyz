@@ -116,7 +116,7 @@ type ComposerHandle = {
 
 type ChatMessage = {
 	id: string;
-	title: string;
+	name: string;
 	text: string;
 	copyText: string;
 	time: string;
@@ -148,7 +148,7 @@ function messageFromItem(item: ThreadItem): ChatMessage {
 	const fallbackText = item.text || "Pending...";
 	return {
 		id: item.id,
-		title: itemTitle(item),
+		name: itemTitle(item),
 		text: fallbackText,
 		copyText: fallbackText,
 		time: item.createdAt,
@@ -169,21 +169,21 @@ function messageMeta(message: ChatMessage) {
 }
 
 function messageCardTitle(message: ChatMessage) {
-	if (message.title === "User" || message.title === "Steer") {
+	if (message.name === "User" || message.name === "Steer") {
 		return "Prompt";
 	}
-	if (message.title === "Codex") {
+	if (message.name === "Codex") {
 		return "Response";
 	}
-	return message.title;
+	return message.name;
 }
 
 function messageSurfaceClass(message: ChatMessage) {
-	const title = messageCardTitle(message);
-	if (title === "Prompt") {
+	const name = messageCardTitle(message);
+	if (name === "Prompt") {
 		return "border-accent-soft bg-selected/35";
 	}
-	if (title === "Response") {
+	if (name === "Response") {
 		return "border-border bg-detail/70";
 	}
 	return "border-border bg-app-bg/60";
@@ -344,7 +344,7 @@ const ProcessItemBlock = memo(function ProcessItemBlock({
 
 	return (
 		<CollapsibleCard
-			title={message.title}
+			title={message.name}
 			expanded={expanded}
 			onToggle={() => setExpanded((current) => !current)}
 			meta={headerMeta(messageMeta(message))}
@@ -877,8 +877,8 @@ export const Workspace = memo(
 			() => transcriptEntriesFromDetail(detail),
 			[detail],
 		);
-		const title =
-			selectedThread?.title ?? threadSummary?.title ?? "New Codex thread";
+		const name =
+			selectedThread?.name ?? threadSummary?.name ?? "New Codex thread";
 		const subtitle =
 			selectedThread?.cwd ??
 			threadSummary?.cwd ??
@@ -1005,7 +1005,7 @@ export const Workspace = memo(
 						</LargeIconButton>
 						<div className="grid min-w-0 gap-0.5">
 							<h1 className="truncate text-[15px] font-semibold leading-5 text-fg-strong">
-								{title}
+								{name}
 							</h1>
 							<div className="flex min-w-0 items-center gap-2 text-[11px] leading-4 text-muted">
 								<span className="truncate">{subtitle}</span>

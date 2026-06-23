@@ -21,7 +21,7 @@ function thread(overrides: Partial<ControlThread> = {}): ControlThread {
 		id: "thread-1",
 		sessionId: "session-1",
 		forkedFromId: null,
-		title: "Improve the console",
+		name: "Improve the console",
 		preview: "Initial prompt",
 		cwd: "/tmp/coz",
 		model: "gpt-test",

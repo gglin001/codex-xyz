@@ -4,10 +4,10 @@
 
 - Support real Codex app-server threads as the runtime path.
 - Support yolo mode only for Codex threads.
-- Keep approval policy fixed to `never` and sandbox access fixed to full access at the adapter boundary.
+- Keep approval policy fixed to `never` and sandbox access fixed to full access at the Codex runtime boundary.
 - Keep runtime mode decisions centralized in `src/server/codex/`.
 - Keep app-server initialization opted into `capabilities.experimentalApi` because this project intentionally uses experimental app-server fields such as `thread/resume.excludeTurns`.
-- Use test-only adapters under `test/` for deterministic service and HTTP coverage.
+- Use test-only runtimes under `test/` for deterministic service and HTTP coverage.
 - Keep local runtime state in `.coz/` or another explicit data directory.
 
 ## UI Architecture

@@ -8,17 +8,18 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import type { AdapterEvent } from "../src/server/codex/adapter.js";
-import { AppServerCodexAdapter } from "../src/server/codex/appServerAdapter.js";
+import { AppServerRuntime } from "../src/server/codex/appServerRuntime.js";
+import type { RuntimeEvent } from "../src/server/codex/runtimePort.js";
 
 let tempDir: string | null = null;
-let adapter: AppServerCodexAdapter | null = null;
+let runtime: AppServerRuntime | null = null;
 const sourceThreadId = "00000000-0000-4000-8000-000000000001";
 const debugThreadId = "00000000-0000-4000-8000-000000000002";
 const forkThreadId = "00000000-0000-4000-8000-000000000003";
 const turnId = "turn_00000000-0000-4000-8000-000000000004";
 const goalTurnId = "turn_goal_00000000-0000-4000-8000-000000000005";
 const compactTurnId = "turn_compact_00000000-0000-4000-8000-000000000006";
+const startThreadId = "00000000-0000-4000-8000-000000000007";
 
 function createFakeCodexCommand() {
 	tempDir = mkdtempSync(join(tmpdir(), "coz-app-server-"));
@@ -61,6 +62,23 @@ function handle(message, state) {
   }
 
   if (message.method === "initialized") {
+    return
+  }
+
+  if (message.method === "thread/start") {
+    respond(message.id, {
+      thread: {
+        id: "thread_${startThreadId}",
+        sessionId: "${startThreadId}",
+        forkedFromId: null,
+        preview: "started without turns",
+        cwd: message.params.cwd,
+        model: message.params.model,
+        status: { type: "idle" },
+        updatedAt: 1700000200
+      },
+      model: message.params.model
+    })
     return
   }
 
@@ -597,8 +615,8 @@ async function stopFakePersistentAppServer() {
 }
 
 afterEach(async () => {
-	await adapter?.close();
-	adapter = null;
+	await runtime?.close();
+	runtime = null;
 	await stopFakePersistentAppServer();
 	if (tempDir) {
 		rmSync(tempDir, { recursive: true, force: true });
@@ -606,13 +624,13 @@ afterEach(async () => {
 	}
 });
 
-describe("AppServerCodexAdapter", () => {
-	it("reuses the persistent app-server across adapter instances", async () => {
+describe("AppServerRuntime", () => {
+	it("reuses the persistent app-server across runtime instances", async () => {
 		const command = createFakeCodexCommand();
 		const options = appServerOptions();
-		adapter = new AppServerCodexAdapter(command, options);
+		runtime = new AppServerRuntime(command, options);
 
-		const firstThread = await adapter.resumeThread({
+		const firstThread = await runtime.resumeThread({
 			threadId: sourceThreadId,
 			cwd: process.cwd(),
 			model: "test-model",
@@ -622,10 +640,10 @@ describe("AppServerCodexAdapter", () => {
 		expect(firstThread.id).toBe(sourceThreadId);
 		expect(firstPid).toEqual(expect.any(Number));
 
-		await adapter.close();
-		adapter = new AppServerCodexAdapter(command, options);
+		await runtime.close();
+		runtime = new AppServerRuntime(command, options);
 
-		const secondThread = await adapter.resumeThread({
+		const secondThread = await runtime.resumeThread({
 			threadId: debugThreadId,
 			cwd: process.cwd(),
 			model: "test-model",
@@ -637,18 +655,18 @@ describe("AppServerCodexAdapter", () => {
 
 	it("restarts the persistent app-server and reconnects the socket", async () => {
 		const command = createFakeCodexCommand();
-		adapter = new AppServerCodexAdapter(command, appServerOptions());
+		runtime = new AppServerRuntime(command, appServerOptions());
 
-		await adapter.resumeThread({
+		await runtime.resumeThread({
 			threadId: sourceThreadId,
 			cwd: process.cwd(),
 			model: "test-model",
 		});
 		const firstPid = readAppServerPid();
 
-		const result = await adapter.restartAppServer();
+		const result = await runtime.restartAppServer();
 		const secondPid = readAppServerPid();
-		const thread = await adapter.resumeThread({
+		const thread = await runtime.resumeThread({
 			threadId: debugThreadId,
 			cwd: process.cwd(),
 			model: "test-model",
@@ -667,9 +685,9 @@ describe("AppServerCodexAdapter", () => {
 
 	it("opts into experimental fields before resuming without turns", async () => {
 		const command = createFakeCodexCommand();
-		adapter = new AppServerCodexAdapter(command, appServerOptions());
+		runtime = new AppServerRuntime(command, appServerOptions());
 
-		const thread = await adapter.resumeThread({
+		const thread = await runtime.resumeThread({
 			threadId: sourceThreadId,
 			cwd: process.cwd(),
 			model: "test-model",
@@ -683,35 +701,68 @@ describe("AppServerCodexAdapter", () => {
 		});
 	});
 
+	it("sets the initial app-server thread name after starting", async () => {
+		const command = createFakeCodexCommand();
+		runtime = new AppServerRuntime(command, appServerOptions());
+		const events: RuntimeEvent[] = [];
+		runtime.onEvent((event) => events.push(event));
+
+		const thread = await runtime.startThread({
+			cwd: process.cwd(),
+			name: "Named start",
+			preview: "Local prompt preview",
+			model: "test-model",
+		});
+		await new Promise((resolve) => setTimeout(resolve, 20));
+
+		expect(thread).toMatchObject({
+			id: startThreadId,
+			name: "Named start",
+			preview: "started without turns",
+			model: "test-model",
+		});
+		expect(events).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					type: "thread.name.updated",
+					threadId: startThreadId,
+					name: "Named start",
+				}),
+			]),
+		);
+	});
+
 	it("normalizes app-server thread ids before callers reuse them", async () => {
 		const command = createFakeCodexCommand();
-		adapter = new AppServerCodexAdapter(command, appServerOptions());
+		runtime = new AppServerRuntime(command, appServerOptions());
 
-		const source = await adapter.resumeThread({
+		const source = await runtime.resumeThread({
 			threadId: sourceThreadId,
 			cwd: process.cwd(),
 			model: "test-model",
 		});
-		const fork = await adapter.forkThread({
+		const fork = await runtime.forkThread({
 			sourceThreadId: source.id,
 			cwd: process.cwd(),
+			name: "Named fork",
 			model: "test-model",
 		});
 
 		expect(fork).toMatchObject({
 			id: forkThreadId,
 			forkedFromId: sourceThreadId,
+			name: "Named fork",
 			preview: "forked without turns",
 		});
 	});
 
 	it("archives threads through app-server and projects archive notifications", async () => {
 		const command = createFakeCodexCommand();
-		adapter = new AppServerCodexAdapter(command, appServerOptions());
-		const events: AdapterEvent[] = [];
-		adapter.onEvent((event) => events.push(event));
+		runtime = new AppServerRuntime(command, appServerOptions());
+		const events: RuntimeEvent[] = [];
+		runtime.onEvent((event) => events.push(event));
 
-		await adapter.archiveThread(sourceThreadId);
+		await runtime.archiveThread(sourceThreadId);
 		await new Promise((resolve) => setTimeout(resolve, 20));
 
 		expect(events).toEqual([
@@ -725,7 +776,7 @@ describe("AppServerCodexAdapter", () => {
 	it("writes app-server protocol debug records as JSON lines", async () => {
 		const command = createFakeCodexCommand();
 		const debugLogPath = join(tempDir as string, ".coz", "debug.jsonl");
-		adapter = new AppServerCodexAdapter(
+		runtime = new AppServerRuntime(
 			command,
 			appServerOptions({
 				debugLogPath,
@@ -733,7 +784,7 @@ describe("AppServerCodexAdapter", () => {
 			}),
 		);
 
-		await adapter.resumeThread({
+		await runtime.resumeThread({
 			threadId: debugThreadId,
 			cwd: process.cwd(),
 			model: "test-model",
@@ -781,7 +832,7 @@ describe("AppServerCodexAdapter", () => {
 	it("limits level 1 logs to operational records", async () => {
 		const command = createFakeCodexCommand();
 		const debugLogPath = join(tempDir as string, ".coz", "debug.jsonl");
-		adapter = new AppServerCodexAdapter(
+		runtime = new AppServerRuntime(
 			command,
 			appServerOptions({
 				debugLogPath,
@@ -789,7 +840,7 @@ describe("AppServerCodexAdapter", () => {
 			}),
 		);
 
-		await adapter.startTurn({
+		await runtime.startTurn({
 			threadId: debugThreadId,
 			prompt: "Exercise basic logging",
 		});
@@ -811,7 +862,7 @@ describe("AppServerCodexAdapter", () => {
 	it("keeps high-volume stream deltas out of level 2 protocol logs", async () => {
 		const command = createFakeCodexCommand();
 		const debugLogPath = join(tempDir as string, ".coz", "debug.jsonl");
-		adapter = new AppServerCodexAdapter(
+		runtime = new AppServerRuntime(
 			command,
 			appServerOptions({
 				debugLogPath,
@@ -819,7 +870,7 @@ describe("AppServerCodexAdapter", () => {
 			}),
 		);
 
-		await adapter.startTurn({
+		await runtime.startTurn({
 			threadId: debugThreadId,
 			prompt: "Exercise stream logging",
 		});
@@ -836,7 +887,7 @@ describe("AppServerCodexAdapter", () => {
 	it("writes high-volume stream deltas in level 3 protocol logs", async () => {
 		const command = createFakeCodexCommand();
 		const debugLogPath = join(tempDir as string, ".coz", "debug.jsonl");
-		adapter = new AppServerCodexAdapter(
+		runtime = new AppServerRuntime(
 			command,
 			appServerOptions({
 				debugLogPath,
@@ -844,7 +895,7 @@ describe("AppServerCodexAdapter", () => {
 			}),
 		);
 
-		await adapter.startTurn({
+		await runtime.startTurn({
 			threadId: debugThreadId,
 			prompt: "Exercise verbose stream logging",
 		});
@@ -867,20 +918,20 @@ describe("AppServerCodexAdapter", () => {
 
 	it("normalizes app-server session control notifications", async () => {
 		const command = createFakeCodexCommand();
-		adapter = new AppServerCodexAdapter(command, appServerOptions());
-		const events: AdapterEvent[] = [];
-		adapter.onEvent((event) => events.push(event));
+		runtime = new AppServerRuntime(command, appServerOptions());
+		const events: RuntimeEvent[] = [];
+		runtime.onEvent((event) => events.push(event));
 
-		const thread = await adapter.resumeThread({
+		const thread = await runtime.resumeThread({
 			threadId: sourceThreadId,
 			cwd: process.cwd(),
 			model: "test-model",
 		});
-		await adapter.renameThread({
+		await runtime.setThreadName({
 			threadId: thread.id,
-			title: "Control surface",
+			name: "Control surface",
 		});
-		const turn = await adapter.startTurn({
+		const turn = await runtime.startTurn({
 			threadId: thread.id,
 			prompt: "Exercise controls",
 		});
@@ -893,9 +944,9 @@ describe("AppServerCodexAdapter", () => {
 		expect(events).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
-					type: "thread.renamed",
+					type: "thread.name.updated",
 					threadId: thread.id,
-					title: "Control surface",
+					name: "Control surface",
 				}),
 				expect.objectContaining({
 					type: "item.created",
@@ -940,11 +991,11 @@ describe("AppServerCodexAdapter", () => {
 
 	it("starts goal mode by waiting for the app-server automatic turn", async () => {
 		const command = createFakeCodexCommand();
-		const events: AdapterEvent[] = [];
-		adapter = new AppServerCodexAdapter(command, appServerOptions());
-		adapter.onEvent((event) => events.push(event));
+		const events: RuntimeEvent[] = [];
+		runtime = new AppServerRuntime(command, appServerOptions());
+		runtime.onEvent((event) => events.push(event));
 
-		const result = await adapter.startGoal({
+		const result = await runtime.startGoal({
 			threadId: sourceThreadId,
 			objective: "Finish the automatic goal flow",
 			tokenBudget: 2048,
@@ -980,11 +1031,11 @@ describe("AppServerCodexAdapter", () => {
 
 	it("updates goal status without starting a goal turn", async () => {
 		const command = createFakeCodexCommand();
-		const events: AdapterEvent[] = [];
-		adapter = new AppServerCodexAdapter(command, appServerOptions());
-		adapter.onEvent((event) => events.push(event));
+		const events: RuntimeEvent[] = [];
+		runtime = new AppServerRuntime(command, appServerOptions());
+		runtime.onEvent((event) => events.push(event));
 
-		const goal = await adapter.setGoalStatus({
+		const goal = await runtime.setGoalStatus({
 			threadId: sourceThreadId,
 			status: "paused",
 		});
@@ -1011,11 +1062,11 @@ describe("AppServerCodexAdapter", () => {
 
 	it("starts thread compaction through app-server and projects context item", async () => {
 		const command = createFakeCodexCommand();
-		const events: AdapterEvent[] = [];
-		adapter = new AppServerCodexAdapter(command, appServerOptions());
-		adapter.onEvent((event) => events.push(event));
+		const events: RuntimeEvent[] = [];
+		runtime = new AppServerRuntime(command, appServerOptions());
+		runtime.onEvent((event) => events.push(event));
 
-		const turn = await adapter.compactThread({ threadId: sourceThreadId });
+		const turn = await runtime.compactThread({ threadId: sourceThreadId });
 		await new Promise((resolve) => setTimeout(resolve, 20));
 
 		expect(turn).toMatchObject({
@@ -1051,11 +1102,11 @@ describe("AppServerCodexAdapter", () => {
 
 	it("runs thread shell commands through app-server and projects command output", async () => {
 		const command = createFakeCodexCommand();
-		const events: AdapterEvent[] = [];
-		adapter = new AppServerCodexAdapter(command, appServerOptions());
-		adapter.onEvent((event) => events.push(event));
+		const events: RuntimeEvent[] = [];
+		runtime = new AppServerRuntime(command, appServerOptions());
+		runtime.onEvent((event) => events.push(event));
 
-		const turn = await adapter.runShellCommand({
+		const turn = await runtime.runShellCommand({
 			threadId: sourceThreadId,
 			command: "pwd",
 		});

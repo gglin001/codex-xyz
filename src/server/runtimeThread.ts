@@ -1,4 +1,4 @@
-import { isAdapterThreadNotFoundError } from "./codex/adapter.js";
+import { isRuntimeThreadNotFoundError } from "./codex/runtimePort.js";
 import type { ControlThread } from "./domain.js";
 
 export type RuntimeForkInput = {
@@ -39,7 +39,7 @@ export class RuntimeThreadCoordinator {
 				value: await action(thread),
 			};
 		} catch (error) {
-			if (!isAdapterThreadNotFoundError(error)) {
+			if (!isRuntimeThreadNotFoundError(error)) {
 				throw error;
 			}
 		}
@@ -54,7 +54,7 @@ export class RuntimeThreadCoordinator {
 					value: await action(resumedThread),
 				};
 			} catch (error) {
-				if (!isAdapterThreadNotFoundError(error)) {
+				if (!isRuntimeThreadNotFoundError(error)) {
 					throw error;
 				}
 				if (!options.fork) {

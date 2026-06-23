@@ -14,20 +14,6 @@ import {
 import { createConnection } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import WebSocket from "ws";
-import type {
-	AdapterEvent,
-	AdapterEventHandler,
-	AdapterThread,
-	AdapterTurn,
-	CodexAdapter,
-	CodexAppServerRestartResult,
-	CompactThreadInput,
-	ForkThreadInput,
-	ResumeThreadInput,
-	RunShellCommandInput,
-	StartThreadInput,
-	StartTurnAdapterInput,
-} from "./adapter.js";
 import {
 	type AppServerDebugLogLevel,
 	appServerInitializeParams,
@@ -50,6 +36,20 @@ import {
 	yoloThreadOptions,
 	yoloTurnOptions,
 } from "./appServerProtocol.js";
+import type {
+	CodexAppServerRestartResult,
+	CodexRuntime,
+	CompactThreadInput,
+	ForkThreadInput,
+	ResumeThreadInput,
+	RunShellCommandInput,
+	RuntimeEvent,
+	RuntimeEventHandler,
+	RuntimeThreadSnapshot,
+	RuntimeTurnSnapshot,
+	StartRuntimeTurnInput,
+	StartThreadInput,
+} from "./runtimePort.js";
 
 type PendingRequest = {
 	resolve: (value: unknown) => void;
@@ -61,17 +61,17 @@ type PendingRequest = {
 
 type PendingTurnStart = {
 	prompt: string;
-	resolve: (turn: AdapterTurn) => void;
+	resolve: (turn: RuntimeTurnSnapshot) => void;
 	reject: (error: Error) => void;
 	timeout: NodeJS.Timeout;
 };
 
 type PendingTurnStartHandle = {
-	promise: Promise<AdapterTurn>;
+	promise: Promise<RuntimeTurnSnapshot>;
 	cancel: (error: Error) => void;
 };
 
-export type AppServerCodexAdapterOptions = {
+export type AppServerRuntimeOptions = {
 	dataDir: string;
 	debugLogPath?: string | null;
 	debugLogLevel?: number | null;
@@ -138,21 +138,21 @@ class AppServerDebugLogger {
 	}
 }
 
-export class AppServerCodexAdapter implements CodexAdapter {
+export class AppServerRuntime implements CodexRuntime {
 	readonly name = "app-server";
 	readonly version: string | null = null;
 	private connection: WebSocket | null = null;
 	private nextId = 1;
 	private readonly pending = new Map<number | string, PendingRequest>();
 	private readonly pendingTurnStarts = new Map<string, PendingTurnStart[]>();
-	private eventHandler: AdapterEventHandler = () => {};
+	private eventHandler: RuntimeEventHandler = () => {};
 	private initialized = false;
 	private readonly debugLogger: AppServerDebugLogger | null;
 	private readonly persistent: AppServerPersistentTransportOptions;
 
 	constructor(
 		private readonly command = process.env.COZ_CODEX_BIN ?? "codex",
-		options: AppServerCodexAdapterOptions,
+		options: AppServerRuntimeOptions,
 	) {
 		const dataDir = resolve(options.dataDir);
 		this.persistent = {
@@ -171,11 +171,11 @@ export class AppServerCodexAdapter implements CodexAdapter {
 				: null;
 	}
 
-	onEvent(handler: AdapterEventHandler) {
+	onEvent(handler: RuntimeEventHandler) {
 		this.eventHandler = handler;
 	}
 
-	async startThread(input: StartThreadInput): Promise<AdapterThread> {
+	async startThread(input: StartThreadInput): Promise<RuntimeThreadSnapshot> {
 		const result = asRecord(
 			await this.request("thread/start", {
 				cwd: input.cwd,
@@ -185,10 +185,11 @@ export class AppServerCodexAdapter implements CodexAdapter {
 				...yoloThreadOptions,
 			}),
 		);
-		return normalizeThread(result.thread, result.model);
+		const thread = normalizeThread(result.thread, result.model);
+		return this.applyInitialThreadName(thread, input.name);
 	}
 
-	async resumeThread(input: ResumeThreadInput): Promise<AdapterThread> {
+	async resumeThread(input: ResumeThreadInput): Promise<RuntimeThreadSnapshot> {
 		const result = asRecord(
 			await this.request("thread/resume", {
 				threadId: input.threadId,
@@ -201,7 +202,7 @@ export class AppServerCodexAdapter implements CodexAdapter {
 		return normalizeThread(result.thread, result.model);
 	}
 
-	async startTurn(input: StartTurnAdapterInput): Promise<AdapterTurn> {
+	async startTurn(input: StartRuntimeTurnInput): Promise<RuntimeTurnSnapshot> {
 		const result = asRecord(
 			await this.request("turn/start", {
 				threadId: input.threadId,
@@ -213,7 +214,9 @@ export class AppServerCodexAdapter implements CodexAdapter {
 		return normalizeTurn(result.turn);
 	}
 
-	async runShellCommand(input: RunShellCommandInput): Promise<AdapterTurn> {
+	async runShellCommand(
+		input: RunShellCommandInput,
+	): Promise<RuntimeTurnSnapshot> {
 		const command = input.command.trim();
 		if (!command) {
 			throw new Error("Shell command must not be empty");
@@ -249,7 +252,7 @@ export class AppServerCodexAdapter implements CodexAdapter {
 		}
 	}
 
-	async compactThread(input: CompactThreadInput): Promise<AdapterTurn> {
+	async compactThread(input: CompactThreadInput): Promise<RuntimeTurnSnapshot> {
 		const turnStarted = this.waitForTurnStart(
 			input.threadId,
 			"/compact",
@@ -283,7 +286,7 @@ export class AppServerCodexAdapter implements CodexAdapter {
 		});
 	}
 
-	async forkThread(input: ForkThreadInput): Promise<AdapterThread> {
+	async forkThread(input: ForkThreadInput): Promise<RuntimeThreadSnapshot> {
 		const result = asRecord(
 			await this.request("thread/fork", {
 				threadId: input.sourceThreadId,
@@ -293,18 +296,37 @@ export class AppServerCodexAdapter implements CodexAdapter {
 				...yoloThreadOptions,
 			}),
 		);
-		return normalizeThread(result.thread, result.model);
+		const thread = normalizeThread(result.thread, result.model);
+		return this.applyInitialThreadName(thread, input.name);
 	}
 
 	async archiveThread(threadId: string) {
 		await this.request("thread/archive", { threadId });
 	}
 
-	async renameThread(input: { threadId: string; title: string }) {
+	async setThreadName(input: { threadId: string; name: string }) {
 		await this.request("thread/name/set", {
 			threadId: input.threadId,
-			name: input.title,
+			name: input.name,
 		});
+	}
+
+	private async applyInitialThreadName(
+		thread: RuntimeThreadSnapshot,
+		name?: string | null,
+	) {
+		const normalizedName = name?.trim();
+		if (!normalizedName || thread.name === normalizedName) {
+			return thread;
+		}
+		await this.setThreadName({
+			threadId: thread.id,
+			name: normalizedName,
+		});
+		return {
+			...thread,
+			name: normalizedName,
+		};
 	}
 
 	async setGoal(input: {
@@ -370,7 +392,7 @@ export class AppServerCodexAdapter implements CodexAdapter {
 	}
 
 	async restartAppServer(): Promise<CodexAppServerRestartResult> {
-		await this.disconnectConnection("app-server adapter restarting");
+		await this.disconnectConnection("app-server runtime restarting");
 		await this.stopPersistentAppServer();
 		const listener = await this.ensurePersistentAppServer();
 		await this.ensureStarted();
@@ -382,7 +404,7 @@ export class AppServerCodexAdapter implements CodexAdapter {
 	}
 
 	async close() {
-		await this.disconnectConnection("app-server adapter closed");
+		await this.disconnectConnection("app-server runtime closed");
 	}
 
 	private async disconnectConnection(reason: string) {
@@ -412,7 +434,7 @@ export class AppServerCodexAdapter implements CodexAdapter {
 	): PendingTurnStartHandle {
 		const key = normalizeThreadId(threadId);
 		let entry: PendingTurnStart | null = null;
-		const promise = new Promise<AdapterTurn>((resolve, reject) => {
+		const promise = new Promise<RuntimeTurnSnapshot>((resolve, reject) => {
 			const timeout = setTimeout(() => {
 				if (!entry) {
 					return;
@@ -460,7 +482,7 @@ export class AppServerCodexAdapter implements CodexAdapter {
 		return next.length !== pending.length;
 	}
 
-	private resolvePendingTurnStart(threadId: string, turn: AdapterTurn) {
+	private resolvePendingTurnStart(threadId: string, turn: RuntimeTurnSnapshot) {
 		const key = normalizeThreadId(threadId);
 		const pending = this.pendingTurnStarts.get(key);
 		const turnStart = pending?.shift();
@@ -507,7 +529,7 @@ export class AppServerCodexAdapter implements CodexAdapter {
 		try {
 			await this.initialize();
 		} catch (error) {
-			await this.disconnectConnection("app-server adapter initialize failed");
+			await this.disconnectConnection("app-server runtime initialize failed");
 			throw error;
 		}
 	}
@@ -823,7 +845,7 @@ export class AppServerCodexAdapter implements CodexAdapter {
 			threadId,
 			turnId,
 			payload,
-		} satisfies AdapterEvent);
+		} satisfies RuntimeEvent);
 	}
 
 	private writeDebug(record: Record<string, unknown>) {

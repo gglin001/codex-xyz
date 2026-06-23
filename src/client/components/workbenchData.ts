@@ -70,7 +70,7 @@ function workbenchThreadFromThread(thread: ControlThread): WorkbenchThread {
 		threadId: thread.id,
 		sessionId: thread.sessionId,
 		forkedFromId: thread.forkedFromId,
-		title: thread.title || "Untitled Codex thread",
+		name: thread.name || "Untitled Codex thread",
 		preview: thread.preview || "No transcript preview yet.",
 		cwd: thread.cwd || "Unknown workdir",
 		model: thread.model,

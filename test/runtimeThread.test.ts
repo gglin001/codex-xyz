@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { AdapterThreadNotFoundError } from "../src/server/codex/adapter.js";
+import { RuntimeThreadNotFoundError } from "../src/server/codex/runtimePort.js";
 import type { ControlThread } from "../src/server/domain.js";
 import { RuntimeThreadCoordinator } from "../src/server/runtimeThread.js";
 
@@ -8,7 +8,7 @@ function thread(id = "thread-1"): ControlThread {
 		id,
 		sessionId: "session-1",
 		forkedFromId: null,
-		title: "Thread",
+		name: "Thread",
 		preview: "Thread preview",
 		cwd: "/repo",
 		model: "model-a",
@@ -56,7 +56,7 @@ describe("RuntimeThreadCoordinator", () => {
 		};
 		const action = vi
 			.fn()
-			.mockRejectedValueOnce(new AdapterThreadNotFoundError(source.id))
+			.mockRejectedValueOnce(new RuntimeThreadNotFoundError(source.id))
 			.mockResolvedValueOnce("resumed");
 		const coordinator = new RuntimeThreadCoordinator({
 			resumeThread: vi.fn(async () => resumed),
@@ -86,7 +86,7 @@ describe("RuntimeThreadCoordinator", () => {
 
 		await expect(
 			coordinator.run(source, async () => {
-				throw new AdapterThreadNotFoundError(source.id);
+				throw new RuntimeThreadNotFoundError(source.id);
 			}),
 		).rejects.toThrow("lost thread-1");
 		expect(markThreadLost).toHaveBeenCalledWith(source);
@@ -97,7 +97,7 @@ describe("RuntimeThreadCoordinator", () => {
 		const fork = thread("thread-2");
 		const action = vi
 			.fn()
-			.mockRejectedValueOnce(new AdapterThreadNotFoundError(source.id))
+			.mockRejectedValueOnce(new RuntimeThreadNotFoundError(source.id))
 			.mockResolvedValueOnce("forked");
 		const forkThread = vi.fn(async () => fork);
 		const coordinator = new RuntimeThreadCoordinator({
@@ -132,8 +132,8 @@ describe("RuntimeThreadCoordinator", () => {
 		const fork = thread("thread-2");
 		const action = vi
 			.fn()
-			.mockRejectedValueOnce(new AdapterThreadNotFoundError(source.id))
-			.mockRejectedValueOnce(new AdapterThreadNotFoundError(source.id))
+			.mockRejectedValueOnce(new RuntimeThreadNotFoundError(source.id))
+			.mockRejectedValueOnce(new RuntimeThreadNotFoundError(source.id))
 			.mockResolvedValueOnce("forked");
 		const forkThread = vi.fn(async () => fork);
 		const options = {
@@ -158,17 +158,17 @@ describe("RuntimeThreadCoordinator", () => {
 		expect(action).toHaveBeenLastCalledWith(fork);
 	});
 
-	it("marks not loaded and rethrows adapter loss after a non-continuable resumed retry fails", async () => {
+	it("marks not loaded and rethrows runtime loss after a non-continuable resumed retry fails", async () => {
 		const source = thread();
 		const resumed = { ...source, status: "idle" as const };
 		const markThreadLost = vi.fn();
-		const retryError = new AdapterThreadNotFoundError(
+		const retryError = new RuntimeThreadNotFoundError(
 			source.id,
 			"retry missing",
 		);
 		const action = vi
 			.fn()
-			.mockRejectedValueOnce(new AdapterThreadNotFoundError(source.id))
+			.mockRejectedValueOnce(new RuntimeThreadNotFoundError(source.id))
 			.mockRejectedValueOnce(retryError);
 		const coordinator = new RuntimeThreadCoordinator({
 			resumeThread: vi.fn(async () => resumed),

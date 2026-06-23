@@ -55,7 +55,7 @@ function filterThreads(project: WorkbenchProject, query: string) {
 	}
 	return project.threads.filter((thread) => {
 		const fields = [
-			thread.title,
+			thread.name,
 			thread.preview,
 			thread.cwd,
 			thread.model ?? "",
@@ -124,7 +124,7 @@ export const Sidebar = memo(function Sidebar({
 			<div className="relative shrink-0 p-3 pb-2">
 				<SurfaceAction
 					className="h-11 w-full gap-2.5 px-2.5"
-					title={
+					name={
 						selectedProject ? projectTitle(selectedProject) : "Switch project"
 					}
 					aria-haspopup="menu"
@@ -206,7 +206,7 @@ export const Sidebar = memo(function Sidebar({
 				<ControlButton
 					className="h-9 w-9 shrink-0 bg-transparent"
 					onClick={onCreateThread}
-					title={codexThreadCommandLabels.new}
+					name={codexThreadCommandLabels.new}
 					aria-label={codexThreadCommandLabels.new}
 				>
 					<Plus size={16} />
@@ -247,7 +247,7 @@ export const Sidebar = memo(function Sidebar({
 												selected ? null : "bg-transparent",
 											)}
 											selected={selected}
-											title={`${thread.title}\n${statusLabel(thread.status)}\n${formatFullDateTime(thread.updatedAt)}\n${thread.preview}`}
+											name={`${thread.name}\n${statusLabel(thread.status)}\n${formatFullDateTime(thread.updatedAt)}\n${thread.preview}`}
 											onClick={() => onSelectThread(thread)}
 										>
 											<span
@@ -259,7 +259,7 @@ export const Sidebar = memo(function Sidebar({
 											<span className="grid min-w-0 flex-1 grid-rows-[19px_15px_18px]">
 												<span className="flex min-w-0 items-center gap-2">
 													<span className="truncate text-[13px] font-medium leading-5">
-														{thread.title}
+														{thread.name}
 													</span>
 													<span
 														className={cn(

@@ -15,7 +15,7 @@ import { EventBus } from "../src/server/eventBus.js";
 import { ControlService } from "../src/server/service.js";
 import { Store } from "../src/server/store.js";
 import { type PtyFactory, TerminalController } from "../src/server/terminal.js";
-import { TestCodexAdapter } from "./testCodexAdapter.js";
+import { TestCodexRuntime } from "./testCodexRuntime.js";
 
 class FakeTerminalPty {
 	readonly pid = 2525;
@@ -73,7 +73,7 @@ class FakeTerminalPty {
 
 let tempDir: string;
 let service: ControlService;
-let testAdapter: TestCodexAdapter;
+let testRuntime: TestCodexRuntime;
 let terminalPtys: FakeTerminalPty[];
 
 async function apiResponse(path: string, init: RequestInit = {}) {
@@ -181,7 +181,7 @@ function threadFixture(index: number): ControlThread {
 		id: `thread-${String(index).padStart(3, "0")}`,
 		sessionId: `session-${String(index).padStart(3, "0")}`,
 		forkedFromId: null,
-		title: `Thread ${index}`,
+		name: `Thread ${index}`,
 		preview: `Preview ${index}`,
 		cwd: tempDir,
 		model: "test-codex",
@@ -211,16 +211,16 @@ beforeEach(() => {
 		command: { file: "fake-terminal", args: [] },
 		ptyFactory,
 	});
-	testAdapter = new TestCodexAdapter();
+	testRuntime = new TestCodexRuntime();
 	service = new ControlService(
 		Store.open(join(tempDir, "test.sqlite")),
-		testAdapter,
+		testRuntime,
 		new EventBus(),
 		terminal,
 	);
 	service.seedLocalState({
 		cwd: tempDir,
-		adapterName: "test",
+		runtimeName: "test",
 		cliVersion: "test",
 	});
 });
@@ -246,7 +246,7 @@ describe("Next API routes", () => {
 			socketPath: "test://codex-app-server",
 			message: "Codex app-server restarted",
 		});
-		expect(testAdapter.restartCount).toBe(1);
+		expect(testRuntime.restartCount).toBe(1);
 	});
 
 	it("serves dashboard state and can create a local thread", async () => {
@@ -492,7 +492,7 @@ describe("Next API routes", () => {
 		const forked = await json<{
 			id: string;
 			forkedFromId: string | null;
-			title: string;
+			name: string;
 		}>(`/api/threads/${created.thread.id}/fork`, {
 			method: "POST",
 			body: JSON.stringify({}),
@@ -500,7 +500,7 @@ describe("Next API routes", () => {
 		expect(forked.id).not.toBe(created.thread.id);
 		expect(forked).toMatchObject({
 			forkedFromId: created.thread.id,
-			title: "Fork of Keep this turn open for steering",
+			name: "Fork of Keep this turn open for steering",
 		});
 
 		const compact = await json<{ threadId: string; prompt: string }>(

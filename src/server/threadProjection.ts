@@ -1,9 +1,9 @@
 import type {
-	AdapterEvent,
-	AdapterGoal,
-	AdapterThread,
-	AdapterTurn,
-} from "./codex/adapter.js";
+	RuntimeEvent,
+	RuntimeGoalSnapshot,
+	RuntimeThreadSnapshot,
+	RuntimeTurnSnapshot,
+} from "./codex/runtimePort.js";
 import type {
 	ControlThread,
 	CozEvent,
@@ -16,7 +16,9 @@ import { nowIso, threadRuntimeStatusFromTurnStatus } from "./domain.js";
 import type { EventBus } from "./eventBus.js";
 import type { Store } from "./store.js";
 
-function goalStatusFromAdapter(goal: AdapterGoal | null): GoalStatus | null {
+function goalStatusFromRuntime(
+	goal: RuntimeGoalSnapshot | null,
+): GoalStatus | null {
 	return goal ? goal.status : null;
 }
 
@@ -42,8 +44,8 @@ function compactStoredPayload(type: string, payload: Record<string, unknown>) {
 }
 
 export type CreateThreadProjectionInput = {
-	adapterThread: AdapterThread;
-	title: string;
+	runtimeThread: RuntimeThreadSnapshot;
+	name: string;
 	forkedFromId?: string | null;
 	goalObjective: string | null;
 	goalStatus: GoalStatus | null;
@@ -65,7 +67,7 @@ export class ThreadProjection {
 		private readonly events: EventBus,
 	) {}
 
-	applyAdapterEvent(event: AdapterEvent) {
+	applyRuntimeEvent(event: RuntimeEvent) {
 		return this.runInTransaction(() => {
 			if (event.type === "item.created" || event.type === "item.updated") {
 				if (!this.ensureTurnForEvent(event.threadId, event.turnId)) {
@@ -146,6 +148,9 @@ export class ThreadProjection {
 			}
 
 			if (event.type === "thread.status") {
+				if (!this.store.getThread(event.threadId)) {
+					return;
+				}
 				const updates: Partial<
 					Pick<ControlThread, "status" | "activeTurnId" | "lastTurnStatus">
 				> = {
@@ -169,16 +174,22 @@ export class ThreadProjection {
 			}
 
 			if (event.type === "thread.goal") {
+				if (!this.store.getThread(event.threadId)) {
+					return;
+				}
 				this.updateGoal(event.threadId, event.goal, event.turnId);
 				return;
 			}
 
-			if (event.type === "thread.renamed") {
-				const title = event.title?.trim();
-				if (title) {
-					const thread = this.store.updateThread(event.threadId, { title });
-					this.publish("thread.renamed", event.threadId, null, {
-						title,
+			if (event.type === "thread.name.updated") {
+				if (!this.store.getThread(event.threadId)) {
+					return;
+				}
+				const name = event.name?.trim();
+				if (name) {
+					const thread = this.store.updateThread(event.threadId, { name });
+					this.publish("thread.name.updated", event.threadId, null, {
+						name,
 						thread,
 					});
 				}
@@ -245,7 +256,7 @@ export class ThreadProjection {
 
 	updateGoal(
 		threadId: string,
-		goal: AdapterGoal | null,
+		goal: RuntimeGoalSnapshot | null,
 		turnId: string | null,
 		options: { clearedStatus?: GoalStatus | null } = {},
 	) {
@@ -254,7 +265,7 @@ export class ThreadProjection {
 			const thread = this.store.updateThread(threadId, {
 				goalObjective: goal?.objective ?? null,
 				goalStatus: goal
-					? goalStatusFromAdapter(goal)
+					? goalStatusFromRuntime(goal)
 					: (options.clearedStatus ?? null),
 				goalTokenBudget: goal?.tokenBudget ?? null,
 				tokensUsed: goal?.tokensUsed ?? existing?.tokensUsed ?? 0,
@@ -274,20 +285,20 @@ export class ThreadProjection {
 		eventInput?: CreateThreadEventInput,
 	) {
 		return this.runInTransaction(() => {
-			const now = input.adapterThread.updatedAt ?? nowIso();
-			const status = input.adapterThread.status;
+			const now = input.runtimeThread.updatedAt ?? nowIso();
+			const status = input.runtimeThread.status;
 			const thread: ControlThread = {
-				id: input.adapterThread.id,
-				sessionId: input.adapterThread.sessionId,
-				forkedFromId: input.forkedFromId ?? input.adapterThread.forkedFromId,
-				title: input.title,
-				preview: input.adapterThread.preview || input.preview || input.title,
-				cwd: input.adapterThread.cwd,
-				model: input.adapterThread.model,
+				id: input.runtimeThread.id,
+				sessionId: input.runtimeThread.sessionId,
+				forkedFromId: input.forkedFromId ?? input.runtimeThread.forkedFromId,
+				name: input.runtimeThread.name?.trim() || input.name,
+				preview: input.runtimeThread.preview || input.preview || input.name,
+				cwd: input.runtimeThread.cwd,
+				model: input.runtimeThread.model,
 				status,
 				activeTurnId:
 					status === "active"
-						? (input.adapterThread.activeTurnId ?? null)
+						? (input.runtimeThread.activeTurnId ?? null)
 						: null,
 				lastTurnStatus: status === "active" ? "in_progress" : null,
 				goalObjective: input.goalObjective,
@@ -335,9 +346,13 @@ export class ThreadProjection {
 		});
 	}
 
-	recordTurn(thread: ControlThread, prompt: string, adapterTurn: AdapterTurn) {
+	recordTurn(
+		thread: ControlThread,
+		prompt: string,
+		runtimeTurn: RuntimeTurnSnapshot,
+	) {
 		return this.runInTransaction(() => {
-			const existing = this.store.getTurn(adapterTurn.id);
+			const existing = this.store.getTurn(runtimeTurn.id);
 			if (existing) {
 				const current =
 					!existing.prompt && prompt
@@ -353,9 +368,9 @@ export class ThreadProjection {
 			}
 
 			const now = nowIso();
-			const turnStatus = adapterTurn.status;
+			const turnStatus = runtimeTurn.status;
 			const turn: Turn = {
-				id: adapterTurn.id,
+				id: runtimeTurn.id,
 				threadId: thread.id,
 				status: turnStatus,
 				prompt,
@@ -377,13 +392,13 @@ export class ThreadProjection {
 
 	applyRuntimeThreadSnapshot(
 		thread: ControlThread,
-		adapterThread: AdapterThread,
+		runtimeThread: RuntimeThreadSnapshot,
 	) {
 		return this.runInTransaction(() => {
-			const runtimeStatus = adapterThread.status;
+			const runtimeStatus = runtimeThread.status;
 			const nextActiveTurnId =
 				runtimeStatus === "active"
-					? (adapterThread.activeTurnId ?? null)
+					? (runtimeThread.activeTurnId ?? null)
 					: null;
 			if (nextActiveTurnId) {
 				this.ensureTurnForEvent(thread.id, nextActiveTurnId);
@@ -396,7 +411,7 @@ export class ThreadProjection {
 			> = {
 				status: runtimeStatus,
 				activeTurnId: nextActiveTurnId,
-				preview: adapterThread.preview || thread.preview,
+				preview: runtimeThread.preview || thread.preview,
 			};
 			if (runtimeStatus === "active") {
 				updates.lastTurnStatus = "in_progress";
@@ -417,8 +432,8 @@ export class ThreadProjection {
 				? this.store.updateThread(
 						thread.id,
 						updates,
-						adapterThread.updatedAt
-							? { updatedAt: adapterThread.updatedAt }
+						runtimeThread.updatedAt
+							? { updatedAt: runtimeThread.updatedAt }
 							: { preserveUpdatedAt: true },
 					)
 				: thread;

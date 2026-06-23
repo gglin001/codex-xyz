@@ -1,12 +1,12 @@
 import type { ThreadRuntimeStatus, TurnStatus } from "../domain.js";
 import {
-	type AdapterEvent,
-	type AdapterGoal,
-	type AdapterThread,
-	AdapterThreadNotFoundError,
-	type AdapterTokenUsage,
-	type AdapterTurn,
-} from "./adapter.js";
+	type RuntimeEvent,
+	type RuntimeGoalSnapshot,
+	RuntimeThreadNotFoundError,
+	type RuntimeThreadSnapshot,
+	type RuntimeTokenUsage,
+	type RuntimeTurnSnapshot,
+} from "./runtimePort.js";
 
 export type JsonRpcMessage = {
 	id?: number | string;
@@ -360,7 +360,7 @@ function normalizeUnixTimestamp(value: unknown) {
 export function normalizeThread(
 	value: unknown,
 	model?: unknown,
-): AdapterThread {
+): RuntimeThreadSnapshot {
 	const thread = asRecord(value);
 	const id = normalizeThreadId(thread.id);
 	const status = asRecord(thread.status);
@@ -371,6 +371,7 @@ export function normalizeThread(
 			typeof thread.forkedFromId === "string"
 				? normalizeThreadId(thread.forkedFromId)
 				: null,
+		name: typeof thread.name === "string" ? thread.name : null,
 		preview: String(thread.preview ?? ""),
 		cwd: String(thread.cwd ?? process.cwd()),
 		model:
@@ -388,7 +389,7 @@ export function normalizeThread(
 	};
 }
 
-export function normalizeTurn(value: unknown): AdapterTurn {
+export function normalizeTurn(value: unknown): RuntimeTurnSnapshot {
 	const turn = asRecord(value);
 	return {
 		id: String(turn.id),
@@ -418,7 +419,7 @@ export function requestError(error: unknown, params: unknown) {
 			message.match(/no rollout found for thread id\s+([^\s"}]+)/i);
 		const threadId = match?.[1] ?? extractThreadId(asRecord(params));
 		if (threadId) {
-			return new AdapterThreadNotFoundError(
+			return new RuntimeThreadNotFoundError(
 				normalizeThreadId(threadId),
 				message,
 			);
@@ -427,7 +428,7 @@ export function requestError(error: unknown, params: unknown) {
 	return new Error(message);
 }
 
-export function normalizeTokenUsage(value: unknown): AdapterTokenUsage {
+export function normalizeTokenUsage(value: unknown): RuntimeTokenUsage {
 	const usage = asRecord(value);
 	const total = asRecord(usage.total);
 	return {
@@ -448,7 +449,7 @@ export function normalizeTokenUsage(value: unknown): AdapterTokenUsage {
 	};
 }
 
-export function normalizeGoal(value: unknown): AdapterGoal {
+export function normalizeGoal(value: unknown): RuntimeGoalSnapshot {
 	const goal = asRecord(value);
 	const status = String(goal.status ?? "active");
 	return {
@@ -473,7 +474,7 @@ export function normalizeGoal(value: unknown): AdapterGoal {
 export function projectTurnStartedNotification(
 	params: Record<string, unknown>,
 	prompt: string | null,
-): AdapterEvent | null {
+): RuntimeEvent | null {
 	const threadId = extractThreadId(params);
 	if (!threadId) {
 		return null;
@@ -490,7 +491,7 @@ export function projectTurnStartedNotification(
 export function projectAppServerNotification(
 	method: string,
 	params: Record<string, unknown>,
-): AdapterEvent | null {
+): RuntimeEvent | null {
 	const threadId = extractThreadId(params);
 	const turnId = extractTurnId(params);
 
@@ -616,9 +617,9 @@ export function projectAppServerNotification(
 	}
 	if (method === "thread/name/updated" && threadId) {
 		return {
-			type: "thread.renamed",
+			type: "thread.name.updated",
 			threadId,
-			title: typeof params.threadName === "string" ? params.threadName : null,
+			name: typeof params.threadName === "string" ? params.threadName : null,
 		};
 	}
 	if (method === "thread/tokenUsage/updated" && threadId) {

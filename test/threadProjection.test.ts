@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { AdapterThread } from "../src/server/codex/adapter.js";
+import type { RuntimeThreadSnapshot } from "../src/server/codex/runtimePort.js";
 import type { CozEvent } from "../src/server/domain.js";
 import { EventBus } from "../src/server/eventBus.js";
 import { Store } from "../src/server/store.js";
@@ -13,11 +13,14 @@ let store: Store;
 let events: CozEvent[];
 let projection: ThreadProjection;
 
-function adapterThread(input: Partial<AdapterThread> = {}): AdapterThread {
+function runtimeThreadSnapshot(
+	input: Partial<RuntimeThreadSnapshot> = {},
+): RuntimeThreadSnapshot {
 	return {
 		id: input.id ?? "thread-1",
 		sessionId: input.sessionId ?? "session-1",
 		forkedFromId: input.forkedFromId ?? null,
+		name: input.name ?? null,
 		preview: input.preview ?? "Initial preview",
 		cwd: input.cwd ?? tempDir,
 		model: input.model ?? "model-a",
@@ -27,10 +30,10 @@ function adapterThread(input: Partial<AdapterThread> = {}): AdapterThread {
 	};
 }
 
-function createThread(input: Partial<AdapterThread> = {}) {
+function createThread(input: Partial<RuntimeThreadSnapshot> = {}) {
 	return projection.createThread({
-		adapterThread: adapterThread(input),
-		title: "Test thread",
+		runtimeThread: runtimeThreadSnapshot(input),
+		name: "Test thread",
 		goalObjective: null,
 		goalStatus: null,
 		goalTokenBudget: null,
@@ -56,7 +59,7 @@ describe("ThreadProjection", () => {
 	it("synthesizes a missing turn and item for early delta events", () => {
 		createThread();
 
-		projection.applyAdapterEvent({
+		projection.applyRuntimeEvent({
 			type: "item.delta",
 			threadId: "thread-1",
 			turnId: "turn-1",
@@ -96,7 +99,7 @@ describe("ThreadProjection", () => {
 		events = [];
 
 		const result = projection.applyRuntimeThreadSnapshot(thread, {
-			...adapterThread({ status: "idle", activeTurnId: null }),
+			...runtimeThreadSnapshot({ status: "idle", activeTurnId: null }),
 			preview: "Runtime is idle now",
 		});
 
@@ -116,7 +119,7 @@ describe("ThreadProjection", () => {
 		events = [];
 
 		const result = projection.applyRuntimeThreadSnapshot(thread, {
-			...adapterThread({ updatedAt: runtimeUpdatedAt }),
+			...runtimeThreadSnapshot({ updatedAt: runtimeUpdatedAt }),
 		});
 
 		const detail = store.getThreadDetail("thread-1");
@@ -132,7 +135,7 @@ describe("ThreadProjection", () => {
 		events = [];
 
 		const result = projection.applyRuntimeThreadSnapshot(thread, {
-			...adapterThread({
+			...runtimeThreadSnapshot({
 				status: "not_loaded",
 				updatedAt: runtimeUpdatedAt,
 			}),

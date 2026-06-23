@@ -387,7 +387,7 @@ async function routeApiRequest(
 	if (method === "GET" && url.pathname === "/api/health") {
 		return jsonResponse({
 			ok: true,
-			adapter: service.adapter.name,
+			runtime: service.runtime.name,
 		});
 	}
 
@@ -465,7 +465,7 @@ async function routeApiRequest(
 				cwd: requireString(body, "cwd"),
 				prompt: requireString(body, "prompt"),
 				goalMode: optionalBoolean(body, "goalMode"),
-				title: optionalString(body, "title"),
+				name: optionalString(body, "name"),
 				model: optionalString(body, "model"),
 			}),
 			201,
@@ -512,7 +512,7 @@ async function routeApiRequest(
 					threadId,
 					cwd: optionalString(body, "cwd"),
 					model: optionalString(body, "model"),
-					title: optionalString(body, "title"),
+					name: optionalString(body, "name"),
 				}),
 				201,
 			);

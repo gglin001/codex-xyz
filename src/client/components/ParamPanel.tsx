@@ -197,7 +197,7 @@ export const ParamPanel = memo(function ParamPanel({
 						/>
 						<InfoTile
 							icon={<Cpu size={13} />}
-							label="Adapter"
+							label="Runtime"
 							value="codex app-server socket"
 							mono
 							layout="inline"
@@ -210,7 +210,7 @@ export const ParamPanel = memo(function ParamPanel({
 						<InfoTile
 							icon={<Hash size={13} />}
 							label="Name"
-							value={thread?.title || threadSummary?.title || "Untitled thread"}
+							value={thread?.name || threadSummary?.name || "Untitled thread"}
 							layout="inline"
 						/>
 						<InfoTile

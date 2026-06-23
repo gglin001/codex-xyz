@@ -1,24 +1,24 @@
 import { randomUUID } from "node:crypto";
 import {
-	type AdapterEvent,
-	type AdapterEventHandler,
-	type AdapterGoal,
-	type AdapterGoalStart,
-	type AdapterThread,
-	AdapterThreadNotFoundError,
-	type AdapterTurn,
-	type CodexAdapter,
+	type CodexRuntime,
 	type CompactThreadInput,
 	type ForkThreadInput,
 	type ResumeThreadInput,
 	type RunShellCommandInput,
+	type RuntimeEvent,
+	type RuntimeEventHandler,
+	type RuntimeGoalSnapshot,
+	type RuntimeGoalStart,
+	RuntimeThreadNotFoundError,
+	type RuntimeThreadSnapshot,
+	type RuntimeTurnSnapshot,
+	type StartRuntimeTurnInput,
 	type StartThreadInput,
-	type StartTurnAdapterInput,
-} from "../src/server/codex/adapter.js";
+} from "../src/server/codex/runtimePort.js";
 import type { ThreadRuntimeStatus } from "../src/server/domain.js";
 
-type TestThread = AdapterThread & {
-	goal: AdapterGoal | null;
+type TestThread = RuntimeThreadSnapshot & {
+	goal: RuntimeGoalSnapshot | null;
 	activeTurnId: string | null;
 };
 
@@ -29,27 +29,28 @@ type RunningTurn = {
 	completed: boolean;
 };
 
-export class TestCodexAdapter implements CodexAdapter {
+export class TestCodexRuntime implements CodexRuntime {
 	readonly name = "test";
 	readonly version = "test";
 	restartCount = 0;
-	private handler: AdapterEventHandler = () => {};
+	private handler: RuntimeEventHandler = () => {};
 	private readonly threads = new Map<string, TestThread>();
 	private readonly running = new Map<string, RunningTurn>();
 	private closed = false;
 
-	onEvent(handler: AdapterEventHandler) {
+	onEvent(handler: RuntimeEventHandler) {
 		this.handler = handler;
 	}
 
-	async startThread(input: StartThreadInput): Promise<AdapterThread> {
+	async startThread(input: StartThreadInput): Promise<RuntimeThreadSnapshot> {
 		this.closed = false;
 		const id = randomUUID();
 		const thread: TestThread = {
 			id,
 			sessionId: id,
 			forkedFromId: null,
-			preview: input.promptPreview,
+			name: input.name?.trim() || null,
+			preview: input.preview,
 			cwd: input.cwd,
 			model: input.model ?? "test-codex",
 			status: "idle",
@@ -60,11 +61,11 @@ export class TestCodexAdapter implements CodexAdapter {
 		return thread;
 	}
 
-	async resumeThread(input: ResumeThreadInput): Promise<AdapterThread> {
+	async resumeThread(input: ResumeThreadInput): Promise<RuntimeThreadSnapshot> {
 		return this.requireThread(input.threadId);
 	}
 
-	async startTurn(input: StartTurnAdapterInput): Promise<AdapterTurn> {
+	async startTurn(input: StartRuntimeTurnInput): Promise<RuntimeTurnSnapshot> {
 		const thread = this.requireThread(input.threadId);
 		const turnId = `turn_${randomUUID()}`;
 		const running: RunningTurn = {
@@ -80,7 +81,9 @@ export class TestCodexAdapter implements CodexAdapter {
 		return { id: turnId, status: "in_progress" };
 	}
 
-	async runShellCommand(input: RunShellCommandInput): Promise<AdapterTurn> {
+	async runShellCommand(
+		input: RunShellCommandInput,
+	): Promise<RuntimeTurnSnapshot> {
 		const thread = this.requireThread(input.threadId);
 		const turnId = input.activeTurnId ?? `turn_${randomUUID()}`;
 		const startedAt = Date.now();
@@ -107,7 +110,7 @@ export class TestCodexAdapter implements CodexAdapter {
 		return { id: turnId, status: "in_progress" };
 	}
 
-	async compactThread(input: CompactThreadInput): Promise<AdapterTurn> {
+	async compactThread(input: CompactThreadInput): Promise<RuntimeTurnSnapshot> {
 		const thread = this.requireThread(input.threadId);
 		if (thread.activeTurnId) {
 			throw new Error("thread already has an active turn");
@@ -150,7 +153,7 @@ export class TestCodexAdapter implements CodexAdapter {
 			itemId: `item_agent_${randomUUID()}`,
 			itemType: "agent",
 			text: `Steer received: ${input.prompt}`,
-			data: { adapter: "test" },
+			data: { runtime: "test" },
 		});
 	}
 
@@ -162,13 +165,14 @@ export class TestCodexAdapter implements CodexAdapter {
 		}
 	}
 
-	async forkThread(input: ForkThreadInput): Promise<AdapterThread> {
+	async forkThread(input: ForkThreadInput): Promise<RuntimeThreadSnapshot> {
 		const source = this.requireThread(input.sourceThreadId);
 		const id = randomUUID();
 		const thread: TestThread = {
 			id,
 			sessionId: source.sessionId,
 			forkedFromId: source.id,
+			name: input.name?.trim() || null,
 			preview: `Fork of ${source.preview}`,
 			cwd: input.cwd,
 			model: input.model ?? source.model,
@@ -189,9 +193,18 @@ export class TestCodexAdapter implements CodexAdapter {
 		});
 	}
 
-	async renameThread(input: { threadId: string; title: string }) {
+	async setThreadName(input: { threadId: string; name: string }) {
 		const thread = this.requireThread(input.threadId);
-		thread.preview = input.title;
+		const name = input.name.trim();
+		if (!name) {
+			return;
+		}
+		thread.name = name;
+		this.emit({
+			type: "thread.name.updated",
+			threadId: input.threadId,
+			name,
+		});
 	}
 
 	async setGoal(input: {
@@ -200,7 +213,7 @@ export class TestCodexAdapter implements CodexAdapter {
 		tokenBudget?: number | null;
 	}) {
 		const thread = this.requireThread(input.threadId);
-		const goal: AdapterGoal = {
+		const goal: RuntimeGoalSnapshot = {
 			objective: input.objective,
 			status: "in_progress",
 			tokenBudget: input.tokenBudget ?? null,
@@ -218,7 +231,7 @@ export class TestCodexAdapter implements CodexAdapter {
 		if (!thread.goal) {
 			throw new Error(`Test thread ${input.threadId} has no goal`);
 		}
-		const goal: AdapterGoal = {
+		const goal: RuntimeGoalSnapshot = {
 			...thread.goal,
 			status: input.status === "active" ? "in_progress" : input.status,
 		};
@@ -230,7 +243,7 @@ export class TestCodexAdapter implements CodexAdapter {
 		threadId: string;
 		objective: string;
 		tokenBudget?: number | null;
-	}): Promise<AdapterGoalStart> {
+	}): Promise<RuntimeGoalStart> {
 		const thread = this.requireThread(input.threadId);
 		const goal = await this.setGoal(input);
 		const turnId = `turn_${randomUUID()}`;
@@ -297,6 +310,10 @@ export class TestCodexAdapter implements CodexAdapter {
 		thread.status = status;
 	}
 
+	getThreadSnapshot(threadId: string) {
+		return this.threads.get(threadId) ?? null;
+	}
+
 	async close() {
 		this.closed = true;
 		this.running.clear();
@@ -304,7 +321,7 @@ export class TestCodexAdapter implements CodexAdapter {
 	}
 
 	private emitTurnOutput(
-		input: StartTurnAdapterInput,
+		input: StartRuntimeTurnInput,
 		turnId: string,
 		running: RunningTurn,
 	) {
@@ -334,7 +351,7 @@ export class TestCodexAdapter implements CodexAdapter {
 			itemId: answerId,
 			itemType: "agent",
 			text: "",
-			data: { adapter: "test" },
+			data: { runtime: "test" },
 		});
 		this.emit({
 			type: "item.delta",
@@ -373,7 +390,7 @@ export class TestCodexAdapter implements CodexAdapter {
 			itemId: answerId,
 			itemType: "agent",
 			text: "",
-			data: { adapter: "test", goalTurn: true },
+			data: { runtime: "test", goalTurn: true },
 		});
 		this.emit({
 			type: "item.delta",
@@ -514,7 +531,7 @@ export class TestCodexAdapter implements CodexAdapter {
 	private requireThread(id: string) {
 		const thread = this.threads.get(id);
 		if (!thread) {
-			throw new AdapterThreadNotFoundError(
+			throw new RuntimeThreadNotFoundError(
 				id,
 				`Test thread ${id} does not exist`,
 			);
@@ -522,7 +539,7 @@ export class TestCodexAdapter implements CodexAdapter {
 		return thread;
 	}
 
-	private emit(event: AdapterEvent) {
+	private emit(event: RuntimeEvent) {
 		this.handler(event);
 	}
 }

@@ -1,9 +1,9 @@
 import { statSync } from "node:fs";
 import { resolve } from "node:path";
 import {
-	type CodexAdapter,
-	isAdapterThreadNotFoundError,
-} from "./codex/adapter.js";
+	type CodexRuntime,
+	isRuntimeThreadNotFoundError,
+} from "./codex/runtimePort.js";
 import {
 	type ControlThread,
 	type CreateThreadInput,
@@ -16,7 +16,7 @@ import {
 	type ThreadItemsPage,
 	type ThreadPage,
 	type ThreadPageCursor,
-	titleFromPrompt,
+	threadNameFromPrompt,
 } from "./domain.js";
 import { EventBus } from "./eventBus.js";
 import {
@@ -34,7 +34,7 @@ function isNoActiveTurnError(error: unknown) {
 
 function isRuntimeStateMismatchError(error: unknown) {
 	return (
-		isAdapterThreadNotFoundError(error) ||
+		isRuntimeThreadNotFoundError(error) ||
 		isNoActiveTurnError(error) ||
 		(error instanceof Error && /expected active turn id/i.test(error.message))
 	);
@@ -90,7 +90,7 @@ export class ControlService {
 
 	constructor(
 		readonly store: Store,
-		readonly adapter: CodexAdapter,
+		readonly runtime: CodexRuntime,
 		readonly events = new EventBus(),
 		readonly terminal = new TerminalController(),
 	) {
@@ -104,12 +104,12 @@ export class ControlService {
 					`Thread ${thread.id} is not loaded by Codex and could not be resumed`,
 				),
 		});
-		this.adapter.onEvent((event) => this.projection.applyAdapterEvent(event));
+		this.runtime.onEvent((event) => this.projection.applyRuntimeEvent(event));
 	}
 
 	seedLocalState(input: {
 		cwd: string;
-		adapterName: string;
+		runtimeName: string;
 		cliVersion?: string | null;
 	}) {
 		const cwd = normalizeWorkingDirectory(input.cwd);
@@ -118,7 +118,7 @@ export class ControlService {
 		this.store.upsertHost({
 			id: "local",
 			name: "Local host",
-			adapter: input.adapterName,
+			runtime: input.runtimeName,
 			version: input.cliVersion ?? null,
 			defaultCwd: cwd,
 		});
@@ -147,20 +147,21 @@ export class ControlService {
 
 	async createThread(input: CreateThreadInput) {
 		const cwd = normalizeWorkingDirectory(input.cwd);
-		const title = input.title?.trim() || titleFromPrompt(input.prompt);
-		const adapterThread = await this.adapter.startThread({
+		const name = input.name?.trim() || threadNameFromPrompt(input.prompt);
+		const runtimeThread = await this.runtime.startThread({
 			cwd,
-			promptPreview: titleFromPrompt(input.prompt),
+			name,
+			preview: threadNameFromPrompt(input.prompt),
 			model: input.model ?? null,
 		});
 		const thread = this.projection.createThread(
 			{
-				adapterThread,
-				title,
+				runtimeThread,
+				name,
 				goalObjective: null,
 				goalStatus: null,
 				goalTokenBudget: null,
-				preview: title,
+				preview: name,
 				tokensUsed: 0,
 			},
 			{
@@ -207,12 +208,12 @@ export class ControlService {
 					throw error;
 				}
 				const current = this.projection.clearLostActiveTurn(thread);
-				const { adapterTurn, thread: runtimeThread } =
+				const { runtimeTurn, thread: runtimeThread } =
 					await this.startRuntimeTurn(current, input);
 				return this.projection.recordTurn(
 					runtimeThread,
 					input.prompt,
-					adapterTurn,
+					runtimeTurn,
 				);
 			}
 			const activeTurn = this.store.getTurn(thread.activeTurnId);
@@ -221,11 +222,11 @@ export class ControlService {
 			}
 			return activeTurn;
 		}
-		const { adapterTurn, thread: runtimeThread } = await this.startRuntimeTurn(
+		const { runtimeTurn, thread: runtimeThread } = await this.startRuntimeTurn(
 			thread,
 			input,
 		);
-		return this.projection.recordTurn(runtimeThread, input.prompt, adapterTurn);
+		return this.projection.recordTurn(runtimeThread, input.prompt, runtimeTurn);
 	}
 
 	async interruptTurn(threadId: string) {
@@ -235,7 +236,7 @@ export class ControlService {
 		}
 		const activeTurnId = thread.activeTurnId;
 		try {
-			await this.adapter.interruptTurn({
+			await this.runtime.interruptTurn({
 				threadId: thread.id,
 				turnId: activeTurnId,
 			});
@@ -271,15 +272,15 @@ export class ControlService {
 		threadId: string;
 		cwd?: string | null;
 		model?: string | null;
-		title?: string | null;
+		name?: string | null;
 	}) {
 		const source = this.requireThread(input.threadId);
 		const cwd = input.cwd ? normalizeWorkingDirectory(input.cwd) : source.cwd;
-		const title = input.title?.trim() || `Fork of ${source.title}`;
+		const name = input.name?.trim() || `Fork of ${source.name}`;
 		return this.createForkedThread(source, {
 			cwd,
 			model: input.model ?? source.model,
-			title,
+			name,
 			preview: source.preview,
 			eventReason: "manual",
 			markSourceLost: false,
@@ -292,7 +293,7 @@ export class ControlService {
 			throw new Error("Compact requires an idle thread");
 		}
 		const result = await this.runRuntimeAction(source, (runtimeThread) =>
-			this.adapter.compactThread({ threadId: runtimeThread.id }),
+			this.runtime.compactThread({ threadId: runtimeThread.id }),
 		);
 		return this.projection.recordTurn(result.thread, "/compact", result.value);
 	}
@@ -306,7 +307,7 @@ export class ControlService {
 			return this.projection.archiveThread(threadId);
 		}
 		await this.withRuntimeThread(source, (runtimeThread) =>
-			this.adapter.archiveThread(runtimeThread.id),
+			this.runtime.archiveThread(runtimeThread.id),
 		);
 		return this.projection.archiveThread(threadId);
 	}
@@ -314,7 +315,7 @@ export class ControlService {
 	async setGoal(input: SetGoalInput) {
 		const source = this.requireThread(input.threadId);
 		const goal = await this.withRuntimeThread(source, (runtimeThread) =>
-			this.adapter.setGoal({
+			this.runtime.setGoal({
 				threadId: runtimeThread.id,
 				objective: input.objective,
 				tokenBudget: input.tokenBudget,
@@ -327,7 +328,7 @@ export class ControlService {
 	async setGoalStatus(input: SetGoalStatusInput) {
 		const source = this.requireThread(input.threadId);
 		const goal = await this.withRuntimeThread(source, (runtimeThread) =>
-			this.adapter.setGoalStatus({
+			this.runtime.setGoalStatus({
 				threadId: runtimeThread.id,
 				status: input.status,
 			}),
@@ -341,10 +342,10 @@ export class ControlService {
 		if (source.activeTurnId || source.status !== "idle") {
 			throw new Error("Goal mode requires an idle thread");
 		}
-		const { goal, turn: adapterTurn } = await this.withRuntimeThread(
+		const { goal, turn: runtimeTurn } = await this.withRuntimeThread(
 			source,
 			(runtimeThread) =>
-				this.adapter.startGoal({
+				this.runtime.startGoal({
 					threadId: runtimeThread.id,
 					objective: input.objective,
 					tokenBudget: input.tokenBudget,
@@ -354,7 +355,7 @@ export class ControlService {
 		if (!thread) {
 			throw new Error(`Thread ${input.threadId} does not exist`);
 		}
-		const turn = this.projection.recordTurn(thread, "", adapterTurn);
+		const turn = this.projection.recordTurn(thread, "", runtimeTurn);
 		return {
 			goal,
 			turn,
@@ -365,14 +366,14 @@ export class ControlService {
 	async getGoal(threadId: string) {
 		const source = this.requireThread(threadId);
 		return this.withRuntimeThread(source, (runtimeThread) =>
-			this.adapter.getGoal(runtimeThread.id),
+			this.runtime.getGoal(runtimeThread.id),
 		);
 	}
 
 	async clearGoal(threadId: string) {
 		const source = this.requireThread(threadId);
 		await this.withRuntimeThread(source, (runtimeThread) =>
-			this.adapter.clearGoal(runtimeThread.id),
+			this.runtime.clearGoal(runtimeThread.id),
 		);
 		return this.projection.updateGoal(threadId, null, null, {
 			clearedStatus: "cleared",
@@ -380,7 +381,7 @@ export class ControlService {
 	}
 
 	async restartCodexAppServer() {
-		const result = await this.adapter.restartAppServer();
+		const result = await this.runtime.restartAppServer();
 		return {
 			...result,
 			message: "Codex app-server restarted",
@@ -458,7 +459,7 @@ export class ControlService {
 
 	async close() {
 		await this.terminal.close();
-		await this.adapter.close();
+		await this.runtime.close();
 		this.store.close();
 	}
 
@@ -467,9 +468,9 @@ export class ControlService {
 		prompt: string,
 		command: string,
 	) {
-		const { adapterTurn, thread: runtimeThread } =
+		const { runtimeTurn, thread: runtimeThread } =
 			await this.startRuntimeShellCommand(thread, command);
-		return this.projection.recordTurn(runtimeThread, prompt, adapterTurn);
+		return this.projection.recordTurn(runtimeThread, prompt, runtimeTurn);
 	}
 
 	private async steerActiveTurn(thread: ControlThread, prompt: string) {
@@ -482,7 +483,7 @@ export class ControlService {
 				if (!runtimeThread.activeTurnId) {
 					throw new Error("Thread has no active turn to steer");
 				}
-				await this.adapter.steerTurn({
+				await this.runtime.steerTurn({
 					threadId: runtimeThread.id,
 					turnId: runtimeThread.activeTurnId,
 					prompt,
@@ -499,7 +500,7 @@ export class ControlService {
 		const result = await this.runRuntimeAction(
 			thread,
 			(runtimeThread) =>
-				this.adapter.startTurn({
+				this.runtime.startTurn({
 					threadId: runtimeThread.id,
 					prompt: input.prompt,
 					model: input.model ?? runtimeThread.model,
@@ -513,7 +514,7 @@ export class ControlService {
 		);
 		return {
 			thread: result.thread,
-			adapterTurn: result.value,
+			runtimeTurn: result.value,
 		};
 	}
 
@@ -524,7 +525,7 @@ export class ControlService {
 		const result = await this.runRuntimeAction(
 			thread,
 			(runtimeThread) =>
-				this.adapter.runShellCommand({
+				this.runtime.runShellCommand({
 					threadId: runtimeThread.id,
 					command,
 					activeTurnId:
@@ -539,7 +540,7 @@ export class ControlService {
 		);
 		return {
 			thread: result.thread,
-			adapterTurn: result.value,
+			runtimeTurn: result.value,
 		};
 	}
 
@@ -560,18 +561,18 @@ export class ControlService {
 
 	private async resumeRuntimeThread(thread: ControlThread) {
 		try {
-			const adapterThread = await this.adapter.resumeThread({
+			const runtimeThread = await this.runtime.resumeThread({
 				threadId: thread.id,
 				cwd: thread.cwd,
 				model: thread.model,
 			});
-			this.projection.applyRuntimeThreadSnapshot(thread, adapterThread);
+			this.projection.applyRuntimeThreadSnapshot(thread, runtimeThread);
 			this.projection.publish("thread.resumed", thread.id, null, {
 				thread: this.store.getThread(thread.id),
 			});
 			return this.store.getThread(thread.id) ?? thread;
 		} catch (error) {
-			if (isAdapterThreadNotFoundError(error)) {
+			if (isRuntimeThreadNotFoundError(error)) {
 				return null;
 			}
 			throw error;
@@ -594,7 +595,7 @@ export class ControlService {
 		return this.createForkedThread(source, {
 			cwd: source.cwd,
 			model: input.model,
-			title: source.title,
+			name: source.name,
 			preview: input.prompt,
 			eventReason: "runtime_missing",
 			markSourceLost: true,
@@ -606,7 +607,7 @@ export class ControlService {
 		input: {
 			cwd: string;
 			model: string | null;
-			title: string;
+			name: string;
 			preview: string;
 			eventReason: "manual" | "runtime_missing";
 			markSourceLost: boolean;
@@ -615,15 +616,16 @@ export class ControlService {
 		if (input.markSourceLost) {
 			this.projection.markRuntimeThreadLost(source);
 		}
-		const adapterThread = await this.adapter.forkThread({
+		const runtimeThread = await this.runtime.forkThread({
 			sourceThreadId: source.id,
 			cwd: input.cwd,
+			name: input.name,
 			model: input.model,
 		});
 		const thread = this.projection.createThread(
 			{
-				adapterThread,
-				title: input.title,
+				runtimeThread,
+				name: input.name,
 				forkedFromId: source.id,
 				goalObjective: source.goalObjective,
 				goalStatus: source.goalStatus,

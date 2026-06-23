@@ -83,7 +83,7 @@ export function createThread(input: {
 	cwd: string;
 	prompt: string;
 	goalMode?: boolean | null;
-	title?: string | null;
+	name?: string | null;
 	model?: string | null;
 }) {
 	return request<{

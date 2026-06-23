@@ -33,7 +33,7 @@ export type ControlThread = {
 	id: string;
 	sessionId: string;
 	forkedFromId: string | null;
-	title: string;
+	name: string;
 	preview: string;
 	cwd: string;
 	model: string | null;
@@ -151,7 +151,7 @@ export const summaryEventTypes = [
 	"thread.runtime_lost",
 	"thread.forked",
 	"thread.archived",
-	"thread.renamed",
+	"thread.name.updated",
 	"thread.goal.updated",
 	"thread.goal.cleared",
 	"thread.token_usage",
@@ -266,7 +266,7 @@ export type CreateThreadInput = {
 	cwd: string;
 	prompt: string;
 	goalMode?: boolean | null;
-	title?: string | null;
+	name?: string | null;
 	model?: string | null;
 };
 
@@ -291,7 +291,7 @@ export function nowIso() {
 	return new Date().toISOString();
 }
 
-export function titleFromPrompt(prompt: string) {
+export function threadNameFromPrompt(prompt: string) {
 	const collapsed = prompt.trim().replace(/\s+/g, " ");
 	if (collapsed.length <= 72) {
 		return collapsed || "Untitled thread";

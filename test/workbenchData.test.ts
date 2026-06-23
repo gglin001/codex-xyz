@@ -16,7 +16,7 @@ function thread(overrides: Partial<ControlThread> = {}): ControlThread {
 		id: "thread-1",
 		sessionId: "session-1",
 		forkedFromId: null,
-		title: "Implement search",
+		name: "Implement search",
 		preview: "Add a thread filter",
 		cwd: "/work/coz",
 		model: "gpt-test",

@@ -117,7 +117,7 @@ export type DashboardLayoutProps = {
 
 type CommandActionBase = {
 	id: string;
-	title: string;
+	name: string;
 	detail: string;
 	run: () => void;
 	disabled?: boolean;
@@ -253,7 +253,7 @@ function startMobileSheetDrag(
 }
 
 function commandActionMatches(action: CommandAction, normalizedQuery: string) {
-	return `${action.title} ${action.detail}`
+	return `${action.name} ${action.detail}`
 		.toLowerCase()
 		.includes(normalizedQuery);
 }
@@ -704,7 +704,7 @@ const CommandPalette = memo(function CommandPalette({
 										/>
 										<span className="min-w-0 flex-1">
 											<span className="block truncate text-[13px] font-medium">
-												{action.title}
+												{action.name}
 											</span>
 											<span className="block truncate text-[11px] text-muted">
 												{action.disabled
@@ -922,28 +922,28 @@ export const DashboardLayout = memo(function DashboardLayout({
 		const actions: CommandAction[] = [
 			{
 				id: "focus-prompt",
-				title: "Prompt",
+				name: "Prompt",
 				detail: "Jump to the composer input",
 				kind: "prompt",
 				run: focusPrompt,
 			},
 			{
 				id: "toggle-navigator",
-				title: "Threads",
+				name: "Threads",
 				detail: "Open the project and thread list",
 				kind: "navigator",
 				run: setNavigatorVisible,
 			},
 			{
 				id: "open-terminal",
-				title: "Terminal",
+				name: "Terminal",
 				detail: "Open the terminal dock",
 				kind: "terminal",
 				run: showTerminal,
 			},
 			{
 				id: "settings:panel",
-				title: "Settings",
+				name: "Settings",
 				detail: isMobileViewport()
 					? "Open settings and transcript controls"
 					: "Toggle settings and transcript controls",
@@ -953,7 +953,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 			},
 			{
 				id: "settings:toggle-theme",
-				title: "Theme",
+				name: "Theme",
 				detail: `Current appearance ${themeModeLabels[themeMode]}`,
 				kind: "settingsItem",
 				settingsGroupId: "panel",
@@ -962,7 +962,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 			},
 			{
 				id: "settings:toggle-wrap",
-				title: "Wrap",
+				name: "Wrap",
 				detail: wrapThreadContent
 					? "Long transcript lines will scroll horizontally"
 					: "Long transcript lines will wrap",
@@ -973,7 +973,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 			},
 			{
 				id: "settings:reset-scale",
-				title: "Scale",
+				name: "Scale",
 				detail: `Return to ${formatDisplayScale(displayScaleConfig.defaultValue)}`,
 				kind: "settingsItem",
 				settingsGroupId: "panel",
@@ -984,7 +984,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 			},
 			{
 				id: "settings:toggle-fullscreen",
-				title: "Fullscreen",
+				name: "Fullscreen",
 				detail: "Use the whole browser viewport",
 				kind: "settingsItem",
 				settingsGroupId: "panel",
@@ -995,7 +995,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 			},
 			{
 				id: "settings:restart-app-server",
-				title: "Restart app-server",
+				name: "Restart app-server",
 				detail: "Restart the Codex app-server process",
 				kind: "settingsItem",
 				settingsGroupId: "panel",
@@ -1006,7 +1006,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 			},
 			{
 				id: "slash:root",
-				title: "/",
+				name: "/",
 				detail: "Jump to the composer input",
 				kind: "slashGroup",
 				slashGroupId: "root",
@@ -1014,7 +1014,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 			},
 			{
 				id: "slash:archive",
-				title: codexThreadCommandLabels.archive,
+				name: codexThreadCommandLabels.archive,
 				detail: "Archive the current chat",
 				kind: "slashItem",
 				slashGroupId: "root",
@@ -1025,7 +1025,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 			},
 			{
 				id: "slash:compact",
-				title: codexThreadCommandLabels.compact,
+				name: codexThreadCommandLabels.compact,
 				detail: "Summarize conversation to prevent hitting the context limit",
 				kind: "slashItem",
 				slashGroupId: "root",
@@ -1036,7 +1036,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 			},
 			{
 				id: "slash:interrupt",
-				title: codexThreadCommandLabels.interrupt,
+				name: codexThreadCommandLabels.interrupt,
 				detail: "Interrupt the active turn",
 				kind: "slashItem",
 				slashGroupId: "root",
@@ -1047,7 +1047,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 			},
 			{
 				id: "slash:fork",
-				title: codexThreadCommandLabels.fork,
+				name: codexThreadCommandLabels.fork,
 				detail: "Fork the current chat",
 				kind: "slashItem",
 				slashGroupId: "root",
@@ -1058,7 +1058,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 			},
 			{
 				id: "slash:goal",
-				title: codexThreadCommandLabels.goal,
+				name: codexThreadCommandLabels.goal,
 				detail: goalMode
 					? "Composer will send normal prompts"
 					: "Composer will start or continue a goal",
@@ -1072,7 +1072,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 			},
 			{
 				id: "slash:new",
-				title: codexThreadCommandLabels.new,
+				name: codexThreadCommandLabels.new,
 				detail: "Start a fresh Codex app-server thread",
 				kind: "slashItem",
 				slashGroupId: "root",
@@ -1081,7 +1081,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 			},
 			{
 				id: "slash:resume",
-				title: codexThreadCommandLabels.resume,
+				name: codexThreadCommandLabels.resume,
 				detail: "Resume a saved chat",
 				kind: "slashItem",
 				slashGroupId: "root",
@@ -1095,7 +1095,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 		for (const project of projects) {
 			actions.push({
 				id: `project:${project.id}`,
-				title: project.name,
+				name: project.name,
 				detail: project.path,
 				kind: "project",
 				projectId: project.id,
@@ -1105,7 +1105,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 			for (const projectThread of project.threads) {
 				actions.push({
 					id: `thread:${projectThread.id}`,
-					title: projectThread.title,
+					name: projectThread.name,
 					detail: `${project.name} / ${projectThread.cwd} / ${statusLabel(projectThread.status)}`,
 					kind: "thread",
 					projectId: project.id,

@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { AdapterThreadNotFoundError } from "../src/server/codex/adapter.js";
 import {
 	normalizeGoal,
 	normalizeThread,
@@ -8,6 +7,7 @@ import {
 	requestError,
 	yoloApprovalResponse,
 } from "../src/server/codex/appServerProtocol.js";
+import { RuntimeThreadNotFoundError } from "../src/server/codex/runtimePort.js";
 
 describe("app-server protocol projection", () => {
 	it("normalizes app-server thread ids, status, timestamps, and model fallback", () => {
@@ -85,13 +85,13 @@ describe("app-server protocol projection", () => {
 			},
 		);
 
-		expect(error).toBeInstanceOf(AdapterThreadNotFoundError);
-		expect((error as AdapterThreadNotFoundError).threadId).toBe(
+		expect(error).toBeInstanceOf(RuntimeThreadNotFoundError);
+		expect((error as RuntimeThreadNotFoundError).threadId).toBe(
 			"019ee0dd-6f13-7043-995f-d88646e16316",
 		);
 	});
 
-	it("projects streaming item notifications into adapter events", () => {
+	it("projects streaming item notifications into runtime events", () => {
 		expect(
 			projectAppServerNotification("item/agentMessage/delta", {
 				threadId: "thread_00000000-0000-4000-8000-000000000001",

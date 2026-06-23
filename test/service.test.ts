@@ -3,44 +3,44 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-	type AdapterEventHandler,
-	type AdapterGoal,
-	type AdapterGoalStart,
-	type AdapterThread,
-	AdapterThreadNotFoundError,
-	type AdapterTurn,
-	type CodexAdapter,
+	type CodexRuntime,
 	type CompactThreadInput,
 	type ForkThreadInput,
 	type ResumeThreadInput,
 	type RunShellCommandInput,
+	type RuntimeEventHandler,
+	type RuntimeGoalSnapshot,
+	type RuntimeGoalStart,
+	RuntimeThreadNotFoundError,
+	type RuntimeThreadSnapshot,
+	type RuntimeTurnSnapshot,
+	type StartRuntimeTurnInput,
 	type StartThreadInput,
-	type StartTurnAdapterInput,
-} from "../src/server/codex/adapter.js";
+} from "../src/server/codex/runtimePort.js";
 import { ControlService } from "../src/server/service.js";
 import { Store } from "../src/server/store.js";
-import { TestCodexAdapter } from "./testCodexAdapter.js";
+import { TestCodexRuntime } from "./testCodexRuntime.js";
 
 let tempDir: string;
 let service: ControlService;
-let testAdapter: TestCodexAdapter;
+let testRuntime: TestCodexRuntime;
 
 async function waitForEvents() {
 	await new Promise((resolve) => setTimeout(resolve, 20));
 }
 
-class VolatileCodexAdapter implements CodexAdapter {
+class VolatileCodexRuntime implements CodexRuntime {
 	readonly name = "volatile";
 	readonly version = "test";
-	private handler: AdapterEventHandler = () => {};
-	private readonly loadedThreads = new Map<string, AdapterThread>();
-	private readonly persistedThreads = new Map<string, AdapterThread>();
+	private handler: RuntimeEventHandler = () => {};
+	private readonly loadedThreads = new Map<string, RuntimeThreadSnapshot>();
+	private readonly persistedThreads = new Map<string, RuntimeThreadSnapshot>();
 	private readonly missingGoalThreads = new Set<string>();
 	private readonly timers = new Set<NodeJS.Timeout>();
 	private nextThread = 1;
 	private nextTurn = 1;
 
-	onEvent(handler: AdapterEventHandler) {
+	onEvent(handler: RuntimeEventHandler) {
 		this.handler = handler;
 	}
 
@@ -52,13 +52,14 @@ class VolatileCodexAdapter implements CodexAdapter {
 		this.missingGoalThreads.add(threadId);
 	}
 
-	async startThread(input: StartThreadInput): Promise<AdapterThread> {
+	async startThread(input: StartThreadInput): Promise<RuntimeThreadSnapshot> {
 		const id = `volatile_thread_${this.nextThread++}`;
-		const thread: AdapterThread = {
+		const thread: RuntimeThreadSnapshot = {
 			id,
 			sessionId: id,
 			forkedFromId: null,
-			preview: input.promptPreview,
+			name: input.name?.trim() || null,
+			preview: input.preview,
 			cwd: input.cwd,
 			model: input.model ?? "volatile-model",
 			status: "idle",
@@ -68,13 +69,13 @@ class VolatileCodexAdapter implements CodexAdapter {
 		return thread;
 	}
 
-	async resumeThread(input: ResumeThreadInput): Promise<AdapterThread> {
+	async resumeThread(input: ResumeThreadInput): Promise<RuntimeThreadSnapshot> {
 		return this.requireThread(input.threadId);
 	}
 
-	async startTurn(input: StartTurnAdapterInput): Promise<AdapterTurn> {
+	async startTurn(input: StartRuntimeTurnInput): Promise<RuntimeTurnSnapshot> {
 		this.requireThread(input.threadId);
-		const turn: AdapterTurn = {
+		const turn: RuntimeTurnSnapshot = {
 			id: `volatile_turn_${this.nextTurn++}`,
 			status: "in_progress",
 		};
@@ -92,14 +93,16 @@ class VolatileCodexAdapter implements CodexAdapter {
 		return turn;
 	}
 
-	async runShellCommand(input: RunShellCommandInput): Promise<AdapterTurn> {
+	async runShellCommand(
+		input: RunShellCommandInput,
+	): Promise<RuntimeTurnSnapshot> {
 		return this.startTurn({
 			threadId: input.threadId,
 			prompt: `!${input.command}`,
 		});
 	}
 
-	async compactThread(input: CompactThreadInput): Promise<AdapterTurn> {
+	async compactThread(input: CompactThreadInput): Promise<RuntimeTurnSnapshot> {
 		return this.startTurn({
 			threadId: input.threadId,
 			prompt: "/compact",
@@ -114,12 +117,13 @@ class VolatileCodexAdapter implements CodexAdapter {
 		this.requireThread(input.threadId);
 	}
 
-	async forkThread(input: ForkThreadInput): Promise<AdapterThread> {
+	async forkThread(input: ForkThreadInput): Promise<RuntimeThreadSnapshot> {
 		const source = this.requirePersistedThread(input.sourceThreadId);
 		const fork = await this.startThread({
 			cwd: input.cwd,
+			name: input.name,
 			model: input.model ?? source.model,
-			promptPreview: `Fork of ${source.preview}`,
+			preview: `Fork of ${source.preview}`,
 		});
 		const forkedThread = {
 			...fork,
@@ -141,18 +145,30 @@ class VolatileCodexAdapter implements CodexAdapter {
 		});
 	}
 
-	async renameThread(input: { threadId: string }) {
-		this.requireThread(input.threadId);
+	async setThreadName(input: { threadId: string; name: string }) {
+		const thread = this.requireThread(input.threadId);
+		const name = input.name.trim();
+		if (!name) {
+			return;
+		}
+		const updated = { ...thread, name };
+		this.loadedThreads.set(input.threadId, updated);
+		this.persistedThreads.set(input.threadId, updated);
+		this.handler({
+			type: "thread.name.updated",
+			threadId: input.threadId,
+			name,
+		});
 	}
 
 	async setGoal(input: {
 		threadId: string;
 		objective: string;
 		tokenBudget?: number | null;
-	}): Promise<AdapterGoal> {
+	}): Promise<RuntimeGoalSnapshot> {
 		this.requireThread(input.threadId);
 		if (this.missingGoalThreads.has(input.threadId)) {
-			throw new AdapterThreadNotFoundError(
+			throw new RuntimeThreadNotFoundError(
 				input.threadId,
 				`thread not found: ${input.threadId}`,
 			);
@@ -168,7 +184,7 @@ class VolatileCodexAdapter implements CodexAdapter {
 	async setGoalStatus(input: {
 		threadId: string;
 		status: "active" | "paused" | "complete";
-	}): Promise<AdapterGoal> {
+	}): Promise<RuntimeGoalSnapshot> {
 		this.requireThread(input.threadId);
 		return {
 			objective: "Test goal",
@@ -182,7 +198,7 @@ class VolatileCodexAdapter implements CodexAdapter {
 		threadId: string;
 		objective: string;
 		tokenBudget?: number | null;
-	}): Promise<AdapterGoalStart> {
+	}): Promise<RuntimeGoalStart> {
 		const goal = await this.setGoal(input);
 		const turn = await this.startTurn({
 			threadId: input.threadId,
@@ -218,7 +234,7 @@ class VolatileCodexAdapter implements CodexAdapter {
 	private requireThread(threadId: string) {
 		const thread = this.loadedThreads.get(threadId);
 		if (!thread) {
-			throw new AdapterThreadNotFoundError(
+			throw new RuntimeThreadNotFoundError(
 				threadId,
 				`thread not found: ${threadId}`,
 			);
@@ -229,7 +245,7 @@ class VolatileCodexAdapter implements CodexAdapter {
 	private requirePersistedThread(threadId: string) {
 		const thread = this.persistedThreads.get(threadId);
 		if (!thread) {
-			throw new AdapterThreadNotFoundError(
+			throw new RuntimeThreadNotFoundError(
 				threadId,
 				`thread not found: ${threadId}`,
 			);
@@ -238,25 +254,26 @@ class VolatileCodexAdapter implements CodexAdapter {
 	}
 }
 
-class EagerEventCodexAdapter implements CodexAdapter {
+class EagerEventCodexRuntime implements CodexRuntime {
 	readonly name = "eager";
 	readonly version = "test";
-	private handler: AdapterEventHandler = () => {};
-	private readonly threads = new Map<string, AdapterThread>();
+	private handler: RuntimeEventHandler = () => {};
+	private readonly threads = new Map<string, RuntimeThreadSnapshot>();
 	private nextThread = 1;
 	private nextTurn = 1;
 
-	onEvent(handler: AdapterEventHandler) {
+	onEvent(handler: RuntimeEventHandler) {
 		this.handler = handler;
 	}
 
-	async startThread(input: StartThreadInput): Promise<AdapterThread> {
+	async startThread(input: StartThreadInput): Promise<RuntimeThreadSnapshot> {
 		const id = `eager_thread_${this.nextThread++}`;
-		const thread: AdapterThread = {
+		const thread: RuntimeThreadSnapshot = {
 			id,
 			sessionId: id,
 			forkedFromId: null,
-			preview: input.promptPreview,
+			name: input.name?.trim() || null,
+			preview: input.preview,
 			cwd: input.cwd,
 			model: input.model ?? "eager-model",
 			status: "idle",
@@ -265,13 +282,13 @@ class EagerEventCodexAdapter implements CodexAdapter {
 		return thread;
 	}
 
-	async resumeThread(input: ResumeThreadInput): Promise<AdapterThread> {
+	async resumeThread(input: ResumeThreadInput): Promise<RuntimeThreadSnapshot> {
 		return this.requireThread(input.threadId);
 	}
 
-	async startTurn(input: StartTurnAdapterInput): Promise<AdapterTurn> {
+	async startTurn(input: StartRuntimeTurnInput): Promise<RuntimeTurnSnapshot> {
 		this.requireThread(input.threadId);
-		const turn: AdapterTurn = {
+		const turn: RuntimeTurnSnapshot = {
 			id: `eager_turn_${this.nextTurn++}`,
 			status: "in_progress",
 		};
@@ -283,7 +300,7 @@ class EagerEventCodexAdapter implements CodexAdapter {
 			itemId: answerId,
 			itemType: "agent",
 			text: "",
-			data: { adapter: "eager" },
+			data: { runtime: "eager" },
 		});
 		this.handler({
 			type: "item.delta",
@@ -302,7 +319,9 @@ class EagerEventCodexAdapter implements CodexAdapter {
 		return turn;
 	}
 
-	async runShellCommand(input: RunShellCommandInput): Promise<AdapterTurn> {
+	async runShellCommand(
+		input: RunShellCommandInput,
+	): Promise<RuntimeTurnSnapshot> {
 		return this.startTurn({
 			threadId: input.threadId,
 			prompt: `!${input.command}`,
@@ -310,7 +329,7 @@ class EagerEventCodexAdapter implements CodexAdapter {
 		});
 	}
 
-	async compactThread(input: CompactThreadInput): Promise<AdapterTurn> {
+	async compactThread(input: CompactThreadInput): Promise<RuntimeTurnSnapshot> {
 		return this.startTurn({
 			threadId: input.threadId,
 			prompt: "/compact",
@@ -326,13 +345,14 @@ class EagerEventCodexAdapter implements CodexAdapter {
 		this.requireThread(input.threadId);
 	}
 
-	async forkThread(input: ForkThreadInput): Promise<AdapterThread> {
+	async forkThread(input: ForkThreadInput): Promise<RuntimeThreadSnapshot> {
 		const source = this.requireThread(input.sourceThreadId);
 		const id = `eager_thread_${this.nextThread++}`;
-		const thread: AdapterThread = {
+		const thread: RuntimeThreadSnapshot = {
 			id,
 			sessionId: source.sessionId,
 			forkedFromId: source.id,
+			name: input.name?.trim() || null,
 			preview: `Fork of ${source.preview}`,
 			cwd: input.cwd,
 			model: input.model ?? source.model,
@@ -351,15 +371,25 @@ class EagerEventCodexAdapter implements CodexAdapter {
 		});
 	}
 
-	async renameThread(input: { threadId: string }) {
-		this.requireThread(input.threadId);
+	async setThreadName(input: { threadId: string; name: string }) {
+		const thread = this.requireThread(input.threadId);
+		const name = input.name.trim();
+		if (!name) {
+			return;
+		}
+		this.threads.set(input.threadId, { ...thread, name });
+		this.handler({
+			type: "thread.name.updated",
+			threadId: input.threadId,
+			name,
+		});
 	}
 
 	async setGoal(input: {
 		threadId: string;
 		objective: string;
 		tokenBudget?: number | null;
-	}): Promise<AdapterGoal> {
+	}): Promise<RuntimeGoalSnapshot> {
 		this.requireThread(input.threadId);
 		return {
 			objective: input.objective,
@@ -372,7 +402,7 @@ class EagerEventCodexAdapter implements CodexAdapter {
 	async setGoalStatus(input: {
 		threadId: string;
 		status: "active" | "paused" | "complete";
-	}): Promise<AdapterGoal> {
+	}): Promise<RuntimeGoalSnapshot> {
 		this.requireThread(input.threadId);
 		return {
 			objective: "Test goal",
@@ -386,7 +416,7 @@ class EagerEventCodexAdapter implements CodexAdapter {
 		threadId: string;
 		objective: string;
 		tokenBudget?: number | null;
-	}): Promise<AdapterGoalStart> {
+	}): Promise<RuntimeGoalStart> {
 		const goal = await this.setGoal(input);
 		const turn = await this.startTurn({
 			threadId: input.threadId,
@@ -420,7 +450,7 @@ class EagerEventCodexAdapter implements CodexAdapter {
 	private requireThread(threadId: string) {
 		const thread = this.threads.get(threadId);
 		if (!thread) {
-			throw new AdapterThreadNotFoundError(
+			throw new RuntimeThreadNotFoundError(
 				threadId,
 				`thread not found: ${threadId}`,
 			);
@@ -429,23 +459,24 @@ class EagerEventCodexAdapter implements CodexAdapter {
 	}
 }
 
-class InterruptDriftCodexAdapter implements CodexAdapter {
+class InterruptDriftCodexRuntime implements CodexRuntime {
 	readonly name = "interrupt-drift";
 	readonly version = "test";
-	handler: AdapterEventHandler = () => {};
-	private thread: AdapterThread | null = null;
+	handler: RuntimeEventHandler = () => {};
+	private thread: RuntimeThreadSnapshot | null = null;
 	private readonly activeTurnId = "drift_turn_1";
 
-	onEvent(handler: AdapterEventHandler) {
+	onEvent(handler: RuntimeEventHandler) {
 		this.handler = handler;
 	}
 
-	async startThread(input: StartThreadInput): Promise<AdapterThread> {
-		const thread: AdapterThread = {
+	async startThread(input: StartThreadInput): Promise<RuntimeThreadSnapshot> {
+		const thread: RuntimeThreadSnapshot = {
 			id: "drift_thread_1",
 			sessionId: "drift_thread_1",
 			forkedFromId: null,
-			preview: input.promptPreview,
+			name: input.name?.trim() || null,
+			preview: input.preview,
 			cwd: input.cwd,
 			model: input.model ?? "drift-model",
 			status: "idle",
@@ -454,9 +485,9 @@ class InterruptDriftCodexAdapter implements CodexAdapter {
 		return thread;
 	}
 
-	async resumeThread(input: ResumeThreadInput): Promise<AdapterThread> {
+	async resumeThread(input: ResumeThreadInput): Promise<RuntimeThreadSnapshot> {
 		if (!this.thread || this.thread.id !== input.threadId) {
-			throw new AdapterThreadNotFoundError(
+			throw new RuntimeThreadNotFoundError(
 				input.threadId,
 				`thread not found: ${input.threadId}`,
 			);
@@ -469,9 +500,9 @@ class InterruptDriftCodexAdapter implements CodexAdapter {
 		return this.thread;
 	}
 
-	async startTurn(input: StartTurnAdapterInput): Promise<AdapterTurn> {
+	async startTurn(input: StartRuntimeTurnInput): Promise<RuntimeTurnSnapshot> {
 		if (!this.thread || this.thread.id !== input.threadId) {
-			throw new AdapterThreadNotFoundError(
+			throw new RuntimeThreadNotFoundError(
 				input.threadId,
 				`thread not found: ${input.threadId}`,
 			);
@@ -487,7 +518,9 @@ class InterruptDriftCodexAdapter implements CodexAdapter {
 		};
 	}
 
-	async runShellCommand(input: RunShellCommandInput): Promise<AdapterTurn> {
+	async runShellCommand(
+		input: RunShellCommandInput,
+	): Promise<RuntimeTurnSnapshot> {
 		return this.startTurn({
 			threadId: input.threadId,
 			prompt: `!${input.command}`,
@@ -495,7 +528,7 @@ class InterruptDriftCodexAdapter implements CodexAdapter {
 		});
 	}
 
-	async compactThread(input: CompactThreadInput): Promise<AdapterTurn> {
+	async compactThread(input: CompactThreadInput): Promise<RuntimeTurnSnapshot> {
 		return this.startTurn({
 			threadId: input.threadId,
 			prompt: "/compact",
@@ -506,23 +539,24 @@ class InterruptDriftCodexAdapter implements CodexAdapter {
 	async steerTurn() {}
 
 	async interruptTurn(input: { threadId: string }) {
-		throw new AdapterThreadNotFoundError(
+		throw new RuntimeThreadNotFoundError(
 			input.threadId,
 			`no rollout found for thread id ${input.threadId}`,
 		);
 	}
 
-	async forkThread(input: ForkThreadInput): Promise<AdapterThread> {
+	async forkThread(input: ForkThreadInput): Promise<RuntimeThreadSnapshot> {
 		return this.startThread({
 			cwd: input.cwd,
+			name: input.name,
 			model: input.model,
-			promptPreview: "fork",
+			preview: "fork",
 		});
 	}
 
 	async archiveThread(threadId: string) {
 		if (!this.thread || this.thread.id !== threadId) {
-			throw new AdapterThreadNotFoundError(
+			throw new RuntimeThreadNotFoundError(
 				threadId,
 				`thread not found: ${threadId}`,
 			);
@@ -534,12 +568,19 @@ class InterruptDriftCodexAdapter implements CodexAdapter {
 		});
 	}
 
-	async renameThread() {}
+	async setThreadName(input: { name: string }) {
+		if (this.thread) {
+			this.thread = {
+				...this.thread,
+				name: input.name.trim() || this.thread.name,
+			};
+		}
+	}
 
 	async setGoal(input: {
 		objective: string;
 		tokenBudget?: number | null;
-	}): Promise<AdapterGoal> {
+	}): Promise<RuntimeGoalSnapshot> {
 		return {
 			objective: input.objective,
 			status: "in_progress",
@@ -550,7 +591,7 @@ class InterruptDriftCodexAdapter implements CodexAdapter {
 
 	async setGoalStatus(input: {
 		status: "active" | "paused" | "complete";
-	}): Promise<AdapterGoal> {
+	}): Promise<RuntimeGoalSnapshot> {
 		return {
 			objective: "Test goal",
 			status: input.status === "active" ? "in_progress" : input.status,
@@ -563,7 +604,7 @@ class InterruptDriftCodexAdapter implements CodexAdapter {
 		threadId: string;
 		objective: string;
 		tokenBudget?: number | null;
-	}): Promise<AdapterGoalStart> {
+	}): Promise<RuntimeGoalStart> {
 		return {
 			goal: await this.setGoal(input),
 			turn: await this.startTurn({
@@ -596,14 +637,14 @@ class InterruptDriftCodexAdapter implements CodexAdapter {
 
 beforeEach(() => {
 	tempDir = mkdtempSync(join(tmpdir(), "coz-service-"));
-	testAdapter = new TestCodexAdapter();
+	testRuntime = new TestCodexRuntime();
 	service = new ControlService(
 		Store.open(join(tempDir, "test.sqlite")),
-		testAdapter,
+		testRuntime,
 	);
 	service.seedLocalState({
 		cwd: tempDir,
-		adapterName: "test",
+		runtimeName: "test",
 		cliVersion: "test",
 	});
 });
@@ -618,8 +659,10 @@ describe("ControlService", () => {
 		const result = await service.createThread({
 			cwd: tempDir,
 			prompt: "Implement local test support",
+			name: "Local test support",
 		});
 		expect(result.thread?.status).toBe("active");
+		expect(result.thread?.name).toBe("Local test support");
 
 		await waitForEvents();
 
@@ -628,6 +671,7 @@ describe("ControlService", () => {
 		expect(threads[0].status).toBe("idle");
 
 		const detail = service.getThreadDetail(threads[0].id);
+		expect(detail.name).toBe("Local test support");
 		expect(detail.turns).toHaveLength(1);
 		expect(detail.turns[0].status).toBe("completed");
 		expect(
@@ -712,27 +756,27 @@ describe("ControlService", () => {
 		expect(summaryReplay.some((event) => event.type.startsWith("item."))).toBe(
 			false,
 		);
-		expect(summaryReplay.some((event) => event.type === "adapter.raw")).toBe(
+		expect(summaryReplay.some((event) => event.type === "runtime.raw")).toBe(
 			false,
 		);
 	});
 
-	it("records items that arrive before the adapter startTurn call returns", async () => {
+	it("records items that arrive before the runtime startTurn call returns", async () => {
 		await service.close();
-		const adapter = new EagerEventCodexAdapter();
+		const runtime = new EagerEventCodexRuntime();
 		service = new ControlService(
 			Store.open(join(tempDir, "eager.sqlite")),
-			adapter,
+			runtime,
 		);
 		service.seedLocalState({
 			cwd: tempDir,
-			adapterName: adapter.name,
-			cliVersion: adapter.version,
+			runtimeName: runtime.name,
+			cliVersion: runtime.version,
 		});
 
 		const result = await service.createThread({
 			cwd: tempDir,
-			prompt: "Prompt with eager adapter events",
+			prompt: "Prompt with eager runtime events",
 		});
 		const threadId = result.thread?.id;
 		if (!threadId || !result.turn) {
@@ -743,7 +787,7 @@ describe("ControlService", () => {
 		expect(result.turn.status).toBe("completed");
 		expect(detail.status).toBe("idle");
 		expect(detail.turns).toHaveLength(1);
-		expect(detail.turns[0].prompt).toBe("Prompt with eager adapter events");
+		expect(detail.turns[0].prompt).toBe("Prompt with eager runtime events");
 		expect(detail.turns[0].status).toBe("completed");
 		expect(
 			detail.items.some((item) => item.text.includes("Answered before return")),
@@ -819,7 +863,7 @@ describe("ControlService", () => {
 			throw new Error("Expected created running thread and turn");
 		}
 
-		testAdapter.dropActiveTurn(threadId);
+		testRuntime.dropActiveTurn(threadId);
 		const nextTurn = await service.startTurn({
 			threadId,
 			prompt: "Start after runtime drift.",
@@ -842,15 +886,15 @@ describe("ControlService", () => {
 
 	it("syncs local running state from app-server when interrupt finds no rollout", async () => {
 		await service.close();
-		const adapter = new InterruptDriftCodexAdapter();
+		const runtime = new InterruptDriftCodexRuntime();
 		service = new ControlService(
 			Store.open(join(tempDir, "interrupt-drift.sqlite")),
-			adapter,
+			runtime,
 		);
 		service.seedLocalState({
 			cwd: tempDir,
-			adapterName: adapter.name,
-			cliVersion: adapter.version,
+			runtimeName: runtime.name,
+			cliVersion: runtime.version,
 		});
 
 		const result = await service.createThread({
@@ -933,10 +977,13 @@ describe("ControlService", () => {
 		expect(fork).toMatchObject({
 			sessionId: sourceThreadId,
 			forkedFromId: sourceThreadId,
-			title: "Fork of Build the source conversation before forking",
+			name: "Fork of Build the source conversation before forking",
 			cwd: tempDir,
 			status: "idle",
 		});
+		expect(testRuntime.getThreadSnapshot(fork.id)?.name).toBe(
+			"Fork of Build the source conversation before forking",
+		);
 		expect(service.getThreadDetail(sourceThreadId).status).toBe("idle");
 		expect(
 			service
@@ -1020,15 +1067,15 @@ describe("ControlService", () => {
 
 	it("archives not-loaded app-server threads without resuming them", async () => {
 		await service.close();
-		const adapter = new VolatileCodexAdapter();
+		const runtime = new VolatileCodexRuntime();
 		service = new ControlService(
 			Store.open(join(tempDir, "volatile-archive.sqlite")),
-			adapter,
+			runtime,
 		);
 		service.seedLocalState({
 			cwd: tempDir,
-			adapterName: adapter.name,
-			cliVersion: adapter.version,
+			runtimeName: runtime.name,
+			cliVersion: runtime.version,
 		});
 
 		const result = await service.createThread({
@@ -1042,7 +1089,7 @@ describe("ControlService", () => {
 			throw new Error("Expected created thread id");
 		}
 
-		adapter.forgetThread(threadId);
+		runtime.forgetThread(threadId);
 		await expect(service.resumeThread(threadId)).rejects.toThrow(
 			/is not loaded by Codex and could not be resumed/,
 		);
@@ -1075,15 +1122,15 @@ describe("ControlService", () => {
 
 	it("forks from persisted history when the runtime thread is missing", async () => {
 		await service.close();
-		const adapter = new VolatileCodexAdapter();
+		const runtime = new VolatileCodexRuntime();
 		service = new ControlService(
 			Store.open(join(tempDir, "volatile.sqlite")),
-			adapter,
+			runtime,
 		);
 		service.seedLocalState({
 			cwd: tempDir,
-			adapterName: adapter.name,
-			cliVersion: adapter.version,
+			runtimeName: runtime.name,
+			cliVersion: runtime.version,
 		});
 
 		const result = await service.createThread({
@@ -1097,7 +1144,7 @@ describe("ControlService", () => {
 			throw new Error("Expected created thread id");
 		}
 
-		adapter.forgetThread(oldThreadId);
+		runtime.forgetThread(oldThreadId);
 		const turn = await service.startTurn({
 			threadId: oldThreadId,
 			prompt: "Prompt after app-server restart",
@@ -1113,15 +1160,15 @@ describe("ControlService", () => {
 
 	it("marks a thread not loaded when resume succeeds but a non-forking action still loses runtime", async () => {
 		await service.close();
-		const adapter = new VolatileCodexAdapter();
+		const runtime = new VolatileCodexRuntime();
 		service = new ControlService(
 			Store.open(join(tempDir, "volatile-lost.sqlite")),
-			adapter,
+			runtime,
 		);
 		service.seedLocalState({
 			cwd: tempDir,
-			adapterName: adapter.name,
-			cliVersion: adapter.version,
+			runtimeName: runtime.name,
+			cliVersion: runtime.version,
 		});
 
 		const result = await service.createThread({
@@ -1135,7 +1182,7 @@ describe("ControlService", () => {
 			throw new Error("Expected created thread id");
 		}
 
-		adapter.failSetGoal(threadId);
+		runtime.failSetGoal(threadId);
 		await expect(
 			service.setGoal({ threadId, objective: "Goal after runtime drift" }),
 		).rejects.toThrow(/thread not found/);

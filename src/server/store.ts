@@ -19,10 +19,10 @@ import {
 
 type Row = Record<string, unknown>;
 
-export const currentDatabaseVersion = "v4";
+export const currentDatabaseVersion = "v5";
 
-const databaseMetadataTable = "database_metadata";
-const databaseVersionKey = "database_version";
+const metadataTable = "metadata";
+const versionKey = "version";
 
 type EventReplayOptions = {
 	threadId?: string | null;
@@ -136,7 +136,7 @@ function threadFromRow(row: Row): ControlThread {
 		id: scalarString(row.id),
 		sessionId: scalarString(row.session_id),
 		forkedFromId: nullableString(row.forked_from_id),
-		title: scalarString(row.title),
+		name: scalarString(row.name),
 		preview: scalarString(row.preview),
 		cwd: scalarString(row.cwd),
 		model: nullableString(row.model),
@@ -272,7 +272,7 @@ export class Store {
 
 	private createCurrentSchema() {
 		this.db.exec(`
-      CREATE TABLE ${databaseMetadataTable} (
+      CREATE TABLE ${metadataTable} (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
       );
@@ -280,7 +280,7 @@ export class Store {
       CREATE TABLE hosts (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
-        adapter TEXT NOT NULL,
+        runtime TEXT NOT NULL,
         version TEXT,
         default_cwd TEXT,
         last_seen_at TEXT NOT NULL
@@ -293,9 +293,7 @@ export class Store {
         -- while user-facing code now treats thread as the primary concept.
         session_id TEXT NOT NULL,
         forked_from_id TEXT REFERENCES threads(id) ON DELETE SET NULL,
-        -- TODO: rename title to name in a schema migration to match Codex
-        -- app-server's user-facing Thread.name field.
-        title TEXT NOT NULL,
+        name TEXT NOT NULL,
         preview TEXT NOT NULL,
         cwd TEXT NOT NULL,
         model TEXT,
@@ -357,12 +355,12 @@ export class Store {
 	}
 
 	private readDatabaseVersion() {
-		if (!this.tableExists(databaseMetadataTable)) {
+		if (!this.tableExists(metadataTable)) {
 			return null;
 		}
 		const row = this.db
-			.prepare(`SELECT value FROM ${databaseMetadataTable} WHERE key = ?`)
-			.get(databaseVersionKey) as Row | undefined;
+			.prepare(`SELECT value FROM ${metadataTable} WHERE key = ?`)
+			.get(versionKey) as Row | undefined;
 		return row ? scalarString(row.value) : null;
 	}
 
@@ -376,10 +374,8 @@ export class Store {
 
 	private writeDatabaseVersion() {
 		this.db
-			.prepare(
-				`INSERT INTO ${databaseMetadataTable} (key, value) VALUES (?, ?)`,
-			)
-			.run(databaseVersionKey, currentDatabaseVersion);
+			.prepare(`INSERT INTO ${metadataTable} (key, value) VALUES (?, ?)`)
+			.run(versionKey, currentDatabaseVersion);
 	}
 
 	private tableExists(table: string) {
@@ -403,7 +399,7 @@ export class Store {
 	upsertHost(input: {
 		id: string;
 		name: string;
-		adapter: string;
+		runtime: string;
 		version?: string | null;
 		defaultCwd?: string | null;
 	}) {
@@ -411,11 +407,11 @@ export class Store {
 		this.db
 			.prepare(
 				`
-          INSERT INTO hosts (id, name, adapter, version, default_cwd, last_seen_at)
+          INSERT INTO hosts (id, name, runtime, version, default_cwd, last_seen_at)
           VALUES (?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
             name = excluded.name,
-            adapter = excluded.adapter,
+            runtime = excluded.runtime,
             version = excluded.version,
             default_cwd = excluded.default_cwd,
             last_seen_at = excluded.last_seen_at
@@ -424,7 +420,7 @@ export class Store {
 			.run(
 				input.id,
 				input.name,
-				input.adapter,
+				input.runtime,
 				input.version ?? null,
 				input.defaultCwd ?? null,
 				seen,
@@ -443,7 +439,7 @@ export class Store {
 			.prepare(
 				`
           INSERT INTO threads (
-            id, session_id, forked_from_id, title, preview, cwd, model,
+            id, session_id, forked_from_id, name, preview, cwd, model,
             status, active_turn_id, last_turn_status, goal_objective, goal_status, goal_token_budget,
             tokens_used, archived_at, created_at, updated_at
           )
@@ -454,7 +450,7 @@ export class Store {
 				thread.id,
 				thread.sessionId,
 				thread.forkedFromId,
-				thread.title,
+				thread.name,
 				thread.preview,
 				thread.cwd,
 				thread.model,
@@ -484,7 +480,7 @@ export class Store {
 				| "goalStatus"
 				| "goalTokenBudget"
 				| "tokensUsed"
-				| "title"
+				| "name"
 				| "preview"
 			>
 		>,
@@ -502,7 +498,7 @@ export class Store {
 			.prepare(
 				`
           UPDATE threads SET
-            title = ?,
+            name = ?,
             preview = ?,
             status = ?,
             active_turn_id = ?,
@@ -516,7 +512,7 @@ export class Store {
         `,
 			)
 			.run(
-				next.title,
+				next.name,
 				next.preview,
 				next.status,
 				next.activeTurnId,

@@ -5,10 +5,11 @@ import type {
 	TurnStatus,
 } from "../domain.js";
 
-export type AdapterThread = {
+export type RuntimeThreadSnapshot = {
 	id: string;
 	sessionId: string;
 	forkedFromId: string | null;
+	name: string | null;
 	preview: string;
 	cwd: string;
 	model: string | null;
@@ -17,24 +18,24 @@ export type AdapterThread = {
 	updatedAt?: string | null;
 };
 
-export type AdapterTurn = {
+export type RuntimeTurnSnapshot = {
 	id: string;
 	status: TurnStatus;
 };
 
-export type AdapterGoal = {
+export type RuntimeGoalSnapshot = {
 	objective: string;
 	status: GoalStatus;
 	tokenBudget: number | null;
 	tokensUsed: number;
 };
 
-export type AdapterGoalStart = {
-	goal: AdapterGoal;
-	turn: AdapterTurn;
+export type RuntimeGoalStart = {
+	goal: RuntimeGoalSnapshot;
+	turn: RuntimeTurnSnapshot;
 };
 
-export type AdapterTokenUsage = {
+export type RuntimeTokenUsage = {
 	totalTokens: number;
 	inputTokens: number;
 	cachedInputTokens: number;
@@ -43,7 +44,7 @@ export type AdapterTokenUsage = {
 	modelContextWindow: number | null;
 };
 
-export type AdapterEvent =
+export type RuntimeEvent =
 	| {
 			type: "item.created";
 			threadId: string;
@@ -92,18 +93,18 @@ export type AdapterEvent =
 			type: "thread.goal";
 			threadId: string;
 			turnId: string | null;
-			goal: AdapterGoal | null;
+			goal: RuntimeGoalSnapshot | null;
 	  }
 	| {
-			type: "thread.renamed";
+			type: "thread.name.updated";
 			threadId: string;
-			title: string | null;
+			name: string | null;
 	  }
 	| {
 			type: "thread.token_usage";
 			threadId: string;
 			turnId: string | null;
-			usage: AdapterTokenUsage;
+			usage: RuntimeTokenUsage;
 	  }
 	| {
 			type: "thread.archived";
@@ -117,7 +118,7 @@ export type AdapterEvent =
 			payload: Record<string, unknown>;
 	  };
 
-export type AdapterEventHandler = (event: AdapterEvent) => void;
+export type RuntimeEventHandler = (event: RuntimeEvent) => void;
 
 export type CodexAppServerRestartResult = {
 	status: "restarted";
@@ -127,11 +128,12 @@ export type CodexAppServerRestartResult = {
 
 export type StartThreadInput = {
 	cwd: string;
-	promptPreview: string;
+	name?: string | null;
+	preview: string;
 	model?: string | null;
 };
 
-export type StartTurnAdapterInput = {
+export type StartRuntimeTurnInput = {
 	threadId: string;
 	prompt: string;
 	model?: string | null;
@@ -156,58 +158,59 @@ export type ResumeThreadInput = {
 export type ForkThreadInput = {
 	sourceThreadId: string;
 	cwd: string;
+	name?: string | null;
 	model?: string | null;
 };
 
-export class AdapterThreadNotFoundError extends Error {
+export class RuntimeThreadNotFoundError extends Error {
 	constructor(
 		readonly threadId: string,
 		message = `Thread not found: ${threadId}`,
 	) {
 		super(message);
-		this.name = "AdapterThreadNotFoundError";
+		this.name = "RuntimeThreadNotFoundError";
 	}
 }
 
-export function isAdapterThreadNotFoundError(
+export function isRuntimeThreadNotFoundError(
 	error: unknown,
-): error is AdapterThreadNotFoundError {
-	return error instanceof AdapterThreadNotFoundError;
+): error is RuntimeThreadNotFoundError {
+	return error instanceof RuntimeThreadNotFoundError;
 }
 
-export interface CodexAdapter {
+export interface CodexRuntime {
 	readonly name: string;
 	readonly version: string | null;
-	onEvent(handler: AdapterEventHandler): void;
-	startThread(input: StartThreadInput): Promise<AdapterThread>;
-	resumeThread(input: ResumeThreadInput): Promise<AdapterThread>;
-	startTurn(input: StartTurnAdapterInput): Promise<AdapterTurn>;
-	runShellCommand(input: RunShellCommandInput): Promise<AdapterTurn>;
-	compactThread(input: CompactThreadInput): Promise<AdapterTurn>;
+	onEvent(handler: RuntimeEventHandler): void;
+	startThread(input: StartThreadInput): Promise<RuntimeThreadSnapshot>;
+	resumeThread(input: ResumeThreadInput): Promise<RuntimeThreadSnapshot>;
+	startTurn(input: StartRuntimeTurnInput): Promise<RuntimeTurnSnapshot>;
+	runShellCommand(input: RunShellCommandInput): Promise<RuntimeTurnSnapshot>;
+	compactThread(input: CompactThreadInput): Promise<RuntimeTurnSnapshot>;
 	steerTurn(input: {
 		threadId: string;
 		turnId: string;
 		prompt: string;
 	}): Promise<void>;
 	interruptTurn(input: { threadId: string; turnId: string }): Promise<void>;
-	forkThread(input: ForkThreadInput): Promise<AdapterThread>;
+	forkThread(input: ForkThreadInput): Promise<RuntimeThreadSnapshot>;
 	archiveThread(threadId: string): Promise<void>;
-	renameThread(input: { threadId: string; title: string }): Promise<void>;
+	setThreadName(input: { threadId: string; name: string }): Promise<void>;
 	setGoal(input: {
 		threadId: string;
 		objective: string;
 		tokenBudget?: number | null;
-	}): Promise<AdapterGoal>;
+	}): Promise<RuntimeGoalSnapshot>;
 	setGoalStatus(input: {
 		threadId: string;
 		status: GoalStatusUpdate;
-	}): Promise<AdapterGoal>;
+	}): Promise<RuntimeGoalSnapshot>;
 	startGoal(input: {
 		threadId: string;
 		objective: string;
 		tokenBudget?: number | null;
-	}): Promise<AdapterGoalStart>;
-	getGoal(threadId: string): Promise<AdapterGoal | null>;
+	}): Promise<RuntimeGoalStart>;
+	getGoal(threadId: string): Promise<RuntimeGoalSnapshot | null>;
 	clearGoal(threadId: string): Promise<void>;
 	restartAppServer(): Promise<CodexAppServerRestartResult>;
 	close(): Promise<void>;
