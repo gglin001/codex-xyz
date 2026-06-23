@@ -45,40 +45,6 @@ function createDatabaseWithVersion(filePath: string, version: string) {
 	db.close();
 }
 
-function createLegacyV1Database(filePath: string) {
-	const db = new DatabaseSync(filePath);
-	db.exec(`
-    CREATE TABLE database_metadata (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-
-    CREATE TABLE threads (
-      id TEXT PRIMARY KEY,
-      session_id TEXT NOT NULL,
-      forked_from_id TEXT,
-      title TEXT NOT NULL,
-      preview TEXT NOT NULL,
-      cwd TEXT NOT NULL,
-      model TEXT,
-      status TEXT NOT NULL,
-      active_turn_id TEXT,
-      last_turn_status TEXT,
-      goal_objective TEXT,
-      goal_status TEXT,
-      goal_token_budget INTEGER,
-      tokens_used INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-  `);
-	db.prepare("INSERT INTO database_metadata (key, value) VALUES (?, ?)").run(
-		"database_version",
-		currentDatabaseVersion,
-	);
-	db.close();
-}
-
 function threadFixture(id: string): ControlThread {
 	return {
 		id,
@@ -102,7 +68,7 @@ function threadFixture(id: string): ControlThread {
 }
 
 describe("store database version", () => {
-	it("creates v1 databases", () => {
+	it("creates current-version databases", () => {
 		const filePath = join(tempDir, "fresh.sqlite");
 		const store = Store.open(filePath);
 		try {
@@ -135,23 +101,13 @@ describe("store database version", () => {
 		);
 	});
 
-	it("adds archive columns to existing v1 databases", () => {
-		const filePath = join(tempDir, "legacy-v1.sqlite");
-		createLegacyV1Database(filePath);
+	it("rejects previous v1 databases", () => {
+		const filePath = join(tempDir, "v1.sqlite");
+		createDatabaseWithVersion(filePath, "v1");
 
-		const store = Store.open(filePath);
-		try {
-			const db = new DatabaseSync(filePath);
-			const columns = db.prepare("PRAGMA table_info(threads)").all() as Array<{
-				name?: unknown;
-			}>;
-			db.close();
-			expect(columns.some((column) => column.name === "archived_at")).toBe(
-				true,
-			);
-		} finally {
-			store.close();
-		}
+		expect(() => Store.open(filePath)).toThrow(
+			`Unsupported database version "v1"; expected "${currentDatabaseVersion}"`,
+		);
 	});
 
 	it("keeps archived threads out of default list queries", () => {

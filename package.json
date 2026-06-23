@@ -7,6 +7,7 @@
 	"description": "Codex control plane for managing multiple sessions.",
 	"scripts": {
 		"generate:codex": "node scripts/generate-codex-types.mjs",
+		"upgrade:archive-schema": "node scripts/upgrade-archive-schema.mjs",
 		"dev": "node scripts/run-dev.mjs",
 		"prebuild": "pnpm run generate:codex",
 		"build": "next build",

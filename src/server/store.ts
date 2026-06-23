@@ -18,7 +18,7 @@ import {
 
 type Row = Record<string, unknown>;
 
-export const currentDatabaseVersion = "v1";
+export const currentDatabaseVersion = "v2";
 
 const databaseMetadataTable = "database_metadata";
 const databaseVersionKey = "database_version";
@@ -301,27 +301,6 @@ export class Store {
 				`Unsupported database version "${databaseVersion}"; expected "${currentDatabaseVersion}"`,
 			);
 		}
-		this.ensureCurrentSchema();
-	}
-
-	private ensureCurrentSchema() {
-		this.ensureThreadArchivedAtColumn();
-		this.db.exec(
-			"CREATE INDEX IF NOT EXISTS idx_threads_active_updated ON threads(archived_at, updated_at DESC)",
-		);
-	}
-
-	private ensureThreadArchivedAtColumn() {
-		if (!this.tableExists("threads")) {
-			return;
-		}
-		const columns = this.db
-			.prepare("PRAGMA table_info(threads)")
-			.all() as Row[];
-		if (columns.some((column) => column.name === "archived_at")) {
-			return;
-		}
-		this.db.exec("ALTER TABLE threads ADD COLUMN archived_at TEXT");
 	}
 
 	private writeDatabaseVersion() {
