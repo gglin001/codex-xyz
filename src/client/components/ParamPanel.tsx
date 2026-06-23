@@ -106,6 +106,32 @@ function SettingsIconToggle({
 	);
 }
 
+function SettingsIconButton({
+	disabled,
+	icon,
+	label,
+	title = label,
+	onClick,
+}: {
+	disabled?: boolean;
+	icon: ReactNode;
+	label: string;
+	title?: string;
+	onClick: () => void;
+}) {
+	return (
+		<SurfaceAction
+			className="h-9 w-9 justify-center p-0 text-muted-strong"
+			title={title}
+			aria-label={label}
+			disabled={disabled}
+			onClick={onClick}
+		>
+			<span className="shrink-0 text-muted">{icon}</span>
+		</SurfaceAction>
+	);
+}
+
 export const ParamPanel = memo(function ParamPanel({
 	className,
 	session,
@@ -176,18 +202,6 @@ export const ParamPanel = memo(function ParamPanel({
 							mono
 							layout="inline"
 						/>
-						<SurfaceAction
-							className="h-9 w-full justify-between gap-2 px-2.5 text-[12px]"
-							title="Restart Codex app-server"
-							aria-label="Restart Codex app-server"
-							disabled={restartCodexAppServerDisabled}
-							onClick={onRestartCodexAppServer}
-						>
-							<span className="min-w-0 truncate font-medium">
-								Restart app-server
-							</span>
-							<RefreshCw size={14} className="shrink-0 text-muted" />
-						</SurfaceAction>
 					</div>
 				</SettingsSection>
 
@@ -313,6 +327,12 @@ export const ParamPanel = memo(function ParamPanel({
 							/>
 						</ControlCard>
 						<div className="flex min-w-0 flex-wrap gap-2">
+							<SettingsIconButton
+								disabled={restartCodexAppServerDisabled}
+								icon={<RefreshCw size={15} />}
+								label="Restart Codex app-server"
+								onClick={onRestartCodexAppServer}
+							/>
 							<SettingsIconToggle
 								checked={themeMode === "day"}
 								icon={<Sun size={15} />}
