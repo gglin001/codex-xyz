@@ -80,7 +80,7 @@ export function ComposerIconButton({
 			)}
 			aria-pressed={pressed}
 			{...props}
-			{...({ autocomplete: "off" } as Record<string, string>)}
+			{...({ autoComplete: "off" } as Record<string, string>)}
 		>
 			{children}
 		</button>
