@@ -126,6 +126,7 @@ const spring = { type: "spring", stiffness: 340, damping: 34 } as const;
 const sessionContentWidthClass = "[--session-content-width:900px]";
 const sessionContentFrameClass =
 	"mx-auto w-full min-w-0 max-w-[var(--session-content-width)]";
+const mobileHandleClass = "h-1 w-14 rounded-full bg-border-strong";
 const mobileComposerSwipeAxisLockRatio = 1.15;
 const mobileComposerSwipeDirectionThresholds = {
 	up: 88,
@@ -664,7 +665,10 @@ const Composer = memo(
 							className="relative flex items-center justify-between gap-3 border-t border-border pt-2"
 						>
 							<span
-								className="pointer-events-none absolute bottom-0 left-1/2 h-1 w-10 -translate-x-1/2 rounded-full bg-border-strong md:hidden"
+								className={cn(
+									"pointer-events-none absolute -bottom-2 left-1/2 -translate-x-1/2 md:hidden",
+									mobileHandleClass,
+								)}
 								aria-hidden="true"
 							/>
 							<div className="flex min-w-0 items-center gap-1.5">

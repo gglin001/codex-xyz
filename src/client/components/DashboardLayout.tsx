@@ -172,6 +172,7 @@ type MobileSheet = "navigator" | "inspector";
 
 const spring = { type: "spring", stiffness: 360, damping: 36 } as const;
 const dragDismissThreshold = 80;
+const mobileHandleClass = "h-1 w-14 rounded-full bg-border-strong";
 const mobileSheetClass =
 	"mobile-sheet-surface absolute inset-x-0 top-[var(--mobile-sheet-top)] flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden rounded-t-[16px] border-t";
 
@@ -208,7 +209,7 @@ const MobileSheetHandle = forwardRef<HTMLDivElement, MobileSheetHandleProps>(
 				onPointerDown={onPointerDown}
 				aria-hidden="true"
 			>
-				<span className="h-1 w-10 rounded-full bg-border-strong" />
+				<span className={mobileHandleClass} />
 			</div>
 		);
 	},

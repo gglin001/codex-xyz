@@ -50,6 +50,7 @@ const inputFlushMs = 8;
 const resizeFlushMs = 100;
 const metricsCommitMs = 500;
 const dragDismissThreshold = 80;
+const mobileHandleClass = "h-1 w-14 rounded-full bg-border-strong";
 const mobileTerminalSheetClass =
 	"pointer-events-auto absolute inset-x-0 top-[var(--mobile-sheet-top)] flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden rounded-t-[16px] md:inset-auto md:rounded-[12px]";
 const desktopMargin = 16;
@@ -214,7 +215,7 @@ function DragHandle() {
 			className="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center md:hidden"
 			aria-hidden="true"
 		>
-			<div className="h-1 w-10 rounded-full bg-border-strong" />
+			<div className={mobileHandleClass} />
 		</div>
 	);
 }
