@@ -10,6 +10,8 @@ import {
 	nowIso,
 	type ThreadDetail,
 	type ThreadItem,
+	type ThreadItemPageCursor,
+	type ThreadItemsPage,
 	type ThreadRuntimeStatus,
 	type Turn,
 	type TurnStatus,
@@ -17,7 +19,7 @@ import {
 
 type Row = Record<string, unknown>;
 
-export const currentDatabaseVersion = "v3";
+export const currentDatabaseVersion = "v4";
 
 const databaseMetadataTable = "database_metadata";
 const databaseVersionKey = "database_version";
@@ -25,6 +27,8 @@ const databaseVersionKey = "database_version";
 type EventReplayOptions = {
 	threadId?: string | null;
 	summaryOnly?: boolean;
+	limit?: number | null;
+	maxPayloadBytes?: number | null;
 };
 
 type ThreadListOptions = {
@@ -39,6 +43,11 @@ type ThreadListOptions = {
 type ThreadUpdateOptions = {
 	updatedAt?: string | null;
 	preserveUpdatedAt?: boolean;
+};
+
+type ThreadItemListOptions = {
+	limit?: number | null;
+	cursor?: ThreadItemPageCursor | null;
 };
 
 export type ArchiveThreadResult = {
@@ -100,6 +109,26 @@ function storedTurnStatus(value: unknown): TurnStatus {
 
 function eventSummaryValue(type: string) {
 	return isSummaryEventType(type) ? 1 : 0;
+}
+
+function jsonText(value: unknown) {
+	return JSON.stringify(value);
+}
+
+function byteLength(value: string) {
+	return Buffer.byteLength(value, "utf8");
+}
+
+function textLength(value: string) {
+	return Array.from(value).length;
+}
+
+function pageCursorFromItems(
+	items: ThreadItem[],
+	hasMore: boolean,
+): ThreadItemPageCursor | null {
+	const item = hasMore ? items.at(-1) : null;
+	return item ? { createdAt: item.createdAt, id: item.id } : null;
 }
 
 function threadFromRow(row: Row): ControlThread {
@@ -293,7 +322,9 @@ export class Store {
         turn_id TEXT REFERENCES turns(id) ON DELETE CASCADE,
         type TEXT NOT NULL CHECK (type IN ('user', 'agent', 'plan', 'command', 'file', 'system')),
         text TEXT NOT NULL,
-        data_json TEXT NOT NULL,
+        data_json TEXT NOT NULL CHECK (json_valid(data_json)),
+        text_length INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL,
         created_at TEXT NOT NULL
       );
 
@@ -303,7 +334,8 @@ export class Store {
         thread_id TEXT REFERENCES threads(id) ON DELETE CASCADE,
         turn_id TEXT REFERENCES turns(id) ON DELETE CASCADE,
         is_summary INTEGER NOT NULL CHECK (is_summary IN (0, 1)),
-        payload_json TEXT NOT NULL,
+        payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
+        payload_bytes INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL
       );
 
@@ -583,10 +615,16 @@ export class Store {
 		if (!thread) {
 			return null;
 		}
+		const items = this.listItems(id);
+		const itemTotalCount = items.length;
 		return {
 			...thread,
 			turns: this.listTurns(id),
-			items: this.listItems(id),
+			items,
+			itemTotalCount,
+			itemPageSize: itemTotalCount,
+			itemNextCursor: null,
+			itemHasMore: false,
 			latestEventId,
 		};
 	}
@@ -657,17 +695,20 @@ export class Store {
 	}
 
 	private writeItem(item: ThreadItem) {
+		const dataJson = jsonText(item.data);
 		this.db
 			.prepare(
 				`
-          INSERT INTO items (id, thread_id, turn_id, type, text, data_json, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO items (id, thread_id, turn_id, type, text, data_json, text_length, updated_at, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
             thread_id = excluded.thread_id,
             turn_id = excluded.turn_id,
             type = excluded.type,
             text = excluded.text,
-            data_json = excluded.data_json
+            data_json = excluded.data_json,
+            text_length = excluded.text_length,
+            updated_at = excluded.updated_at
         `,
 			)
 			.run(
@@ -676,7 +717,9 @@ export class Store {
 				item.turnId,
 				item.type,
 				item.text,
-				JSON.stringify(item.data),
+				dataJson,
+				textLength(item.text),
+				item.createdAt,
 				item.createdAt,
 			);
 		return this.getItem(item.id);
@@ -688,39 +731,86 @@ export class Store {
 	}
 
 	appendItemText(id: string, delta: string) {
-		const row = this.db
-			.prepare("SELECT text FROM items WHERE id = ?")
-			.get(id) as Row | undefined;
-		if (!row) {
+		const result = this.db
+			.prepare(
+				"UPDATE items SET text = text || ?, text_length = length(text || ?), updated_at = ? WHERE id = ?",
+			)
+			.run(delta, delta, nowIso(), id);
+		if (result.changes === 0) {
 			return null;
 		}
-		const text = `${scalarString(row.text)}${delta}`;
-		this.db.prepare("UPDATE items SET text = ? WHERE id = ?").run(text, id);
 		const item = this.db.prepare("SELECT * FROM items WHERE id = ?").get(id);
 		return item ? itemFromRow(item as Row) : null;
 	}
 
-	listItems(threadId: string) {
+	countItems(threadId: string) {
+		const row = this.db
+			.prepare("SELECT COUNT(*) AS count FROM items WHERE thread_id = ?")
+			.get(threadId) as Row | undefined;
+		return row ? scalarNumber(row.count) : 0;
+	}
+
+	listItems(threadId: string, options: ThreadItemListOptions = {}) {
+		const limit = options.limit ?? null;
+		const cursor = options.cursor ?? null;
+		const conditions = ["thread_id = ?"];
+		const params: Array<string | number> = [threadId];
+		if (cursor) {
+			conditions.push("(created_at > ? OR (created_at = ? AND id > ?))");
+			params.push(cursor.createdAt, cursor.createdAt, cursor.id);
+		}
+		const where = `WHERE ${conditions.join(" AND ")}`;
+		if (limit !== null) {
+			return this.db
+				.prepare(
+					`SELECT * FROM items ${where} ORDER BY created_at ASC, id ASC LIMIT ?`,
+				)
+				.all(...params, limit)
+				.map((row) => itemFromRow(row as Row));
+		}
 		return this.db
-			.prepare(
-				"SELECT * FROM items WHERE thread_id = ? ORDER BY created_at ASC, id ASC",
-			)
-			.all(threadId)
+			.prepare(`SELECT * FROM items ${where} ORDER BY created_at ASC, id ASC`)
+			.all(...params)
 			.map((row) => itemFromRow(row as Row));
+	}
+
+	listThreadItemsPage(
+		threadId: string,
+		options: ThreadItemListOptions = {},
+	): ThreadItemsPage {
+		const limit = Math.max(1, Math.floor(options.limit ?? 200));
+		const cursor = options.cursor ?? null;
+		const pageItems = this.listItems(threadId, {
+			limit: limit + 1,
+			cursor,
+		});
+		const hasMore = pageItems.length > limit;
+		const items = hasMore ? pageItems.slice(0, limit) : pageItems;
+		return {
+			threadId,
+			items,
+			limit,
+			cursor,
+			nextCursor: pageCursorFromItems(items, hasMore),
+			hasMore,
+			totalCount: this.countItems(threadId),
+		};
 	}
 
 	appendEvent(input: Omit<CozEvent, "id">) {
 		const type = input.type;
+		const payloadJson = jsonText(input.payload);
 		const result = this.db
 			.prepare(
-				"INSERT INTO events (type, thread_id, turn_id, is_summary, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+				"INSERT INTO events (type, thread_id, turn_id, is_summary, payload_json, payload_bytes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
 			)
 			.run(
 				type,
 				input.threadId,
 				input.turnId,
 				eventSummaryValue(type),
-				JSON.stringify(input.payload),
+				payloadJson,
+				byteLength(payloadJson),
 				input.createdAt,
 			);
 		const id = Number(result.lastInsertRowid);
@@ -747,6 +837,25 @@ export class Store {
 		return row ? scalarNumber(row.latest_event_id) : 0;
 	}
 
+	getLatestEventIdForReplay(options: EventReplayOptions = {}) {
+		const conditions: string[] = [];
+		const params: Array<string | number> = [];
+		if (options.threadId) {
+			conditions.push("thread_id = ?");
+			params.push(options.threadId);
+		}
+		if (options.summaryOnly) {
+			conditions.push("is_summary = 1");
+		}
+		const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+		const row = this.db
+			.prepare(
+				`SELECT COALESCE(MAX(id), 0) AS latest_event_id FROM events ${where}`,
+			)
+			.get(...params) as Row | undefined;
+		return row ? scalarNumber(row.latest_event_id) : 0;
+	}
+
 	listEvents(afterId = 0, options: EventReplayOptions = {}) {
 		const conditions = ["id > ?"];
 		const params: Array<string | number> = [afterId];
@@ -760,14 +869,40 @@ export class Store {
 			conditions.push("is_summary = 1");
 		}
 
-		return this.db
-			.prepare(
-				`SELECT * FROM events WHERE ${conditions.join(" AND ")} ORDER BY id ASC`,
-			)
-			.all(...params)
+		const limit = options.limit ?? null;
+		const rows = limit
+			? this.db
+					.prepare(
+						`SELECT * FROM events WHERE ${conditions.join(" AND ")} ORDER BY id ASC LIMIT ?`,
+					)
+					.all(...params, limit)
+			: this.db
+					.prepare(
+						`SELECT * FROM events WHERE ${conditions.join(" AND ")} ORDER BY id ASC`,
+					)
+					.all(...params);
+		const events = rows
 			.map((row) => eventFromRow(row as Row))
 			.filter(
 				(event) => !options.summaryOnly || isSummaryEventType(event.type),
 			);
+		const maxPayloadBytes = options.maxPayloadBytes ?? null;
+		if (maxPayloadBytes === null) {
+			return events;
+		}
+		const bounded: CozEvent[] = [];
+		let totalBytes = 0;
+		for (const event of events) {
+			const payloadBytes = byteLength(jsonText(event.payload));
+			if (bounded.length > 0 && totalBytes + payloadBytes > maxPayloadBytes) {
+				break;
+			}
+			bounded.push(event);
+			totalBytes += payloadBytes;
+			if (totalBytes >= maxPayloadBytes) {
+				break;
+			}
+		}
+		return bounded;
 	}
 }

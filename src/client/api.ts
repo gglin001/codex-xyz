@@ -4,6 +4,8 @@ import type {
 	GoalStatus,
 	TerminalSnapshot,
 	ThreadDetail,
+	ThreadItemPageCursor,
+	ThreadItemsPage,
 	ThreadPage,
 	ThreadPageCursor,
 	Turn,
@@ -39,6 +41,23 @@ export function getState() {
 
 export function getThread(threadId: string) {
 	return request<ThreadDetail>(`/api/threads/${threadId}`);
+}
+
+export function getThreadItemsPage(input: {
+	threadId: string;
+	limit: number;
+	cursor?: ThreadItemPageCursor | null;
+}) {
+	const params = new URLSearchParams({
+		limit: String(input.limit),
+	});
+	if (input.cursor) {
+		params.set("cursorCreatedAt", input.cursor.createdAt);
+		params.set("cursorId", input.cursor.id);
+	}
+	return request<ThreadItemsPage>(
+		`/api/threads/${encodeURIComponent(input.threadId)}/items?${params.toString()}`,
+	);
 }
 
 export function getThreadsPage(input: {

@@ -90,6 +90,10 @@ function detail(overrides: Partial<ThreadDetail> = {}): ThreadDetail {
 		...baseThread,
 		turns: [turn()],
 		items: [item()],
+		itemTotalCount: 1,
+		itemPageSize: 1,
+		itemNextCursor: null,
+		itemHasMore: false,
 		latestEventId: 0,
 		...overrides,
 	};

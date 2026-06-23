@@ -3,8 +3,8 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-const fromVersion = "v2";
-const toVersion = "v3";
+const fromVersion = "v3";
+const toVersion = "v4";
 const metadataTable = "database_metadata";
 const databaseVersionKey = "database_version";
 const defaultDatabasePath = ".coz/coz.sqlite";
@@ -36,7 +36,7 @@ const databasePath = resolve(process.argv[2] ?? defaultDatabasePath);
 
 function usage() {
 	console.error(
-		`Usage: node scripts/upgrade-v2-to-v3.mjs [${defaultDatabasePath}]`,
+		`Usage: node scripts/upgrade-v3-to-v4.mjs [${defaultDatabasePath}]`,
 	);
 }
 
@@ -70,9 +70,49 @@ function sqlStringList(values) {
 	return values.map(sqlString).join(", ");
 }
 
-function createV3Tables(db) {
+function jsonText(value) {
+	return JSON.stringify(value);
+}
+
+function payloadBytes(payloadJson) {
+	return Buffer.byteLength(payloadJson, "utf8");
+}
+
+function validPayloadJson(payloadJson) {
+	try {
+		JSON.parse(payloadJson);
+		return payloadJson;
+	} catch {
+		return "{}";
+	}
+}
+
+function compactItemEventPayload(payloadJson) {
+	let payload;
+	try {
+		payload = JSON.parse(payloadJson);
+	} catch {
+		return "{}";
+	}
+	const item = payload?.item;
+	if (!item || typeof item !== "object") {
+		return "{}";
+	}
+	return jsonText({
+		itemRef: {
+			id: typeof item.id === "string" ? item.id : null,
+			threadId: typeof item.threadId === "string" ? item.threadId : null,
+			turnId: typeof item.turnId === "string" ? item.turnId : null,
+			type: typeof item.type === "string" ? item.type : null,
+			textLength: typeof item.text === "string" ? item.text.length : 0,
+			createdAt: typeof item.createdAt === "string" ? item.createdAt : null,
+		},
+	});
+}
+
+function createV4Tables(db) {
 	db.exec(`
-    CREATE TABLE hosts_v3 (
+    CREATE TABLE hosts_v4 (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       adapter TEXT NOT NULL,
@@ -81,10 +121,10 @@ function createV3Tables(db) {
       last_seen_at TEXT NOT NULL
     );
 
-    CREATE TABLE threads_v3 (
+    CREATE TABLE threads_v4 (
       id TEXT PRIMARY KEY,
       session_id TEXT NOT NULL,
-      forked_from_id TEXT REFERENCES threads_v3(id) ON DELETE SET NULL,
+      forked_from_id TEXT REFERENCES threads_v4(id) ON DELETE SET NULL,
       title TEXT NOT NULL,
       preview TEXT NOT NULL,
       cwd TEXT NOT NULL,
@@ -101,9 +141,9 @@ function createV3Tables(db) {
       updated_at TEXT NOT NULL
     );
 
-    CREATE TABLE turns_v3 (
+    CREATE TABLE turns_v4 (
       id TEXT PRIMARY KEY,
-      thread_id TEXT NOT NULL REFERENCES threads_v3(id) ON DELETE CASCADE,
+      thread_id TEXT NOT NULL REFERENCES threads_v4(id) ON DELETE CASCADE,
       status TEXT NOT NULL CHECK (status IN ('in_progress', 'completed', 'interrupted', 'failed')),
       prompt TEXT NOT NULL,
       started_at TEXT NOT NULL,
@@ -111,36 +151,37 @@ function createV3Tables(db) {
       duration_ms INTEGER
     );
 
-    CREATE TABLE items_v3 (
+    CREATE TABLE items_v4 (
       id TEXT PRIMARY KEY,
-      thread_id TEXT NOT NULL REFERENCES threads_v3(id) ON DELETE CASCADE,
-      turn_id TEXT REFERENCES turns_v3(id) ON DELETE CASCADE,
+      thread_id TEXT NOT NULL REFERENCES threads_v4(id) ON DELETE CASCADE,
+      turn_id TEXT REFERENCES turns_v4(id) ON DELETE CASCADE,
       type TEXT NOT NULL CHECK (type IN ('user', 'agent', 'plan', 'command', 'file', 'system')),
       text TEXT NOT NULL,
-      data_json TEXT NOT NULL,
+      data_json TEXT NOT NULL CHECK (json_valid(data_json)),
+      text_length INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
 
-    CREATE TABLE events_v3 (
+    CREATE TABLE events_v4 (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       type TEXT NOT NULL,
-      thread_id TEXT REFERENCES threads_v3(id) ON DELETE CASCADE,
-      turn_id TEXT REFERENCES turns_v3(id) ON DELETE CASCADE,
+      thread_id TEXT REFERENCES threads_v4(id) ON DELETE CASCADE,
+      turn_id TEXT REFERENCES turns_v4(id) ON DELETE CASCADE,
       is_summary INTEGER NOT NULL CHECK (is_summary IN (0, 1)),
-      payload_json TEXT NOT NULL,
+      payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
+      payload_bytes INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL
     );
   `);
 }
 
-function copyData(db) {
-	const summaryTypes = sqlStringList(summaryEventTypes);
-	const retainedTypes = sqlStringList(retainedEventTypes);
+function copyRelationalData(db) {
 	db.exec(`
-    INSERT INTO hosts_v3 (id, name, adapter, version, default_cwd, last_seen_at)
+    INSERT INTO hosts_v4 (id, name, adapter, version, default_cwd, last_seen_at)
     SELECT id, name, adapter, version, default_cwd, last_seen_at FROM hosts;
 
-    INSERT INTO threads_v3 (
+    INSERT INTO threads_v4 (
       id, session_id, forked_from_id, title, preview, cwd, model, status,
       active_turn_id, last_turn_status, goal_objective, goal_status,
       goal_token_budget, tokens_used, archived_at, created_at, updated_at
@@ -151,32 +192,69 @@ function copyData(db) {
       goal_token_budget, tokens_used, archived_at, created_at, updated_at
     FROM threads;
 
-    INSERT INTO turns_v3 (
+    INSERT INTO turns_v4 (
       id, thread_id, status, prompt, started_at, completed_at, duration_ms
     )
     SELECT id, thread_id, status, prompt, started_at, completed_at, duration_ms
     FROM turns;
 
-    INSERT INTO items_v3 (
-      id, thread_id, turn_id, type, text, data_json, created_at
-    )
-    SELECT id, thread_id, turn_id, type, text, data_json, created_at
-    FROM items;
-
-    INSERT INTO events_v3 (
-      id, type, thread_id, turn_id, is_summary, payload_json, created_at
+    INSERT INTO items_v4 (
+      id, thread_id, turn_id, type, text, data_json, text_length, updated_at, created_at
     )
     SELECT
       id,
-      type,
       thread_id,
       turn_id,
-      CASE WHEN type IN (${summaryTypes}) THEN 1 ELSE 0 END,
-      payload_json,
+      type,
+      text,
+      CASE WHEN json_valid(data_json) THEN data_json ELSE '{}' END,
+      length(text),
+      created_at,
       created_at
-    FROM events
-    WHERE type IN (${retainedTypes});
+    FROM items;
   `);
+}
+
+function copyEvents(db) {
+	const summaryTypes = sqlStringList(summaryEventTypes);
+	const retainedTypes = sqlStringList(retainedEventTypes);
+	const rows = db
+		.prepare(
+			`
+        SELECT id, type, thread_id, turn_id, payload_json, created_at
+        FROM events
+        WHERE type IN (${retainedTypes})
+        ORDER BY id ASC
+      `,
+		)
+		.all();
+	const insert = db.prepare(`
+    INSERT INTO events_v4 (
+      id, type, thread_id, turn_id, is_summary, payload_json, payload_bytes, created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+	for (const row of rows) {
+		const isSummary = summaryEventTypes.includes(row.type) ? 1 : 0;
+		const payloadJson =
+			row.type === "item.created" || row.type === "item.updated"
+				? compactItemEventPayload(row.payload_json)
+				: validPayloadJson(row.payload_json);
+		insert.run(
+			row.id,
+			row.type,
+			row.thread_id,
+			row.turn_id,
+			isSummary,
+			payloadJson,
+			payloadBytes(payloadJson),
+			row.created_at,
+		);
+	}
+	db.exec(`DELETE FROM events_v4 WHERE type NOT IN (${retainedTypes});`);
+	db.exec(
+		`UPDATE events_v4 SET is_summary = 1 WHERE type IN (${summaryTypes});`,
+	);
 }
 
 function replaceTables(db) {
@@ -187,15 +265,15 @@ function replaceTables(db) {
     DROP TABLE threads;
     DROP TABLE hosts;
 
-    ALTER TABLE hosts_v3 RENAME TO hosts;
-    ALTER TABLE threads_v3 RENAME TO threads;
-    ALTER TABLE turns_v3 RENAME TO turns;
-    ALTER TABLE items_v3 RENAME TO items;
-    ALTER TABLE events_v3 RENAME TO events;
+    ALTER TABLE hosts_v4 RENAME TO hosts;
+    ALTER TABLE threads_v4 RENAME TO threads;
+    ALTER TABLE turns_v4 RENAME TO turns;
+    ALTER TABLE items_v4 RENAME TO items;
+    ALTER TABLE events_v4 RENAME TO events;
   `);
 }
 
-function createV3Indexes(db) {
+function createV4Indexes(db) {
 	db.exec(`
     CREATE INDEX idx_threads_active_updated_id ON threads(archived_at, updated_at DESC, id DESC);
     CREATE INDEX idx_threads_cwd_active_updated_id ON threads(cwd, archived_at, updated_at DESC, id DESC);
@@ -230,10 +308,11 @@ function migrate(db) {
 	db.exec("PRAGMA foreign_keys = OFF");
 	db.exec("BEGIN IMMEDIATE");
 	try {
-		createV3Tables(db);
-		copyData(db);
+		createV4Tables(db);
+		copyRelationalData(db);
+		copyEvents(db);
 		replaceTables(db);
-		createV3Indexes(db);
+		createV4Indexes(db);
 		updateEventSequence(db);
 		assertNoForeignKeyViolations(db);
 		const result = db

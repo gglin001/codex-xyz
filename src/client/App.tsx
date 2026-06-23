@@ -68,6 +68,7 @@ import {
 
 const transientAlertAutoDismissMs = 10_000;
 const archivedSearchPageSize = 200;
+const streamEventNames = [...incrementalEventNames, "events.reset"] as const;
 
 function initialState(): DashboardState {
 	return {
@@ -111,6 +112,14 @@ type RefreshOptions = {
 type DetailSubscription = {
 	threadId: string;
 	after: number;
+};
+
+type ResetEvent = {
+	type: "events.reset";
+	reason: string;
+	after: number;
+	latestEventId: number;
+	threadId?: string | null;
 };
 
 const terminalVisibleStorageKey = "coz-terminal-visible";
@@ -557,7 +566,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		}
 		fallbackRefreshTimerRef.current = setTimeout(() => {
 			fallbackRefreshTimerRef.current = null;
-			void refresh();
+			void refresh(undefined, { loadDetail: true });
 		}, 250);
 	}
 
@@ -605,6 +614,22 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		return typeof event.id === "number" ? Math.max(current, event.id) : current;
 	}
 
+	function isResetEvent(event: CozEvent | ResetEvent): event is ResetEvent {
+		return event.type === "events.reset";
+	}
+
+	function handleResetEvent(event: ResetEvent) {
+		if (event.threadId && selectedThreadIdRef.current === event.threadId) {
+			void loadThreadDetail(event.threadId).catch(() => {
+				scheduleFallbackRefresh();
+			});
+			return;
+		}
+		void refresh(undefined, { loadDetail: true }).catch(() => {
+			scheduleFallbackRefresh();
+		});
+	}
+
 	useEffect(() => {
 		return () => {
 			if (fallbackRefreshTimerRef.current) {
@@ -622,11 +647,19 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	useEventStreamSubscription({
 		enabled: summaryEventsReady,
 		subscriptionKey: summaryEventsReady ? "summary" : null,
-		eventNames: incrementalEventNames,
+		eventNames: streamEventNames,
 		getPath: () => `/api/events?after=${summaryEventIdRef.current}`,
 		onEvent: (rawEvent) => {
 			try {
-				const event = parseSseJsonEvent<CozEvent>(rawEvent);
+				const event = parseSseJsonEvent<CozEvent | ResetEvent>(rawEvent);
+				if (isResetEvent(event)) {
+					summaryEventIdRef.current = Math.max(
+						summaryEventIdRef.current,
+						event.latestEventId,
+					);
+					handleResetEvent(event);
+					return;
+				}
 				summaryEventIdRef.current = advanceEventCursor(
 					summaryEventIdRef.current,
 					event,
@@ -651,7 +684,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	useEventStreamSubscription({
 		enabled: detailSubscription !== null,
 		subscriptionKey: detailSubscriptionKey,
-		eventNames: incrementalEventNames,
+		eventNames: streamEventNames,
 		getPath: () => {
 			if (!detailSubscription) {
 				return "/api/events?after=0";
@@ -660,7 +693,15 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		},
 		onEvent: (rawEvent) => {
 			try {
-				const event = parseSseJsonEvent<CozEvent>(rawEvent);
+				const event = parseSseJsonEvent<CozEvent | ResetEvent>(rawEvent);
+				if (isResetEvent(event)) {
+					detailEventIdRef.current = Math.max(
+						detailEventIdRef.current,
+						event.latestEventId,
+					);
+					handleResetEvent(event);
+					return;
+				}
 				detailEventIdRef.current = advanceEventCursor(
 					detailEventIdRef.current,
 					event,

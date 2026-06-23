@@ -1,4 +1,5 @@
 import {
+	type CozEvent,
 	type GoalStatusUpdate,
 	isSummaryEventType,
 	type TerminalEvent,
@@ -6,6 +7,8 @@ import {
 import type { ControlService } from "./service.js";
 
 const textEncoder = new TextEncoder();
+const defaultEventReplayLimit = 500;
+const defaultEventReplayPayloadBytes = 512 * 1024;
 
 function jsonResponse(body: unknown, status = 200) {
 	return Response.json(body, {
@@ -125,6 +128,24 @@ function optionalThreadPageCursor(url: URL) {
 	};
 }
 
+function optionalThreadItemPageCursor(url: URL) {
+	const createdAt = url.searchParams.get("cursorCreatedAt");
+	const id = url.searchParams.get("cursorId");
+	if (
+		(createdAt === null || createdAt.trim() === "") &&
+		(id === null || id.trim() === "")
+	) {
+		return null;
+	}
+	if (!createdAt?.trim() || !id?.trim()) {
+		throw new Error("cursorCreatedAt and cursorId must be provided together");
+	}
+	return {
+		createdAt: createdAt.trim(),
+		id: id.trim(),
+	};
+}
+
 function pathParts(url: URL) {
 	return url.pathname
 		.split("/")
@@ -233,6 +254,14 @@ type StreamableEvent = {
 	type: string;
 };
 
+type ResetEvent = {
+	type: "events.reset";
+	reason: string;
+	after: number;
+	latestEventId: number;
+	threadId?: string | null;
+};
+
 function eventSequence(event: StreamableEvent) {
 	return event.id ?? event.sequence;
 }
@@ -250,7 +279,8 @@ function eventStreamResponse<TEvent extends StreamableEvent>(
 		const send = (event: TEvent) =>
 			writeSse(sendRaw, event.type, event, eventSequence(event));
 
-		for (const event of input.replay(sseAfterId(url))) {
+		const after = sseAfterId(url);
+		for (const event of input.replay(after)) {
 			send(event);
 		}
 		const unsubscribe = input.subscribe(send);
@@ -270,8 +300,12 @@ function summaryEventsResponse(
 	request: Request,
 	url: URL,
 ) {
-	return eventStreamResponse(request, url, {
-		replay: (after) => service.replayEvents(after, { summaryOnly: true }),
+	return eventStreamResponse<CozEvent | ResetEvent>(request, url, {
+		replay: (after) =>
+			boundedReplay(service, after, {
+				summaryOnly: true,
+				threadId: null,
+			}),
 		subscribe: (send) =>
 			service.events.subscribe((event) => {
 				if (isSummaryEventType(event.type)) {
@@ -287,8 +321,8 @@ function threadEventsResponse(
 	url: URL,
 	threadId: string,
 ) {
-	return eventStreamResponse(request, url, {
-		replay: (after) => service.replayEvents(after, { threadId }),
+	return eventStreamResponse<CozEvent | ResetEvent>(request, url, {
+		replay: (after) => boundedReplay(service, after, { threadId }),
 		subscribe: (send) =>
 			service.events.subscribe((event) => {
 				if (event.threadId === threadId) {
@@ -296,6 +330,36 @@ function threadEventsResponse(
 				}
 			}),
 	});
+}
+
+function boundedReplay(
+	service: ControlService,
+	after: number,
+	options: {
+		threadId?: string | null;
+		summaryOnly?: boolean;
+	},
+): Array<CozEvent | ResetEvent> {
+	const events = service.replayEvents(after, {
+		...options,
+		limit: defaultEventReplayLimit,
+		maxPayloadBytes: defaultEventReplayPayloadBytes,
+	});
+	const latestEventId = service.getLatestReplayEventId(options);
+	const lastEventId = events.at(-1)?.id ?? after;
+	if (latestEventId > lastEventId) {
+		return [
+			...events,
+			{
+				type: "events.reset",
+				reason: "replay_limit_exceeded",
+				after,
+				latestEventId,
+				threadId: options.threadId ?? null,
+			},
+		];
+	}
+	return events;
 }
 
 function terminalEventsResponse(
@@ -381,21 +445,13 @@ async function routeApiRequest(
 
 	if (method === "GET" && route === "api/threads") {
 		const archived = optionalQueryBoolean(url, "archived");
-		if (
-			url.searchParams.has("limit") ||
-			url.searchParams.has("cursorUpdatedAt") ||
-			url.searchParams.has("cursorId") ||
-			archived !== null
-		) {
-			return jsonResponse(
-				service.listThreadPage({
-					limit: optionalQueryInteger(url, "limit", { min: 1 }),
-					cursor: optionalThreadPageCursor(url),
-					archived,
-				}),
-			);
-		}
-		return jsonResponse(service.listThreads());
+		return jsonResponse(
+			service.listThreadPage({
+				limit: optionalQueryInteger(url, "limit", { min: 1 }),
+				cursor: optionalThreadPageCursor(url),
+				archived,
+			}),
+		);
 	}
 
 	if (method === "POST" && route === "api/threads") {
@@ -416,6 +472,15 @@ async function routeApiRequest(
 		const threadId = parts[2];
 		if (method === "GET" && parts.length === 3) {
 			return jsonResponse(service.getThreadDetail(threadId));
+		}
+
+		if (method === "GET" && parts[3] === "items") {
+			return jsonResponse(
+				service.listThreadItemsPage(threadId, {
+					limit: optionalQueryInteger(url, "limit", { min: 1 }),
+					cursor: optionalThreadItemPageCursor(url),
+				}),
+			);
 		}
 
 		if (method === "GET" && parts[3] === "events") {

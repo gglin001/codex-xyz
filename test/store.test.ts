@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { ControlThread } from "../src/server/domain.js";
+import type { ControlThread, ThreadItem } from "../src/server/domain.js";
 import { currentDatabaseVersion, Store } from "../src/server/store.js";
 
 let tempDir: string;
@@ -102,11 +102,11 @@ describe("store database version", () => {
 	});
 
 	it("rejects previous-version databases", () => {
-		const filePath = join(tempDir, "v2.sqlite");
-		createDatabaseWithVersion(filePath, "v2");
+		const filePath = join(tempDir, "v3.sqlite");
+		createDatabaseWithVersion(filePath, "v3");
 
 		expect(() => Store.open(filePath)).toThrow(
-			`Unsupported database version "v2"; expected "${currentDatabaseVersion}"`,
+			`Unsupported database version "v3"; expected "${currentDatabaseVersion}"`,
 		);
 	});
 
@@ -127,6 +127,81 @@ describe("store database version", () => {
 				"thread-archived",
 			]);
 			expect(archivedThreads[0]?.archivedAt).toBe("2026-06-13T00:10:00.000Z");
+		} finally {
+			store.close();
+		}
+	});
+
+	it("paginates thread items by stable item cursors", () => {
+		const store = Store.open(":memory:");
+		try {
+			store.createThread(threadFixture("thread-1"));
+			for (let index = 1; index <= 3; index += 1) {
+				const item: ThreadItem = {
+					id: `item-${index}`,
+					threadId: "thread-1",
+					turnId: null,
+					type: "agent",
+					text: `Item ${index}`,
+					data: {},
+					createdAt: `2026-06-13T00:00:0${index}.000Z`,
+				};
+				store.createItem(item);
+			}
+
+			const firstPage = store.listThreadItemsPage("thread-1", { limit: 2 });
+			expect(firstPage.items.map((item) => item.id)).toEqual([
+				"item-1",
+				"item-2",
+			]);
+			expect(firstPage.hasMore).toBe(true);
+			expect(firstPage.nextCursor).toEqual({
+				createdAt: "2026-06-13T00:00:02.000Z",
+				id: "item-2",
+			});
+
+			const secondPage = store.listThreadItemsPage("thread-1", {
+				limit: 2,
+				cursor: firstPage.nextCursor,
+			});
+			expect(secondPage.items.map((item) => item.id)).toEqual(["item-3"]);
+			expect(secondPage.hasMore).toBe(false);
+		} finally {
+			store.close();
+		}
+	});
+
+	it("limits event replay by count and payload bytes", () => {
+		const store = Store.open(":memory:");
+		try {
+			store.appendEvent({
+				type: "thread.started",
+				threadId: null,
+				turnId: null,
+				payload: { text: "one" },
+				createdAt: "2026-06-13T00:00:01.000Z",
+			});
+			store.appendEvent({
+				type: "thread.started",
+				threadId: null,
+				turnId: null,
+				payload: { text: "two".repeat(50) },
+				createdAt: "2026-06-13T00:00:02.000Z",
+			});
+			store.appendEvent({
+				type: "thread.started",
+				threadId: null,
+				turnId: null,
+				payload: { text: "three" },
+				createdAt: "2026-06-13T00:00:03.000Z",
+			});
+
+			expect(
+				store.listEvents(0, { limit: 2 }).map((event) => event.id),
+			).toEqual([1, 2]);
+			expect(
+				store.listEvents(0, { maxPayloadBytes: 30 }).map((event) => event.id),
+			).toEqual([1]);
 		} finally {
 			store.close();
 		}

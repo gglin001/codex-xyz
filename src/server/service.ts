@@ -12,6 +12,8 @@ import {
 	type SetGoalStatusInput,
 	type StartTurnInput,
 	type ThreadDetail,
+	type ThreadItemPageCursor,
+	type ThreadItemsPage,
 	type ThreadPage,
 	type ThreadPageCursor,
 	titleFromPrompt,
@@ -417,11 +419,33 @@ export class ControlService {
 		return detail;
 	}
 
+	listThreadItemsPage(
+		threadId: string,
+		input: {
+			limit?: number | null;
+			cursor?: ThreadItemPageCursor | null;
+		} = {},
+	): ThreadItemsPage {
+		this.requireThread(threadId);
+		return this.store.listThreadItemsPage(threadId, input);
+	}
+
 	replayEvents(
 		afterId = 0,
-		options: { threadId?: string | null; summaryOnly?: boolean } = {},
+		options: {
+			threadId?: string | null;
+			summaryOnly?: boolean;
+			limit?: number | null;
+			maxPayloadBytes?: number | null;
+		} = {},
 	) {
 		return this.store.listEvents(afterId, options);
+	}
+
+	getLatestReplayEventId(
+		options: { threadId?: string | null; summaryOnly?: boolean } = {},
+	) {
+		return this.store.getLatestEventIdForReplay(options);
 	}
 
 	async close() {

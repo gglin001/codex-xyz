@@ -20,7 +20,7 @@ afterEach(() => {
 	rmSync(tempDir, { recursive: true, force: true });
 });
 
-function createV2Database(filePath: string) {
+function createV3Database(filePath: string) {
 	const db = new DatabaseSync(filePath);
 	db.exec(`
     CREATE TABLE database_metadata (
@@ -40,16 +40,16 @@ function createV2Database(filePath: string) {
     CREATE TABLE threads (
       id TEXT PRIMARY KEY,
       session_id TEXT NOT NULL,
-      forked_from_id TEXT,
+      forked_from_id TEXT REFERENCES threads(id) ON DELETE SET NULL,
       title TEXT NOT NULL,
       preview TEXT NOT NULL,
       cwd TEXT NOT NULL,
       model TEXT,
-      status TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('idle', 'active', 'not_loaded', 'system_error')),
       active_turn_id TEXT,
-      last_turn_status TEXT,
+      last_turn_status TEXT CHECK (last_turn_status IS NULL OR last_turn_status IN ('in_progress', 'completed', 'interrupted', 'failed')),
       goal_objective TEXT,
-      goal_status TEXT,
+      goal_status TEXT CHECK (goal_status IS NULL OR goal_status IN ('in_progress', 'paused', 'blocked', 'usage_limited', 'budget_limited', 'complete', 'cleared')),
       goal_token_budget INTEGER,
       tokens_used INTEGER NOT NULL DEFAULT 0,
       archived_at TEXT,
@@ -60,7 +60,7 @@ function createV2Database(filePath: string) {
     CREATE TABLE turns (
       id TEXT PRIMARY KEY,
       thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
-      status TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('in_progress', 'completed', 'interrupted', 'failed')),
       prompt TEXT NOT NULL,
       started_at TEXT NOT NULL,
       completed_at TEXT,
@@ -71,7 +71,7 @@ function createV2Database(filePath: string) {
       id TEXT PRIMARY KEY,
       thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
       turn_id TEXT REFERENCES turns(id) ON DELETE CASCADE,
-      type TEXT NOT NULL,
+      type TEXT NOT NULL CHECK (type IN ('user', 'agent', 'plan', 'command', 'file', 'system')),
       text TEXT NOT NULL,
       data_json TEXT NOT NULL,
       created_at TEXT NOT NULL
@@ -80,15 +80,16 @@ function createV2Database(filePath: string) {
     CREATE TABLE events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       type TEXT NOT NULL,
-      thread_id TEXT,
-      turn_id TEXT,
+      thread_id TEXT REFERENCES threads(id) ON DELETE CASCADE,
+      turn_id TEXT REFERENCES turns(id) ON DELETE CASCADE,
+      is_summary INTEGER NOT NULL CHECK (is_summary IN (0, 1)),
       payload_json TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
   `);
 	db.prepare("INSERT INTO database_metadata (key, value) VALUES (?, ?)").run(
 		"database_version",
-		"v2",
+		"v3",
 	);
 	db.prepare(
 		"INSERT INTO hosts (id, name, adapter, version, default_cwd, last_seen_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -146,17 +147,18 @@ function createV2Database(filePath: string) {
 		"thread-1",
 		"turn-1",
 		"agent",
-		"Hello",
+		"Hello world",
 		"{}",
 		"2026-06-13T00:00:00.000Z",
 	);
 	const insertEvent = db.prepare(
-		"INSERT INTO events (type, thread_id, turn_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?)",
+		"INSERT INTO events (type, thread_id, turn_id, is_summary, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?)",
 	);
 	insertEvent.run(
 		"thread.started",
 		"thread-1",
 		null,
+		1,
 		'{"thread":{"id":"thread-1"}}',
 		"2026-06-13T00:00:00.000Z",
 	);
@@ -164,39 +166,35 @@ function createV2Database(filePath: string) {
 		"item.delta",
 		"thread-1",
 		"turn-1",
-		'{"itemId":"item-1","delta":"Hello","item":{"text":"Hello"}}',
+		0,
+		'{"itemId":"item-1","delta":"Hello"}',
 		"2026-06-13T00:00:00.100Z",
 	);
 	insertEvent.run(
 		"adapter.raw",
 		"thread-1",
 		"turn-1",
+		0,
 		'{"method":"item/reasoning/summaryTextDelta"}',
 		"2026-06-13T00:00:00.200Z",
-	);
-	insertEvent.run(
-		"thread.continued",
-		"thread-1",
-		null,
-		"{}",
-		"2026-06-13T00:00:00.300Z",
 	);
 	insertEvent.run(
 		"item.updated",
 		"thread-1",
 		"turn-1",
-		'{"item":{"id":"item-1","text":"Hello"}}',
+		0,
+		'{"item":{"id":"item-1","threadId":"thread-1","turnId":"turn-1","type":"agent","text":"Hello world","createdAt":"2026-06-13T00:00:00.000Z"}}',
 		"2026-06-13T00:00:01.000Z",
 	);
 	db.close();
 }
 
-describe("v2 to v3 migration", () => {
-	it("compacts event storage and produces a current database", () => {
+describe("v3 to v4 migration", () => {
+	it("compacts item event payloads and produces a current database", () => {
 		const filePath = join(tempDir, "coz.sqlite");
-		createV2Database(filePath);
+		createV3Database(filePath);
 
-		execFileSync(process.execPath, ["scripts/upgrade-v2-to-v3.mjs", filePath], {
+		execFileSync(process.execPath, ["scripts/upgrade-v3-to-v4.mjs", filePath], {
 			stdio: "pipe",
 		});
 
@@ -206,29 +204,54 @@ describe("v2 to v3 migration", () => {
 				.prepare("SELECT value FROM database_metadata WHERE key = ?")
 				.get("database_version") as { value?: unknown } | undefined;
 			const events = db
-				.prepare("SELECT type, is_summary FROM events ORDER BY id")
-				.all() as Array<{ type: string; is_summary: number }>;
-			const indexes = db
 				.prepare(
-					"SELECT name FROM sqlite_master WHERE type = 'index' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+					"SELECT type, is_summary, payload_json, payload_bytes FROM events ORDER BY id",
 				)
-				.all() as Array<{ name: string }>;
+				.all() as Array<{
+				type: string;
+				is_summary: number;
+				payload_json: string;
+				payload_bytes: number;
+			}>;
+			const item = db
+				.prepare("SELECT text, text_length, updated_at FROM items WHERE id = ?")
+				.get("item-1") as
+				| { text: string; text_length: number; updated_at: string }
+				| undefined;
 
 			expect(version?.value).toBe(currentDatabaseVersion);
-			expect(events).toEqual([
-				{ type: "thread.started", is_summary: 1 },
-				{ type: "item.updated", is_summary: 0 },
+			expect(events.map((event) => event.type)).toEqual([
+				"thread.started",
+				"item.updated",
 			]);
-			expect(indexes.map((index) => index.name)).toContain(
-				"idx_events_summary_id",
+			expect(events[1]?.payload_json).not.toContain("Hello world");
+			expect(JSON.parse(events[1]?.payload_json ?? "{}")).toEqual({
+				itemRef: {
+					id: "item-1",
+					threadId: "thread-1",
+					turnId: "turn-1",
+					type: "agent",
+					textLength: 11,
+					createdAt: "2026-06-13T00:00:00.000Z",
+				},
+			});
+			expect(events[1]?.payload_bytes).toBe(
+				Buffer.byteLength(events[1]?.payload_json ?? "", "utf8"),
 			);
+			expect(item).toEqual({
+				text: "Hello world",
+				text_length: 11,
+				updated_at: "2026-06-13T00:00:00.000Z",
+			});
 		} finally {
 			db.close();
 		}
 
 		const store = Store.open(filePath);
 		try {
-			expect(store.getThreadDetail("thread-1")?.items[0]?.text).toBe("Hello");
+			expect(store.getThreadDetail("thread-1")?.items[0]?.text).toBe(
+				"Hello world",
+			);
 		} finally {
 			store.close();
 		}

@@ -680,6 +680,11 @@ describe("ControlService", () => {
 		expect(fullReplay.some((event) => event.type.startsWith("item."))).toBe(
 			true,
 		);
+		const replayItemEvent = fullReplay.find((event) =>
+			event.type.startsWith("item."),
+		);
+		expect(replayItemEvent?.payload).toHaveProperty("itemRef");
+		expect(replayItemEvent?.payload).not.toHaveProperty("item");
 		expect(summaryReplay.some((event) => event.type.startsWith("item."))).toBe(
 			false,
 		);

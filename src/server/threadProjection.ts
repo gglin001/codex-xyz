@@ -20,6 +20,27 @@ function goalStatusFromAdapter(goal: AdapterGoal | null): GoalStatus | null {
 	return goal ? goal.status : null;
 }
 
+function compactStoredPayload(type: string, payload: Record<string, unknown>) {
+	if (type !== "item.created" && type !== "item.updated") {
+		return payload;
+	}
+	const item = payload.item;
+	if (!item || typeof item !== "object") {
+		return payload;
+	}
+	const stored = item as ThreadItem;
+	return {
+		itemRef: {
+			id: stored.id,
+			threadId: stored.threadId,
+			turnId: stored.turnId,
+			type: stored.type,
+			textLength: stored.text.length,
+			createdAt: stored.createdAt,
+		},
+	};
+}
+
 export type CreateThreadProjectionInput = {
 	adapterThread: AdapterThread;
 	title: string;
@@ -192,15 +213,17 @@ export class ThreadProjection {
 		turnId: string | null,
 		payload: Record<string, unknown>,
 	): CozEvent {
+		const storedPayload = compactStoredPayload(type, payload);
 		const event = this.store.appendEvent({
 			type,
 			threadId,
 			turnId,
-			payload,
+			payload: storedPayload,
 			createdAt: nowIso(),
 		});
-		this.queueEvent(event);
-		return event;
+		const liveEvent = storedPayload === payload ? event : { ...event, payload };
+		this.queueEvent(liveEvent);
+		return liveEvent;
 	}
 
 	private publishTransient(

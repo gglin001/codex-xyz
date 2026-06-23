@@ -83,6 +83,10 @@ function payloadValue<T>(event: CozEvent, key: string) {
 	return isRecord(value) ? (value as T) : null;
 }
 
+function hasPayloadRecord(event: CozEvent, key: string) {
+	return isRecord(payloadRecord(event)[key]);
+}
+
 function shallowEqualValue(a: unknown, b: unknown): boolean {
 	if (a === b) {
 		return true;
@@ -550,7 +554,15 @@ export function applyEventProjection(
 	if (event.type === "item.created" || event.type === "item.updated") {
 		const item = payloadValue<ThreadItem>(event, "item");
 		if (!item) {
-			return result(projection, projection, false, event);
+			const projected = result(
+				projection,
+				projection,
+				hasPayloadRecord(event, "itemRef"),
+				event,
+			);
+			return hasPayloadRecord(event, "itemRef")
+				? { ...projected, needsRefresh: true }
+				: projected;
 		}
 		return result(projection, withThreadItem(projection, item), true, event);
 	}

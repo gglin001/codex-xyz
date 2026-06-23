@@ -313,6 +313,11 @@ describe("Next API routes", () => {
 		expect(state.threadHasMore).toBe(true);
 		expect(state.threads[0].id).toBe("thread-055");
 
+		const defaultPage = await json<ThreadPage>("/api/threads");
+		expect(defaultPage.threads).toHaveLength(50);
+		expect(defaultPage.hasMore).toBe(true);
+		expect(defaultPage.totalCount).toBe(55);
+
 		const page = await json<ThreadPage>(
 			`/api/threads?limit=50&cursorUpdatedAt=${encodeURIComponent(
 				state.threadNextCursor?.updatedAt ?? "",
@@ -330,6 +335,74 @@ describe("Next API routes", () => {
 			"thread-002",
 			"thread-001",
 		]);
+	});
+
+	it("paginates thread transcript items", async () => {
+		const thread = threadFixture(1);
+		service.store.createThread(thread);
+		for (let index = 1; index <= 3; index += 1) {
+			service.store.createItem({
+				id: `item-${index}`,
+				threadId: thread.id,
+				turnId: null,
+				type: "agent",
+				text: `Item ${index}`,
+				data: {},
+				createdAt: `2026-06-13T00:00:0${index}.000Z`,
+			});
+		}
+
+		const firstPage = await json<{
+			items: Array<{ id: string }>;
+			nextCursor: { createdAt: string; id: string } | null;
+			hasMore: boolean;
+			totalCount: number;
+		}>(`/api/threads/${thread.id}/items?limit=2`);
+		expect(firstPage.items.map((item) => item.id)).toEqual([
+			"item-1",
+			"item-2",
+		]);
+		expect(firstPage.hasMore).toBe(true);
+		expect(firstPage.totalCount).toBe(3);
+
+		const secondPage = await json<{ items: Array<{ id: string }> }>(
+			`/api/threads/${thread.id}/items?limit=2&cursorCreatedAt=${encodeURIComponent(
+				firstPage.nextCursor?.createdAt ?? "",
+			)}&cursorId=${encodeURIComponent(firstPage.nextCursor?.id ?? "")}`,
+		);
+		expect(secondPage.items.map((item) => item.id)).toEqual(["item-3"]);
+	});
+
+	it("signals SSE clients to refresh when replay exceeds the bounded window", async () => {
+		for (let index = 0; index < 501; index += 1) {
+			service.store.appendEvent({
+				type: "thread.started",
+				threadId: null,
+				turnId: null,
+				payload: { index },
+				createdAt: `2026-06-13T00:${String(index % 60).padStart(2, "0")}:00.000Z`,
+			});
+		}
+
+		const controller = new AbortController();
+		const response = await apiResponse("/api/events?after=0", {
+			signal: controller.signal,
+		});
+		expect(response.ok).toBe(true);
+		const reader = response.body?.getReader();
+		if (!reader) {
+			throw new Error("Expected a response body");
+		}
+		const text = await readStreamUntil(
+			reader,
+			(chunk) => chunk.includes("event: events.reset"),
+			"events.reset",
+		);
+		await reader.cancel();
+		controller.abort();
+
+		expect(text).toContain("event: events.reset");
+		expect(text).toContain("replay_limit_exceeded");
 	});
 
 	it("opens idle thread event streams with an immediate SSE frame", async () => {

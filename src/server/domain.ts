@@ -116,6 +116,21 @@ export type ThreadItem = {
 	createdAt: string;
 };
 
+export type ThreadItemPageCursor = {
+	createdAt: string;
+	id: string;
+};
+
+export type ThreadItemsPage = {
+	threadId: string;
+	items: ThreadItem[];
+	limit: number;
+	cursor: ThreadItemPageCursor | null;
+	nextCursor: ThreadItemPageCursor | null;
+	hasMore: boolean;
+	totalCount: number;
+};
+
 export type CozEvent = {
 	id?: number;
 	type: string;
@@ -149,6 +164,10 @@ export function isSummaryEventType(type: string) {
 export type ThreadDetail = ControlThread & {
 	turns: Turn[];
 	items: ThreadItem[];
+	itemTotalCount: number;
+	itemPageSize: number;
+	itemNextCursor: ThreadItemPageCursor | null;
+	itemHasMore: boolean;
 	latestEventId: number;
 };
 
