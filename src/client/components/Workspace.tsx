@@ -651,18 +651,24 @@ const Composer = memo(
 
 				{promptTarget === "new" ? (
 					<FieldShell className="mb-3 h-9 px-3">
-						<input
-							className={cn(ui.input, "font-mono text-[12px] text-fg")}
-							value={workdir}
-							onChange={(event) => onWorkdirChange(event.target.value)}
-							placeholder="/path/to/repo"
-							disabled={busy}
-							aria-label="Working directory"
-							autoCapitalize="off"
-							autoCorrect="off"
-							spellCheck={false}
-							inputMode="url"
-						/>
+						<div className="workdir-input-scroll min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
+							<input
+								className={cn(
+									ui.input,
+									"block min-w-full flex-none whitespace-nowrap font-mono text-[12px] text-fg",
+								)}
+								style={{ width: `${Math.max(workdir.length + 4, 48)}ch` }}
+								value={workdir}
+								onChange={(event) => onWorkdirChange(event.target.value)}
+								placeholder="/path/to/repo"
+								disabled={busy}
+								aria-label="Working directory"
+								autoCapitalize="off"
+								autoCorrect="off"
+								spellCheck={false}
+								inputMode="url"
+							/>
+						</div>
 					</FieldShell>
 				) : null}
 

@@ -349,6 +349,13 @@
 		);
 	}
 
+	.workdir-input-scroll {
+		overscroll-behavior-x: contain;
+		scrollbar-gutter: stable;
+		touch-action: pan-x;
+		-webkit-overflow-scrolling: touch;
+	}
+
 	[class*="backdrop-blur"] {
 		will-change: transform;
 		isolation: isolate;
