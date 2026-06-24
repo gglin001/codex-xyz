@@ -198,6 +198,8 @@
 		overflow: hidden;
 		overscroll-behavior: none;
 		background: var(--app-bg);
+		-webkit-text-size-adjust: 100%;
+		text-size-adjust: 100%;
 	}
 
 	body {
@@ -210,6 +212,7 @@
 		background: var(--app-bg);
 		color: var(--text);
 		overscroll-behavior: none;
+		touch-action: manipulation;
 		-webkit-font-smoothing: antialiased;
 	}
 
@@ -219,6 +222,14 @@
 	textarea {
 		font: inherit;
 		-webkit-tap-highlight-color: transparent;
+	}
+
+	input,
+	select,
+	textarea,
+	[contenteditable="true"] {
+		-webkit-user-select: text;
+		user-select: text;
 	}
 
 	button {
@@ -377,6 +388,7 @@
 		padding-bottom: 1rem;
 		scroll-padding-bottom: calc(var(--composer-height, 132px) + 1rem);
 		overscroll-behavior: contain;
+		touch-action: pan-y;
 		-webkit-overflow-scrolling: touch;
 	}
 

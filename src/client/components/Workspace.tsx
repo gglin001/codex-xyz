@@ -641,6 +641,10 @@ const Composer = memo(
 							placeholder="/path/to/repo"
 							disabled={busy}
 							aria-label="Working directory"
+							autoCapitalize="off"
+							autoCorrect="off"
+							spellCheck={false}
+							inputMode="url"
 						/>
 					</FieldShell>
 				) : null}
@@ -659,6 +663,9 @@ const Composer = memo(
 							onFocus={onPromptFocus}
 							placeholder={placeholder}
 							disabled={busy}
+							autoCapitalize="sentences"
+							autoCorrect="on"
+							spellCheck={true}
 						/>
 						<div
 							ref={actionBarRef}

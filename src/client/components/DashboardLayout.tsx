@@ -49,6 +49,7 @@ import { nextThemeMode, type ThemeMode, themeModeLabels } from "../theme.js";
 import { statusLabel } from "../uiFormat.js";
 import { useFullscreen } from "../useFullscreen.js";
 import { useMobileViewportGeometry } from "../useMobileViewportGeometry.js";
+import type { PwaState } from "../usePwa.js";
 import { ParamPanel } from "./ParamPanel.js";
 import { Sidebar } from "./Sidebar.js";
 import { ThreadStatusIcon } from "./threadStatusIcon.js";
@@ -91,6 +92,7 @@ export type DashboardLayoutProps = {
 	onInspectorVisibleChange: (visible: boolean) => void;
 	onWrapThreadContentChange: (value: boolean) => void;
 	onThemeModeChange: (mode: ThemeMode) => void;
+	pwa: PwaState;
 	displayScale: number;
 	onDisplayScaleChange: (value: number) => void;
 	onProjectChange: (projectId: string) => void;
@@ -638,6 +640,7 @@ const CommandPalette = memo(function CommandPalette({
 						<div className="flex h-12 items-center gap-3 border-b border-border px-3.5">
 							<Search size={16} className="text-muted" />
 							<input
+								type="search"
 								ref={inputRef}
 								className={cn(ui.input, "h-10 text-[14px]")}
 								value={query}
@@ -646,6 +649,9 @@ const CommandPalette = memo(function CommandPalette({
 									setActiveIndex(0);
 								}}
 								placeholder="Search Anything"
+								autoCapitalize="off"
+								autoCorrect="off"
+								spellCheck={false}
 								onKeyDown={(event) => {
 									if (event.key === "Escape") {
 										event.preventDefault();
@@ -754,6 +760,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 	onInspectorVisibleChange,
 	onWrapThreadContentChange,
 	onThemeModeChange,
+	pwa,
 	displayScale,
 	onDisplayScaleChange,
 	onProjectChange,
@@ -1266,6 +1273,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 			defaultCwd={defaultCwd}
 			onWrapThreadContentChange={onWrapThreadContentChange}
 			onThemeModeChange={onThemeModeChange}
+			pwa={pwa}
 			fullscreenSupported={fullscreenSupported}
 			isFullscreen={isFullscreen}
 			onToggleFullscreen={toggleFullscreen}
@@ -1462,6 +1470,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 									defaultCwd={defaultCwd}
 									onWrapThreadContentChange={onWrapThreadContentChange}
 									onThemeModeChange={onThemeModeChange}
+									pwa={pwa}
 									fullscreenSupported={fullscreenSupported}
 									isFullscreen={isFullscreen}
 									onToggleFullscreen={toggleFullscreen}

@@ -195,11 +195,15 @@ export const Sidebar = memo(function Sidebar({
 				<div className="min-w-0 flex-1">
 					<FieldShell icon={<Search size={14} />} className="h-9 w-full">
 						<input
+							type="search"
 							className={cn(ui.input, "text-[13px]")}
 							value={threadQuery}
 							onChange={(event) => onThreadQueryChange(event.target.value)}
 							placeholder="Search threads"
 							aria-label="Search threads"
+							autoCapitalize="off"
+							autoCorrect="off"
+							spellCheck={false}
 						/>
 					</FieldShell>
 				</div>
@@ -213,7 +217,7 @@ export const Sidebar = memo(function Sidebar({
 				</ControlButton>
 			</div>
 
-			<div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 scroll-mask-y">
+			<div className="mobile-keyboard-scroll min-h-0 flex-1 overflow-y-auto px-3 py-3 scroll-mask-y">
 				<AnimatePresence mode="popLayout">
 					<motion.div
 						key={selectedProject?.id ?? "empty"}

@@ -2,18 +2,34 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-	title: "codex-xyz",
-	description: "codex control plane",
+	title: {
+		default: "codex-xyz",
+		template: "%s | codex-xyz",
+	},
+	description: "Codex control plane for managing active threads.",
 	applicationName: "codex-xyz",
+	creator: "coz",
+	formatDetection: {
+		address: false,
+		email: false,
+		telephone: false,
+	},
+	other: {
+		"apple-mobile-web-app-capable": "yes",
+	},
 	appleWebApp: {
 		capable: true,
 		statusBarStyle: "black-translucent",
 		title: "codex-xyz",
 	},
 	icons: {
-		icon: "/icons/icon.svg",
-		shortcut: "/icons/icon.svg",
-		apple: "/icons/icon.svg",
+		icon: [
+			{ url: "/icons/icon.svg", type: "image/svg+xml" },
+			{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+			{ url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+		],
+		shortcut: "/icons/icon-192.png",
+		apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
 	},
 	manifest: "/manifest.webmanifest",
 };
@@ -48,9 +64,12 @@ export default function RootLayout({
 }) {
 	return (
 		<html lang="en" data-theme="dark" suppressHydrationWarning>
-			<body>
+			<body data-app-shell="coz">
 				{/* biome-ignore lint/security/noDangerouslySetInnerHtml: Inline boot script applies the stored theme before React hydrates. */}
-				<script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+				<script
+					suppressHydrationWarning
+					dangerouslySetInnerHTML={{ __html: themeBootScript }}
+				/>
 				{children}
 			</body>
 		</html>

@@ -19,6 +19,7 @@ export function apiUrl(path: string) {
 async function request<T>(path: string, options: RequestInit = {}) {
 	const response = await fetch(apiUrl(path), {
 		...options,
+		cache: "no-store",
 		headers: {
 			"content-type": "application/json",
 			...options.headers,

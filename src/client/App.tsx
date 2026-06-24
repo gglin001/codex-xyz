@@ -66,6 +66,7 @@ import {
 	shouldLoadThreadSelection,
 	shouldSelectActionResult,
 } from "./threadSelection.js";
+import { usePwa } from "./usePwa.js";
 
 const transientAlertAutoDismissMs = 10_000;
 const archivedSearchPageSize = 200;
@@ -226,6 +227,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		state: appInitialState,
 		detail: null,
 	});
+	const pwa = usePwa();
 
 	const busy = busyAction !== null;
 
@@ -1225,6 +1227,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				onNavigatorVisibleChange={setNavigatorVisible}
 				onInspectorVisibleChange={setInspectorVisible}
 				onWrapThreadContentChange={setWrapThreadContent}
+				pwa={pwa}
 				onProjectChange={changeWorkbenchProject}
 				onSelectThread={selectWorkbenchThread}
 				onCreateThread={createWorkbenchThread}
