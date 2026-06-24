@@ -29,6 +29,7 @@ Use `NOTICE.md` for repository-specific operating constraints and supported or d
 - `pnpm run typecheck`: run strict TypeScript checks without emitting files.
 - `pnpm run build`: generate Codex types, typecheck, and build the client.
 - `pnpm run start`: run the built production Next.js server.
+- `scripts/debug.sh`: prefer using this script for debug and testing.
 
 ## Coding Style & Naming Conventions
 
