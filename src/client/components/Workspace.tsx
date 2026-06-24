@@ -46,6 +46,7 @@ import { cn, tone, ui } from "../designSystem.js";
 import { getFirstLineTextPreview } from "../textPreview.js";
 import {
 	getTranscriptEntries,
+	type TranscriptEntry,
 	type TranscriptProcessEntry,
 } from "../transcriptEntries.js";
 import {
@@ -69,6 +70,7 @@ import type {
 } from "./workbenchTypes.js";
 
 export type WorkspaceProps = {
+	presentationMode?: "desktop" | "mobile";
 	project: WorkbenchProject | null;
 	threadSummary: WorkbenchThread | null;
 	detail: ThreadDetail | null;
@@ -131,6 +133,8 @@ const mobileComposerSwipeAxisLockRatio = 1.15;
 const mobileComposerSwipeDirectionThresholds = {
 	up: 88,
 };
+const mobileTranscriptInitialWindow = 80;
+const mobileTranscriptWindowStep = 80;
 
 function ThreadContentFrame({
 	children,
@@ -157,6 +161,17 @@ function messageFromItem(item: ThreadItem): ChatMessage {
 
 function transcriptEntriesFromDetail(detail: ThreadDetail | null) {
 	return detail ? getTranscriptEntries(detail.items) : [];
+}
+
+function transcriptEntryItemCount(entry: TranscriptEntry) {
+	return entry.kind === "process" ? entry.items.length : 1;
+}
+
+function transcriptHiddenItemCount(entries: TranscriptEntry[]) {
+	return entries.reduce(
+		(total, entry) => total + transcriptEntryItemCount(entry),
+		0,
+	);
 }
 
 function processPreview(entry: TranscriptProcessEntry) {
@@ -382,19 +397,21 @@ const ProcessOutputBlock = memo(function ProcessOutputBlock({
 }) {
 	const [expanded, setExpanded] = useState(false);
 	const messages = useMemo(
-		() => entry.items.map(messageFromItem),
-		[entry.items],
+		() => (expanded ? entry.items.map(messageFromItem) : []),
+		[entry.items, expanded],
 	);
 	const itemCountLabel = `${entry.items.length} ${entry.items.length === 1 ? "event" : "events"}`;
 	const metaLabel = `${itemCountLabel} / ${formatTime(entry.createdAt)}`;
 	const preview = useMemo(() => processPreview(entry), [entry]);
 	const copyText = useMemo(
 		() =>
-			entry.items
-				.map((item) => item.text)
-				.filter(Boolean)
-				.join("\n\n"),
-		[entry.items],
+			expanded
+				? entry.items
+						.map((item) => item.text)
+						.filter(Boolean)
+						.join("\n\n")
+				: preview,
+		[entry.items, expanded, preview],
 	);
 
 	return (
@@ -838,6 +855,7 @@ const Composer = memo(
 export const Workspace = memo(
 	forwardRef<WorkspaceHandle, WorkspaceProps>(function Workspace(
 		{
+			presentationMode = "desktop",
 			project,
 			threadSummary,
 			detail,
@@ -880,10 +898,29 @@ export const Workspace = memo(
 		const composerShellRef = useRef<HTMLDivElement | null>(null);
 		const rootRef = useRef<HTMLElement | null>(null);
 		const transcriptScrollRef = useRef<HTMLDivElement | null>(null);
+		const mobileTranscriptDetailIdRef = useRef<string | null>(null);
+		const [mobileVisibleEntryCount, setMobileVisibleEntryCount] = useState(
+			mobileTranscriptInitialWindow,
+		);
 		const entries = useMemo(
 			() => transcriptEntriesFromDetail(detail),
 			[detail],
 		);
+		const isMobilePresentation = presentationMode === "mobile";
+		const visibleEntries = useMemo(() => {
+			if (!isMobilePresentation) {
+				return entries;
+			}
+			return entries.slice(-mobileVisibleEntryCount);
+		}, [entries, isMobilePresentation, mobileVisibleEntryCount]);
+		const hiddenEntries = isMobilePresentation
+			? entries.slice(0, Math.max(0, entries.length - visibleEntries.length))
+			: [];
+		const hiddenItemCount = useMemo(
+			() => transcriptHiddenItemCount(hiddenEntries),
+			[hiddenEntries],
+		);
+		const canLoadEarlierEntries = hiddenEntries.length > 0;
 		const name =
 			selectedThread?.name ?? threadSummary?.name ?? "New Codex thread";
 		const subtitle =
@@ -916,6 +953,15 @@ export const Workspace = memo(
 			}),
 			[],
 		);
+
+		useEffect(() => {
+			const detailId = detail?.id ?? null;
+			if (mobileTranscriptDetailIdRef.current === detailId) {
+				return;
+			}
+			mobileTranscriptDetailIdRef.current = detailId;
+			setMobileVisibleEntryCount(mobileTranscriptInitialWindow);
+		});
 
 		useEffect(() => {
 			const root = rootRef.current;
@@ -1056,30 +1102,56 @@ export const Workspace = memo(
 							className="mobile-transcript-scroll min-h-0 flex-1 overflow-y-auto scroll-mask-y-t px-4 pt-[calc(var(--safe-inset-top)+1rem)] [scrollbar-gutter:stable] md:px-8 md:pb-5 md:pt-5"
 						>
 							<ThreadContentFrame className="grid gap-[var(--transcript-gap)]">
-								<AnimatePresence initial={false}>
-									{entries.length === 0 ? (
-										<motion.div
-											key="empty-transcript"
-											initial={{ opacity: 0, y: 10 }}
-											animate={{ opacity: 1, y: 0 }}
-											exit={{ opacity: 0, y: -10 }}
-											transition={spring}
-										>
+								{entries.length === 0 ? (
+									isMobilePresentation ? (
+										<div className="min-w-0">
 											<EmptyTranscript
 												hasThread={Boolean(selectedThreadId)}
 												projectPath={project?.path ?? workdir}
 											/>
-										</motion.div>
-									) : null}
-									{entries.map((entry) => (
-										<motion.div
-											key={entry.id}
-											className="min-w-0"
-											initial={{ opacity: 0, y: 10 }}
-											animate={{ opacity: 1, y: 0 }}
-											exit={{ opacity: 0, y: -10 }}
-											transition={spring}
+										</div>
+									) : (
+										<AnimatePresence initial={false}>
+											<motion.div
+												key="empty-transcript"
+												initial={{ opacity: 0, y: 10 }}
+												animate={{ opacity: 1, y: 0 }}
+												exit={{ opacity: 0, y: -10 }}
+												transition={spring}
+											>
+												<EmptyTranscript
+													hasThread={Boolean(selectedThreadId)}
+													projectPath={project?.path ?? workdir}
+												/>
+											</motion.div>
+										</AnimatePresence>
+									)
+								) : null}
+								{canLoadEarlierEntries ? (
+									<div className="flex justify-center">
+										<button
+											type="button"
+											className={cn(
+												"min-h-10 rounded-[8px] border border-border bg-control px-3.5 text-[12px] font-medium text-muted-strong active:bg-control-hover",
+												ui.row,
+											)}
+											onClick={() =>
+												setMobileVisibleEntryCount((current) =>
+													Math.min(
+														entries.length,
+														current + mobileTranscriptWindowStep,
+													),
+												)
+											}
 										>
+											Show {hiddenItemCount} earlier transcript{" "}
+											{hiddenItemCount === 1 ? "item" : "items"}
+										</button>
+									</div>
+								) : null}
+								{isMobilePresentation ? (
+									visibleEntries.map((entry) => (
+										<div key={entry.id} className="min-w-0">
 											{entry.kind === "process" ? (
 												<ProcessOutputBlock
 													entry={entry}
@@ -1091,9 +1163,34 @@ export const Workspace = memo(
 													wrapContent={wrapThreadContent}
 												/>
 											)}
-										</motion.div>
-									))}
-								</AnimatePresence>
+										</div>
+									))
+								) : (
+									<AnimatePresence initial={false}>
+										{visibleEntries.map((entry) => (
+											<motion.div
+												key={entry.id}
+												className="min-w-0"
+												initial={{ opacity: 0, y: 10 }}
+												animate={{ opacity: 1, y: 0 }}
+												exit={{ opacity: 0, y: -10 }}
+												transition={spring}
+											>
+												{entry.kind === "process" ? (
+													<ProcessOutputBlock
+														entry={entry}
+														wrapContent={wrapThreadContent}
+													/>
+												) : (
+													<MessageBlock
+														message={messageFromItem(entry.item)}
+														wrapContent={wrapThreadContent}
+													/>
+												)}
+											</motion.div>
+										))}
+									</AnimatePresence>
+								)}
 							</ThreadContentFrame>
 						</div>
 

@@ -70,6 +70,7 @@ import { usePwa } from "./usePwa.js";
 
 const transientAlertAutoDismissMs = 10_000;
 const archivedSearchPageSize = 200;
+const mobileProjectionFlushMs = 100;
 const streamEventNames = [...incrementalEventNames, "events.reset"] as const;
 
 function initialState(): DashboardState {
@@ -123,6 +124,14 @@ type ResetEvent = {
 	latestEventId: number;
 	threadId?: string | null;
 };
+
+function isMobileViewport() {
+	return (
+		typeof window !== "undefined" &&
+		typeof window.matchMedia === "function" &&
+		window.matchMedia("(max-width: 767px)").matches
+	);
+}
 
 const terminalVisibleStorageKey = "coz-terminal-visible";
 const navigatorVisibleStorageKey = "coz-navigator-visible";
@@ -219,6 +228,9 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	const detailEventIdRef = useRef(0);
 	const pendingEventsRef = useRef<CozEvent[]>([]);
 	const projectionFrameRef = useRef<number | null>(null);
+	const projectionFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	);
 	const goalModeResetKeyRef = useRef<string | null>(null);
 	const fallbackRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
 		null,
@@ -574,6 +586,10 @@ export function App({ initialState: serverInitialState }: AppProps) {
 
 	function flushProjectionEvents() {
 		projectionFrameRef.current = null;
+		if (projectionFlushTimerRef.current) {
+			clearTimeout(projectionFlushTimerRef.current);
+			projectionFlushTimerRef.current = null;
+		}
 		const events = pendingEventsRef.current;
 		if (events.length === 0) {
 			return;
@@ -599,6 +615,21 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	}
 
 	function scheduleProjectionFlush() {
+		if (isMobileViewport()) {
+			if (
+				projectionFlushTimerRef.current !== null ||
+				projectionFrameRef.current !== null
+			) {
+				return;
+			}
+			projectionFlushTimerRef.current = setTimeout(() => {
+				projectionFlushTimerRef.current = null;
+				projectionFrameRef.current = window.requestAnimationFrame(
+					flushProjectionEvents,
+				);
+			}, mobileProjectionFlushMs);
+			return;
+		}
 		if (projectionFrameRef.current !== null) {
 			return;
 		}
@@ -641,6 +672,10 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			if (projectionFrameRef.current !== null) {
 				window.cancelAnimationFrame(projectionFrameRef.current);
 				projectionFrameRef.current = null;
+			}
+			if (projectionFlushTimerRef.current) {
+				clearTimeout(projectionFlushTimerRef.current);
+				projectionFlushTimerRef.current = null;
 			}
 			pendingEventsRef.current = [];
 		};

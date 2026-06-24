@@ -78,6 +78,13 @@ export function usePwa(): PwaState {
 	}, []);
 
 	useEffect(() => {
+		document.documentElement.dataset.pwaDisplayMode = displayMode;
+		return () => {
+			delete document.documentElement.dataset.pwaDisplayMode;
+		};
+	}, [displayMode]);
+
+	useEffect(() => {
 		const handleOnline = () => setOnline(true);
 		const handleOffline = () => setOnline(false);
 		window.addEventListener("online", handleOnline);

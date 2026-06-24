@@ -183,6 +183,7 @@ type MobileSheet = "navigator" | "inspector";
 
 const spring = { type: "spring", stiffness: 360, damping: 36 } as const;
 const dragDismissThreshold = 80;
+const mobileViewportQuery = "(max-width: 767px)";
 const mobileHandleClass = "h-1 w-14 rounded-full bg-border-strong";
 const mobileSheetClass =
 	"mobile-sheet-surface absolute inset-x-0 top-[var(--mobile-sheet-top)] flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden rounded-t-[16px] border-t";
@@ -191,8 +192,30 @@ function isMobileViewport() {
 	return (
 		typeof window !== "undefined" &&
 		typeof window.matchMedia === "function" &&
-		window.matchMedia("(max-width: 767px)").matches
+		window.matchMedia(mobileViewportQuery).matches
 	);
+}
+
+type ResponsiveViewportMode = "desktop" | "mobile";
+
+function useResponsiveViewportMode() {
+	const [viewportMode, setViewportMode] =
+		useState<ResponsiveViewportMode | null>(null);
+
+	useEffect(() => {
+		const mediaQuery = window.matchMedia(mobileViewportQuery);
+		const updateViewportMode = () => {
+			setViewportMode(mediaQuery.matches ? "mobile" : "desktop");
+		};
+
+		updateViewportMode();
+		mediaQuery.addEventListener("change", updateViewportMode);
+		return () => {
+			mediaQuery.removeEventListener("change", updateViewportMode);
+		};
+	}, []);
+
+	return viewportMode;
 }
 
 function blurActiveElement() {
@@ -787,6 +810,9 @@ export const DashboardLayout = memo(function DashboardLayout({
 	const desktopWorkspaceRef = useRef<WorkspaceHandle | null>(null);
 	const mobileWorkspaceRef = useRef<WorkspaceHandle | null>(null);
 	const mobileSheetDragControls = useDragControls();
+	const viewportMode = useResponsiveViewportMode();
+	const renderDesktopShell = viewportMode !== "mobile";
+	const renderMobileShell = viewportMode !== "desktop";
 	const {
 		isFullscreen,
 		toggle: toggleFullscreen,
@@ -799,6 +825,12 @@ export const DashboardLayout = memo(function DashboardLayout({
 		null;
 
 	useMobileViewportGeometry();
+
+	useEffect(() => {
+		if (viewportMode === "desktop") {
+			setMobileSheet(null);
+		}
+	}, [viewportMode]);
 
 	const focusVisiblePrompt = useCallback(() => {
 		const useDesktopWorkspace =
@@ -1289,25 +1321,86 @@ export const DashboardLayout = memo(function DashboardLayout({
 				ui.appShell,
 			)}
 		>
-			<div className="hidden h-full min-h-0 md:flex">
-				<AnimatePresence initial={false}>
-					{navigatorVisible ? (
-						<motion.div
-							key="desktop-sidebar"
-							className="h-full min-h-0 shrink-0 overflow-hidden"
-							initial={{ width: 0, opacity: 0 }}
-							animate={{ width: 316, opacity: 1 }}
-							exit={{ width: 0, opacity: 0 }}
-							transition={spring}
-						>
-							{sidebar}
-						</motion.div>
-					) : null}
-				</AnimatePresence>
+			{renderDesktopShell ? (
+				<div className="hidden h-full min-h-0 md:flex">
+					<AnimatePresence initial={false}>
+						{navigatorVisible ? (
+							<motion.div
+								key="desktop-sidebar"
+								className="h-full min-h-0 shrink-0 overflow-hidden"
+								initial={{ width: 0, opacity: 0 }}
+								animate={{ width: 316, opacity: 1 }}
+								exit={{ width: 0, opacity: 0 }}
+								transition={spring}
+							>
+								{sidebar}
+							</motion.div>
+						) : null}
+					</AnimatePresence>
 
-				<div className="min-h-0 min-w-0 flex-1">
+					<div className="min-h-0 min-w-0 flex-1">
+						<Workspace
+							ref={desktopWorkspaceRef}
+							presentationMode="desktop"
+							project={selectedProject}
+							threadSummary={threadSummary}
+							detail={detail}
+							selectedThread={selectedThread}
+							selectedThreadId={selectedThreadId}
+							workdir={workdir}
+							busy={busy}
+							busyAction={busyAction}
+							notice={notice}
+							onDismissNotice={onDismissNotice}
+							error={error}
+							onDismissError={onDismissError}
+							prompt={prompt}
+							promptTarget={promptTarget}
+							goalMode={goalMode}
+							canUseGoalMode={canUseGoalMode}
+							canSubmitPrompt={canSubmitPrompt}
+							wrapThreadContent={wrapThreadContent}
+							displayScale={displayScale}
+							navigatorVisible={navigatorVisible}
+							inspectorVisible={inspectorVisible}
+							onPromptChange={onPromptChange}
+							onPromptKeyDown={onPromptKeyDown}
+							onPromptSubmit={onPromptSubmit}
+							onModeChange={onModeChange}
+							onWorkdirChange={onWorkdirChange}
+							onGoalModeChange={onGoalModeChange}
+							onInterrupt={onInterrupt}
+							onResume={onResume}
+							onFork={onFork}
+							onCompact={onCompact}
+							onArchive={onArchive}
+							onToggleNavigator={toggleNavigator}
+							onToggleInspector={toggleInspector}
+						/>
+					</div>
+
+					<AnimatePresence initial={false}>
+						{inspectorVisible ? (
+							<motion.div
+								key="desktop-inspector"
+								className="h-full min-h-0 shrink-0 overflow-hidden"
+								initial={{ width: 0, opacity: 0 }}
+								animate={{ width: 316, opacity: 1 }}
+								exit={{ width: 0, opacity: 0 }}
+								transition={spring}
+							>
+								{inspector}
+							</motion.div>
+						) : null}
+					</AnimatePresence>
+				</div>
+			) : null}
+
+			{renderMobileShell ? (
+				<div className="h-full min-h-0 md:hidden">
 					<Workspace
-						ref={desktopWorkspaceRef}
+						ref={mobileWorkspaceRef}
+						presentationMode="mobile"
 						project={selectedProject}
 						threadSummary={threadSummary}
 						detail={detail}
@@ -1327,8 +1420,8 @@ export const DashboardLayout = memo(function DashboardLayout({
 						canSubmitPrompt={canSubmitPrompt}
 						wrapThreadContent={wrapThreadContent}
 						displayScale={displayScale}
-						navigatorVisible={navigatorVisible}
-						inspectorVisible={inspectorVisible}
+						navigatorVisible={mobileSheet === "navigator"}
+						inspectorVisible={mobileSheet === "inspector"}
 						onPromptChange={onPromptChange}
 						onPromptKeyDown={onPromptKeyDown}
 						onPromptSubmit={onPromptSubmit}
@@ -1340,70 +1433,15 @@ export const DashboardLayout = memo(function DashboardLayout({
 						onFork={onFork}
 						onCompact={onCompact}
 						onArchive={onArchive}
-						onToggleNavigator={toggleNavigator}
-						onToggleInspector={toggleInspector}
+						onToggleNavigator={() => openMobileSheet("navigator")}
+						onToggleInspector={() => openMobileSheet("inspector")}
+						onSwipeUp={openCommandPaletteFromSwipe}
 					/>
 				</div>
-
-				<AnimatePresence initial={false}>
-					{inspectorVisible ? (
-						<motion.div
-							key="desktop-inspector"
-							className="h-full min-h-0 shrink-0 overflow-hidden"
-							initial={{ width: 0, opacity: 0 }}
-							animate={{ width: 316, opacity: 1 }}
-							exit={{ width: 0, opacity: 0 }}
-							transition={spring}
-						>
-							{inspector}
-						</motion.div>
-					) : null}
-				</AnimatePresence>
-			</div>
-
-			<div className="h-full min-h-0 md:hidden">
-				<Workspace
-					ref={mobileWorkspaceRef}
-					project={selectedProject}
-					threadSummary={threadSummary}
-					detail={detail}
-					selectedThread={selectedThread}
-					selectedThreadId={selectedThreadId}
-					workdir={workdir}
-					busy={busy}
-					busyAction={busyAction}
-					notice={notice}
-					onDismissNotice={onDismissNotice}
-					error={error}
-					onDismissError={onDismissError}
-					prompt={prompt}
-					promptTarget={promptTarget}
-					goalMode={goalMode}
-					canUseGoalMode={canUseGoalMode}
-					canSubmitPrompt={canSubmitPrompt}
-					wrapThreadContent={wrapThreadContent}
-					displayScale={displayScale}
-					navigatorVisible={mobileSheet === "navigator"}
-					inspectorVisible={mobileSheet === "inspector"}
-					onPromptChange={onPromptChange}
-					onPromptKeyDown={onPromptKeyDown}
-					onPromptSubmit={onPromptSubmit}
-					onModeChange={onModeChange}
-					onWorkdirChange={onWorkdirChange}
-					onGoalModeChange={onGoalModeChange}
-					onInterrupt={onInterrupt}
-					onResume={onResume}
-					onFork={onFork}
-					onCompact={onCompact}
-					onArchive={onArchive}
-					onToggleNavigator={() => openMobileSheet("navigator")}
-					onToggleInspector={() => openMobileSheet("inspector")}
-					onSwipeUp={openCommandPaletteFromSwipe}
-				/>
-			</div>
+			) : null}
 
 			<AnimatePresence>
-				{mobileSheet ? (
+				{renderMobileShell && mobileSheet ? (
 					<motion.div
 						className={cn("fixed inset-0 z-[90] md:hidden", ui.overlay)}
 						initial={{ opacity: 0 }}

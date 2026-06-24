@@ -64,8 +64,7 @@ self.addEventListener("install", (event) => {
 			.open(STATIC_CACHE)
 			.then((cache) =>
 				Promise.allSettled(PRECACHE_URLS.map((url) => cache.add(url))),
-			)
-			.then(() => self.skipWaiting()),
+			),
 	);
 });
 
