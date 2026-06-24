@@ -3,9 +3,9 @@ set -euo pipefail
 
 # prefer using COZ_UI_IP 100.64.x.y with tailscale, eg: http://100.64.0.1:1123
 TAIL_IP=$(ifconfig | sed -E -n 's/^[[:space:]]*inet (100\.64\.[0-9]{1,3}\.[0-9]{1,3}).*/\1/p')
-ANY_IP="0.0.0.0"
+LOCAL_IP="127.0.0.1"
 # COZ_UI_IP="${COZ_UI_IP:-$TAIL_IP}"
-COZ_UI_IP="${COZ_UI_IP:-$ANY_IP}"
+COZ_UI_IP="${COZ_UI_IP:-$LOCAL_IP}"
 COZ_UI_PORT="${COZ_UI_PORT:-1123}"
 
 export COZ_UI_URL="http://${COZ_UI_IP}:${COZ_UI_PORT}"
