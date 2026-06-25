@@ -23,6 +23,11 @@ export const themeModeLabels: Record<ThemeMode, string> = {
 	day: "Day mode",
 };
 
+const themeChromeColors: Record<ThemeMode, string> = {
+	dark: "#161718",
+	day: "#f5f5f7",
+};
+
 export function normalizeThemeMode(
 	value: string | null | undefined,
 ): ThemeMode {
@@ -57,6 +62,19 @@ export function applyThemeMode(mode: ThemeMode) {
 		return;
 	}
 	document.documentElement.dataset.theme = mode;
+	const metas = document.querySelectorAll<HTMLMetaElement>(
+		'meta[name="theme-color"]',
+	);
+	if (metas.length === 0) {
+		const meta = document.createElement("meta");
+		meta.name = "theme-color";
+		document.head.append(meta);
+		meta.content = themeChromeColors[mode];
+		return;
+	}
+	for (const meta of metas) {
+		meta.content = themeChromeColors[mode];
+	}
 }
 
 export function terminalTheme(mode: ThemeMode): TerminalTheme {

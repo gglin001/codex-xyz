@@ -10,8 +10,8 @@
 	"launch_handler": {
 		"client_mode": "navigate-existing"
 	},
-	"background_color": "#0f1011",
-	"theme_color": "#0f1011",
+	"background_color": "#161718",
+	"theme_color": "#161718",
 	"orientation": "any",
 	"categories": ["productivity", "developer"],
 	"icons": [

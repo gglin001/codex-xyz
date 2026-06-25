@@ -16,6 +16,7 @@ export const metadata: Metadata = {
 	},
 	other: {
 		"apple-mobile-web-app-capable": "yes",
+		"msapplication-navbutton-color": "#161718",
 	},
 	appleWebApp: {
 		capable: true,
@@ -40,17 +41,22 @@ export const viewport: Viewport = {
 	maximumScale: 1,
 	viewportFit: "cover",
 	interactiveWidget: "resizes-content",
+	colorScheme: "dark light",
 	themeColor: [
-		{ media: "(prefers-color-scheme: dark)", color: "#0f1011" },
-		{ media: "(prefers-color-scheme: light)", color: "#f3f5f6" },
+		{ media: "(prefers-color-scheme: dark)", color: "#161718" },
+		{ media: "(prefers-color-scheme: light)", color: "#f5f5f7" },
 	],
 };
 
 const themeBootScript = `
 (() => {
   try {
-    const mode = window.localStorage.getItem("coz-theme-mode");
-    document.documentElement.dataset.theme = mode === "day" ? "day" : "dark";
+    const mode = window.localStorage.getItem("coz-theme-mode") === "day" ? "day" : "dark";
+    const chromeColor = mode === "day" ? "#f5f5f7" : "#161718";
+    document.documentElement.dataset.theme = mode;
+    for (const meta of document.querySelectorAll('meta[name="theme-color"]')) {
+      meta.setAttribute("content", chromeColor);
+    }
   } catch {
     document.documentElement.dataset.theme = "dark";
   }
@@ -65,11 +71,7 @@ export default function RootLayout({
 	return (
 		<html lang="en" data-theme="dark" suppressHydrationWarning>
 			<body data-app-shell="coz">
-				{/* biome-ignore lint/security/noDangerouslySetInnerHtml: Inline boot script applies the stored theme before React hydrates. */}
-				<script
-					suppressHydrationWarning
-					dangerouslySetInnerHTML={{ __html: themeBootScript }}
-				/>
+				<script suppressHydrationWarning>{themeBootScript}</script>
 				{children}
 			</body>
 		</html>
