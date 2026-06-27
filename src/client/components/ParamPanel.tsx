@@ -239,7 +239,7 @@ export const ParamPanel = memo(function ParamPanel({
 	return (
 		<aside
 			className={cn(
-				"flex h-full min-h-0 w-full min-w-0 flex-col border-l border-l-border-strong bg-panel text-fg",
+				"flex h-full min-h-0 w-full min-w-0 flex-col bg-panel text-fg shadow-[inset_1px_0_0_var(--border-soft)]",
 				className,
 			)}
 		>

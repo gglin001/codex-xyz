@@ -144,7 +144,7 @@ const spring = { type: "spring", stiffness: 340, damping: 34 } as const;
 const threadContentWidthClass = "[--thread-content-width:900px]";
 const threadContentFrameClass =
 	"mx-auto w-full min-w-0 max-w-[var(--thread-content-width)]";
-const mobileHandleClass = "h-1 w-14 rounded-full bg-border-strong";
+const mobileHandleClass = "h-1 w-14 rounded-full bg-border";
 const mobileComposerSwipeAxisLockRatio = 1.15;
 const mobileComposerSwipeDirectionThresholds = {
 	up: 88,
@@ -212,12 +212,12 @@ function messageCardTitle(message: ChatMessage) {
 function messageSurfaceClass(message: ChatMessage) {
 	const name = messageCardTitle(message);
 	if (name === "Prompt") {
-		return "border-accent-soft bg-selected/35";
+		return "bg-selected/42 ring-accent-soft";
 	}
 	if (name === "Response") {
-		return "border-border bg-detail/70";
+		return "bg-detail/76 ring-border-soft";
 	}
-	return "border-border bg-app-bg/60";
+	return "bg-surface-subtle/64 ring-border-soft";
 }
 
 function headerMeta(value: string) {
@@ -270,7 +270,7 @@ const MobileWorkspaceHeader = memo(function MobileWorkspaceHeader({
 	onOpenCommands?: () => void;
 }) {
 	return (
-		<header className="relative z-[110] flex shrink-0 items-center justify-between gap-2 border-b border-border bg-app-bg/95 px-3 pb-2 pt-[calc(var(--safe-inset-top)+0.5rem)] md:hidden">
+		<header className="relative z-[110] flex shrink-0 items-center justify-between gap-2 bg-app-bg/94 px-3 pb-2 pt-[calc(var(--safe-inset-top)+0.5rem)] shadow-[inset_0_-1px_0_var(--border-soft)] md:hidden">
 			<LargeIconButton
 				className="h-9 w-9"
 				title={navigatorVisible ? "Hide threads" : "Open threads"}
@@ -295,9 +295,9 @@ const MobileWorkspaceHeader = memo(function MobileWorkspaceHeader({
 					<span className="shrink-0 text-muted-strong">
 						{statusLabel(status)}
 					</span>
-					<span className="h-3 shrink-0 border-l border-border" />
+					<span className="h-3 shrink-0 border-l border-border-soft" />
 					<span className="shrink-0">{formatTokens(tokens)}</span>
-					<span className="h-3 shrink-0 border-l border-border" />
+					<span className="h-3 shrink-0 border-l border-border-soft" />
 					<span className="min-w-0 truncate">{subtitle}</span>
 				</div>
 			</div>
@@ -520,7 +520,7 @@ const ProcessOutputBlock = memo(function ProcessOutputBlock({
 				</div>
 			}
 			bodyClassName="grid gap-1.5 px-3 pb-3 pt-0"
-			className="border-border bg-surface-subtle/80"
+			className="bg-surface-subtle/78 ring-border-soft"
 		>
 			{messages.map((message) => (
 				<ProcessItemBlock
@@ -541,12 +541,9 @@ const EmptyTranscript = memo(function EmptyTranscript({
 	projectPath: string;
 }) {
 	return (
-		<div className="rounded-[12px] border border-dashed border-border bg-detail/45 px-5 py-8 text-center">
+		<div className="rounded-[12px] bg-detail/54 px-5 py-8 text-center ring-1 ring-inset ring-border-soft">
 			<div
-				className={cn(
-					"mx-auto mb-4 h-10 w-10 border border-border text-muted-strong",
-					ui.iconBox,
-				)}
+				className={cn("mx-auto mb-4 h-10 w-10 text-muted-strong", ui.iconBox)}
 			>
 				<Bot size={22} />
 			</div>
@@ -910,7 +907,7 @@ const Composer = memo(
 						/>
 						<div
 							ref={actionBarRef}
-							className="relative flex items-center justify-between gap-3 border-t border-border pt-2"
+							className="relative flex items-center justify-between gap-3 pt-2 shadow-[inset_0_1px_0_var(--border-soft)]"
 						>
 							<span
 								className={cn(
@@ -967,22 +964,23 @@ const Composer = memo(
 													onClick={() => setMoreActionsOpen(false)}
 												/>
 												<motion.div
-													className="absolute bottom-full left-0 z-20 mb-2 w-64 max-w-[calc(100vw-2rem)] rounded-[12px] border border-border bg-detail shadow-popover"
+													className={cn(
+														"absolute bottom-full left-0 z-20 mb-2 w-64 max-w-[calc(100vw-2rem)] p-1",
+														ui.popover,
+													)}
 													role="menu"
 													initial={{ opacity: 0, y: 6 }}
 													animate={{ opacity: 1, y: 0 }}
 													exit={{ opacity: 0, y: 6 }}
 													transition={spring}
 												>
-													<div className="p-1">
-														{composerMenuActions.map((action) => (
-															<ComposerMenuItem
-																key={action.id}
-																action={action}
-																onSelect={selectComposerMenuAction}
-															/>
-														))}
-													</div>
+													{composerMenuActions.map((action) => (
+														<ComposerMenuItem
+															key={action.id}
+															action={action}
+															onSelect={selectComposerMenuAction}
+														/>
+													))}
 												</motion.div>
 											</>
 										) : null}
@@ -991,7 +989,7 @@ const Composer = memo(
 							</div>
 							<button
 								type="submit"
-								className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-accent-soft bg-accent text-accent-fg shadow-control transition duration-150 ease-out hover:border-accent hover:bg-accent disabled:cursor-not-allowed disabled:border-border-soft disabled:bg-control disabled:text-muted disabled:opacity-45"
+								className={cn(ui.submitButton, "h-8 min-w-8 px-0")}
 								disabled={!canSubmitPrompt}
 								title={submitTitle}
 								aria-label={submitTitle}
@@ -1216,7 +1214,7 @@ export const Workspace = memo(
 						onOpenCommands={onOpenCommands}
 					/>
 				) : null}
-				<header className="hidden md:flex md:relative z-[110] md:h-14 shrink-0 items-center justify-between gap-3 border-b border-border md:bg-app-bg/95 md:px-5">
+				<header className="hidden shrink-0 items-center justify-between gap-3 bg-app-bg/94 shadow-[inset_0_-1px_0_var(--border-soft)] md:relative md:z-[110] md:flex md:h-14 md:px-5">
 					<div className="flex min-w-0 items-center gap-3">
 						<LargeIconButton
 							title={navigatorVisible ? "Hide threads" : "Open threads"}
@@ -1232,11 +1230,11 @@ export const Workspace = memo(
 							</h1>
 							<div className="flex min-w-0 items-center gap-2 text-[11px] leading-4 text-muted">
 								<span className="truncate">{subtitle}</span>
-								<span className="hidden h-3 border-l border-border sm:inline" />
+								<span className="hidden h-3 border-l border-border-soft sm:inline" />
 								<span className="hidden shrink-0 sm:inline">
 									{formatTokens(tokens)} tokens
 								</span>
-								<span className="hidden h-3 border-l border-border sm:inline" />
+								<span className="hidden h-3 border-l border-border-soft sm:inline" />
 								<span className="inline-flex shrink-0 items-center gap-1.5 text-muted-strong">
 									<span
 										className={cn(
@@ -1302,7 +1300,7 @@ export const Workspace = memo(
 										<button
 											type="button"
 											className={cn(
-												"min-h-10 rounded-[8px] border border-border bg-control px-3.5 text-[12px] font-medium text-muted-strong active:bg-control-hover",
+												"min-h-10 rounded-[8px] bg-control px-3.5 text-[12px] font-medium text-muted-strong ring-1 ring-inset ring-border-soft active:bg-control-hover",
 												ui.row,
 											)}
 											onClick={() =>
@@ -1366,7 +1364,7 @@ export const Workspace = memo(
 
 						<div
 							ref={composerShellRef}
-							className="mobile-composer-bar relative z-[80] shrink-0 overflow-visible border-t border-border bg-app-bg/95 pl-4 pr-[calc(1rem+var(--transcript-scrollbar-width,0px))] pt-2 md:pl-8 md:pr-[calc(2rem+var(--transcript-scrollbar-width,0px))] md:pb-3"
+							className="mobile-composer-bar relative z-[80] shrink-0 overflow-visible bg-app-bg/94 pl-4 pr-[calc(1rem+var(--transcript-scrollbar-width,0px))] pt-2 shadow-[inset_0_1px_0_var(--border-soft)] md:pl-8 md:pr-[calc(2rem+var(--transcript-scrollbar-width,0px))] md:pb-3"
 						>
 							<ThreadContentFrame>
 								<Composer

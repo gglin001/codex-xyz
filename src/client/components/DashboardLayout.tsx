@@ -199,9 +199,9 @@ type MobileSheet = "navigator" | "inspector";
 const spring = { type: "spring", stiffness: 360, damping: 36 } as const;
 const dragDismissThreshold = 80;
 const mobileViewportQuery = "(max-width: 767px)";
-const mobileHandleClass = "h-1 w-14 rounded-full bg-border-strong";
+const mobileHandleClass = "h-1 w-14 rounded-full bg-border";
 const mobileSheetClass =
-	"mobile-sheet-surface absolute inset-x-0 top-[var(--mobile-sheet-top)] flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden rounded-t-[16px] border-t";
+	"mobile-sheet-surface absolute inset-x-0 top-[var(--mobile-sheet-top)] flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden rounded-t-[16px]";
 
 function isMobileViewport() {
 	return (
@@ -401,7 +401,7 @@ function CommandActionGlyph({
 				aria-hidden="true"
 			>
 				{parentHasVisibleChildren ? (
-					<span className="absolute left-4 top-8 h-2 border-l border-border" />
+					<span className="absolute left-4 top-8 h-2 border-l border-border-soft" />
 				) : null}
 				<AvatarBadge className="h-8 w-8 text-[11px]">
 					{action.projectInitials}
@@ -417,14 +417,9 @@ function CommandActionGlyph({
 				aria-hidden="true"
 			>
 				{parentHasVisibleChildren ? (
-					<span className="absolute left-4 top-8 h-2 border-l border-border" />
+					<span className="absolute left-4 top-8 h-2 border-l border-border-soft" />
 				) : null}
-				<span
-					className={cn(
-						"h-8 w-8 border border-border text-muted-strong",
-						ui.iconBox,
-					)}
-				>
+				<span className={cn("h-8 w-8 text-muted-strong", ui.iconBox)}>
 					<Settings size={14} />
 				</span>
 			</span>
@@ -438,11 +433,11 @@ function CommandActionGlyph({
 				aria-hidden="true"
 			>
 				{parentHasVisibleChildren ? (
-					<span className="absolute left-4 top-8 h-2 border-l border-border" />
+					<span className="absolute left-4 top-8 h-2 border-l border-border-soft" />
 				) : null}
 				<span
 					className={cn(
-						"h-8 w-8 border border-border font-mono text-[16px] text-muted-strong",
+						"h-8 w-8 font-mono text-[16px] text-muted-strong",
 						ui.iconBox,
 					)}
 				>
@@ -460,14 +455,14 @@ function CommandActionGlyph({
 			>
 				<span
 					className={cn(
-						"absolute left-2 border-l border-border",
+						"absolute left-2 border-l border-border-soft",
 						lastVisibleChild ? "-top-2 h-6" : "-top-2 -bottom-2",
 					)}
 				/>
-				<span className="absolute left-2 top-4 w-3 border-t border-border" />
+				<span className="absolute left-2 top-4 w-3 border-t border-border-soft" />
 				<span
 					className={cn(
-						"absolute right-0 top-0 h-8 w-8 border border-border text-muted-strong",
+						"absolute right-0 top-0 h-8 w-8 text-muted-strong",
 						ui.iconBox,
 					)}
 				>
@@ -505,14 +500,14 @@ function CommandActionGlyph({
 			>
 				<span
 					className={cn(
-						"absolute left-2 border-l border-border",
+						"absolute left-2 border-l border-border-soft",
 						lastVisibleChild ? "-top-2 h-6" : "-top-2 -bottom-2",
 					)}
 				/>
-				<span className="absolute left-2 top-4 w-3 border-t border-border" />
+				<span className="absolute left-2 top-4 w-3 border-t border-border-soft" />
 				<span
 					className={cn(
-						"absolute right-0 top-0 h-8 w-8 border border-border text-muted-strong",
+						"absolute right-0 top-0 h-8 w-8 text-muted-strong",
 						ui.iconBox,
 					)}
 				>
@@ -546,14 +541,14 @@ function CommandActionGlyph({
 			>
 				<span
 					className={cn(
-						"absolute left-2 border-l border-border",
+						"absolute left-2 border-l border-border-soft",
 						lastVisibleChild ? "-top-2 h-6" : "-top-2 -bottom-2",
 					)}
 				/>
-				<span className="absolute left-2 top-4 w-3 border-t border-border" />
+				<span className="absolute left-2 top-4 w-3 border-t border-border-soft" />
 				<span
 					className={cn(
-						"absolute right-0 top-0 h-8 w-8 border border-border text-muted-strong",
+						"absolute right-0 top-0 h-8 w-8 text-muted-strong",
 						ui.iconBox,
 					)}
 				>
@@ -574,10 +569,7 @@ function CommandActionGlyph({
 
 	return (
 		<span
-			className={cn(
-				"h-8 w-8 border border-border text-muted-strong",
-				ui.iconBox,
-			)}
+			className={cn("h-8 w-8 text-muted-strong", ui.iconBox)}
 			aria-hidden="true"
 		>
 			{icon}
@@ -651,7 +643,7 @@ const CommandPalette = memo(function CommandPalette({
 					<motion.div
 						className={cn(
 							mobileSheetClass,
-							"px-0 md:static md:h-auto md:max-h-[min(40rem,calc(100dvh_-_7rem))] md:w-[44rem] md:max-w-[calc(100vw_-_2rem)] md:rounded-[12px] md:border",
+							"px-0 md:static md:h-auto md:max-h-[min(40rem,calc(100dvh_-_7rem))] md:w-[44rem] md:max-w-[calc(100vw_-_2rem)] md:rounded-[12px]",
 							ui.popover,
 						)}
 						initial={
@@ -693,7 +685,7 @@ const CommandPalette = memo(function CommandPalette({
 								}}
 							/>
 						</div>
-						<div className="flex h-12 items-center gap-3 border-b border-border px-3.5">
+						<div className="flex h-12 items-center gap-3 px-3.5 shadow-[inset_0_-1px_0_var(--border-soft)]">
 							<Search size={16} className="text-muted" />
 							<input
 								type="search"
@@ -1298,7 +1290,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 	}, [inspectorVisible, onInspectorVisibleChange, openMobileSheet]);
 
 	const sidebarFooter = (
-		<div className="shrink-0 border-t border-border p-3">
+		<div className="shrink-0 p-3 shadow-[inset_0_1px_0_var(--border-soft)]">
 			<div className="mb-2.5 grid grid-cols-2 gap-2">
 				<SurfaceAction
 					className={cn(
@@ -1564,7 +1556,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 							/>
 							{mobileSheet === "navigator" ? (
 								<Sidebar
-									className="border-r-0"
+									className="shadow-none"
 									projects={projects}
 									selectedProjectId={selectedProjectId}
 									selectedThreadKey={selectedThreadKey}
@@ -1582,7 +1574,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 								/>
 							) : (
 								<ParamPanel
-									className="border-l-0"
+									className="shadow-none"
 									threadSummary={threadSummary}
 									detail={detail}
 									selectedThread={selectedThread}

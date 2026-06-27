@@ -51,7 +51,7 @@ export function LargeIconButton({
 			type="button"
 			className={cn(
 				ui.largeIconButton,
-				pressed ? "border-border bg-control text-fg-strong" : null,
+				pressed ? "bg-control text-fg-strong ring-border-soft" : null,
 				className,
 			)}
 			aria-pressed={pressed}
@@ -248,7 +248,7 @@ export function Keycap({
 	return (
 		<span
 			className={cn(
-				"rounded-[6px] border border-border bg-control px-1.5 py-1 font-mono text-[11px] leading-none text-muted",
+				"rounded-[6px] bg-control px-1.5 py-1 font-mono text-[11px] leading-none text-muted ring-1 ring-inset ring-border-soft",
 				className,
 			)}
 			{...props}
@@ -428,7 +428,7 @@ export const CollapsibleCard = memo(function CollapsibleCard({
 	const headerClass =
 		surface === "outline"
 			? "group/card-header flex w-full items-center gap-2 bg-transparent transition duration-150 ease-out hover:bg-control/40 focus-within:bg-control/40"
-			: "flex w-full items-center gap-2 border-b border-border bg-control/35";
+			: "flex w-full items-center gap-2 bg-control/35 shadow-[inset_0_-1px_0_var(--border-soft)]";
 	const headerButtonClass =
 		surface === "outline"
 			? "flex min-w-0 flex-1 items-center gap-3 text-left"
@@ -535,7 +535,7 @@ export function DisclosureRow({
 			type="button"
 			className={cn(
 				"flex min-h-10 w-full items-center justify-between gap-3 px-4 py-2 text-left text-[13px] text-fg",
-				divided ? "border-t border-border" : null,
+				divided ? "shadow-[inset_0_1px_0_var(--border-soft)]" : null,
 				ui.row,
 				className,
 			)}
@@ -563,7 +563,7 @@ export function SettingsSection({
 	children: ReactNode;
 }) {
 	return (
-		<section className="w-full min-w-0 border-b border-border px-4 py-4 last:border-b-0">
+		<section className="w-full min-w-0 px-4 py-4 shadow-[inset_0_-1px_0_var(--border-soft)] last:shadow-none">
 			<div className={cn(ui.sectionLabel, "mb-3 min-w-0")}>
 				<span className="shrink-0">{icon}</span>
 				<span className="truncate">{title}</span>
@@ -593,7 +593,7 @@ export const InfoTile = memo(function InfoTile({
 	return (
 		<div
 			className={cn(
-				"flex w-full min-w-0 gap-2.5 border border-border bg-field/70",
+				"flex w-full min-w-0 gap-2.5 bg-field/70 ring-1 ring-inset ring-border-soft",
 				inline
 					? "min-h-9 items-center px-2.5 py-2"
 					: "min-h-[56px] items-start px-3 py-2.5",
@@ -642,8 +642,8 @@ export function SwitchControl({ checked }: { checked: boolean }) {
 	return (
 		<span
 			className={cn(
-				"relative h-6 w-10 shrink-0 rounded-full border border-border transition duration-150 ease-out",
-				checked ? "border-accent-soft bg-accent" : "bg-control",
+				"relative h-6 w-10 shrink-0 rounded-full transition duration-150 ease-out ring-1 ring-inset",
+				checked ? "bg-accent ring-accent-soft" : "bg-control ring-border-soft",
 			)}
 			aria-hidden="true"
 		>

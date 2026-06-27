@@ -110,7 +110,7 @@ export const Sidebar = memo(function Sidebar({
 	return (
 		<aside
 			className={cn(
-				"flex h-full min-h-0 flex-col border-r border-r-border-strong",
+				"flex h-full min-h-0 flex-col shadow-[inset_-1px_0_0_var(--border-soft)]",
 				ui.sidePanel,
 				className,
 			)}
@@ -185,7 +185,7 @@ export const Sidebar = memo(function Sidebar({
 				</AnimatePresence>
 			</div>
 
-			<div className="flex shrink-0 items-center gap-2 border-b border-border px-3 pb-3 pt-2">
+			<div className="flex shrink-0 items-center gap-2 px-3 pb-3 pt-2 shadow-[inset_0_-1px_0_var(--border-soft)]">
 				<div className="min-w-0 flex-1">
 					<FieldShell icon={<Search size={14} />} className="h-9 w-full">
 						<input
@@ -222,7 +222,7 @@ export const Sidebar = memo(function Sidebar({
 						className="grid gap-5"
 					>
 						{threadGroups.length === 0 ? (
-							<ControlCard className="border-dashed bg-transparent px-3 py-7 text-center text-[12px] text-muted">
+							<ControlCard className="bg-field/40 px-3 py-7 text-center text-[12px] text-muted ring-border-soft">
 								{threadQuery.trim()
 									? "No matching threads"
 									: "No Codex threads yet"}
