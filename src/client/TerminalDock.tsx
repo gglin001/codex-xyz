@@ -732,7 +732,7 @@ export function TerminalDock({
 
 	const header = (
 		<div
-			className="grid min-h-12 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 bg-panel/40 px-3.5 py-1.5 md:cursor-move"
+			className="grid min-h-12 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 bg-panel/20 px-3.5 py-1.5 md:cursor-move"
 			onPointerDown={startDesktopMove}
 			onPointerMove={updateDesktopInteraction}
 			onPointerUp={finishDesktopInteraction}

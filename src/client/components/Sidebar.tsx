@@ -161,7 +161,7 @@ export const Sidebar = memo(function Sidebar({
 				</AnimatePresence>
 			</div>
 
-			<div className="flex shrink-0 items-center gap-2 bg-panel/40 px-3 pb-3 pt-2">
+			<div className="flex shrink-0 items-center gap-2 bg-panel/20 px-3 pb-2.5 pt-1.5">
 				<div className="min-w-0 flex-1">
 					<FieldShell icon={<Search size={14} />} className="h-9 w-full">
 						<input
@@ -187,7 +187,7 @@ export const Sidebar = memo(function Sidebar({
 				</ControlButton>
 			</div>
 
-			<div className="mobile-keyboard-scroll min-h-0 flex-1 overflow-y-auto px-3 py-3 scroll-mask-y">
+			<div className="mobile-keyboard-scroll min-h-0 flex-1 overflow-y-auto px-3 py-2.5 scroll-mask-y">
 				<AnimatePresence mode="popLayout">
 					<motion.div
 						key={selectedProject?.id ?? "empty"}

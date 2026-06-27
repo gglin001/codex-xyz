@@ -67,16 +67,16 @@
 		text-rendering: optimizeLegibility;
 		font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 
-		--app-bg: #131314;
-		--panel-bg: #18191b;
-		--detail-bg: #1f2023;
-		--surface-bg: #25262a;
-		--surface-subtle-bg: #17181a;
-		--field-bg: #222326;
-		--control-bg: #292a2d;
-		--control-hover-bg: #323337;
-		--selected-bg: #2d2f35;
-		--selected-strong-bg: #363943;
+		--app-bg: #121314;
+		--panel-bg: #17181a;
+		--detail-bg: #1d1e21;
+		--surface-bg: #242529;
+		--surface-subtle-bg: #1a1b1e;
+		--field-bg: #202124;
+		--control-bg: #28292d;
+		--control-hover-bg: #303135;
+		--selected-bg: #29313d;
+		--selected-strong-bg: #334052;
 		--terminal-bg: #0d0e10;
 		--text: #e3e3e7;
 		--text-strong: #f5f5f7;
@@ -85,10 +85,10 @@
 		--border: rgba(255, 255, 255, 0.055);
 		--border-strong: rgba(255, 255, 255, 0.085);
 		--border-soft: rgba(255, 255, 255, 0.035);
-		--accent: #a8c8ff;
+		--accent: #a8c7fa;
 		--accent-text: #121316;
 		--accent-soft: rgba(138, 180, 248, 0.24);
-		--focus-ring: rgba(140, 170, 230, 0.24);
+		--focus-ring: transparent;
 		--chip-bg: rgba(47, 48, 52, 0.88);
 		--chip-text: #e2e3e7;
 		--quiet-bg: rgba(28, 29, 32, 0.82);
@@ -111,8 +111,8 @@
 		--safe-inset-right: env(safe-area-inset-right, 0px);
 		--safe-inset-bottom: env(safe-area-inset-bottom, 0px);
 		--safe-inset-left: env(safe-area-inset-left, 0px);
-		--safe-area-top-bg: rgba(19, 19, 20, 0.88);
-		--safe-area-bottom-bg: rgba(19, 19, 20, 0.92);
+		--safe-area-top-bg: rgba(18, 19, 20, 0.88);
+		--safe-area-bottom-bg: rgba(18, 19, 20, 0.92);
 		--app-visual-height: 100dvh;
 		--keyboard-inset-bottom: 0px;
 		--mobile-sheet-height: 92dvh;
@@ -128,16 +128,16 @@
 	:root[data-theme="day"] {
 		color-scheme: light;
 
-		--app-bg: #f7f8fb;
+		--app-bg: #f8fafd;
 		--panel-bg: #fbfcff;
 		--detail-bg: #ffffff;
-		--surface-bg: #f1f3f7;
-		--surface-subtle-bg: #eceff5;
-		--field-bg: #ffffff;
-		--control-bg: #eef1f6;
-		--control-hover-bg: #e5e9f0;
-		--selected-bg: #e8f0fe;
-		--selected-strong-bg: #dce8ff;
+		--surface-bg: #eef2f7;
+		--surface-subtle-bg: #f2f5fa;
+		--field-bg: #f5f7fb;
+		--control-bg: #e9eef6;
+		--control-hover-bg: #dfe6f1;
+		--selected-bg: #e7f0fe;
+		--selected-strong-bg: #d7e7ff;
 		--terminal-bg: #f5f5f7;
 		--text: #1d1d1f;
 		--text-strong: #0b0b0f;
@@ -146,10 +146,10 @@
 		--border: rgba(60, 64, 67, 0.1);
 		--border-strong: rgba(60, 64, 67, 0.16);
 		--border-soft: rgba(60, 64, 67, 0.06);
-		--accent: #007aff;
+		--accent: #0b57d0;
 		--accent-text: #ffffff;
 		--accent-soft: rgba(0, 122, 255, 0.18);
-		--focus-ring: rgba(0, 122, 255, 0.22);
+		--focus-ring: transparent;
 		--chip-bg: rgba(238, 241, 246, 0.9);
 		--chip-text: #1d1d1f;
 		--quiet-bg: rgba(255, 255, 255, 0.82);
@@ -409,6 +409,7 @@
 		background: var(--panel-bg);
 		border-bottom-left-radius: 0 !important;
 		border-bottom-right-radius: 0 !important;
+		box-shadow: none !important;
 	}
 
 	:root[data-keyboard-visible] .mobile-keyboard-scroll {
@@ -437,6 +438,21 @@
 
 	:root[data-keyboard-visible] .mobile-composer-bar {
 		padding-bottom: 0;
+	}
+
+	input:not([type="range"]),
+	select,
+	textarea,
+	[contenteditable="true"] {
+		font-size: max(16px, 1em) !important;
+		margin: 0;
+	}
+
+	input:not([type="range"]),
+	select,
+	[contenteditable="true"] {
+		line-height: 1.25;
+		min-height: 1lh;
 	}
 
 	@media (hover: none) and (pointer: coarse) {

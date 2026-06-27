@@ -269,7 +269,7 @@ const MobileWorkspaceHeader = memo(function MobileWorkspaceHeader({
 	onOpenCommands?: () => void;
 }) {
 	return (
-		<header className="relative z-[110] flex shrink-0 items-center justify-between gap-2 px-3 pt-[calc(var(--safe-inset-top)+0.25rem)] md:hidden">
+		<header className="relative z-[110] flex shrink-0 items-center justify-between gap-2 px-3 pt-[calc(var(--safe-inset-top)+0.125rem)] md:hidden">
 			<LargeIconButton
 				className="h-9 w-9"
 				title={navigatorVisible ? "Hide threads" : "Open threads"}
@@ -581,7 +581,7 @@ const ComposerMenuItem = memo(function ComposerMenuItem({
 				{action.icon}
 			</span>
 			<span className="grid min-w-0 flex-1 gap-0.5">
-				<span className="truncate text-[13px] font-medium text-fg">
+				<span className="truncate text-[13px] font-medium leading-5 text-fg">
 					{action.label}
 				</span>
 				<span className="truncate text-[11px] leading-4 text-muted">
@@ -891,7 +891,7 @@ const Composer = memo(
 				) : null}
 
 				<form onSubmit={onPromptSubmit}>
-					<div className={ui.composerShell}>
+					<div className={cn(ui.composerShell, "md:bg-field/66")}>
 						<textarea
 							ref={textareaRef}
 							className={cn(
@@ -910,7 +910,7 @@ const Composer = memo(
 						/>
 						<div
 							ref={actionBarRef}
-							className="relative flex items-center justify-between gap-3"
+							className="relative flex min-h-8 items-center justify-between gap-3"
 						>
 							<span
 								className={cn(
@@ -1217,7 +1217,7 @@ export const Workspace = memo(
 						onOpenCommands={onOpenCommands}
 					/>
 				) : null}
-				<header className="hidden shrink-0 items-center justify-between gap-3 md:relative md:z-[110] md:flex md:h-12 md:px-5">
+				<header className="hidden shrink-0 items-center justify-between gap-3 md:relative md:z-[110] md:flex md:h-11 md:px-5">
 					<div className="flex min-w-0 items-center gap-3">
 						<LargeIconButton
 							title={navigatorVisible ? "Hide threads" : "Open threads"}
@@ -1365,7 +1365,7 @@ export const Workspace = memo(
 
 						<div
 							ref={composerShellRef}
-							className="mobile-composer-bar relative z-[80] shrink-0 overflow-visible pl-4 pr-[calc(1rem+var(--transcript-scrollbar-width,0px))] md:pl-8 md:pr-[calc(2rem+var(--transcript-scrollbar-width,0px))]"
+							className="mobile-composer-bar relative z-[80] shrink-0 overflow-visible pb-1 pl-4 pr-[calc(1rem+var(--transcript-scrollbar-width,0px))] md:pb-2 md:pl-8 md:pr-[calc(2rem+var(--transcript-scrollbar-width,0px))]"
 						>
 							<ThreadContentFrame>
 								<Composer

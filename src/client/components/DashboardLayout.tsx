@@ -1439,7 +1439,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 	}, [inspectorVisible, onInspectorVisibleChange, openMobileSheet]);
 
 	const sidebarFooter = (
-		<div className="shrink-0 bg-panel/40 p-3">
+		<div className="shrink-0 bg-panel/20 p-3 pt-2">
 			<div className="mb-2.5 grid grid-cols-2 gap-2">
 				<SurfaceAction
 					className={cn(

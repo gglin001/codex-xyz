@@ -175,7 +175,9 @@ function TagScoreControl({
 							className={cn(
 								"flex h-8 w-8 shrink-0 items-center justify-center transition duration-150 ease-out",
 								radius.control,
-								disabled ? "cursor-not-allowed opacity-45" : "hover:bg-control",
+								disabled
+									? "cursor-not-allowed opacity-45"
+									: "hover:bg-control-hover",
 								selected ? "text-accent" : "text-muted",
 							)}
 							aria-label={
@@ -240,7 +242,7 @@ export const ParamPanel = memo(function ParamPanel({
 	return (
 		<aside
 			className={cn(
-				"flex h-full min-h-0 w-full min-w-0 flex-col bg-panel text-fg",
+				"flex h-full min-h-0 w-full min-w-0 flex-col bg-panel/96 text-fg",
 				className,
 			)}
 		>
