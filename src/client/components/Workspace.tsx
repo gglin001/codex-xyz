@@ -12,6 +12,7 @@ import {
 	Minimize2,
 	Play,
 	Plus,
+	Search,
 	Send,
 	Settings,
 	Square,
@@ -109,6 +110,7 @@ export type WorkspaceProps = {
 	onCleanBackgroundTerminals: () => void;
 	onToggleNavigator: () => void;
 	onToggleInspector: () => void;
+	onOpenCommands?: () => void;
 	onSwipeUp?: () => void;
 };
 
@@ -235,6 +237,82 @@ function statusDotClass(status: ThreadDisplayStatus) {
 	}
 	return tone.neutral.dot;
 }
+
+const MobileWorkspaceHeader = memo(function MobileWorkspaceHeader({
+	name,
+	subtitle,
+	tokens,
+	status,
+	navigatorVisible,
+	inspectorVisible,
+	onToggleNavigator,
+	onToggleInspector,
+	onOpenCommands,
+}: {
+	name: string;
+	subtitle: string;
+	tokens: number;
+	status: ThreadDisplayStatus;
+	navigatorVisible: boolean;
+	inspectorVisible: boolean;
+	onToggleNavigator: () => void;
+	onToggleInspector: () => void;
+	onOpenCommands?: () => void;
+}) {
+	return (
+		<header className="relative z-[110] flex shrink-0 items-center justify-between gap-2 border-b border-border bg-app-bg/95 px-3 pb-2 pt-[calc(var(--safe-inset-top)+0.5rem)] md:hidden">
+			<LargeIconButton
+				className="h-9 w-9"
+				title={navigatorVisible ? "Hide threads" : "Open threads"}
+				aria-label={navigatorVisible ? "Hide threads" : "Open threads"}
+				pressed={navigatorVisible}
+				onClick={onToggleNavigator}
+			>
+				<Menu size={15} />
+			</LargeIconButton>
+			<div className="grid min-w-0 flex-1 gap-0.5">
+				<h1 className="truncate text-[14px] font-semibold leading-5 text-fg-strong">
+					{name}
+				</h1>
+				<div className="flex min-w-0 items-center gap-2 text-[11px] leading-4 text-muted">
+					<span
+						className={cn(
+							"h-1.5 w-1.5 shrink-0 rounded-full",
+							statusDotClass(status),
+						)}
+						aria-hidden="true"
+					/>
+					<span className="shrink-0 text-muted-strong">
+						{statusLabel(status)}
+					</span>
+					<span className="h-3 shrink-0 border-l border-border" />
+					<span className="shrink-0">{formatTokens(tokens)}</span>
+					<span className="h-3 shrink-0 border-l border-border" />
+					<span className="min-w-0 truncate">{subtitle}</span>
+				</div>
+			</div>
+			<div className="flex shrink-0 items-center gap-1">
+				<LargeIconButton
+					className="h-9 w-9"
+					title="Open commands"
+					aria-label="Open commands"
+					onClick={onOpenCommands}
+				>
+					<Search size={15} />
+				</LargeIconButton>
+				<LargeIconButton
+					className="h-9 w-9"
+					title={inspectorVisible ? "Hide settings" : "Open settings"}
+					aria-label={inspectorVisible ? "Hide settings" : "Open settings"}
+					pressed={inspectorVisible}
+					onClick={onToggleInspector}
+				>
+					<Settings size={15} />
+				</LargeIconButton>
+			</div>
+		</header>
+	);
+});
 
 const CopyTextButton = memo(function CopyTextButton({
 	value,
@@ -940,6 +1018,7 @@ export const Workspace = memo(
 			onCleanBackgroundTerminals,
 			onToggleNavigator,
 			onToggleInspector,
+			onOpenCommands,
 			onSwipeUp,
 		},
 		ref,
@@ -1096,6 +1175,19 @@ export const Workspace = memo(
 				)}
 				style={contentScaleStyle}
 			>
+				{isMobilePresentation ? (
+					<MobileWorkspaceHeader
+						name={name}
+						subtitle={subtitle}
+						tokens={tokens}
+						status={status}
+						navigatorVisible={navigatorVisible}
+						inspectorVisible={inspectorVisible}
+						onToggleNavigator={onToggleNavigator}
+						onToggleInspector={onToggleInspector}
+						onOpenCommands={onOpenCommands}
+					/>
+				) : null}
 				<header className="hidden md:flex md:relative z-[110] md:h-14 shrink-0 items-center justify-between gap-3 border-b border-border md:bg-app-bg/95 md:px-5">
 					<div className="flex min-w-0 items-center gap-3">
 						<LargeIconButton
@@ -1149,7 +1241,7 @@ export const Workspace = memo(
 					>
 						<div
 							ref={transcriptScrollRef}
-							className="mobile-transcript-scroll min-h-0 flex-1 overflow-y-auto scroll-mask-y-t px-4 pt-[calc(var(--safe-inset-top)+1rem)] [scrollbar-gutter:stable] md:px-8 md:pb-5 md:pt-5"
+							className="mobile-transcript-scroll min-h-0 flex-1 overflow-y-auto scroll-mask-y-t px-4 pt-3 [scrollbar-gutter:stable] md:px-8 md:pb-5 md:pt-5"
 						>
 							<ThreadContentFrame className="grid gap-[var(--transcript-gap)]">
 								{entries.length === 0 ? (

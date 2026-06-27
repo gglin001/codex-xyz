@@ -1481,6 +1481,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 						onCleanBackgroundTerminals={onCleanBackgroundTerminals}
 						onToggleNavigator={() => openMobileSheet("navigator")}
 						onToggleInspector={() => openMobileSheet("inspector")}
+						onOpenCommands={() => openCommandPalette()}
 						onSwipeUp={openCommandPaletteFromSwipe}
 					/>
 				</div>
