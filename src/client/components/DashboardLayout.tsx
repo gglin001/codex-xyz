@@ -49,6 +49,7 @@ import {
 } from "../designSystem.js";
 import { isPromptFocusShortcut } from "../promptShortcut.js";
 import { nextThemeMode, type ThemeMode, themeModeLabels } from "../theme.js";
+import { formatTokens } from "../uiFormat.js";
 import { useFullscreen } from "../useFullscreen.js";
 import { useMobileViewportGeometry } from "../useMobileViewportGeometry.js";
 import type { PwaState } from "../usePwa.js";
@@ -237,6 +238,18 @@ function blurActiveElement() {
 	if (activeElement instanceof HTMLElement) {
 		activeElement.blur();
 	}
+}
+
+function projectCommandDetail(project: WorkbenchProject) {
+	const parts = [
+		project.path,
+		`${project.totalThreads} threads`,
+		`${formatTokens(project.tokenTotal)} tokens`,
+	];
+	if (project.runningThreads > 0) {
+		parts.push(`${project.runningThreads} running`);
+	}
+	return parts.join(" / ");
 }
 
 type MobileSheetHandleProps = {
@@ -1197,7 +1210,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 			actions.push({
 				id: `project:${project.id}`,
 				name: project.name,
-				detail: project.path,
+				detail: projectCommandDetail(project),
 				kind: "project",
 				projectId: project.id,
 				projectInitials: project.initials,

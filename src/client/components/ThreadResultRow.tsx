@@ -6,7 +6,7 @@ import { ThreadStatusIcon, threadStatusDotClass } from "./threadStatusIcon.js";
 import type { WorkbenchThread } from "./workbenchTypes.js";
 
 function threadContext(thread: WorkbenchThread, projectName?: string) {
-	return projectName ? `${projectName} / ${thread.cwd}` : thread.cwd;
+	return projectName ? `${projectName} · ${thread.cwd}` : thread.cwd;
 }
 
 export function threadResultTitle(
