@@ -55,6 +55,8 @@ const desktopDefaultWidth = 560;
 const desktopDefaultHeight = 320;
 const desktopMinWidth = 360;
 const desktopMinHeight = 220;
+const desktopSideRailAvoidanceWidth = 332;
+const desktopSideRailAvoidanceViewport = 960;
 
 type DesktopFrame = {
 	x: number;
@@ -146,8 +148,17 @@ function defaultDesktopFrame(): DesktopFrame {
 		desktopDefaultHeight,
 		Math.max(desktopMinHeight, window.innerHeight - desktopMargin * 2),
 	);
+	const maxX = Math.max(
+		desktopMargin,
+		window.innerWidth - width - desktopMargin,
+	);
+	const centeredX = Math.round((window.innerWidth - width) / 2);
+	const minimumX =
+		window.innerWidth >= desktopSideRailAvoidanceViewport
+			? desktopSideRailAvoidanceWidth
+			: desktopMargin;
 	return {
-		x: desktopMargin,
+		x: Math.min(maxX, Math.max(minimumX, centeredX)),
 		y: Math.max(desktopMargin, window.innerHeight - height - desktopMargin),
 		width,
 		height,
@@ -818,7 +829,7 @@ export function TerminalDock({
 			{visible ? (
 				<motion.div
 					key="terminal-root"
-					className="fixed inset-0 z-[80] md:pointer-events-none"
+					className={cn("fixed inset-0 md:pointer-events-none", layer.overlayZ)}
 					initial={{ opacity: 0 }}
 					animate={{ opacity: 1 }}
 					exit={{ opacity: 0 }}

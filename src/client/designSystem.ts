@@ -20,11 +20,16 @@ export const motionPresets = {
 } as const;
 
 export const layer = {
+	composerZ: "z-[90]",
+	workspaceChromeZ: "z-[110]",
+	overlayZ: "z-[120]",
 	mobileHandle: "h-1 w-14 rounded-full bg-control-hover",
 	mobileSheet:
 		"mobile-sheet-surface absolute inset-x-0 top-[var(--mobile-sheet-top)] flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden rounded-t-[12px] md:rounded-[12px]",
 	mobileTerminalSheet:
 		"mobile-sheet-surface pointer-events-auto absolute inset-x-0 top-[var(--mobile-sheet-top)] flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden rounded-t-[12px] md:inset-auto md:rounded-[12px]",
+	stackedIconPlate:
+		"absolute left-1 top-1 h-6 w-8 rounded-[8px] bg-surface-subtle/52",
 } as const;
 
 export const tone = {

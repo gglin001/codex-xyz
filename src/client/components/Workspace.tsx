@@ -269,7 +269,12 @@ const MobileWorkspaceHeader = memo(function MobileWorkspaceHeader({
 	onOpenCommands?: () => void;
 }) {
 	return (
-		<header className="relative z-[110] flex shrink-0 items-center justify-between gap-2 px-3 pt-[calc(var(--safe-inset-top)+0.125rem)] md:hidden">
+		<header
+			className={cn(
+				"relative flex shrink-0 items-center justify-between gap-2 px-3 pt-[calc(var(--safe-inset-top)+0.125rem)] md:hidden",
+				layer.workspaceChromeZ,
+			)}
+		>
 			<LargeIconButton
 				className="h-9 w-9"
 				title={navigatorVisible ? "Hide threads" : "Open threads"}
@@ -1217,7 +1222,12 @@ export const Workspace = memo(
 						onOpenCommands={onOpenCommands}
 					/>
 				) : null}
-				<header className="hidden shrink-0 items-center justify-between gap-3 md:relative md:z-[110] md:flex md:h-11 md:px-5">
+				<header
+					className={cn(
+						"hidden shrink-0 items-center justify-between gap-3 md:relative md:flex md:h-11 md:px-5",
+						layer.workspaceChromeZ,
+					)}
+				>
 					<div className="flex min-w-0 items-center gap-3">
 						<LargeIconButton
 							title={navigatorVisible ? "Hide threads" : "Open threads"}
@@ -1365,7 +1375,10 @@ export const Workspace = memo(
 
 						<div
 							ref={composerShellRef}
-							className="mobile-composer-bar relative z-[80] shrink-0 overflow-visible pb-1 pl-4 pr-[calc(1rem+var(--transcript-scrollbar-width,0px))] md:pb-2 md:pl-8 md:pr-[calc(2rem+var(--transcript-scrollbar-width,0px))]"
+							className={cn(
+								"mobile-composer-bar relative shrink-0 overflow-visible pb-1 pl-4 pr-[calc(1rem+var(--transcript-scrollbar-width,0px))] md:pb-2 md:pl-8 md:pr-[calc(2rem+var(--transcript-scrollbar-width,0px))]",
+								layer.composerZ,
+							)}
 						>
 							<ThreadContentFrame>
 								<Composer

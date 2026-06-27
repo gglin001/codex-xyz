@@ -519,7 +519,7 @@ function CommandActionGlyph({
 				className="relative flex h-8 w-12 shrink-0 items-center"
 				aria-hidden="true"
 			>
-				<span className="absolute left-1 top-1 h-6 w-8 rounded-[8px] bg-control/35" />
+				<span className={layer.stackedIconPlate} />
 				<span
 					className={cn(
 						"absolute right-0 top-0 h-8 w-8 text-muted-strong",
@@ -558,7 +558,7 @@ function CommandActionGlyph({
 				className="relative flex h-8 w-12 shrink-0 items-center"
 				aria-hidden="true"
 			>
-				<span className="absolute left-1 top-1 h-6 w-8 rounded-[8px] bg-control/35" />
+				<span className={layer.stackedIconPlate} />
 				<span
 					className={cn(
 						"absolute right-0 top-0 h-8 w-8 text-muted-strong",
@@ -593,7 +593,7 @@ function CommandActionGlyph({
 				className="relative flex h-8 w-12 shrink-0 items-center"
 				aria-hidden="true"
 			>
-				<span className="absolute left-1 top-1 h-6 w-8 rounded-[8px] bg-control/35" />
+				<span className={layer.stackedIconPlate} />
 				<span
 					className={cn(
 						"absolute right-0 top-0 h-8 w-8 text-muted-strong",
@@ -706,7 +706,8 @@ const CommandPalette = memo(function CommandPalette({
 			{open ? (
 				<motion.div
 					className={cn(
-						"fixed inset-0 z-[120] flex items-start justify-center md:px-6 md:pt-[clamp(56px,10vh,96px)]",
+						"fixed inset-0 flex items-start justify-center md:px-6 md:pt-[clamp(56px,10vh,96px)]",
+						layer.overlayZ,
 						ui.overlay,
 					)}
 					initial={{ opacity: 0 }}
@@ -1669,7 +1670,11 @@ export const DashboardLayout = memo(function DashboardLayout({
 			<AnimatePresence>
 				{renderMobileShell && mobileSheet ? (
 					<motion.div
-						className={cn("fixed inset-0 z-[120] md:hidden", ui.overlay)}
+						className={cn(
+							"fixed inset-0 md:hidden",
+							layer.overlayZ,
+							ui.overlay,
+						)}
 						initial={{ opacity: 0 }}
 						animate={{ opacity: 1 }}
 						exit={{ opacity: 0 }}
