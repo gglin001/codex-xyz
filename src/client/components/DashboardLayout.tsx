@@ -49,12 +49,16 @@ import {
 } from "../designSystem.js";
 import { isPromptFocusShortcut } from "../promptShortcut.js";
 import { nextThemeMode, type ThemeMode, themeModeLabels } from "../theme.js";
-import { statusLabel } from "../uiFormat.js";
 import { useFullscreen } from "../useFullscreen.js";
 import { useMobileViewportGeometry } from "../useMobileViewportGeometry.js";
 import type { PwaState } from "../usePwa.js";
 import { ParamPanel } from "./ParamPanel.js";
 import { Sidebar } from "./Sidebar.js";
+import {
+	ThreadResultRow,
+	threadResultSearchText,
+	threadResultTitle,
+} from "./ThreadResultRow.js";
 import { ThreadStatusIcon } from "./threadStatusIcon.js";
 import { AvatarBadge, MenuItemButton, SurfaceAction } from "./uiPrimitives.js";
 import { Workspace, type WorkspaceHandle } from "./Workspace.js";
@@ -145,6 +149,8 @@ type CommandAction =
 			kind: "thread";
 			projectId: string;
 			status: ThreadDisplayStatus;
+			thread: WorkbenchThread;
+			projectName: string;
 	  })
 	| (CommandActionBase & {
 			kind: "settingsGroup";
@@ -286,9 +292,11 @@ function startMobileSheetDrag(
 }
 
 function commandActionMatches(action: CommandAction, normalizedQuery: string) {
-	return `${action.name} ${action.detail}`
-		.toLowerCase()
-		.includes(normalizedQuery);
+	const searchable =
+		action.kind === "thread"
+			? threadResultSearchText(action.thread, action.projectName)
+			: `${action.name} ${action.detail}`;
+	return searchable.toLowerCase().includes(normalizedQuery);
 }
 
 function commandParentId(action: CommandAction) {
@@ -723,10 +731,17 @@ const CommandPalette = memo(function CommandPalette({
 									<MenuItemButton
 										key={action.id}
 										className={cn(
-											"h-11 w-full gap-2.5 px-2.5",
+											action.kind === "thread"
+												? "min-h-[78px] w-full items-start gap-2.5 px-2.5 py-2"
+												: "h-11 w-full gap-2.5 px-2.5",
 											index === activeIndex ? null : "bg-transparent",
 											action.disabled ? "opacity-45" : null,
 										)}
+										title={
+											action.kind === "thread"
+												? threadResultTitle(action.thread, action.projectName)
+												: action.detail
+										}
 										selected={index === activeIndex}
 										disabled={action.disabled}
 										onMouseEnter={() => setActiveIndex(index)}
@@ -743,16 +758,24 @@ const CommandPalette = memo(function CommandPalette({
 											parentHasVisibleChildren={parentHasVisibleChildren}
 											lastVisibleChild={lastVisibleChild}
 										/>
-										<span className="min-w-0 flex-1">
-											<span className="block truncate text-[13px] font-medium">
-												{action.name}
+										{action.kind === "thread" ? (
+											<ThreadResultRow
+												thread={action.thread}
+												projectName={action.projectName}
+												showStatusIcon={false}
+											/>
+										) : (
+											<span className="min-w-0 flex-1">
+												<span className="block truncate text-[13px] font-medium">
+													{action.name}
+												</span>
+												<span className="block truncate text-[11px] text-muted">
+													{action.disabled
+														? (action.disabledDetail ?? action.detail)
+														: action.detail}
+												</span>
 											</span>
-											<span className="block truncate text-[11px] text-muted">
-												{action.disabled
-													? (action.disabledDetail ?? action.detail)
-													: action.detail}
-											</span>
-										</span>
+										)}
 									</MenuItemButton>
 								),
 							)}
@@ -1184,10 +1207,12 @@ export const DashboardLayout = memo(function DashboardLayout({
 				actions.push({
 					id: `thread:${projectThread.id}`,
 					name: projectThread.name,
-					detail: `${project.name} / ${projectThread.cwd} / ${statusLabel(projectThread.status)}`,
+					detail: threadResultSearchText(projectThread, project.name),
 					kind: "thread",
 					projectId: project.id,
 					status: projectThread.status,
+					thread: projectThread,
+					projectName: project.name,
 					run: () => {
 						onSelectThread(projectThread, { clearThreadQuery: true });
 					},
