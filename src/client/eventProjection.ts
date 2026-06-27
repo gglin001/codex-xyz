@@ -12,6 +12,11 @@ import {
 	isTurnStatus,
 	threadRuntimeStatusFromTurnStatus,
 } from "../server/domain.js";
+import {
+	isOptimisticItem,
+	isOptimisticTurnId,
+	rebaseOptimisticTurnDetail,
+} from "./optimisticThreads.js";
 
 export type ClientProjection = {
 	state: DashboardState;
@@ -316,6 +321,19 @@ function withTurn(projection: ClientProjection, turn: Turn): ClientProjection {
 	if (projection.detail?.id !== turn.threadId) {
 		return projection;
 	}
+	const optimisticTurn = projection.detail.turns.find(
+		(candidate) =>
+			isOptimisticTurnId(candidate.id) && candidate.prompt === turn.prompt,
+	);
+	if (optimisticTurn) {
+		return {
+			...projection,
+			detail: rebaseOptimisticTurnDetail(projection.detail, {
+				optimisticTurnId: optimisticTurn.id,
+				turn,
+			}),
+		};
+	}
 	const turns = upsertById(projection.detail.turns, turn, {
 		equal: shallowEqualObject,
 	});
@@ -361,6 +379,25 @@ function withThreadItem(
 ): ClientProjection {
 	if (projection.detail?.id !== item.threadId) {
 		return projection;
+	}
+	const matchingOptimisticItemIndex = projection.detail.items.findIndex(
+		(candidate) =>
+			isOptimisticItem(candidate) &&
+			candidate.type === item.type &&
+			candidate.text === item.text &&
+			candidate.threadId === item.threadId &&
+			candidate.turnId === item.turnId,
+	);
+	if (matchingOptimisticItemIndex !== -1) {
+		const items = [...projection.detail.items];
+		items[matchingOptimisticItemIndex] = item;
+		return {
+			...projection,
+			detail: {
+				...projection.detail,
+				items,
+			},
+		};
 	}
 	const items = upsertById(projection.detail.items, item, {
 		equal: shallowEqualObject,

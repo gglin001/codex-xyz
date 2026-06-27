@@ -4,6 +4,10 @@ import {
 	applyEventProjectionBatch,
 	type ClientProjection,
 } from "../src/client/eventProjection.js";
+import {
+	applyOptimisticTurnDraft,
+	createOptimisticTurnDraft,
+} from "../src/client/optimisticThreads.js";
 import type {
 	ControlThread,
 	CozEvent,
@@ -235,6 +239,85 @@ describe("client event projection", () => {
 			status: "completed",
 			completedAt: updatedAt,
 		});
+	});
+
+	it("rebases an optimistic turn when the real turn start arrives", () => {
+		const idleThread = thread({
+			status: "idle",
+			activeTurnId: null,
+			lastTurnStatus: "completed",
+		});
+		const base: ClientProjection = {
+			state: state({ threads: [idleThread] }),
+			detail: detail({
+				...idleThread,
+				turns: [],
+				items: [],
+				itemTotalCount: 0,
+			}),
+		};
+		const draft = createOptimisticTurnDraft({
+			thread: base.state.threads[0],
+			prompt: "Continue the work",
+			goalMode: false,
+			now: createdAt,
+		});
+		const optimistic = applyOptimisticTurnDraft(base, draft);
+		const realTurn = turn({
+			id: "turn-real",
+			prompt: "Continue the work",
+			startedAt: updatedAt,
+		});
+
+		const result = applyEventProjection(
+			optimistic,
+			event("turn.started", { turn: realTurn }, { turnId: "turn-real" }),
+		);
+
+		expect(result.detail?.turns.map((candidate) => candidate.id)).toEqual([
+			"turn-real",
+		]);
+		expect(
+			result.detail?.items.find(
+				(candidate) => candidate.text === "Continue the work",
+			),
+		).toMatchObject({
+			text: "Continue the work",
+			turnId: "turn-real",
+		});
+		expect(result.state.threads[0]).toMatchObject({
+			activeTurnId: "turn-real",
+			preview: "Continue the work",
+		});
+	});
+
+	it("replaces a matching optimistic user item with the real item", () => {
+		const base = projection();
+		const draft = createOptimisticTurnDraft({
+			thread: base.state.threads[0],
+			prompt: "Focus on verification",
+			goalMode: false,
+			now: createdAt,
+		});
+		const optimistic = applyOptimisticTurnDraft(base, draft);
+		const realItem = item({
+			id: "item-real-user",
+			type: "user",
+			text: "Focus on verification",
+			turnId: draft.turnId,
+			data: { source: "runtime" },
+		});
+
+		const result = applyEventProjection(
+			optimistic,
+			event("item.created", { item: realItem }, { turnId: draft.turnId }),
+		);
+
+		expect(
+			result.detail?.items.filter(
+				(candidate) => candidate.text === "Focus on verification",
+			),
+		).toEqual([realItem]);
 	});
 
 	it("preserves thread content time from thread status payloads", () => {

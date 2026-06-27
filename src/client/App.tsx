@@ -15,6 +15,7 @@ import type {
 	CozEvent,
 	DashboardState,
 	ThreadDetail,
+	Turn,
 } from "../server/domain.js";
 import {
 	archiveThread,
@@ -53,12 +54,17 @@ import {
 	useEventStreamSubscription,
 } from "./eventStream.js";
 import {
+	applyOptimisticTurnDraft,
 	createOptimisticThreadDraft,
 	createOptimisticThreadId,
+	createOptimisticTurnDraft,
 	insertOptimisticThreadState,
 	rebaseOptimisticThreadDetail,
 	removeOptimisticThreadState,
 	replaceOptimisticThreadState,
+	resolveOptimisticTurnDraft,
+	restoreThreadState,
+	rollbackOptimisticTurnDraft,
 	shouldResolveOptimisticThread,
 } from "./optimisticThreads.js";
 import { isMacTerminalToggleShortcut } from "./terminalShortcut.js";
@@ -137,6 +143,19 @@ type OptimisticThreadSubmission = {
 	resolvedThreadId: string | null;
 };
 
+type OptimisticTurnSubmission = {
+	turnId: string;
+	threadId: string;
+	previousThread: ControlThread;
+	draft: ReturnType<typeof createOptimisticTurnDraft>;
+};
+
+type OptimisticArchiveSubmission = {
+	threadId: string;
+	thread: ControlThread;
+	detail: ThreadDetail | null;
+};
+
 type ResetEvent = {
 	type: "events.reset";
 	reason: string;
@@ -164,6 +183,18 @@ function eventThreadPayload(event: CozEvent) {
 		"name" in thread &&
 		typeof thread.name === "string"
 		? (thread as ControlThread)
+		: null;
+}
+
+function eventTurnPayload(event: CozEvent) {
+	const turn = event.payload.turn;
+	return turn !== null &&
+		typeof turn === "object" &&
+		"id" in turn &&
+		typeof turn.id === "string" &&
+		"threadId" in turn &&
+		typeof turn.threadId === "string"
+		? (turn as Turn)
 		: null;
 }
 
@@ -270,6 +301,8 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		null,
 	);
 	const optimisticThreadRef = useRef<OptimisticThreadSubmission | null>(null);
+	const optimisticTurnsRef = useRef<OptimisticTurnSubmission[]>([]);
+	const optimisticArchiveRef = useRef<OptimisticArchiveSubmission | null>(null);
 	const projectionRef = useRef<ClientProjection>({
 		state: appInitialState,
 		detail: null,
@@ -277,6 +310,17 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	const pwa = usePwa();
 
 	const busy = busyAction !== null;
+
+	const commitProjection = useCallback((next: ClientProjection) => {
+		const previous = projectionRef.current;
+		projectionRef.current = next;
+		if (next.state !== previous.state) {
+			setState(next.state);
+		}
+		if (next.detail !== previous.detail) {
+			setDetail(next.detail);
+		}
+	}, []);
 
 	const beginRefresh = useCallback(() => {
 		refreshSeqRef.current += 1;
@@ -720,18 +764,39 @@ export function App({ initialState: serverInitialState }: AppProps) {
 					turn: null,
 				},
 			);
-			projectionRef.current = {
+			commitProjection({
 				state: nextState,
 				detail: nextDetail,
-			};
-			setState(nextState);
-			setDetail(nextDetail);
+			});
 			if (wasSelected) {
 				setSelectedThreadId(eventThread.id);
 				selectedThreadIdRef.current = eventThread.id;
 				setSelectedProjectId(eventThread.cwd);
 			}
 			return;
+		}
+		if (event.type === "turn.started") {
+			const turn = eventTurnPayload(event);
+			if (turn) {
+				const matchingTurn = optimisticTurnsRef.current.find(
+					(submission) =>
+						submission.threadId === turn.threadId &&
+						submission.draft.turn?.prompt ===
+							(typeof turn.prompt === "string" ? turn.prompt : ""),
+				);
+				if (matchingTurn) {
+					optimisticTurnsRef.current = optimisticTurnsRef.current.filter(
+						(submission) => submission.turnId !== matchingTurn.turnId,
+					);
+					commitProjection(
+						resolveOptimisticTurnDraft(projectionRef.current, {
+							draft: matchingTurn.draft,
+							turn,
+						}),
+					);
+					return;
+				}
+			}
 		}
 		pendingEventsRef.current.push(event);
 		scheduleProjectionFlush();
@@ -1200,15 +1265,13 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		setSelectedThreadId(optimisticThreadId);
 		selectedThreadIdRef.current = optimisticThreadId;
 		setDetailSubscription(null);
-		projectionRef.current = {
+		commitProjection({
 			state: insertOptimisticThreadState(
 				projectionRef.current.state,
 				draft.thread,
 			),
 			detail: draft.detail,
-		};
-		setState(projectionRef.current.state);
-		setDetail(draft.detail);
+		});
 
 		try {
 			const result = await createThread({
@@ -1245,12 +1308,10 @@ export function App({ initialState: serverInitialState }: AppProps) {
 					turn: result.turn,
 				},
 			);
-			projectionRef.current = {
+			commitProjection({
 				state: nextState,
 				detail: nextDetail,
-			};
-			setState(nextState);
-			setDetail(nextDetail);
+			});
 			setWorkdir(thread.cwd);
 			setWorkdirTouched(false);
 
@@ -1315,12 +1376,10 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				projectionRef.current.detail?.id === optimisticThreadId
 					? null
 					: projectionRef.current.detail;
-			projectionRef.current = {
+			commitProjection({
 				state: nextState,
 				detail: nextDetail,
-			};
-			setState(nextState);
-			setDetail(nextDetail);
+			});
 			if (optimisticSelected) {
 				setComposerMode("new");
 				setGoalMode(submission.goalMode);
@@ -1357,6 +1416,224 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		}
 	}
 
+	function removeOptimisticTurn(turnId: string) {
+		optimisticTurnsRef.current = optimisticTurnsRef.current.filter(
+			(submission) => submission.turnId !== turnId,
+		);
+	}
+
+	async function startTurnOptimistically(input: {
+		threadId: string;
+		prompt: string;
+		goalMode: boolean;
+	}) {
+		const currentThread =
+			projectionRef.current.state.threads.find(
+				(thread) => thread.id === input.threadId,
+			) ?? activeThread;
+		if (!currentThread) {
+			return;
+		}
+		const submittedPrompt = input.prompt.trim();
+		const draft = createOptimisticTurnDraft({
+			thread: currentThread,
+			prompt: submittedPrompt,
+			goalMode: input.goalMode,
+		});
+		optimisticTurnsRef.current = [
+			...optimisticTurnsRef.current,
+			{
+				turnId: draft.turnId,
+				threadId: input.threadId,
+				previousThread: currentThread,
+				draft,
+			},
+		];
+		commitProjection(applyOptimisticTurnDraft(projectionRef.current, draft));
+		setComposerMode("thread");
+		setError(null);
+		setNotice(null);
+		setBusyAction(input.goalMode ? "Starting goal mode" : "Starting turn");
+
+		try {
+			const result = input.goalMode
+				? await startGoal(input.threadId, submittedPrompt)
+				: {
+						turn: await startTurn(input.threadId, submittedPrompt),
+						thread: null,
+					};
+			const turnStillPending = optimisticTurnsRef.current.some(
+				(submission) => submission.turnId === draft.turnId,
+			);
+			removeOptimisticTurn(draft.turnId);
+			if (turnStillPending) {
+				commitProjection(
+					resolveOptimisticTurnDraft(projectionRef.current, {
+						draft,
+						turn: result.turn,
+						thread: result.thread,
+					}),
+				);
+			}
+			if (selectedThreadIdRef.current === input.threadId) {
+				void loadThreadDetail(input.threadId).catch(() => {
+					if (selectedThreadIdRef.current === input.threadId) {
+						scheduleFallbackRefresh();
+					}
+				});
+			}
+		} catch (actionError) {
+			const turnStillPending = optimisticTurnsRef.current.some(
+				(submission) => submission.turnId === draft.turnId,
+			);
+			removeOptimisticTurn(draft.turnId);
+			if (turnStillPending) {
+				commitProjection(
+					rollbackOptimisticTurnDraft(projectionRef.current, {
+						draft,
+						previousThread: currentThread,
+					}),
+				);
+				setPrompt(submittedPrompt);
+				setGoalMode(input.goalMode);
+			} else if (selectedThreadIdRef.current === input.threadId) {
+				void loadThreadDetail(input.threadId).catch(() => {
+					if (selectedThreadIdRef.current === input.threadId) {
+						scheduleFallbackRefresh();
+					}
+				});
+			}
+			setError(
+				actionError instanceof Error
+					? actionError.message
+					: input.goalMode
+						? "Failed to start goal mode"
+						: "Failed to start turn",
+			);
+		} finally {
+			setBusyAction(null);
+		}
+	}
+
+	async function archiveThreadOptimistically(threadId: string) {
+		const thread =
+			projectionRef.current.state.threads.find(
+				(candidate) => candidate.id === threadId,
+			) ?? activeThread;
+		if (!thread) {
+			return;
+		}
+		const archivedDetail =
+			projectionRef.current.detail?.id === threadId
+				? projectionRef.current.detail
+				: null;
+		optimisticArchiveRef.current = {
+			threadId,
+			thread,
+			detail: archivedDetail,
+		};
+		setBusyAction("Archiving thread");
+		setError(null);
+		setNotice(null);
+		const nextState = removeOptimisticThreadState(
+			projectionRef.current.state,
+			threadId,
+		);
+		const fallbackThreadId =
+			nextState.threads.find((candidate) => candidate.id !== threadId)?.id ??
+			null;
+		const archivedThreadWasSelected = selectedThreadIdRef.current === threadId;
+		commitProjection({
+			state: nextState,
+			detail:
+				projectionRef.current.detail?.id === threadId
+					? null
+					: projectionRef.current.detail,
+		});
+		if (archivedThreadWasSelected) {
+			setSelectedThreadId(fallbackThreadId);
+			selectedThreadIdRef.current = fallbackThreadId;
+			if (fallbackThreadId) {
+				const project = findProjectForThread(
+					buildWorkbenchProjects(nextState.threads, nextState.defaultCwd),
+					fallbackThreadId,
+				);
+				if (project) {
+					setSelectedProjectId(project.id);
+				}
+				void loadThreadDetail(fallbackThreadId).catch(() => {
+					if (selectedThreadIdRef.current === fallbackThreadId) {
+						clearDetail();
+					}
+				});
+			} else {
+				beginDetailLoad();
+				clearDetail();
+			}
+		}
+
+		try {
+			const archived = await archiveThread(threadId);
+			optimisticArchiveRef.current = null;
+			if (queryMatchesArchivedThreads(threadQuery)) {
+				setArchivedThreads((current) => {
+					const next = current.filter(
+						(candidate) => candidate.id !== archived.id,
+					);
+					return [archived, ...next];
+				});
+			}
+			setComposerMode("thread");
+			setNotice("Thread archived");
+			void refresh(undefined, { loadDetail: true });
+		} catch (actionError) {
+			const pending = optimisticArchiveRef.current;
+			optimisticArchiveRef.current = null;
+			if (pending?.threadId === threadId) {
+				const shouldRestoreSelection =
+					archivedThreadWasSelected &&
+					selectedThreadIdRef.current === fallbackThreadId;
+				const restoredState = restoreThreadState(
+					projectionRef.current.state,
+					pending.thread,
+				);
+				commitProjection({
+					state: restoredState,
+					detail: shouldRestoreSelection
+						? pending.detail
+						: projectionRef.current.detail,
+				});
+				if (shouldRestoreSelection) {
+					setSelectedThreadId(threadId);
+					selectedThreadIdRef.current = threadId;
+					const project = findProjectForThread(
+						buildWorkbenchProjects(
+							restoredState.threads,
+							restoredState.defaultCwd,
+						),
+						threadId,
+					);
+					if (project) {
+						setSelectedProjectId(project.id);
+					}
+				}
+				if (shouldRestoreSelection && pending.detail) {
+					setDetailSubscription({
+						threadId,
+						after: pending.detail.latestEventId,
+					});
+				}
+			}
+			setError(
+				actionError instanceof Error
+					? actionError.message
+					: "Failed to archive thread",
+			);
+		} finally {
+			setBusyAction(null);
+		}
+	}
+
 	function executePrompt() {
 		if (!canSubmitPrompt) {
 			return;
@@ -1370,9 +1647,11 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			const threadId = activeThreadId;
 			setPrompt("");
 			setComposerMode("thread");
-			void runAction("Starting goal mode", async () => {
-				const result = await startGoal(threadId, currentPrompt.trim());
-				return result.turn.threadId;
+			setGoalMode(false);
+			void startTurnOptimistically({
+				threadId,
+				prompt: currentPrompt,
+				goalMode: true,
 			});
 			return;
 		}
@@ -1381,9 +1660,10 @@ export function App({ initialState: serverInitialState }: AppProps) {
 
 		if (promptTarget === "thread" && activeThreadId) {
 			const threadId = activeThreadId;
-			void runAction("Starting turn", async () => {
-				const turn = await startTurn(threadId, currentPrompt);
-				return turn.threadId;
+			void startTurnOptimistically({
+				threadId,
+				prompt: currentPrompt,
+				goalMode: false,
 			});
 			return;
 		}
@@ -1474,23 +1754,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		if (!activeThreadId) {
 			return;
 		}
-		const threadId = activeThreadId;
-		void runAction(
-			"Archiving thread",
-			async () => {
-				const archived = await archiveThread(threadId);
-				if (queryMatchesArchivedThreads(threadQuery)) {
-					setArchivedThreads((current) => {
-						const next = current.filter((thread) => thread.id !== archived.id);
-						return [archived, ...next];
-					});
-				}
-				setComposerMode("thread");
-			},
-			{
-				successMessage: "Thread archived",
-			},
-		);
+		void archiveThreadOptimistically(activeThreadId);
 	}
 
 	function restartCodexAppServerFromSettings() {

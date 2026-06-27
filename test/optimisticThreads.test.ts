@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
+import type { ClientProjection } from "../src/client/eventProjection.js";
 import {
+	applyOptimisticTurnDraft,
 	createOptimisticThreadDraft,
+	createOptimisticTurnDraft,
 	insertOptimisticThreadState,
 	rebaseOptimisticThreadDetail,
 	removeOptimisticThreadState,
 	replaceOptimisticThreadState,
+	resolveOptimisticTurnDraft,
+	restoreThreadState,
+	rollbackOptimisticTurnDraft,
 	shouldResolveOptimisticThread,
 } from "../src/client/optimisticThreads.js";
 import type {
@@ -233,6 +239,118 @@ describe("optimistic thread projection helpers", () => {
 			"thread-1",
 		]);
 		expect(nextState.threadTotalCount).toBe(1);
+	});
+
+	it("applies and resolves an optimistic turn on an existing idle thread", () => {
+		const baseThread = thread({
+			status: "idle",
+			activeTurnId: null,
+			lastTurnStatus: "completed",
+		});
+		const projection: ClientProjection = {
+			state: state({ threads: [baseThread] }),
+			detail: {
+				...baseThread,
+				turns: [],
+				items: [],
+				itemTotalCount: 0,
+				itemPageSize: 0,
+				itemNextCursor: null,
+				itemHasMore: false,
+				latestEventId: 10,
+			},
+		};
+		const draft = createOptimisticTurnDraft({
+			thread: baseThread,
+			prompt: "Continue the work",
+			goalMode: false,
+			now: updatedAt,
+		});
+
+		const optimistic = applyOptimisticTurnDraft(projection, draft);
+		const resolved = resolveOptimisticTurnDraft(optimistic, {
+			draft,
+			turn: turn({
+				id: "turn-real",
+				threadId: baseThread.id,
+				prompt: "Continue the work",
+			}),
+		});
+
+		expect(optimistic.state.threads[0]).toMatchObject({
+			status: "active",
+			activeTurnId: draft.turnId,
+			preview: "Continue the work",
+		});
+		expect(optimistic.detail?.items).toMatchObject([
+			{
+				id: draft.itemId,
+				text: "Continue the work",
+				data: { optimistic: true },
+			},
+		]);
+		expect(resolved.detail?.turns.map((candidate) => candidate.id)).toEqual([
+			"turn-real",
+		]);
+		expect(resolved.detail?.items.map((item) => item.turnId)).toEqual([
+			"turn-real",
+		]);
+	});
+
+	it("rolls back an optimistic steer without removing the active turn", () => {
+		const activeThread = thread({
+			status: "active",
+			activeTurnId: "turn-1",
+			lastTurnStatus: "in_progress",
+		});
+		const projection: ClientProjection = {
+			state: state({ threads: [activeThread] }),
+			detail: {
+				...activeThread,
+				turns: [turn({ id: "turn-1" })],
+				items: [],
+				itemTotalCount: 0,
+				itemPageSize: 0,
+				itemNextCursor: null,
+				itemHasMore: false,
+				latestEventId: 10,
+			},
+		};
+		const draft = createOptimisticTurnDraft({
+			thread: activeThread,
+			prompt: "Focus on verification",
+			goalMode: false,
+			now: updatedAt,
+		});
+
+		const optimistic = applyOptimisticTurnDraft(projection, draft);
+		const rolledBack = rollbackOptimisticTurnDraft(optimistic, {
+			draft,
+			previousThread: activeThread,
+		});
+
+		expect(draft.turn).toBeNull();
+		expect(optimistic.detail?.items).toHaveLength(1);
+		expect(rolledBack.detail?.turns.map((candidate) => candidate.id)).toEqual([
+			"turn-1",
+		]);
+		expect(rolledBack.detail?.items).toEqual([]);
+		expect(rolledBack.state.threads[0]).toMatchObject({
+			status: "active",
+			activeTurnId: "turn-1",
+		});
+	});
+
+	it("restores a thread after an optimistic archive rollback", () => {
+		const currentState = removeOptimisticThreadState(state(), "thread-1");
+		const restored = restoreThreadState(currentState, thread());
+
+		expect(currentState.threads).toEqual([]);
+		expect(currentState.threadTotalCount).toBe(0);
+		expect(restored.threads.map((candidate) => candidate.id)).toEqual([
+			"thread-1",
+		]);
+		expect(restored.threadTotalCount).toBe(1);
 	});
 
 	it("matches only the server-created thread for a pending optimistic submission", () => {
