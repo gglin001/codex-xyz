@@ -1,4 +1,5 @@
 import type {
+	ComposerInput,
 	GoalStatus,
 	GoalStatusUpdate,
 	ThreadRuntimeStatus,
@@ -136,6 +137,7 @@ export type StartThreadInput = {
 export type StartRuntimeTurnInput = {
 	threadId: string;
 	prompt: string;
+	input?: ComposerInput | null;
 	model?: string | null;
 };
 
@@ -160,6 +162,25 @@ export type ForkThreadInput = {
 	cwd: string;
 	name?: string | null;
 	model?: string | null;
+};
+
+export type RuntimeFileSearchResult = {
+	root: string;
+	path: string;
+	matchType: "file" | "directory";
+	fileName: string;
+	score: number;
+	indices: number[] | null;
+};
+
+export type RuntimeBackgroundTerminal = {
+	itemId: string;
+	processId: string;
+	command: string;
+	cwd: string;
+	osPid: number | null;
+	cpuPercent: number | null;
+	rssKb: number | null;
 };
 
 export class RuntimeThreadNotFoundError extends Error {
@@ -191,6 +212,7 @@ export interface CodexRuntime {
 		threadId: string;
 		turnId: string;
 		prompt: string;
+		input?: ComposerInput | null;
 	}): Promise<void>;
 	interruptTurn(input: { threadId: string; turnId: string }): Promise<void>;
 	forkThread(input: ForkThreadInput): Promise<RuntimeThreadSnapshot>;
@@ -212,6 +234,20 @@ export interface CodexRuntime {
 	}): Promise<RuntimeGoalStart>;
 	getGoal(threadId: string): Promise<RuntimeGoalSnapshot | null>;
 	clearGoal(threadId: string): Promise<void>;
+	fuzzyFileSearch(input: {
+		query: string;
+		roots: string[];
+		cancellationToken?: string | null;
+	}): Promise<RuntimeFileSearchResult[]>;
+	listBackgroundTerminals(input: {
+		threadId: string;
+		limit?: number | null;
+		cursor?: string | null;
+	}): Promise<{
+		terminals: RuntimeBackgroundTerminal[];
+		nextCursor: string | null;
+	}>;
+	cleanBackgroundTerminals(threadId: string): Promise<void>;
 	restartAppServer(): Promise<CodexAppServerRestartResult>;
 	close(): Promise<void>;
 }

@@ -23,6 +23,7 @@ const startThreadId = "00000000-0000-4000-8000-000000000007";
 
 function createFakeCodexCommand() {
 	tempDir = mkdtempSync(join(tmpdir(), "coz-app-server-"));
+	process.env.FAKE_CODEX_REQUEST_LOG = requestLogPath();
 	const commandPath = join(tempDir, "fake-codex.cjs");
 	writeFileSync(
 		commandPath,
@@ -32,6 +33,17 @@ const http = require("node:http")
 const WebSocket = require("ws")
 
 let output = process.stdout
+const requestLogPath = process.env.FAKE_CODEX_REQUEST_LOG
+
+function logRequest(message) {
+  if (!requestLogPath || message.method === "initialized") {
+    return
+  }
+  fs.appendFileSync(requestLogPath, JSON.stringify({
+    method: message.method,
+    params: message.params ?? null
+  }) + "\\n")
+}
 
 function writeJson(message) {
   output.write(JSON.stringify(message) + "\\n")
@@ -50,6 +62,8 @@ function reject(id, message) {
 }
 
 function handle(message, state) {
+  logRequest(message)
+
   if (message.method === "initialize") {
     state.experimentalApi = message.params?.capabilities?.experimentalApi === true
     respond(message.id, {
@@ -350,6 +364,50 @@ function handle(message, state) {
     return
   }
 
+  if (message.method === "turn/steer") {
+    respond(message.id, {})
+    return
+  }
+
+  if (message.method === "fuzzyFileSearch") {
+    respond(message.id, {
+      files: [
+        {
+          root: message.params.roots[0],
+          path: "src/client/App.tsx",
+          match_type: "file",
+          file_name: "App.tsx",
+          score: 91,
+          indices: [0, 4]
+        }
+      ]
+    })
+    return
+  }
+
+  if (message.method === "thread/backgroundTerminals/list") {
+    respond(message.id, {
+      data: [
+        {
+          item_id: "item_terminal",
+          process_id: "process_1",
+          command: "pnpm dev",
+          cwd: process.cwd(),
+          os_pid: 123,
+          cpu_percent: 0.5,
+          rss_kb: 2048
+        }
+      ],
+      next_cursor: "cursor_2"
+    })
+    return
+  }
+
+  if (message.method === "thread/backgroundTerminals/clean") {
+    respond(message.id, { count: 1 })
+    return
+  }
+
   if (message.method === "thread/shellCommand") {
     const turnId = "turn_shell_1"
     const itemId = "item_command_1"
@@ -539,6 +597,27 @@ function readDebugRecords(debugLogPath: string) {
 		.map((line) => JSON.parse(line) as Record<string, unknown>);
 }
 
+function requestLogPath() {
+	if (!tempDir) {
+		throw new Error("Expected test temp dir");
+	}
+	return join(tempDir, ".coz", "requests.jsonl");
+}
+
+function readRequestLog() {
+	try {
+		const text = readFileSync(requestLogPath(), "utf8").trim();
+		if (!text) {
+			return [];
+		}
+		return text
+			.split("\n")
+			.map((line) => JSON.parse(line) as Record<string, unknown>);
+	} catch {
+		return [];
+	}
+}
+
 function debugRecordMethods(records: Array<Record<string, unknown>>) {
 	return records.flatMap((record) => {
 		const message =
@@ -618,6 +697,7 @@ afterEach(async () => {
 	await runtime?.close();
 	runtime = null;
 	await stopFakePersistentAppServer();
+	delete process.env.FAKE_CODEX_REQUEST_LOG;
 	if (tempDir) {
 		rmSync(tempDir, { recursive: true, force: true });
 		tempDir = null;
@@ -987,6 +1067,132 @@ describe("AppServerRuntime", () => {
 				}),
 			]),
 		);
+	});
+
+	it("sends structured composer input when starting and steering turns", async () => {
+		const command = createFakeCodexCommand();
+		runtime = new AppServerRuntime(command, appServerOptions());
+		const thread = await runtime.resumeThread({
+			threadId: sourceThreadId,
+			cwd: process.cwd(),
+			model: "test-model",
+		});
+		const input = [
+			{
+				type: "text" as const,
+				text: "Summarize this",
+				text_elements: [],
+			},
+			{
+				type: "image" as const,
+				url: "data:image/png;base64,abc",
+				detail: "auto" as const,
+			},
+		];
+
+		await runtime.startTurn({
+			threadId: thread.id,
+			prompt: "fallback prompt",
+			input,
+		});
+		await runtime.steerTurn({
+			threadId: thread.id,
+			turnId,
+			prompt: "fallback steer",
+			input,
+		});
+
+		const requests = readRequestLog();
+		const startRequest = requests.find(
+			(request) => request.method === "turn/start",
+		);
+		const steerRequest = requests.find(
+			(request) => request.method === "turn/steer",
+		);
+
+		expect(startRequest?.params).toMatchObject({
+			threadId: thread.id,
+			input,
+		});
+		expect(steerRequest?.params).toMatchObject({
+			threadId: thread.id,
+			expectedTurnId: turnId,
+			input,
+		});
+	});
+
+	it("proxies fuzzy file search through the app-server", async () => {
+		const command = createFakeCodexCommand();
+		runtime = new AppServerRuntime(command, appServerOptions());
+
+		const results = await runtime.fuzzyFileSearch({
+			query: "app",
+			roots: [process.cwd()],
+			cancellationToken: "search-1",
+		});
+
+		expect(results).toEqual([
+			{
+				root: process.cwd(),
+				path: "src/client/App.tsx",
+				matchType: "file",
+				fileName: "App.tsx",
+				score: 91,
+				indices: [0, 4],
+			},
+		]);
+		expect(
+			readRequestLog().find((request) => request.method === "fuzzyFileSearch")
+				?.params,
+		).toMatchObject({
+			query: "app",
+			roots: [process.cwd()],
+			cancellationToken: "search-1",
+		});
+	});
+
+	it("proxies background terminal list and clean through the app-server", async () => {
+		const command = createFakeCodexCommand();
+		runtime = new AppServerRuntime(command, appServerOptions());
+
+		const page = await runtime.listBackgroundTerminals({
+			threadId: sourceThreadId,
+			limit: 10,
+			cursor: "cursor_1",
+		});
+		await runtime.cleanBackgroundTerminals(sourceThreadId);
+
+		expect(page).toEqual({
+			terminals: [
+				{
+					itemId: "item_terminal",
+					processId: "process_1",
+					command: "pnpm dev",
+					cwd: process.cwd(),
+					osPid: 123,
+					cpuPercent: 0.5,
+					rssKb: 2048,
+				},
+			],
+			nextCursor: "cursor_2",
+		});
+		const requests = readRequestLog();
+		expect(
+			requests.find(
+				(request) => request.method === "thread/backgroundTerminals/list",
+			)?.params,
+		).toMatchObject({
+			threadId: sourceThreadId,
+			limit: 10,
+			cursor: "cursor_1",
+		});
+		expect(
+			requests.find(
+				(request) => request.method === "thread/backgroundTerminals/clean",
+			)?.params,
+		).toEqual({
+			threadId: sourceThreadId,
+		});
 	});
 
 	it("starts goal mode by waiting for the app-server automatic turn", async () => {

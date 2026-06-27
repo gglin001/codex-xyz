@@ -1,7 +1,10 @@
 import type {
+	BackgroundTerminalPage,
 	CodexAppServerRestartResponse,
+	ComposerInput,
 	ControlThread,
 	DashboardState,
+	FileSearchResult,
 	GoalStatus,
 	TerminalSnapshot,
 	ThreadDetail,
@@ -83,6 +86,7 @@ export function getThreadsPage(input: {
 export function createThread(input: {
 	cwd: string;
 	prompt: string;
+	input?: ComposerInput | null;
 	goalMode?: boolean | null;
 	name?: string | null;
 	model?: string | null;
@@ -102,10 +106,24 @@ export function createThread(input: {
 	});
 }
 
-export function startTurn(threadId: string, prompt: string) {
+export function startTurn(
+	threadId: string,
+	prompt: string,
+	input?: ComposerInput | null,
+) {
 	return request<Turn>(`/api/threads/${threadId}/turns`, {
 		method: "POST",
-		body: JSON.stringify({ prompt }),
+		body: JSON.stringify({ prompt, input: input ?? null }),
+	});
+}
+
+export function searchFiles(input: { query: string; roots?: string[] | null }) {
+	return request<FileSearchResult[]>("/api/files/search", {
+		method: "POST",
+		body: JSON.stringify({
+			query: input.query,
+			roots: input.roots ?? null,
+		}),
 	});
 }
 
@@ -135,6 +153,22 @@ export function compactThread(threadId: string) {
 		method: "POST",
 		body: JSON.stringify({}),
 	});
+}
+
+export function listBackgroundTerminals(threadId: string) {
+	return request<BackgroundTerminalPage>(
+		`/api/threads/${threadId}/background-terminals`,
+	);
+}
+
+export function cleanBackgroundTerminals(threadId: string) {
+	return request<ControlThread | null>(
+		`/api/threads/${threadId}/background-terminals/clean`,
+		{
+			method: "POST",
+			body: JSON.stringify({}),
+		},
+	);
 }
 
 export function archiveThread(threadId: string) {

@@ -8,7 +8,9 @@ import {
 	type ForkThreadInput,
 	type ResumeThreadInput,
 	type RunShellCommandInput,
+	type RuntimeBackgroundTerminal,
 	type RuntimeEventHandler,
+	type RuntimeFileSearchResult,
 	type RuntimeGoalSnapshot,
 	type RuntimeGoalStart,
 	RuntimeThreadNotFoundError,
@@ -24,6 +26,16 @@ import { TestCodexRuntime } from "./testCodexRuntime.js";
 let tempDir: string;
 let service: ControlService;
 let testRuntime: TestCodexRuntime;
+
+function emptyBackgroundTerminals(): {
+	terminals: RuntimeBackgroundTerminal[];
+	nextCursor: string | null;
+} {
+	return {
+		terminals: [],
+		nextCursor: null,
+	};
+}
 
 async function waitForEvents() {
 	await new Promise((resolve) => setTimeout(resolve, 20));
@@ -215,6 +227,16 @@ class VolatileCodexRuntime implements CodexRuntime {
 	async clearGoal(threadId: string) {
 		this.requireThread(threadId);
 	}
+
+	async fuzzyFileSearch(): Promise<RuntimeFileSearchResult[]> {
+		return [];
+	}
+
+	async listBackgroundTerminals() {
+		return emptyBackgroundTerminals();
+	}
+
+	async cleanBackgroundTerminals() {}
 
 	async restartAppServer() {
 		return {
@@ -435,6 +457,16 @@ class EagerEventCodexRuntime implements CodexRuntime {
 		this.requireThread(threadId);
 	}
 
+	async fuzzyFileSearch(): Promise<RuntimeFileSearchResult[]> {
+		return [];
+	}
+
+	async listBackgroundTerminals() {
+		return emptyBackgroundTerminals();
+	}
+
+	async cleanBackgroundTerminals() {}
+
 	async restartAppServer() {
 		return {
 			status: "restarted" as const,
@@ -621,6 +653,16 @@ class InterruptDriftCodexRuntime implements CodexRuntime {
 
 	async clearGoal() {}
 
+	async fuzzyFileSearch(): Promise<RuntimeFileSearchResult[]> {
+		return [];
+	}
+
+	async listBackgroundTerminals() {
+		return emptyBackgroundTerminals();
+	}
+
+	async cleanBackgroundTerminals() {}
+
 	async restartAppServer() {
 		return {
 			status: "restarted" as const,
@@ -680,6 +722,73 @@ describe("ControlService", () => {
 					item.type === "agent" && item.text.includes("Test run started"),
 			),
 		).toBe(true);
+	});
+
+	it("passes structured composer input when creating and starting turns", async () => {
+		const input = [
+			{
+				type: "text" as const,
+				text: "Use this context",
+				text_elements: [],
+			},
+			{
+				type: "image" as const,
+				url: "data:image/png;base64,abc",
+				detail: "auto" as const,
+			},
+		];
+		const result = await service.createThread({
+			cwd: tempDir,
+			prompt: "Review attachments",
+			input,
+		});
+		expect(testRuntime.lastStartTurnInput?.input).toEqual(input);
+		const threadId = result.thread?.id;
+		if (!threadId) {
+			throw new Error("Expected created thread id");
+		}
+		await waitForEvents();
+
+		await service.startTurn({
+			threadId,
+			prompt: "Follow up",
+			input,
+		});
+
+		expect(testRuntime.lastStartTurnInput?.input).toEqual(input);
+		expect(testRuntime.lastStartTurnInput?.prompt).toBe("Follow up");
+	});
+
+	it("lists and cleans runtime background terminals", async () => {
+		const result = await service.createThread({
+			cwd: tempDir,
+			prompt: "Start terminal work",
+		});
+		const threadId = result.thread?.id;
+		if (!threadId) {
+			throw new Error("Expected created thread id");
+		}
+		testRuntime.backgroundTerminals = [
+			{
+				itemId: "item_terminal",
+				processId: "process_1",
+				command: "pnpm dev",
+				cwd: tempDir,
+				osPid: 123,
+				cpuPercent: 0.5,
+				rssKb: 2048,
+			},
+		];
+
+		await waitForEvents();
+		const page = await service.listBackgroundTerminals(threadId);
+		const thread = await service.cleanBackgroundTerminals(threadId);
+
+		expect(page.terminals).toHaveLength(1);
+		expect(page.terminals[0].command).toBe("pnpm dev");
+		expect(thread?.id).toBe(threadId);
+		expect(testRuntime.backgroundTerminalsCleanCount).toBe(1);
+		expect(testRuntime.backgroundTerminals).toEqual([]);
 	});
 
 	it("creates a goal thread and starts the first goal turn", async () => {

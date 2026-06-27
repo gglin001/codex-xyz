@@ -22,7 +22,7 @@ import {
 	debugRecordLevel,
 	extractThreadId,
 	extractTurnId,
-	inputText,
+	inputItems,
 	isYoloApprovalRequest,
 	type JsonRpcMessage,
 	normalizeGoal,
@@ -43,8 +43,10 @@ import type {
 	ForkThreadInput,
 	ResumeThreadInput,
 	RunShellCommandInput,
+	RuntimeBackgroundTerminal,
 	RuntimeEvent,
 	RuntimeEventHandler,
+	RuntimeFileSearchResult,
 	RuntimeThreadSnapshot,
 	RuntimeTurnSnapshot,
 	StartRuntimeTurnInput,
@@ -206,7 +208,7 @@ export class AppServerRuntime implements CodexRuntime {
 		const result = asRecord(
 			await this.request("turn/start", {
 				threadId: input.threadId,
-				input: inputText(input.prompt),
+				input: inputItems(input.prompt, input.input),
 				model: input.model ?? undefined,
 				...yoloTurnOptions,
 			}),
@@ -271,11 +273,16 @@ export class AppServerRuntime implements CodexRuntime {
 		}
 	}
 
-	async steerTurn(input: { threadId: string; turnId: string; prompt: string }) {
+	async steerTurn(input: {
+		threadId: string;
+		turnId: string;
+		prompt: string;
+		input?: StartRuntimeTurnInput["input"];
+	}) {
 		await this.request("turn/steer", {
 			threadId: input.threadId,
 			expectedTurnId: input.turnId,
-			input: inputText(input.prompt),
+			input: inputItems(input.prompt, input.input),
 		});
 	}
 
@@ -389,6 +396,95 @@ export class AppServerRuntime implements CodexRuntime {
 
 	async clearGoal(threadId: string) {
 		await this.request("thread/goal/clear", { threadId });
+	}
+
+	async fuzzyFileSearch(input: {
+		query: string;
+		roots: string[];
+		cancellationToken?: string | null;
+	}): Promise<RuntimeFileSearchResult[]> {
+		const result = asRecord(
+			await this.request("fuzzyFileSearch", {
+				query: input.query,
+				roots: input.roots,
+				cancellationToken: input.cancellationToken ?? null,
+			}),
+		);
+		const files = Array.isArray(result.files) ? result.files : [];
+		return files.map((file) => {
+			const record = asRecord(file);
+			const matchType = String(record.match_type ?? record.matchType ?? "file");
+			return {
+				root: String(record.root ?? ""),
+				path: String(record.path ?? ""),
+				matchType: matchType === "directory" ? "directory" : "file",
+				fileName: String(record.file_name ?? record.fileName ?? ""),
+				score: typeof record.score === "number" ? record.score : 0,
+				indices: Array.isArray(record.indices)
+					? record.indices.filter(
+							(value): value is number => typeof value === "number",
+						)
+					: null,
+			};
+		});
+	}
+
+	async listBackgroundTerminals(input: {
+		threadId: string;
+		limit?: number | null;
+		cursor?: string | null;
+	}): Promise<{
+		terminals: RuntimeBackgroundTerminal[];
+		nextCursor: string | null;
+	}> {
+		const result = asRecord(
+			await this.request("thread/backgroundTerminals/list", {
+				threadId: input.threadId,
+				limit: input.limit ?? undefined,
+				cursor: input.cursor ?? undefined,
+			}),
+		);
+		const data = Array.isArray(result.data) ? result.data : [];
+		return {
+			terminals: data.map((terminal) => {
+				const record = asRecord(terminal);
+				const rssKb = record.rssKb ?? record.rss_kb;
+				return {
+					itemId: String(record.itemId ?? record.item_id ?? ""),
+					processId: String(record.processId ?? record.process_id ?? ""),
+					command: String(record.command ?? ""),
+					cwd: String(record.cwd ?? ""),
+					osPid:
+						typeof record.osPid === "number"
+							? record.osPid
+							: typeof record.os_pid === "number"
+								? record.os_pid
+								: null,
+					cpuPercent:
+						typeof record.cpuPercent === "number"
+							? record.cpuPercent
+							: typeof record.cpu_percent === "number"
+								? record.cpu_percent
+								: null,
+					rssKb:
+						typeof rssKb === "number"
+							? rssKb
+							: typeof rssKb === "bigint"
+								? Number(rssKb)
+								: null,
+				};
+			}),
+			nextCursor:
+				typeof result.nextCursor === "string"
+					? result.nextCursor
+					: typeof result.next_cursor === "string"
+						? result.next_cursor
+						: null,
+		};
+	}
+
+	async cleanBackgroundTerminals(threadId: string) {
+		await this.request("thread/backgroundTerminals/clean", { threadId });
 	}
 
 	async restartAppServer(): Promise<CodexAppServerRestartResult> {

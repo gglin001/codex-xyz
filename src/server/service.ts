@@ -5,6 +5,7 @@ import {
 	isRuntimeThreadNotFoundError,
 } from "./codex/runtimePort.js";
 import {
+	type ComposerInput,
 	type ControlThread,
 	type CreateThreadInput,
 	type DashboardState,
@@ -185,6 +186,7 @@ export class ControlService {
 		const turn = await this.startTurn({
 			threadId: thread.id,
 			prompt: input.prompt,
+			input: input.input ?? null,
 			model: input.model ?? null,
 		});
 		return {
@@ -202,7 +204,7 @@ export class ControlService {
 		}
 		if (thread.activeTurnId) {
 			try {
-				await this.steerActiveTurn(thread, input.prompt);
+				await this.steerActiveTurn(thread, input.prompt, input.input ?? null);
 			} catch (error) {
 				if (!isNoActiveTurnError(error)) {
 					throw error;
@@ -380,6 +382,33 @@ export class ControlService {
 		});
 	}
 
+	async fuzzyFileSearch(input: { query: string; roots: string[] }) {
+		const roots = input.roots.map(normalizeWorkingDirectory);
+		return this.runtime.fuzzyFileSearch({
+			query: input.query,
+			roots,
+			cancellationToken: null,
+		});
+	}
+
+	async listBackgroundTerminals(threadId: string) {
+		const source = this.requireThread(threadId);
+		return this.withRuntimeThread(source, (runtimeThread) =>
+			this.runtime.listBackgroundTerminals({
+				threadId: runtimeThread.id,
+				limit: 50,
+			}),
+		);
+	}
+
+	async cleanBackgroundTerminals(threadId: string) {
+		const source = this.requireThread(threadId);
+		await this.withRuntimeThread(source, (runtimeThread) =>
+			this.runtime.cleanBackgroundTerminals(runtimeThread.id),
+		);
+		return this.store.getThread(threadId);
+	}
+
 	async restartCodexAppServer() {
 		const result = await this.runtime.restartAppServer();
 		return {
@@ -473,7 +502,11 @@ export class ControlService {
 		return this.projection.recordTurn(runtimeThread, prompt, runtimeTurn);
 	}
 
-	private async steerActiveTurn(thread: ControlThread, prompt: string) {
+	private async steerActiveTurn(
+		thread: ControlThread,
+		prompt: string,
+		input?: ComposerInput | null,
+	) {
 		if (!thread.activeTurnId) {
 			throw new Error("Thread has no active turn to steer");
 		}
@@ -487,6 +520,7 @@ export class ControlService {
 					threadId: runtimeThread.id,
 					turnId: runtimeThread.activeTurnId,
 					prompt,
+					input,
 				});
 				return runtimeThread.activeTurnId;
 			},
@@ -503,6 +537,7 @@ export class ControlService {
 				this.runtime.startTurn({
 					threadId: runtimeThread.id,
 					prompt: input.prompt,
+					input: input.input ?? null,
 					model: input.model ?? runtimeThread.model,
 				}),
 			{

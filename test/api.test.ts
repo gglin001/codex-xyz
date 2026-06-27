@@ -249,6 +249,43 @@ describe("Next API routes", () => {
 		expect(testRuntime.restartCount).toBe(1);
 	});
 
+	it("searches files through the app-server route", async () => {
+		testRuntime.fileSearchResults = [
+			{
+				root: tempDir,
+				path: "src/client/App.tsx",
+				matchType: "file",
+				fileName: "App.tsx",
+				score: 91,
+				indices: [0, 4],
+			},
+		];
+
+		const results = await json<
+			Array<{
+				root: string;
+				path: string;
+				matchType: string;
+				fileName: string;
+			}>
+		>("/api/files/search", {
+			method: "POST",
+			body: JSON.stringify({
+				query: "app",
+				roots: [tempDir],
+			}),
+		});
+
+		expect(results).toEqual([
+			expect.objectContaining({
+				root: tempDir,
+				path: "src/client/App.tsx",
+				matchType: "file",
+				fileName: "App.tsx",
+			}),
+		]);
+	});
+
 	it("serves dashboard state and can create a local thread", async () => {
 		const state = await json<DashboardState>("/api/state");
 		expect(state.defaultCwd).toBe(tempDir);
@@ -279,6 +316,50 @@ describe("Next API routes", () => {
 
 		const nextState = await json<DashboardState>("/api/state");
 		expect(nextState.latestEventId).toBeGreaterThan(0);
+	});
+
+	it("accepts structured input on thread and turn routes", async () => {
+		const input = [
+			{
+				type: "text" as const,
+				text: "Uploaded context",
+				text_elements: [],
+			},
+			{
+				type: "image" as const,
+				url: "data:image/png;base64,abc",
+				detail: "auto" as const,
+			},
+		];
+		const created = await json<{ thread: { id: string } }>("/api/threads", {
+			method: "POST",
+			body: JSON.stringify({
+				cwd: tempDir,
+				prompt: "Review context",
+				input,
+			}),
+		});
+		expect(testRuntime.lastStartTurnInput?.input).toEqual(input);
+		await waitFor(
+			() => service.getThreadDetail(created.thread.id).status === "idle",
+			"initial structured turn completion",
+		);
+
+		await json<{ threadId: string }>(
+			`/api/threads/${created.thread.id}/turns`,
+			{
+				method: "POST",
+				body: JSON.stringify({
+					prompt: "Follow up with the same context",
+					input,
+				}),
+			},
+		);
+
+		expect(testRuntime.lastStartTurnInput?.input).toEqual(input);
+		expect(testRuntime.lastStartTurnInput?.prompt).toBe(
+			"Follow up with the same context",
+		);
 	});
 
 	it("creates a goal thread from a direct thread request", async () => {
@@ -460,6 +541,36 @@ describe("Next API routes", () => {
 			},
 		);
 		expect(repeatedTurn.threadId).toBe(created.thread.id);
+
+		testRuntime.backgroundTerminals = [
+			{
+				itemId: "item_terminal",
+				processId: "process_1",
+				command: "pnpm dev",
+				cwd: tempDir,
+				osPid: 123,
+				cpuPercent: 0.5,
+				rssKb: 2048,
+			},
+		];
+		const terminals = await json<{
+			terminals: Array<{ command: string; cwd: string }>;
+		}>(`/api/threads/${created.thread.id}/background-terminals`);
+		expect(terminals.terminals).toEqual([
+			expect.objectContaining({
+				command: "pnpm dev",
+				cwd: tempDir,
+			}),
+		]);
+		const cleaned = await json<{ id: string }>(
+			`/api/threads/${created.thread.id}/background-terminals/clean`,
+			{
+				method: "POST",
+				body: JSON.stringify({}),
+			},
+		);
+		expect(cleaned.id).toBe(created.thread.id);
+		expect(testRuntime.backgroundTerminalsCleanCount).toBe(1);
 
 		const interrupted = await json<{
 			status: string;

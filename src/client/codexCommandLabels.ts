@@ -6,4 +6,6 @@ export const codexThreadCommandLabels = {
 	archive: "/archive",
 	resume: "/resume",
 	interrupt: "/esc",
+	ps: "/ps",
+	stop: "/stop",
 } as const;

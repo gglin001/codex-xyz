@@ -5,8 +5,10 @@ import {
 	type ForkThreadInput,
 	type ResumeThreadInput,
 	type RunShellCommandInput,
+	type RuntimeBackgroundTerminal,
 	type RuntimeEvent,
 	type RuntimeEventHandler,
+	type RuntimeFileSearchResult,
 	type RuntimeGoalSnapshot,
 	type RuntimeGoalStart,
 	RuntimeThreadNotFoundError,
@@ -33,6 +35,16 @@ export class TestCodexRuntime implements CodexRuntime {
 	readonly name = "test";
 	readonly version = "test";
 	restartCount = 0;
+	lastStartTurnInput: StartRuntimeTurnInput | null = null;
+	lastSteerTurnInput: {
+		threadId: string;
+		turnId: string;
+		prompt: string;
+		input?: StartRuntimeTurnInput["input"];
+	} | null = null;
+	fileSearchResults: RuntimeFileSearchResult[] = [];
+	backgroundTerminals: RuntimeBackgroundTerminal[] = [];
+	backgroundTerminalsCleanCount = 0;
 	private handler: RuntimeEventHandler = () => {};
 	private readonly threads = new Map<string, TestThread>();
 	private readonly running = new Map<string, RunningTurn>();
@@ -67,6 +79,7 @@ export class TestCodexRuntime implements CodexRuntime {
 
 	async startTurn(input: StartRuntimeTurnInput): Promise<RuntimeTurnSnapshot> {
 		const thread = this.requireThread(input.threadId);
+		this.lastStartTurnInput = input;
 		const turnId = `turn_${randomUUID()}`;
 		const running: RunningTurn = {
 			threadId: input.threadId,
@@ -129,7 +142,12 @@ export class TestCodexRuntime implements CodexRuntime {
 		return { id: turnId, status: "in_progress" };
 	}
 
-	async steerTurn(input: { threadId: string; turnId: string; prompt: string }) {
+	async steerTurn(input: {
+		threadId: string;
+		turnId: string;
+		prompt: string;
+		input?: StartRuntimeTurnInput["input"];
+	}) {
 		const thread = this.requireThread(input.threadId);
 		if (
 			thread.activeTurnId !== input.turnId ||
@@ -137,6 +155,7 @@ export class TestCodexRuntime implements CodexRuntime {
 		) {
 			throw new Error("no active turn to steer");
 		}
+		this.lastSteerTurnInput = input;
 		this.emit({
 			type: "item.created",
 			threadId: input.threadId,
@@ -272,6 +291,25 @@ export class TestCodexRuntime implements CodexRuntime {
 
 	async clearGoal(threadId: string) {
 		this.requireThread(threadId).goal = null;
+	}
+
+	async fuzzyFileSearch() {
+		return this.fileSearchResults;
+	}
+
+	async listBackgroundTerminals(): Promise<{
+		terminals: RuntimeBackgroundTerminal[];
+		nextCursor: string | null;
+	}> {
+		return {
+			terminals: this.backgroundTerminals,
+			nextCursor: null,
+		};
+	}
+
+	async cleanBackgroundTerminals() {
+		this.backgroundTerminalsCleanCount += 1;
+		this.backgroundTerminals = [];
 	}
 
 	async restartAppServer() {

@@ -3,6 +3,7 @@ import {
 	Archive,
 	GitFork,
 	Goal,
+	ListTree,
 	Maximize2,
 	Menu,
 	Minimize2,
@@ -12,6 +13,7 @@ import {
 	Search,
 	Settings,
 	Square,
+	SquareX,
 	Sun,
 	Terminal,
 	TextCursorInput,
@@ -34,10 +36,12 @@ import {
 } from "react";
 import type {
 	ControlThread,
+	FileSearchResult,
 	ThreadDetail,
 	ThreadDisplayStatus,
 } from "../../server/domain.js";
 import { codexThreadCommandLabels } from "../codexCommandLabels.js";
+import type { ComposerContextItem } from "../composerContext.js";
 import {
 	cn,
 	displayScale as displayScaleConfig,
@@ -88,6 +92,7 @@ export type DashboardLayoutProps = {
 	goalMode: boolean;
 	canUseGoalMode: boolean;
 	canSubmitPrompt: boolean;
+	composerContextItems: ComposerContextItem[];
 	onNavigatorVisibleChange: (visible: boolean) => void;
 	onInspectorVisibleChange: (visible: boolean) => void;
 	onWrapThreadContentChange: (value: boolean) => void;
@@ -104,6 +109,10 @@ export type DashboardLayoutProps = {
 	onThreadQueryChange: (value: string) => void;
 	onTerminalVisibleChange: (visible: boolean) => void;
 	onPromptChange: (value: string) => void;
+	onAddComposerContextItem: (item: ComposerContextItem) => void;
+	onRemoveComposerContextItem: (itemId: string) => void;
+	onSearchComposerFiles: (query: string) => Promise<FileSearchResult[]>;
+	onComposerError: (message: string) => void;
 	onPromptKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
 	onPromptSubmit: (event: SubmitEvent<HTMLFormElement>) => void;
 	onModeChange: (mode: ComposerMode) => void;
@@ -114,6 +123,8 @@ export type DashboardLayoutProps = {
 	onFork: () => void;
 	onCompact: () => void;
 	onArchive: () => void;
+	onListBackgroundTerminals: () => void;
+	onCleanBackgroundTerminals: () => void;
 	onRestartCodexAppServer: () => void;
 };
 
@@ -169,8 +180,10 @@ type CommandAction =
 				| "fork"
 				| "goal"
 				| "interrupt"
+				| "ps"
 				| "new"
-				| "resume";
+				| "resume"
+				| "stop";
 	  });
 
 type CommandActionRenderItem = {
@@ -460,8 +473,12 @@ function CommandActionGlyph({
 				<Goal size={14} />
 			) : action.icon === "interrupt" ? (
 				<Square size={14} />
+			) : action.icon === "ps" ? (
+				<ListTree size={14} />
 			) : action.icon === "new" ? (
 				<Plus size={14} />
+			) : action.icon === "stop" ? (
+				<SquareX size={14} />
 			) : (
 				<Play size={14} />
 			);
@@ -779,6 +796,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 	goalMode,
 	canUseGoalMode,
 	canSubmitPrompt,
+	composerContextItems,
 	onNavigatorVisibleChange,
 	onInspectorVisibleChange,
 	onWrapThreadContentChange,
@@ -792,6 +810,10 @@ export const DashboardLayout = memo(function DashboardLayout({
 	onThreadQueryChange,
 	onTerminalVisibleChange,
 	onPromptChange,
+	onAddComposerContextItem,
+	onRemoveComposerContextItem,
+	onSearchComposerFiles,
+	onComposerError,
 	onPromptKeyDown,
 	onPromptSubmit,
 	onModeChange,
@@ -802,6 +824,8 @@ export const DashboardLayout = memo(function DashboardLayout({
 	onFork,
 	onCompact,
 	onArchive,
+	onListBackgroundTerminals,
+	onCleanBackgroundTerminals,
 	onRestartCodexAppServer,
 }: DashboardLayoutProps) {
 	const [mobileSheet, setMobileSheet] = useState<MobileSheet | null>(null);
@@ -958,6 +982,8 @@ export const DashboardLayout = memo(function DashboardLayout({
 			selectedThread?.status !== "active" &&
 			!selectedThreadArchived &&
 			!busy;
+		const canUseBackgroundTerminals =
+			Boolean(selectedThreadId) && !selectedThreadArchived && !busy;
 		const actions: CommandAction[] = [
 			{
 				id: "focus-prompt",
@@ -1096,6 +1122,28 @@ export const DashboardLayout = memo(function DashboardLayout({
 				run: onFork,
 			},
 			{
+				id: "slash:ps",
+				name: codexThreadCommandLabels.ps,
+				detail: "List app-server background terminals",
+				kind: "slashItem",
+				slashGroupId: "root",
+				icon: "ps",
+				disabled: !canUseBackgroundTerminals,
+				disabledDetail: "Select a thread before listing terminals",
+				run: onListBackgroundTerminals,
+			},
+			{
+				id: "slash:stop",
+				name: codexThreadCommandLabels.stop,
+				detail: "Stop app-server background terminals",
+				kind: "slashItem",
+				slashGroupId: "root",
+				icon: "stop",
+				disabled: !canUseBackgroundTerminals,
+				disabledDetail: "Select a thread before stopping terminals",
+				run: onCleanBackgroundTerminals,
+			},
+			{
 				id: "slash:goal",
 				name: codexThreadCommandLabels.goal,
 				detail: goalMode
@@ -1179,8 +1227,10 @@ export const DashboardLayout = memo(function DashboardLayout({
 		onGoalModeChange,
 		onInspectorVisibleChange,
 		onInterrupt,
+		onListBackgroundTerminals,
 		onNavigatorVisibleChange,
 		onResume,
+		onCleanBackgroundTerminals,
 		onThemeModeChange,
 		onWrapThreadContentChange,
 		onTerminalVisibleChange,
@@ -1359,11 +1409,16 @@ export const DashboardLayout = memo(function DashboardLayout({
 							goalMode={goalMode}
 							canUseGoalMode={canUseGoalMode}
 							canSubmitPrompt={canSubmitPrompt}
+							composerContextItems={composerContextItems}
 							wrapThreadContent={wrapThreadContent}
 							displayScale={displayScale}
 							navigatorVisible={navigatorVisible}
 							inspectorVisible={inspectorVisible}
 							onPromptChange={onPromptChange}
+							onAddComposerContextItem={onAddComposerContextItem}
+							onRemoveComposerContextItem={onRemoveComposerContextItem}
+							onSearchComposerFiles={onSearchComposerFiles}
+							onComposerError={onComposerError}
 							onPromptKeyDown={onPromptKeyDown}
 							onPromptSubmit={onPromptSubmit}
 							onModeChange={onModeChange}
@@ -1374,6 +1429,8 @@ export const DashboardLayout = memo(function DashboardLayout({
 							onFork={onFork}
 							onCompact={onCompact}
 							onArchive={onArchive}
+							onListBackgroundTerminals={onListBackgroundTerminals}
+							onCleanBackgroundTerminals={onCleanBackgroundTerminals}
 							onToggleNavigator={toggleNavigator}
 							onToggleInspector={toggleInspector}
 						/>
@@ -1418,11 +1475,16 @@ export const DashboardLayout = memo(function DashboardLayout({
 						goalMode={goalMode}
 						canUseGoalMode={canUseGoalMode}
 						canSubmitPrompt={canSubmitPrompt}
+						composerContextItems={composerContextItems}
 						wrapThreadContent={wrapThreadContent}
 						displayScale={displayScale}
 						navigatorVisible={mobileSheet === "navigator"}
 						inspectorVisible={mobileSheet === "inspector"}
 						onPromptChange={onPromptChange}
+						onAddComposerContextItem={onAddComposerContextItem}
+						onRemoveComposerContextItem={onRemoveComposerContextItem}
+						onSearchComposerFiles={onSearchComposerFiles}
+						onComposerError={onComposerError}
 						onPromptKeyDown={onPromptKeyDown}
 						onPromptSubmit={onPromptSubmit}
 						onModeChange={onModeChange}
@@ -1433,6 +1495,8 @@ export const DashboardLayout = memo(function DashboardLayout({
 						onFork={onFork}
 						onCompact={onCompact}
 						onArchive={onArchive}
+						onListBackgroundTerminals={onListBackgroundTerminals}
+						onCleanBackgroundTerminals={onCleanBackgroundTerminals}
 						onToggleNavigator={() => openMobileSheet("navigator")}
 						onToggleInspector={() => openMobileSheet("inspector")}
 						onSwipeUp={openCommandPaletteFromSwipe}
