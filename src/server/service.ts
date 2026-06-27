@@ -16,6 +16,7 @@ import {
 	type ThreadItemsPage,
 	type ThreadPage,
 	type ThreadPageCursor,
+	type ThreadTagScore,
 	threadNameFromPrompt,
 } from "./domain.js";
 import { EventBus } from "./eventBus.js";
@@ -74,6 +75,13 @@ function normalizePageLimit(value?: number | null) {
 		return defaultThreadPageSize;
 	}
 	return Math.min(maxThreadPageSize, Math.max(1, Math.floor(value)));
+}
+
+function normalizeThreadTagScore(value: ThreadTagScore | null) {
+	if (value === null || value === 1 || value === 2 || value === 3) {
+		return value;
+	}
+	throw new Error("Thread tag score must be 1, 2, 3, or null");
 }
 
 function pageCursorFromThreads(
@@ -310,6 +318,17 @@ export class ControlService {
 			this.runtime.archiveThread(runtimeThread.id),
 		);
 		return this.projection.archiveThread(threadId);
+	}
+
+	setThreadTagScore(input: {
+		threadId: string;
+		tagScore: ThreadTagScore | null;
+	}) {
+		this.requireThread(input.threadId);
+		return this.projection.updateThreadTagScore(
+			input.threadId,
+			normalizeThreadTagScore(input.tagScore),
+		);
 	}
 
 	async setGoal(input: SetGoalInput) {

@@ -61,6 +61,7 @@ function threadFixture(id: string): ControlThread {
 		goalStatus: null,
 		goalTokenBudget: null,
 		tokensUsed: 0,
+		tagScore: null,
 		archivedAt: null,
 		createdAt: "2026-06-13T00:00:00.000Z",
 		updatedAt: "2026-06-13T00:00:00.000Z",
@@ -127,6 +128,31 @@ describe("store database version", () => {
 				"thread-archived",
 			]);
 			expect(archivedThreads[0]?.archivedAt).toBe("2026-06-13T00:10:00.000Z");
+		} finally {
+			store.close();
+		}
+	});
+
+	it("updates thread tag scores without changing thread recency", () => {
+		const store = Store.open(":memory:");
+		try {
+			store.createThread(threadFixture("thread-1"));
+			const original = store.getThread("thread-1");
+			expect(original?.tagScore).toBeNull();
+
+			const scored = store.updateThreadTagScore("thread-1", 3);
+			expect(scored).toMatchObject({
+				id: "thread-1",
+				tagScore: 3,
+				updatedAt: original?.updatedAt,
+			});
+
+			const cleared = store.updateThreadTagScore("thread-1", null);
+			expect(cleared).toMatchObject({
+				id: "thread-1",
+				tagScore: null,
+				updatedAt: original?.updatedAt,
+			});
 		} finally {
 			store.close();
 		}

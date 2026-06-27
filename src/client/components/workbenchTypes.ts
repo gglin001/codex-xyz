@@ -3,6 +3,7 @@ import type {
 	GoalStatus,
 	ThreadDisplayStatus,
 	ThreadRuntimeStatus,
+	ThreadTagScore,
 	TurnStatus,
 } from "../../server/domain.js";
 
@@ -28,6 +29,7 @@ export type WorkbenchThread = {
 	goalStatus: GoalStatus | null;
 	goalTokenBudget: number | null;
 	tokensUsed: number;
+	tagScore: ThreadTagScore | null;
 	archivedAt: string | null;
 	createdAt: string;
 	updatedAt: string;

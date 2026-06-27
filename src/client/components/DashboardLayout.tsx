@@ -38,6 +38,7 @@ import type {
 	ControlThread,
 	ThreadDetail,
 	ThreadDisplayStatus,
+	ThreadTagScore,
 } from "../../server/domain.js";
 import { codexThreadCommandLabels } from "../codexCommandLabels.js";
 import {
@@ -97,6 +98,7 @@ export type DashboardLayoutProps = {
 	pwa: PwaState;
 	displayScale: number;
 	onDisplayScaleChange: (value: number) => void;
+	onThreadTagScoreChange: (value: ThreadTagScore | null) => void;
 	onProjectChange: (projectId: string) => void;
 	onSelectThread: (
 		threadSummary: WorkbenchThread,
@@ -796,6 +798,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 	pwa,
 	displayScale,
 	onDisplayScaleChange,
+	onThreadTagScoreChange,
 	onProjectChange,
 	onSelectThread,
 	onCreateThread,
@@ -1347,6 +1350,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 			fullscreenSupported={fullscreenSupported}
 			isFullscreen={isFullscreen}
 			onToggleFullscreen={toggleFullscreen}
+			onThreadTagScoreChange={onThreadTagScoreChange}
 			restartCodexAppServerDisabled={busy}
 			onRestartCodexAppServer={onRestartCodexAppServer}
 		/>
@@ -1554,6 +1558,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 									fullscreenSupported={fullscreenSupported}
 									isFullscreen={isFullscreen}
 									onToggleFullscreen={toggleFullscreen}
+									onThreadTagScoreChange={onThreadTagScoreChange}
 									restartCodexAppServerDisabled={busy}
 									onRestartCodexAppServer={onRestartCodexAppServer}
 								/>

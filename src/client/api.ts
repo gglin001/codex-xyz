@@ -10,6 +10,7 @@ import type {
 	ThreadItemsPage,
 	ThreadPage,
 	ThreadPageCursor,
+	ThreadTagScore,
 	Turn,
 } from "../server/domain.js";
 
@@ -158,6 +159,16 @@ export function archiveThread(threadId: string) {
 	return request<ControlThread>(`/api/threads/${threadId}/archive`, {
 		method: "POST",
 		body: JSON.stringify({}),
+	});
+}
+
+export function setThreadTagScore(
+	threadId: string,
+	tagScore: ThreadTagScore | null,
+) {
+	return request<ControlThread>(`/api/threads/${threadId}/tag`, {
+		method: "PUT",
+		body: JSON.stringify({ tagScore }),
 	});
 }
 

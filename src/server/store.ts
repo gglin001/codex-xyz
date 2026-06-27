@@ -13,13 +13,14 @@ import {
 	type ThreadItemPageCursor,
 	type ThreadItemsPage,
 	type ThreadRuntimeStatus,
+	type ThreadTagScore,
 	type Turn,
 	type TurnStatus,
 } from "./domain.js";
 
 type Row = Record<string, unknown>;
 
-export const currentDatabaseVersion = "v5";
+export const currentDatabaseVersion = "v6";
 
 const metadataTable = "metadata";
 const versionKey = "version";
@@ -107,6 +108,16 @@ function storedTurnStatus(value: unknown): TurnStatus {
 	throw new Error(`Invalid turn status "${status}"`);
 }
 
+function storedThreadTagScore(value: unknown): ThreadTagScore | null {
+	if (value === null || value === undefined) {
+		return null;
+	}
+	if (value === 1 || value === 2 || value === 3) {
+		return value;
+	}
+	throw new Error(`Invalid thread tag score "${String(value)}"`);
+}
+
 function eventSummaryValue(type: string) {
 	return isSummaryEventType(type) ? 1 : 0;
 }
@@ -150,6 +161,7 @@ function threadFromRow(row: Row): ControlThread {
 		goalTokenBudget:
 			typeof row.goal_token_budget === "number" ? row.goal_token_budget : null,
 		tokensUsed: scalarNumber(row.tokens_used),
+		tagScore: storedThreadTagScore(row.tag_score),
 		archivedAt: nullableString(row.archived_at),
 		createdAt: scalarString(row.created_at),
 		updatedAt: scalarString(row.updated_at),
@@ -304,6 +316,7 @@ export class Store {
         goal_status TEXT CHECK (goal_status IS NULL OR goal_status IN ('in_progress', 'paused', 'blocked', 'usage_limited', 'budget_limited', 'complete', 'cleared')),
         goal_token_budget INTEGER,
         tokens_used INTEGER NOT NULL DEFAULT 0,
+        tag_score INTEGER CHECK (tag_score IS NULL OR tag_score IN (1, 2, 3)),
         archived_at TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
@@ -441,9 +454,9 @@ export class Store {
           INSERT INTO threads (
             id, session_id, forked_from_id, name, preview, cwd, model,
             status, active_turn_id, last_turn_status, goal_objective, goal_status, goal_token_budget,
-            tokens_used, archived_at, created_at, updated_at
+            tokens_used, tag_score, archived_at, created_at, updated_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
 			)
 			.run(
@@ -461,6 +474,7 @@ export class Store {
 				thread.goalStatus,
 				thread.goalTokenBudget,
 				thread.tokensUsed,
+				thread.tagScore,
 				thread.archivedAt,
 				thread.createdAt,
 				thread.updatedAt,
@@ -524,6 +538,16 @@ export class Store {
 				next.updatedAt,
 				id,
 			);
+		return this.getThread(id);
+	}
+
+	updateThreadTagScore(id: string, tagScore: ThreadTagScore | null) {
+		const result = this.db
+			.prepare("UPDATE threads SET tag_score = ? WHERE id = ?")
+			.run(tagScore, id);
+		if (result.changes === 0) {
+			throw new Error(`Thread ${id} does not exist`);
+		}
 		return this.getThread(id);
 	}
 

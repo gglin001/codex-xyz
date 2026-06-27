@@ -36,6 +36,7 @@ function thread(overrides: Partial<ControlThread> = {}): ControlThread {
 		goalStatus: null,
 		goalTokenBudget: null,
 		tokensUsed: 0,
+		tagScore: null,
 		archivedAt: null,
 		createdAt,
 		updatedAt: createdAt,
@@ -348,6 +349,36 @@ describe("client event projection", () => {
 			activeTurnId: null,
 			preview: "Runtime preview",
 			updatedAt: contentUpdatedAt,
+		});
+	});
+
+	it("projects thread tag score updates without a fallback refresh", () => {
+		const scoredThread = thread({
+			tagScore: 3,
+			updatedAt: createdAt,
+		});
+		const result = applyEventProjection(
+			projection(),
+			event(
+				"thread.tag.updated",
+				{
+					tagScore: 3,
+					thread: scoredThread,
+				},
+				{ turnId: null },
+			),
+		);
+
+		expect(result.changed).toBe(true);
+		expect(result.handled).toBe(true);
+		expect(result.needsRefresh).toBe(false);
+		expect(result.state.threads[0]).toMatchObject({
+			tagScore: 3,
+			updatedAt: createdAt,
+		});
+		expect(result.detail).toMatchObject({
+			tagScore: 3,
+			updatedAt: createdAt,
 		});
 	});
 

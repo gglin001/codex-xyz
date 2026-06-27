@@ -16,6 +16,7 @@ import {
 	RefreshCw,
 	Server,
 	SlidersHorizontal,
+	Star,
 	Sun,
 	TimerReset,
 	Wifi,
@@ -24,7 +25,11 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { memo } from "react";
-import type { ControlThread, ThreadDetail } from "../../server/domain.js";
+import type {
+	ControlThread,
+	ThreadDetail,
+	ThreadTagScore,
+} from "../../server/domain.js";
 import { cn, tone } from "../designSystem.js";
 import { nextThemeMode, type ThemeMode } from "../theme.js";
 import { formatTokens, shortId, statusLabel } from "../uiFormat.js";
@@ -55,6 +60,7 @@ export type ParamPanelProps = {
 	fullscreenSupported: boolean;
 	isFullscreen: boolean;
 	onToggleFullscreen: () => void;
+	onThreadTagScoreChange: (value: ThreadTagScore | null) => void;
 	restartCodexAppServerDisabled: boolean;
 	onRestartCodexAppServer: () => void;
 };
@@ -159,6 +165,70 @@ function SettingsIconButton({
 	);
 }
 
+function tagScoreLabel(score: ThreadTagScore | null | undefined) {
+	return score ? `${score} star thread tag` : "No thread tag score";
+}
+
+function TagScoreControl({
+	disabled,
+	score,
+	onChange,
+}: {
+	disabled?: boolean;
+	score: ThreadTagScore | null;
+	onChange: (value: ThreadTagScore | null) => void;
+}) {
+	const scores = [1, 2, 3] as const;
+	return (
+		<ControlCard className="flex w-full min-w-0 items-center justify-between gap-3 bg-field/70 px-3 py-2.5">
+			<span className="min-w-0">
+				<span className="block truncate text-[13px] font-medium text-fg">
+					Thread score
+				</span>
+				<span className="block truncate text-[11px] text-muted">
+					{tagScoreLabel(score)}
+				</span>
+			</span>
+			<fieldset className="flex shrink-0 items-center gap-1">
+				<legend className="sr-only">Thread score</legend>
+				{scores.map((value) => {
+					const selected = score !== null && value <= score;
+					return (
+						<button
+							key={value}
+							type="button"
+							className={cn(
+								"flex h-8 w-8 shrink-0 items-center justify-center transition duration-150 ease-out",
+								disabled ? "cursor-not-allowed opacity-45" : "hover:bg-control",
+								selected ? "text-accent" : "text-muted",
+							)}
+							aria-label={
+								score === value
+									? "Clear thread score"
+									: `Set thread score to ${value}`
+							}
+							aria-pressed={score === value}
+							title={
+								score === value
+									? "Clear thread score"
+									: `Set thread score to ${value}`
+							}
+							disabled={disabled}
+							onClick={() => onChange(score === value ? null : value)}
+						>
+							<Star
+								size={17}
+								fill={selected ? "currentColor" : "none"}
+								strokeWidth={selected ? 2.4 : 1.8}
+							/>
+						</button>
+					);
+				})}
+			</fieldset>
+		</ControlCard>
+	);
+}
+
 export const ParamPanel = memo(function ParamPanel({
 	className,
 	threadSummary,
@@ -175,6 +245,7 @@ export const ParamPanel = memo(function ParamPanel({
 	fullscreenSupported,
 	isFullscreen,
 	onToggleFullscreen,
+	onThreadTagScoreChange,
 	restartCodexAppServerDisabled,
 	onRestartCodexAppServer,
 }: ParamPanelProps) {
@@ -198,6 +269,14 @@ export const ParamPanel = memo(function ParamPanel({
 			)}
 		>
 			<div className="mobile-keyboard-scroll min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden scroll-mask-y">
+				<SettingsSection icon={<Star size={13} />} title="Tag">
+					<TagScoreControl
+						disabled={!thread}
+						score={thread?.tagScore ?? null}
+						onChange={onThreadTagScoreChange}
+					/>
+				</SettingsSection>
+
 				<SettingsSection icon={<Server size={13} />} title="Runtime">
 					<div className="grid min-w-0 gap-2">
 						<ControlCard className="flex w-full min-w-0 items-center justify-between gap-3 bg-field/70 px-3 py-2.5">

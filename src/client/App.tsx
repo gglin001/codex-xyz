@@ -15,6 +15,7 @@ import type {
 	CozEvent,
 	DashboardState,
 	ThreadDetail,
+	ThreadTagScore,
 	Turn,
 } from "../server/domain.js";
 import {
@@ -30,6 +31,7 @@ import {
 	listBackgroundTerminals,
 	restartCodexAppServer,
 	resumeThread,
+	setThreadTagScore,
 	startGoal,
 	startTurn,
 } from "./api.js";
@@ -1656,6 +1658,60 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		}
 	}
 
+	function applyThreadTagScoreLocally(
+		threadId: string,
+		tagScore: ThreadTagScore | null,
+	) {
+		const current = projectionRef.current;
+		const threads = current.state.threads.map((thread) =>
+			thread.id === threadId ? { ...thread, tagScore } : thread,
+		);
+		const detail =
+			current.detail?.id === threadId
+				? { ...current.detail, tagScore }
+				: current.detail;
+		commitProjection({
+			state:
+				threads === current.state.threads
+					? current.state
+					: {
+							...current.state,
+							threads,
+						},
+			detail,
+		});
+		setArchivedThreads((threads) =>
+			threads.map((thread) =>
+				thread.id === threadId ? { ...thread, tagScore } : thread,
+			),
+		);
+	}
+
+	async function updateSelectedThreadTagScore(tagScore: ThreadTagScore | null) {
+		if (!activeThreadId || !activeThread) {
+			return;
+		}
+		const threadId = activeThreadId;
+		const previousScore = activeThread.tagScore;
+		if (previousScore === tagScore) {
+			return;
+		}
+		applyThreadTagScoreLocally(threadId, tagScore);
+		setError(null);
+		setNotice(null);
+		try {
+			const thread = await setThreadTagScore(threadId, tagScore);
+			applyThreadTagScoreLocally(thread.id, thread.tagScore);
+		} catch (actionError) {
+			applyThreadTagScoreLocally(threadId, previousScore);
+			setError(
+				actionError instanceof Error
+					? actionError.message
+					: "Failed to update thread score",
+			);
+		}
+	}
+
 	function executePrompt() {
 		if (!canSubmitPrompt) {
 			return;
@@ -1839,6 +1895,9 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				onDisplayScaleChange={(value) =>
 					setDisplayScale(clampDisplayScale(value))
 				}
+				onThreadTagScoreChange={(value) => {
+					void updateSelectedThreadTagScore(value);
+				}}
 				threadQuery={threadQuery}
 				defaultCwd={state.defaultCwd}
 				workdir={workdir}

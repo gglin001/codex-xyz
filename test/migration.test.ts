@@ -198,7 +198,7 @@ function createV3Database(filePath: string) {
 }
 
 describe("database migrations", () => {
-	it("upgrades v3 databases through v5", () => {
+	it("upgrades v3 databases through v6", () => {
 		const filePath = join(tempDir, "coz.sqlite");
 		createV3Database(filePath);
 
@@ -206,6 +206,9 @@ describe("database migrations", () => {
 			stdio: "pipe",
 		});
 		execFileSync(process.execPath, ["scripts/upgrade-v4-to-v5.mjs", filePath], {
+			stdio: "pipe",
+		});
+		execFileSync(process.execPath, ["scripts/upgrade-v5-to-v6.mjs", filePath], {
 			stdio: "pipe",
 		});
 
@@ -235,8 +238,8 @@ describe("database migrations", () => {
 				| { text: string; text_length: number; updated_at: string }
 				| undefined;
 			const thread = db
-				.prepare("SELECT name FROM threads WHERE id = ?")
-				.get("thread-1") as { name?: unknown } | undefined;
+				.prepare("SELECT name, tag_score FROM threads WHERE id = ?")
+				.get("thread-1") as { name?: unknown; tag_score?: unknown } | undefined;
 			const host = db
 				.prepare("SELECT runtime FROM hosts WHERE id = ?")
 				.get("local") as { runtime?: unknown } | undefined;
@@ -244,6 +247,7 @@ describe("database migrations", () => {
 			expect(version?.value).toBe(currentDatabaseVersion);
 			expect(legacyMetadata).toBeUndefined();
 			expect(thread?.name).toBe("Thread 1");
+			expect(thread?.tag_score).toBeNull();
 			expect(host?.runtime).toBe("test");
 			expect(events.map((event) => event.type)).toEqual([
 				"thread.started",

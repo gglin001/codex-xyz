@@ -82,6 +82,7 @@ function workbenchThreadFromThread(thread: ControlThread): WorkbenchThread {
 		goalStatus: thread.goalStatus,
 		goalTokenBudget: thread.goalTokenBudget,
 		tokensUsed: thread.tokensUsed,
+		tagScore: thread.tagScore,
 		archivedAt: thread.archivedAt,
 		createdAt: thread.createdAt,
 		updatedAt: thread.updatedAt,

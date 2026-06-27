@@ -9,6 +9,7 @@ import type {
 	CozEvent,
 	GoalStatus,
 	ThreadItem,
+	ThreadTagScore,
 	Turn,
 	TurnStatus,
 } from "./domain.js";
@@ -305,6 +306,7 @@ export class ThreadProjection {
 				goalStatus: input.goalStatus,
 				goalTokenBudget: input.goalTokenBudget ?? null,
 				tokensUsed: input.tokensUsed,
+				tagScore: null,
 				archivedAt: null,
 				createdAt: now,
 				updatedAt: now,
@@ -316,6 +318,24 @@ export class ThreadProjection {
 					...(eventInput.payload ?? {}),
 				});
 			}
+			return thread;
+		});
+	}
+
+	updateThreadTagScore(threadId: string, tagScore: ThreadTagScore | null) {
+		return this.runInTransaction(() => {
+			const existing = this.store.getThread(threadId);
+			if (!existing) {
+				throw new Error(`Thread ${threadId} does not exist`);
+			}
+			if (existing.tagScore === tagScore) {
+				return existing;
+			}
+			const thread = this.store.updateThreadTagScore(threadId, tagScore);
+			this.publish("thread.tag.updated", threadId, null, {
+				tagScore,
+				thread,
+			});
 			return thread;
 		});
 	}

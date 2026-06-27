@@ -82,6 +82,7 @@ export function createOptimisticThreadDraft(input: {
 		goalStatus: input.goalMode ? "in_progress" : null,
 		goalTokenBudget: null,
 		tokensUsed: 0,
+		tagScore: null,
 		archivedAt: null,
 		createdAt: now,
 		updatedAt: now,

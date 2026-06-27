@@ -192,6 +192,7 @@ function threadFixture(index: number): ControlThread {
 		goalStatus: null,
 		goalTokenBudget: null,
 		tokensUsed: 0,
+		tagScore: null,
 		archivedAt: null,
 		createdAt: timestamp,
 		updatedAt: timestamp,
@@ -279,6 +280,46 @@ describe("Next API routes", () => {
 
 		const nextState = await json<DashboardState>("/api/state");
 		expect(nextState.latestEventId).toBeGreaterThan(0);
+	});
+
+	it("updates thread tag scores through the API without changing recency", async () => {
+		const thread = threadFixture(1);
+		service.store.createThread(thread);
+
+		const scored = await json<{
+			id: string;
+			tagScore: number | null;
+			updatedAt: string;
+		}>(`/api/threads/${thread.id}/tag`, {
+			method: "PUT",
+			body: JSON.stringify({ tagScore: 2 }),
+		});
+		expect(scored).toMatchObject({
+			id: thread.id,
+			tagScore: 2,
+			updatedAt: thread.updatedAt,
+		});
+
+		const state = await json<DashboardState>("/api/state");
+		expect(state.threads[0]).toMatchObject({
+			id: thread.id,
+			tagScore: 2,
+			updatedAt: thread.updatedAt,
+		});
+
+		const cleared = await json<{
+			id: string;
+			tagScore: number | null;
+			updatedAt: string;
+		}>(`/api/threads/${thread.id}/tag`, {
+			method: "PUT",
+			body: JSON.stringify({ tagScore: null }),
+		});
+		expect(cleared).toMatchObject({
+			id: thread.id,
+			tagScore: null,
+			updatedAt: thread.updatedAt,
+		});
 	});
 
 	it("creates a goal thread from a direct thread request", async () => {

@@ -3,6 +3,7 @@ import {
 	type GoalStatusUpdate,
 	isSummaryEventType,
 	type TerminalEvent,
+	type ThreadTagScore,
 } from "./domain.js";
 import type { ControlService } from "./service.js";
 
@@ -57,6 +58,19 @@ function requireGoalStatusUpdate(
 		return status;
 	}
 	throw new Error("status must be active, paused, or complete");
+}
+
+function requireThreadTagScore(
+	body: Record<string, unknown>,
+): ThreadTagScore | null {
+	const value = body.tagScore;
+	if (value === null) {
+		return null;
+	}
+	if (value === 1 || value === 2 || value === 3) {
+		return value;
+	}
+	throw new Error("tagScore must be 1, 2, 3, or null");
 }
 
 function optionalString(body: Record<string, unknown>, key: string) {
@@ -524,6 +538,16 @@ async function routeApiRequest(
 
 		if (method === "POST" && parts[3] === "archive") {
 			return jsonResponse(await service.archiveThread(threadId));
+		}
+
+		if (method === "PUT" && parts[3] === "tag") {
+			const body = await readJson(request);
+			return jsonResponse(
+				service.setThreadTagScore({
+					threadId,
+					tagScore: requireThreadTagScore(body),
+				}),
+			);
 		}
 
 		if (method === "POST" && parts[3] === "interrupt") {

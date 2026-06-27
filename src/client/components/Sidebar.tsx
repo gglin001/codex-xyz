@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, ChevronDown, Plus, Search } from "lucide-react";
+import { Check, ChevronDown, Plus, Search, Star } from "lucide-react";
 import type { ReactNode } from "react";
 import { memo, useMemo, useState } from "react";
 import { codexThreadCommandLabels } from "../codexCommandLabels.js";
@@ -87,6 +87,37 @@ function groupThreads(threads: WorkbenchThread[]) {
 			threads: grouped.get(bucket) ?? [],
 		}))
 		.filter((group) => group.threads.length > 0);
+}
+
+function ThreadTagScoreStack({
+	score,
+}: {
+	score: WorkbenchThread["tagScore"];
+}) {
+	if (!score) {
+		return null;
+	}
+	const values = [3, 2, 1] as const;
+	return (
+		<span
+			className="flex h-8 w-4 shrink-0 flex-col-reverse items-center justify-start gap-[1px] text-accent"
+			aria-label={`${score} star thread score`}
+			role="img"
+			title={`${score} star thread score`}
+		>
+			{values.map((value) =>
+				value <= score ? (
+					<Star
+						key={value}
+						size={9}
+						fill="currentColor"
+						strokeWidth={2.2}
+						aria-hidden="true"
+					/>
+				) : null,
+			)}
+		</span>
+	);
 }
 
 export const Sidebar = memo(function Sidebar({
@@ -254,11 +285,14 @@ export const Sidebar = memo(function Sidebar({
 											name={`${thread.name}\n${statusLabel(thread.status)}\n${formatFullDateTime(thread.updatedAt)}\n${thread.preview}`}
 											onClick={() => onSelectThread(thread)}
 										>
-											<span
-												className="mt-1 flex h-4 w-4 shrink-0 items-center justify-center"
-												aria-hidden="true"
-											>
-												<ThreadStatusIcon status={thread.status} />
+											<span className="flex h-[52px] w-4 shrink-0 flex-col items-center gap-0.5">
+												<span
+													className="mt-1 flex h-4 w-4 shrink-0 items-center justify-center"
+													aria-hidden="true"
+												>
+													<ThreadStatusIcon status={thread.status} />
+												</span>
+												<ThreadTagScoreStack score={thread.tagScore} />
 											</span>
 											<span className="grid min-w-0 flex-1 grid-rows-[19px_15px_18px]">
 												<span className="flex min-w-0 items-center gap-2">

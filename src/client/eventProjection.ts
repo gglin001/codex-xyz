@@ -46,6 +46,7 @@ export const incrementalEventNames = [
 	"thread.name.updated",
 	"thread.goal.updated",
 	"thread.goal.cleared",
+	"thread.tag.updated",
 	"thread.token_usage",
 ] as const;
 
@@ -57,6 +58,7 @@ const threadPayloadEventNames = new Set([
 	"thread.name.updated",
 	"thread.goal.updated",
 	"thread.goal.cleared",
+	"thread.tag.updated",
 	"thread.token_usage",
 ]);
 

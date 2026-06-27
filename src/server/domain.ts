@@ -4,6 +4,7 @@ export type ThreadRuntimeStatus =
 	| "not_loaded"
 	| "system_error";
 export type TurnStatus = "in_progress" | "completed" | "interrupted" | "failed";
+export type ThreadTagScore = 1 | 2 | 3;
 export type ThreadDisplayStatus =
 	| ThreadRuntimeStatus
 	| "archived"
@@ -44,6 +45,7 @@ export type ControlThread = {
 	goalStatus: GoalStatus | null;
 	goalTokenBudget: number | null;
 	tokensUsed: number;
+	tagScore: ThreadTagScore | null;
 	archivedAt: string | null;
 	createdAt: string;
 	updatedAt: string;
@@ -154,6 +156,7 @@ export const summaryEventTypes = [
 	"thread.name.updated",
 	"thread.goal.updated",
 	"thread.goal.cleared",
+	"thread.tag.updated",
 	"thread.token_usage",
 ] as const;
 
