@@ -72,6 +72,8 @@ const staggeredTransition =
 	"transition-[border-color] duration-100 ease-out [transition-property:border-color,background-color] [transition-duration:100ms,200ms] [transition-delay:0s,30ms]";
 const focusRing =
 	"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring";
+const textInputFocus =
+	"focus-within:bg-field focus-within:text-fg focus-within:ring-transparent";
 const interactiveRow = `${interactiveTransition} hover:bg-control-hover`;
 const controlBase = `${radius.control} bg-control text-fg shadow-control ring-1 ring-inset ring-border-soft ${interactiveTransition} hover:bg-control-hover hover:text-fg-strong hover:ring-border ${focusRing} ${disabledState}`;
 const sliderThumb =
@@ -95,7 +97,7 @@ export const ui = {
 	iconButton: `inline-flex h-8 min-w-8 items-center justify-center ${radius.control} bg-control text-muted-strong shadow-control ring-1 ring-inset ring-border-soft ${interactiveTransition} hover:bg-control-hover hover:text-fg-strong hover:ring-border ${focusRing} ${disabledState} ${pressState}`,
 	largeIconButton: `inline-flex h-9 w-9 shrink-0 items-center justify-center ${radius.nav} bg-transparent text-muted-strong shadow-none ring-1 ring-inset ring-transparent ${interactiveTransition} hover:bg-control hover:text-fg-strong hover:ring-border-soft active:bg-control-hover active:text-fg-strong ${focusRing} ${disabledState} ${pressState}`,
 	composerIconButton: `inline-flex h-8 min-w-8 items-center justify-center ${radius.control} bg-transparent text-muted-strong ring-1 ring-inset ring-transparent ${interactiveTransition} hover:bg-control hover:text-fg-strong hover:ring-border-soft disabled:cursor-not-allowed disabled:opacity-35 ${focusRing} ${pressState}`,
-	composerShell: `grid min-h-[104px] gap-2 ${radius.panel} bg-field/96 px-3.5 py-3 shadow-panel ring-1 ring-inset ring-border ${interactiveTransition} focus-within:bg-detail/80 focus-within:ring-2 focus-within:ring-focus-ring`,
+	composerShell: `grid min-h-[104px] gap-2 ${radius.panel} bg-field/80 px-3.5 py-3 shadow-none ring-1 ring-inset ring-transparent ${interactiveTransition} hover:bg-field/92 ${textInputFocus}`,
 	submitButton: `inline-flex h-8 min-w-[72px] shrink-0 items-center justify-center gap-1.5 ${radius.control} bg-accent px-3 text-[13px] font-semibold text-accent-fg shadow-control ring-1 ring-inset ring-accent-soft ${interactiveTransition} hover:bg-accent disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-muted disabled:ring-border-soft`,
 	buttonControl: `inline-flex items-center justify-center ${controlBase}`,
 	surfaceButton: `flex min-w-0 items-center text-left ${radius.control} bg-detail/76 text-fg shadow-card ring-1 ring-inset ring-border-soft ${staggeredTransition} hover:bg-control hover:text-fg-strong hover:ring-border ${focusRing} ${disabledState} ${pressState}`,
@@ -111,11 +113,11 @@ export const ui = {
 	selected:
 		"bg-selected text-fg-strong shadow-control ring-1 ring-inset ring-border-soft",
 	selectedStrong: tone.selected.strong,
-	field: `${radius.control} bg-field text-muted shadow-control ring-1 ring-inset ring-border-soft ${interactiveTransition} focus-within:bg-surface-subtle focus-within:text-fg focus-within:ring-border ${focusRing}`,
+	field: `${radius.control} bg-field/72 text-muted shadow-none ring-1 ring-inset ring-transparent ${interactiveTransition} hover:bg-field/88 ${textInputFocus}`,
 	input:
-		"min-w-0 flex-1 border-0 bg-transparent text-fg-strong placeholder:text-muted focus:outline-none disabled:opacity-60",
+		"min-w-0 flex-1 border-0 bg-transparent text-fg-strong caret-accent placeholder:text-muted focus:outline-none focus-visible:outline-none disabled:opacity-60",
 	textarea:
-		"block w-full resize-none border-0 bg-transparent text-fg-strong placeholder:text-muted focus:outline-none disabled:opacity-60",
+		"block w-full resize-none border-0 bg-transparent text-fg-strong caret-accent placeholder:text-muted focus:outline-none focus-visible:outline-none disabled:opacity-60",
 	range: `block h-2 w-full cursor-pointer appearance-none rounded-full bg-control accent-accent ring-1 ring-inset ring-border-soft ${sliderThumb} ${interactiveTransition} hover:bg-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring`,
 	row: interactiveRow,
 	meta: "text-muted",

@@ -405,7 +405,7 @@ export const CollapsibleCard = memo(function CollapsibleCard({
 	preview?: ReactNode;
 	children?: ReactNode;
 	size?: "compact" | "regular" | "prominent";
-	surface?: "filled" | "outline";
+	surface?: "filled" | "outline" | "plain";
 	className?: string;
 	bodyClassName?: string;
 	previewClassName?: string;
@@ -424,13 +424,20 @@ export const CollapsibleCard = memo(function CollapsibleCard({
 				: "text-[13px] font-medium text-fg";
 	const bodyPadding = size === "compact" ? "px-3 pb-3 pt-1" : "px-4 pb-4 pt-1";
 	const previewPadding = size === "compact" ? "px-3 pb-2" : "px-4 pb-3";
-	const cardClass = surface === "outline" ? ui.outlineCard : ui.card;
+	const cardClass =
+		surface === "plain"
+			? `overflow-hidden ${radius.card} bg-transparent shadow-none ring-1 ring-inset ring-transparent`
+			: surface === "outline"
+				? ui.outlineCard
+				: ui.card;
 	const headerClass =
-		surface === "outline"
-			? "group/card-header flex w-full items-center gap-2 bg-transparent transition duration-150 ease-out hover:bg-control/40 focus-within:bg-control/40"
-			: "flex w-full items-center gap-2 bg-control/35 shadow-[inset_0_-1px_0_var(--border-soft)]";
+		surface === "plain"
+			? "group/card-header flex w-full items-center gap-2 bg-transparent transition duration-150 ease-out hover:bg-control/24 focus-within:bg-control/24"
+			: surface === "outline"
+				? "group/card-header flex w-full items-center gap-2 bg-transparent transition duration-150 ease-out hover:bg-control/40 focus-within:bg-control/40"
+				: "flex w-full items-center gap-2 bg-control/35 shadow-[inset_0_-1px_0_var(--border-soft)]";
 	const headerButtonClass =
-		surface === "outline"
+		surface === "plain" || surface === "outline"
 			? "flex min-w-0 flex-1 items-center gap-3 text-left"
 			: "group flex min-w-0 flex-1 items-center gap-3 text-left hover:bg-control-hover";
 

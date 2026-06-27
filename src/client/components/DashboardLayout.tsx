@@ -65,7 +65,7 @@ import {
 	threadResultTitle,
 } from "./ThreadResultRow.js";
 import { ThreadStatusIcon } from "./threadStatusIcon.js";
-import { MenuItemButton, SurfaceAction } from "./uiPrimitives.js";
+import { FieldShell, MenuItemButton, SurfaceAction } from "./uiPrimitives.js";
 import { Workspace, type WorkspaceHandle } from "./Workspace.js";
 import type {
 	ComposerMode,
@@ -799,46 +799,47 @@ const CommandPalette = memo(function CommandPalette({
 								}}
 							/>
 						</div>
-						<div className="flex h-12 items-center gap-3 px-3.5 shadow-[inset_0_-1px_0_var(--border-soft)]">
-							<Search size={16} className="text-muted" />
-							<input
-								type="search"
-								ref={inputRef}
-								className={cn(ui.input, "h-10 text-[14px]")}
-								value={query}
-								onChange={(event) => {
-									setQuery(event.target.value);
-									setActiveIndex(0);
-								}}
-								placeholder="Search Anything"
-								autoCapitalize="off"
-								autoCorrect="off"
-								spellCheck={false}
-								onKeyDown={(event) => {
-									if (event.key === "Escape") {
-										event.preventDefault();
-										onClose();
-										return;
-									}
-									if (event.key === "ArrowDown") {
-										event.preventDefault();
-										setActiveIndex((index) => {
-											if (filteredActions.length === 0) {
-												return 0;
-											}
-											return Math.min(filteredActions.length - 1, index + 1);
-										});
-									}
-									if (event.key === "ArrowUp") {
-										event.preventDefault();
-										setActiveIndex((index) => Math.max(0, index - 1));
-									}
-									if (event.key === "Enter") {
-										event.preventDefault();
-										runActive();
-									}
-								}}
-							/>
+						<div className="px-2 py-2">
+							<FieldShell icon={<Search size={16} />} className="h-10 w-full">
+								<input
+									type="search"
+									ref={inputRef}
+									className={cn(ui.input, "h-9 text-[14px]")}
+									value={query}
+									onChange={(event) => {
+										setQuery(event.target.value);
+										setActiveIndex(0);
+									}}
+									placeholder="Search Anything"
+									autoCapitalize="off"
+									autoCorrect="off"
+									spellCheck={false}
+									onKeyDown={(event) => {
+										if (event.key === "Escape") {
+											event.preventDefault();
+											onClose();
+											return;
+										}
+										if (event.key === "ArrowDown") {
+											event.preventDefault();
+											setActiveIndex((index) => {
+												if (filteredActions.length === 0) {
+													return 0;
+												}
+												return Math.min(filteredActions.length - 1, index + 1);
+											});
+										}
+										if (event.key === "ArrowUp") {
+											event.preventDefault();
+											setActiveIndex((index) => Math.max(0, index - 1));
+										}
+										if (event.key === "Enter") {
+											event.preventDefault();
+											runActive();
+										}
+									}}
+								/>
+							</FieldShell>
 						</div>
 						<div
 							ref={listRef}
@@ -1702,7 +1703,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 			<AnimatePresence>
 				{renderMobileShell && mobileSheet ? (
 					<motion.div
-						className={cn("fixed inset-0 z-[90] md:hidden", ui.overlay)}
+						className={cn("fixed inset-0 z-[120] md:hidden", ui.overlay)}
 						initial={{ opacity: 0 }}
 						animate={{ opacity: 1 }}
 						exit={{ opacity: 0 }}

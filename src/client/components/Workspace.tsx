@@ -212,12 +212,12 @@ function messageCardTitle(message: ChatMessage) {
 function messageSurfaceClass(message: ChatMessage) {
 	const name = messageCardTitle(message);
 	if (name === "Prompt") {
-		return "bg-selected/42 ring-accent-soft";
+		return "bg-transparent ring-transparent";
 	}
 	if (name === "Response") {
-		return "bg-detail/76 ring-border-soft";
+		return "bg-transparent ring-transparent";
 	}
-	return "bg-surface-subtle/64 ring-border-soft";
+	return "bg-transparent ring-transparent";
 }
 
 function headerMeta(value: string) {
@@ -270,7 +270,7 @@ const MobileWorkspaceHeader = memo(function MobileWorkspaceHeader({
 	onOpenCommands?: () => void;
 }) {
 	return (
-		<header className="relative z-[110] flex shrink-0 items-center justify-between gap-2 bg-app-bg/94 px-3 pb-2 pt-[calc(var(--safe-inset-top)+0.5rem)] shadow-[inset_0_-1px_0_var(--border-soft)] md:hidden">
+		<header className="relative z-[110] flex shrink-0 items-center justify-between gap-2 bg-app-bg/90 px-3 pb-2 pt-[calc(var(--safe-inset-top)+0.5rem)] after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-8 after:bg-gradient-to-b after:from-app-bg after:to-transparent md:hidden">
 			<LargeIconButton
 				className="h-9 w-9"
 				title={navigatorVisible ? "Hide threads" : "Open threads"}
@@ -421,6 +421,7 @@ const MessageBlock = memo(function MessageBlock({
 					{preview}
 				</div>
 			}
+			surface="plain"
 			className={messageSurfaceClass(message)}
 		>
 			{message.text ? (
@@ -462,7 +463,8 @@ const ProcessItemBlock = memo(function ProcessItemBlock({
 				</div>
 			}
 			size="compact"
-			className="bg-app-bg/55 shadow-none"
+			surface="plain"
+			className="bg-transparent ring-transparent"
 		>
 			{message.text ? (
 				<div
@@ -520,7 +522,8 @@ const ProcessOutputBlock = memo(function ProcessOutputBlock({
 				</div>
 			}
 			bodyClassName="grid gap-1.5 px-3 pb-3 pt-0"
-			className="bg-surface-subtle/78 ring-border-soft"
+			surface="plain"
+			className="bg-transparent ring-transparent"
 		>
 			{messages.map((message) => (
 				<ProcessItemBlock
@@ -541,7 +544,7 @@ const EmptyTranscript = memo(function EmptyTranscript({
 	projectPath: string;
 }) {
 	return (
-		<div className="rounded-[12px] bg-detail/54 px-5 py-8 text-center ring-1 ring-inset ring-border-soft">
+		<div className="px-5 py-8 text-center">
 			<div
 				className={cn("mx-auto mb-4 h-10 w-10 text-muted-strong", ui.iconBox)}
 			>
@@ -907,7 +910,7 @@ const Composer = memo(
 						/>
 						<div
 							ref={actionBarRef}
-							className="relative flex items-center justify-between gap-3 pt-2 shadow-[inset_0_1px_0_var(--border-soft)]"
+							className="relative flex items-center justify-between gap-3 pt-2"
 						>
 							<span
 								className={cn(
@@ -1214,7 +1217,7 @@ export const Workspace = memo(
 						onOpenCommands={onOpenCommands}
 					/>
 				) : null}
-				<header className="hidden shrink-0 items-center justify-between gap-3 bg-app-bg/94 shadow-[inset_0_-1px_0_var(--border-soft)] md:relative md:z-[110] md:flex md:h-14 md:px-5">
+				<header className="hidden shrink-0 items-center justify-between gap-3 bg-app-bg/90 after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-8 after:bg-gradient-to-b after:from-app-bg after:to-transparent md:relative md:z-[110] md:flex md:h-14 md:px-5">
 					<div className="flex min-w-0 items-center gap-3">
 						<LargeIconButton
 							title={navigatorVisible ? "Hide threads" : "Open threads"}
@@ -1364,7 +1367,7 @@ export const Workspace = memo(
 
 						<div
 							ref={composerShellRef}
-							className="mobile-composer-bar relative z-[80] shrink-0 overflow-visible bg-app-bg/94 pl-4 pr-[calc(1rem+var(--transcript-scrollbar-width,0px))] pt-2 shadow-[inset_0_1px_0_var(--border-soft)] md:pl-8 md:pr-[calc(2rem+var(--transcript-scrollbar-width,0px))] md:pb-3"
+							className="mobile-composer-bar relative z-[80] shrink-0 overflow-visible bg-app-bg/90 pl-4 pr-[calc(1rem+var(--transcript-scrollbar-width,0px))] pt-2 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-8 before:bg-gradient-to-t before:from-app-bg before:to-transparent md:pl-8 md:pr-[calc(2rem+var(--transcript-scrollbar-width,0px))] md:pb-3"
 						>
 							<ThreadContentFrame>
 								<Composer
