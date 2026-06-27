@@ -52,6 +52,15 @@ import {
 	parseSseJsonEvent,
 	useEventStreamSubscription,
 } from "./eventStream.js";
+import {
+	createOptimisticThreadDraft,
+	createOptimisticThreadId,
+	insertOptimisticThreadState,
+	rebaseOptimisticThreadDetail,
+	removeOptimisticThreadState,
+	replaceOptimisticThreadState,
+	shouldResolveOptimisticThread,
+} from "./optimisticThreads.js";
 import { isMacTerminalToggleShortcut } from "./terminalShortcut.js";
 import {
 	applyThemeMode,
@@ -117,6 +126,17 @@ type DetailSubscription = {
 	after: number;
 };
 
+type OptimisticThreadSubmission = {
+	id: string;
+	previousThreadId: string | null;
+	prompt: string;
+	cwd: string;
+	name: string;
+	goalMode: boolean;
+	createdAt: string;
+	resolvedThreadId: string | null;
+};
+
 type ResetEvent = {
 	type: "events.reset";
 	reason: string;
@@ -131,6 +151,20 @@ function isMobileViewport() {
 		typeof window.matchMedia === "function" &&
 		window.matchMedia("(max-width: 767px)").matches
 	);
+}
+
+function eventThreadPayload(event: CozEvent) {
+	const thread = event.payload.thread;
+	return thread !== null &&
+		typeof thread === "object" &&
+		"id" in thread &&
+		typeof thread.id === "string" &&
+		"cwd" in thread &&
+		typeof thread.cwd === "string" &&
+		"name" in thread &&
+		typeof thread.name === "string"
+		? (thread as ControlThread)
+		: null;
 }
 
 const terminalVisibleStorageKey = "coz-terminal-visible";
@@ -235,6 +269,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	const fallbackRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
 		null,
 	);
+	const optimisticThreadRef = useRef<OptimisticThreadSubmission | null>(null);
 	const projectionRef = useRef<ClientProjection>({
 		state: appInitialState,
 		detail: null,
@@ -246,6 +281,19 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	const beginRefresh = useCallback(() => {
 		refreshSeqRef.current += 1;
 		return refreshSeqRef.current;
+	}, []);
+
+	const keepPendingOptimisticThread = useCallback((next: DashboardState) => {
+		const pending = optimisticThreadRef.current;
+		if (!pending || next.threads.some((thread) => thread.id === pending.id)) {
+			return next;
+		}
+		const pendingThread = projectionRef.current.state.threads.find(
+			(thread) => thread.id === pending.id,
+		);
+		return pendingThread
+			? insertOptimisticThreadState(next, pendingThread)
+			: next;
 	}, []);
 
 	const refreshIsCurrent = useCallback((refreshSeq: number) => {
@@ -337,10 +385,11 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			const refreshSeq = beginRefresh();
 			const requestedThreadId = nextThreadId ?? selectedThreadIdRef.current;
 			const shouldPreferRequestedThread = typeof nextThreadId === "string";
-			const next = await getState();
+			let next = await getState();
 			if (!refreshIsCurrent(refreshSeq)) {
 				return;
 			}
+			next = keepPendingOptimisticThread(next);
 			summaryEventIdRef.current = Math.max(
 				summaryEventIdRef.current,
 				next.latestEventId,
@@ -369,8 +418,10 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				}
 			}
 			if (preferredThreadId) {
+				const preferredIsPendingOptimistic =
+					preferredThreadId === optimisticThreadRef.current?.id;
 				clearDetailForSelection(preferredThreadId);
-				if (options.loadDetail) {
+				if (options.loadDetail && !preferredIsPendingOptimistic) {
 					try {
 						await loadThreadDetail(preferredThreadId, refreshSeq);
 					} catch (detailError) {
@@ -392,6 +443,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			beginRefresh,
 			clearDetail,
 			clearDetailForSelection,
+			keepPendingOptimisticThread,
 			loadThreadDetail,
 			refreshIsCurrent,
 		],
@@ -639,6 +691,48 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	}
 
 	function queueProjectionEvent(event: CozEvent) {
+		const pending = optimisticThreadRef.current;
+		const eventThread =
+			event.type === "thread.started" ? eventThreadPayload(event) : null;
+		if (
+			pending &&
+			eventThread &&
+			!pending.resolvedThreadId &&
+			shouldResolveOptimisticThread(pending, eventThread)
+		) {
+			optimisticThreadRef.current = {
+				...pending,
+				resolvedThreadId: eventThread.id,
+			};
+			const wasSelected = selectedThreadIdRef.current === pending.id;
+			const nextState = replaceOptimisticThreadState(
+				projectionRef.current.state,
+				{
+					optimisticThreadId: pending.id,
+					thread: eventThread,
+				},
+			);
+			const nextDetail = rebaseOptimisticThreadDetail(
+				projectionRef.current.detail,
+				{
+					optimisticThreadId: pending.id,
+					thread: eventThread,
+					turn: null,
+				},
+			);
+			projectionRef.current = {
+				state: nextState,
+				detail: nextDetail,
+			};
+			setState(nextState);
+			setDetail(nextDetail);
+			if (wasSelected) {
+				setSelectedThreadId(eventThread.id);
+				selectedThreadIdRef.current = eventThread.id;
+				setSelectedProjectId(eventThread.cwd);
+			}
+			return;
+		}
 		pendingEventsRef.current.push(event);
 		scheduleProjectionFlush();
 	}
@@ -1061,6 +1155,208 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		}
 	}
 
+	async function createThreadOptimistically(currentPrompt: string) {
+		const cwd = trimmedWorkdir;
+		const submittedPrompt = currentPrompt.trim();
+		const optimisticThreadId = createOptimisticThreadId();
+		const previousThreadId = activeThreadId;
+		const creatingGoalMode = goalMode;
+		const model = activeThread?.model ?? selectedWorkbenchThread?.model ?? null;
+		const draft = createOptimisticThreadDraft({
+			id: optimisticThreadId,
+			cwd,
+			prompt: submittedPrompt,
+			goalMode: creatingGoalMode,
+			model,
+			latestEventId: Math.max(
+				summaryEventIdRef.current,
+				detailEventIdRef.current,
+			),
+		});
+		const submission: OptimisticThreadSubmission = {
+			id: optimisticThreadId,
+			previousThreadId,
+			prompt: submittedPrompt,
+			cwd,
+			name: draft.thread.name,
+			goalMode: creatingGoalMode,
+			createdAt: draft.thread.createdAt,
+			resolvedThreadId: null,
+		};
+
+		optimisticThreadRef.current = submission;
+		beginManualSelection();
+		beginDetailLoad();
+		setBusyAction(
+			creatingGoalMode ? "Creating goal thread" : "Creating thread",
+		);
+		setError(null);
+		setNotice(null);
+		setComposerMode("thread");
+		setGoalMode(false);
+		setWorkdir(cwd);
+		setWorkdirTouched(false);
+		setSelectedProjectId(cwd);
+		setSelectedThreadId(optimisticThreadId);
+		selectedThreadIdRef.current = optimisticThreadId;
+		setDetailSubscription(null);
+		projectionRef.current = {
+			state: insertOptimisticThreadState(
+				projectionRef.current.state,
+				draft.thread,
+			),
+			detail: draft.detail,
+		};
+		setState(projectionRef.current.state);
+		setDetail(draft.detail);
+
+		try {
+			const result = await createThread({
+				cwd,
+				prompt: submittedPrompt,
+				goalMode: creatingGoalMode,
+				model,
+			});
+			const thread = result.thread;
+			if (!thread) {
+				throw new Error("Thread was not created");
+			}
+
+			const pending = optimisticThreadRef.current;
+			if (pending?.id === optimisticThreadId) {
+				optimisticThreadRef.current = null;
+			}
+			const wasSelected =
+				selectedThreadIdRef.current === optimisticThreadId ||
+				selectedThreadIdRef.current === thread.id ||
+				selectedThreadIdRef.current === pending?.resolvedThreadId;
+			const nextState = replaceOptimisticThreadState(
+				projectionRef.current.state,
+				{
+					optimisticThreadId,
+					thread,
+				},
+			);
+			const nextDetail = rebaseOptimisticThreadDetail(
+				projectionRef.current.detail,
+				{
+					optimisticThreadId,
+					thread,
+					turn: result.turn,
+				},
+			);
+			projectionRef.current = {
+				state: nextState,
+				detail: nextDetail,
+			};
+			setState(nextState);
+			setDetail(nextDetail);
+			setWorkdir(thread.cwd);
+			setWorkdirTouched(false);
+
+			if (wasSelected) {
+				setComposerMode("thread");
+				setSelectedThreadId(thread.id);
+				selectedThreadIdRef.current = thread.id;
+				const project = findProjectForThread(
+					buildWorkbenchProjects(nextState.threads, nextState.defaultCwd),
+					thread.id,
+				);
+				setSelectedProjectId(project?.id ?? thread.cwd);
+			}
+
+			if (selectedThreadIdRef.current === thread.id) {
+				try {
+					await loadThreadDetail(thread.id);
+				} catch (loadError) {
+					if (selectedThreadIdRef.current === thread.id) {
+						setError(
+							loadError instanceof Error
+								? loadError.message
+								: "Failed to load thread",
+						);
+					}
+				}
+			}
+		} catch (actionError) {
+			const pending = optimisticThreadRef.current;
+			if (pending?.id === optimisticThreadId) {
+				optimisticThreadRef.current = null;
+			}
+			if (pending?.resolvedThreadId) {
+				if (selectedThreadIdRef.current === pending.resolvedThreadId) {
+					void loadThreadDetail(pending.resolvedThreadId).catch(() => {
+						if (selectedThreadIdRef.current === pending.resolvedThreadId) {
+							scheduleFallbackRefresh();
+						}
+					});
+				}
+				setError(
+					actionError instanceof Error
+						? actionError.message
+						: "Failed to create thread",
+				);
+				return;
+			}
+			const nextState = removeOptimisticThreadState(
+				projectionRef.current.state,
+				optimisticThreadId,
+			);
+			const optimisticSelected =
+				selectedThreadIdRef.current === optimisticThreadId;
+			const fallbackThreadId =
+				submission.previousThreadId &&
+				nextState.threads.some(
+					(thread) => thread.id === submission.previousThreadId,
+				)
+					? submission.previousThreadId
+					: (nextState.threads[0]?.id ?? null);
+			const nextDetail =
+				projectionRef.current.detail?.id === optimisticThreadId
+					? null
+					: projectionRef.current.detail;
+			projectionRef.current = {
+				state: nextState,
+				detail: nextDetail,
+			};
+			setState(nextState);
+			setDetail(nextDetail);
+			if (optimisticSelected) {
+				setComposerMode("new");
+				setGoalMode(submission.goalMode);
+				setPrompt(submission.prompt);
+				setWorkdir(submission.cwd);
+				setWorkdirTouched(true);
+				setSelectedThreadId(fallbackThreadId);
+				selectedThreadIdRef.current = fallbackThreadId;
+				if (fallbackThreadId) {
+					const project = findProjectForThread(
+						buildWorkbenchProjects(nextState.threads, nextState.defaultCwd),
+						fallbackThreadId,
+					);
+					if (project) {
+						setSelectedProjectId(project.id);
+					}
+					void loadThreadDetail(fallbackThreadId).catch(() => {
+						if (selectedThreadIdRef.current === fallbackThreadId) {
+							clearDetail();
+						}
+					});
+				} else {
+					beginDetailLoad();
+					clearDetail();
+				}
+			}
+			setError(
+				actionError instanceof Error
+					? actionError.message
+					: "Failed to create thread",
+			);
+		} finally {
+			setBusyAction(null);
+		}
+	}
+
 	function executePrompt() {
 		if (!canSubmitPrompt) {
 			return;
@@ -1092,25 +1388,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			return;
 		}
 
-		void runAction(
-			goalMode ? "Creating goal thread" : "Creating thread",
-			async () => {
-				const result = await createThread({
-					cwd: trimmedWorkdir,
-					prompt: currentPrompt,
-					goalMode,
-					model: activeThread?.model ?? selectedWorkbenchThread?.model ?? null,
-				});
-				if (result.thread?.cwd) {
-					setWorkdir(result.thread.cwd);
-				}
-				setWorkdirTouched(false);
-				const thread = result.thread;
-				setComposerMode("thread");
-				return thread?.id;
-			},
-			{ selectResult: true },
-		);
+		void createThreadOptimistically(currentPrompt);
 	}
 
 	function submitPrompt(event: FormEvent) {
