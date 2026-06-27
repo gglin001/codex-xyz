@@ -270,7 +270,7 @@ const MobileWorkspaceHeader = memo(function MobileWorkspaceHeader({
 	onOpenCommands?: () => void;
 }) {
 	return (
-		<header className="relative z-[110] flex shrink-0 items-center justify-between gap-2 bg-app-bg/90 px-3 pb-2 pt-[calc(var(--safe-inset-top)+0.5rem)] after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-8 after:bg-gradient-to-b after:from-app-bg after:to-transparent md:hidden">
+		<header className="relative z-[110] flex shrink-0 items-center justify-between gap-2 px-3 pt-[calc(var(--safe-inset-top)+0.25rem)] md:hidden">
 			<LargeIconButton
 				className="h-9 w-9"
 				title={navigatorVisible ? "Hide threads" : "Open threads"}
@@ -914,7 +914,7 @@ const Composer = memo(
 						/>
 						<div
 							ref={actionBarRef}
-							className="relative flex items-center justify-between gap-3 pt-2"
+							className="relative flex items-center justify-between gap-3"
 						>
 							<span
 								className={cn(
@@ -1221,7 +1221,7 @@ export const Workspace = memo(
 						onOpenCommands={onOpenCommands}
 					/>
 				) : null}
-				<header className="hidden shrink-0 items-center justify-between gap-3 bg-app-bg/90 after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-8 after:bg-gradient-to-b after:from-app-bg after:to-transparent md:relative md:z-[110] md:flex md:h-14 md:px-5">
+				<header className="hidden shrink-0 items-center justify-between gap-3 md:relative md:z-[110] md:flex md:h-12 md:px-5">
 					<div className="flex min-w-0 items-center gap-3">
 						<LargeIconButton
 							title={navigatorVisible ? "Hide threads" : "Open threads"}
@@ -1272,7 +1272,7 @@ export const Workspace = memo(
 					>
 						<div
 							ref={transcriptScrollRef}
-							className="mobile-transcript-scroll min-h-0 flex-1 overflow-y-auto scroll-mask-y-t px-4 pt-3 [scrollbar-gutter:stable] md:px-8 md:pb-5 md:pt-5"
+							className="mobile-transcript-scroll min-h-0 flex-1 overflow-y-auto px-4 py-0 [scrollbar-gutter:stable] md:px-8"
 						>
 							<ThreadContentFrame className="grid gap-[var(--transcript-gap)]">
 								{entries.length === 0 ? (
@@ -1369,7 +1369,7 @@ export const Workspace = memo(
 
 						<div
 							ref={composerShellRef}
-							className="mobile-composer-bar relative z-[80] shrink-0 overflow-visible bg-app-bg/90 pl-4 pr-[calc(1rem+var(--transcript-scrollbar-width,0px))] pt-2 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-8 before:bg-gradient-to-t before:from-app-bg before:to-transparent md:pl-8 md:pr-[calc(2rem+var(--transcript-scrollbar-width,0px))] md:pb-3"
+							className="mobile-composer-bar relative z-[80] shrink-0 overflow-visible pl-4 pr-[calc(1rem+var(--transcript-scrollbar-width,0px))] md:pl-8 md:pr-[calc(2rem+var(--transcript-scrollbar-width,0px))]"
 						>
 							<ThreadContentFrame>
 								<Composer

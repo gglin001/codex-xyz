@@ -418,23 +418,23 @@
 	}
 
 	.mobile-transcript-scroll {
-		padding-bottom: 1rem;
-		scroll-padding-bottom: calc(var(--composer-height, 132px) + 1rem);
+		padding-bottom: 0;
+		scroll-padding-bottom: var(--composer-height, 132px);
 		overscroll-behavior: contain;
 		touch-action: pan-y;
 		-webkit-overflow-scrolling: touch;
 	}
 
 	:root[data-pwa-display-mode="standalone"] .mobile-transcript-scroll {
-		padding-top: calc(var(--safe-inset-top) + 0.75rem);
+		padding-top: 0;
 	}
 
 	.mobile-composer-bar {
-		padding-bottom: calc(var(--safe-inset-bottom) + 0.625rem);
+		padding-bottom: var(--safe-inset-bottom);
 	}
 
 	:root[data-keyboard-visible] .mobile-composer-bar {
-		padding-bottom: 0.625rem;
+		padding-bottom: 0;
 	}
 
 	@media (hover: none) and (pointer: coarse) {
