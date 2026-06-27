@@ -65,6 +65,7 @@ import {
 	CopyIconButton,
 	FieldShell,
 	LargeIconButton,
+	MenuItemButton,
 } from "./uiPrimitives.js";
 import type {
 	ComposerMode,
@@ -120,6 +121,15 @@ export type WorkspaceHandle = {
 
 type ComposerHandle = {
 	focusPrompt: () => boolean;
+};
+
+type ComposerMenuAction = {
+	id: string;
+	label: string;
+	detail: string;
+	disabledReason: string | null;
+	icon: ReactNode;
+	run: () => void;
 };
 
 type ChatMessage = {
@@ -554,6 +564,38 @@ const EmptyTranscript = memo(function EmptyTranscript({
 	);
 });
 
+const ComposerMenuItem = memo(function ComposerMenuItem({
+	action,
+	onSelect,
+}: {
+	action: ComposerMenuAction;
+	onSelect: (action: ComposerMenuAction) => void;
+}) {
+	const disabled = Boolean(action.disabledReason);
+	return (
+		<MenuItemButton
+			className="w-full items-start gap-2.5 px-3 py-2.5 disabled:cursor-not-allowed disabled:opacity-45"
+			role="menuitem"
+			disabled={disabled}
+			title={action.disabledReason ?? action.detail}
+			aria-label={`${action.label}: ${action.disabledReason ?? action.detail}`}
+			onClick={() => onSelect(action)}
+		>
+			<span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-muted">
+				{action.icon}
+			</span>
+			<span className="grid min-w-0 flex-1 gap-0.5">
+				<span className="truncate text-[13px] font-medium text-fg">
+					{action.label}
+				</span>
+				<span className="truncate text-[11px] leading-4 text-muted">
+					{action.disabledReason ?? action.detail}
+				</span>
+			</span>
+		</MenuItemButton>
+	);
+});
+
 type ComposerProps = Pick<
 	WorkspaceProps,
 	| "workdir"
@@ -626,27 +668,6 @@ const Composer = memo(
 		const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 		const actionBarRef = useRef<HTMLDivElement | null>(null);
 		const selectedThreadArchived = Boolean(selectedThread?.archivedAt);
-		const canInterrupt =
-			selectedThread?.status === "active" && !selectedThreadArchived && !busy;
-		const canResume =
-			Boolean(selectedThreadId) &&
-			selectedThread?.status !== "active" &&
-			!selectedThreadArchived &&
-			!busy;
-		const canFork =
-			Boolean(selectedThreadId) && !selectedThreadArchived && !busy;
-		const canCompact =
-			Boolean(selectedThreadId) &&
-			selectedThread?.status !== "active" &&
-			!selectedThreadArchived &&
-			!busy;
-		const canArchive =
-			Boolean(selectedThreadId) &&
-			selectedThread?.status !== "active" &&
-			!selectedThreadArchived &&
-			!busy;
-		const canUseBackgroundTerminals =
-			Boolean(selectedThreadId) && !selectedThreadArchived && !busy;
 		const [moreActionsOpen, setMoreActionsOpen] = useState(false);
 		const submitTitle = goalMode
 			? codexThreadCommandLabels.goal
@@ -658,6 +679,115 @@ const Composer = memo(
 			: promptTarget === "thread"
 				? "Start typing a prompt"
 				: "Start a new Codex thread";
+		const threadActionDisabledReason = () => {
+			if (!selectedThreadId) {
+				return "Select a thread first";
+			}
+			if (selectedThreadArchived) {
+				return "Archived threads are view-only";
+			}
+			if (busy) {
+				return "Another action is running";
+			}
+			return null;
+		};
+		const idleThreadActionDisabledReason = () => {
+			const baseReason = threadActionDisabledReason();
+			if (baseReason) {
+				return baseReason;
+			}
+			if (selectedThread?.status === "active") {
+				return "Wait for the active turn to finish";
+			}
+			return null;
+		};
+		const interruptDisabledReason = () => {
+			if (!selectedThreadId) {
+				return "Select a running thread first";
+			}
+			if (selectedThreadArchived) {
+				return "Archived threads are view-only";
+			}
+			if (busy) {
+				return "Another action is running";
+			}
+			if (selectedThread?.status !== "active") {
+				return "No active turn is running";
+			}
+			return null;
+		};
+		const resumeDisabledReason = () => {
+			const baseReason = threadActionDisabledReason();
+			if (baseReason) {
+				return baseReason;
+			}
+			if (selectedThread?.status === "active") {
+				return "Thread is already running";
+			}
+			return null;
+		};
+		const composerMenuActions: ComposerMenuAction[] = [
+			{
+				id: "archive",
+				label: codexThreadCommandLabels.archive,
+				detail: "Move this thread out of the active list",
+				disabledReason: idleThreadActionDisabledReason(),
+				icon: <Archive size={15} />,
+				run: onArchive,
+			},
+			{
+				id: "compact",
+				label: codexThreadCommandLabels.compact,
+				detail: "Summarize the transcript for more context",
+				disabledReason: idleThreadActionDisabledReason(),
+				icon: <Minimize2 size={15} />,
+				run: onCompact,
+			},
+			{
+				id: "interrupt",
+				label: codexThreadCommandLabels.interrupt,
+				detail: "Stop the currently running turn",
+				disabledReason: interruptDisabledReason(),
+				icon: <Square size={15} />,
+				run: onInterrupt,
+			},
+			{
+				id: "fork",
+				label: codexThreadCommandLabels.fork,
+				detail: "Continue from this thread in a new branch",
+				disabledReason: threadActionDisabledReason(),
+				icon: <GitFork size={15} />,
+				run: onFork,
+			},
+			{
+				id: "ps",
+				label: codexThreadCommandLabels.ps,
+				detail: "List app-server background terminals",
+				disabledReason: threadActionDisabledReason(),
+				icon: <ListTree size={15} />,
+				run: onListBackgroundTerminals,
+			},
+			{
+				id: "stop",
+				label: codexThreadCommandLabels.stop,
+				detail: "Stop app-server background terminals",
+				disabledReason: threadActionDisabledReason(),
+				icon: <SquareX size={15} />,
+				run: onCleanBackgroundTerminals,
+			},
+			{
+				id: "resume",
+				label: codexThreadCommandLabels.resume,
+				detail: "Resume this saved thread",
+				disabledReason: resumeDisabledReason(),
+				icon: <Play size={15} />,
+				run: onResume,
+			},
+		];
+		const selectComposerMenuAction = (action: ComposerMenuAction) => {
+			action.run();
+			setMoreActionsOpen(false);
+		};
 
 		useImperativeHandle(
 			ref,
@@ -837,7 +967,7 @@ const Composer = memo(
 													onClick={() => setMoreActionsOpen(false)}
 												/>
 												<motion.div
-													className="absolute bottom-full left-0 z-20 mb-2 w-44 rounded-[12px] border border-border bg-detail shadow-popover"
+													className="absolute bottom-full left-0 z-20 mb-2 w-64 max-w-[calc(100vw-2rem)] rounded-[12px] border border-border bg-detail shadow-popover"
 													role="menu"
 													initial={{ opacity: 0, y: 6 }}
 													animate={{ opacity: 1, y: 0 }}
@@ -845,115 +975,13 @@ const Composer = memo(
 													transition={spring}
 												>
 													<div className="p-1">
-														<button
-															type="button"
-															role="menuitem"
-															className="flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control disabled:cursor-not-allowed disabled:opacity-30"
-															disabled={!canArchive}
-															onClick={() => {
-																onArchive();
-																setMoreActionsOpen(false);
-															}}
-														>
-															<Archive
-																size={15}
-																className="shrink-0 text-muted"
+														{composerMenuActions.map((action) => (
+															<ComposerMenuItem
+																key={action.id}
+																action={action}
+																onSelect={selectComposerMenuAction}
 															/>
-															<span>{codexThreadCommandLabels.archive}</span>
-														</button>
-														<button
-															type="button"
-															role="menuitem"
-															className="flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control disabled:cursor-not-allowed disabled:opacity-30"
-															disabled={!canCompact}
-															onClick={() => {
-																onCompact();
-																setMoreActionsOpen(false);
-															}}
-														>
-															<Minimize2
-																size={15}
-																className="shrink-0 text-muted"
-															/>
-															<span>{codexThreadCommandLabels.compact}</span>
-														</button>
-														<button
-															type="button"
-															role="menuitem"
-															className="flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control disabled:cursor-not-allowed disabled:opacity-30"
-															disabled={!canInterrupt}
-															onClick={() => {
-																onInterrupt();
-																setMoreActionsOpen(false);
-															}}
-														>
-															<Square
-																size={15}
-																className="shrink-0 text-muted"
-															/>
-															<span>{codexThreadCommandLabels.interrupt}</span>
-														</button>
-														<button
-															type="button"
-															role="menuitem"
-															className="flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control disabled:cursor-not-allowed disabled:opacity-30"
-															disabled={!canFork}
-															onClick={() => {
-																onFork();
-																setMoreActionsOpen(false);
-															}}
-														>
-															<GitFork
-																size={15}
-																className="shrink-0 text-muted"
-															/>
-															<span>{codexThreadCommandLabels.fork}</span>
-														</button>
-														<button
-															type="button"
-															role="menuitem"
-															className="flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control disabled:cursor-not-allowed disabled:opacity-30"
-															disabled={!canUseBackgroundTerminals}
-															onClick={() => {
-																onListBackgroundTerminals();
-																setMoreActionsOpen(false);
-															}}
-														>
-															<ListTree
-																size={15}
-																className="shrink-0 text-muted"
-															/>
-															<span>{codexThreadCommandLabels.ps}</span>
-														</button>
-														<button
-															type="button"
-															role="menuitem"
-															className="flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control disabled:cursor-not-allowed disabled:opacity-30"
-															disabled={!canUseBackgroundTerminals}
-															onClick={() => {
-																onCleanBackgroundTerminals();
-																setMoreActionsOpen(false);
-															}}
-														>
-															<SquareX
-																size={15}
-																className="shrink-0 text-muted"
-															/>
-															<span>{codexThreadCommandLabels.stop}</span>
-														</button>
-														<button
-															type="button"
-															role="menuitem"
-															className="flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-fg transition duration-150 ease-out hover:bg-control disabled:cursor-not-allowed disabled:opacity-30"
-															disabled={!canResume}
-															onClick={() => {
-																onResume();
-																setMoreActionsOpen(false);
-															}}
-														>
-															<Play size={15} className="shrink-0 text-muted" />
-															<span>{codexThreadCommandLabels.resume}</span>
-														</button>
+														))}
 													</div>
 												</motion.div>
 											</>
