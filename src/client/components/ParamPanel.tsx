@@ -31,7 +31,7 @@ import type {
 	ThreadDetail,
 	ThreadTagScore,
 } from "../../server/domain.js";
-import { cn, tone } from "../designSystem.js";
+import { cn, radius, tone } from "../designSystem.js";
 import { nextThemeMode, type ThemeMode } from "../theme.js";
 import { formatTokens, shortId, statusLabel } from "../uiFormat.js";
 import type { PwaState } from "../usePwa.js";
@@ -155,7 +155,7 @@ function TagScoreControl({
 }) {
 	const scores = [1, 2, 3] as const;
 	return (
-		<ControlCard className="flex w-full min-w-0 items-center justify-between gap-3 bg-field/70 px-3 py-2.5">
+		<ControlCard className="flex w-full min-w-0 items-center justify-between gap-3 px-3 py-2.5">
 			<span className="min-w-0">
 				<span className="block truncate text-[13px] font-medium text-fg">
 					Thread score
@@ -174,6 +174,7 @@ function TagScoreControl({
 							type="button"
 							className={cn(
 								"flex h-8 w-8 shrink-0 items-center justify-center transition duration-150 ease-out",
+								radius.control,
 								disabled ? "cursor-not-allowed opacity-45" : "hover:bg-control",
 								selected ? "text-accent" : "text-muted",
 							)}
@@ -246,7 +247,7 @@ export const ParamPanel = memo(function ParamPanel({
 			<div className="mobile-keyboard-scroll min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden scroll-mask-y">
 				<SettingsSection icon={<ListTree size={13} />} title="Current Thread">
 					<div className="grid min-w-0 gap-2">
-						<ControlCard className="grid w-full min-w-0 gap-2 bg-field/70 px-3 py-2.5">
+						<ControlCard className="grid w-full min-w-0 gap-2 px-3 py-2.5">
 							<div className="flex min-w-0 items-center justify-between gap-3">
 								<span className="inline-flex min-w-0 items-center gap-2">
 									<span
@@ -330,10 +331,7 @@ export const ParamPanel = memo(function ParamPanel({
 
 				<SettingsSection icon={<TimerReset size={13} />} title="Goal and Usage">
 					<div className="grid min-w-0 gap-2">
-						<ControlCard
-							size="large"
-							className="w-full min-w-0 bg-field/70 p-3"
-						>
+						<ControlCard size="large" className="w-full min-w-0 p-3">
 							<div className="mb-3 flex min-w-0 items-center justify-between gap-3 text-[12px]">
 								<span className="truncate font-medium text-fg">
 									{tokenBudget ? "Goal budget" : "Tokens used"}
@@ -368,7 +366,7 @@ export const ParamPanel = memo(function ParamPanel({
 							</div>
 						</ControlCard>
 						{thread?.goalObjective ? (
-							<ControlCard className="w-full min-w-0 bg-field/70 px-3 py-2.5 text-[12px] leading-5 text-fg">
+							<ControlCard className="w-full min-w-0 px-3 py-2.5 text-[12px] leading-5 text-fg">
 								<span className="block truncate" title={thread.goalObjective}>
 									{thread.goalObjective}
 								</span>
@@ -426,7 +424,7 @@ export const ParamPanel = memo(function ParamPanel({
 
 				<SettingsSection icon={<SlidersHorizontal size={13} />} title="View">
 					<div className="grid min-w-0 gap-2">
-						<ControlCard className="w-full min-w-0 bg-field/70 px-3 py-2.5">
+						<ControlCard className="w-full min-w-0 px-3 py-2.5">
 							<ScaleControl
 								label="Scale"
 								value={displayScale}
@@ -475,7 +473,7 @@ export const ParamPanel = memo(function ParamPanel({
 
 				<SettingsSection icon={<Download size={13} />} title="Web App">
 					<div className="grid min-w-0 gap-2">
-						<ControlCard className="grid w-full min-w-0 gap-2 bg-field/70 px-3 py-2.5">
+						<ControlCard className="grid w-full min-w-0 gap-2 px-3 py-2.5">
 							<div className="flex min-w-0 items-center justify-between gap-3">
 								<span className="inline-flex min-w-0 items-center gap-2">
 									<span

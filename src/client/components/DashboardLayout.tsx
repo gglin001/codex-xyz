@@ -45,6 +45,8 @@ import {
 	cn,
 	displayScale as displayScaleConfig,
 	formatDisplayScale,
+	layer,
+	motionPresets,
 	ui,
 } from "../designSystem.js";
 import { isPromptFocusShortcut } from "../promptShortcut.js";
@@ -200,12 +202,9 @@ type CommandActionRenderItem = {
 
 type MobileSheet = "navigator" | "inspector";
 
-const spring = { type: "spring", stiffness: 360, damping: 36 } as const;
+const spring = motionPresets.spring;
 const dragDismissThreshold = 80;
 const mobileViewportQuery = "(max-width: 767px)";
-const mobileHandleClass = "h-1 w-14 rounded-full bg-control-hover";
-const mobileSheetClass =
-	"mobile-sheet-surface absolute inset-x-0 top-[var(--mobile-sheet-top)] flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden rounded-t-[16px]";
 
 function isMobileViewport() {
 	return (
@@ -338,7 +337,7 @@ const MobileSheetHandle = forwardRef<HTMLDivElement, MobileSheetHandleProps>(
 				onPointerDown={onPointerDown}
 				aria-hidden="true"
 			>
-				<span className={mobileHandleClass} />
+				<span className={layer.mobileHandle} />
 			</div>
 		);
 	},
@@ -719,7 +718,7 @@ const CommandPalette = memo(function CommandPalette({
 					<motion.div
 						ref={panelRef}
 						className={cn(
-							mobileSheetClass,
+							layer.mobileSheet,
 							"px-0 md:static md:h-auto md:max-h-[min(40rem,calc(100dvh_-_7rem))] md:w-[44rem] md:max-w-[calc(100vw_-_2rem)] md:rounded-[12px]",
 							ui.popover,
 						)}
@@ -738,11 +737,7 @@ const CommandPalette = memo(function CommandPalette({
 								? { y: "100%", opacity: 0 }
 								: { opacity: 0, y: -12, scale: 0.98 }
 						}
-						transition={
-							isMobileViewport()
-								? spring
-								: { type: "spring", stiffness: 420, damping: 34 }
-						}
+						transition={isMobileViewport() ? spring : motionPresets.quick}
 						drag={isMobileViewport() ? "y" : false}
 						dragControls={dragControls}
 						dragListener={false}
@@ -1444,7 +1439,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 	}, [inspectorVisible, onInspectorVisibleChange, openMobileSheet]);
 
 	const sidebarFooter = (
-		<div className="shrink-0 bg-panel/70 p-3">
+		<div className="shrink-0 bg-panel/40 p-3">
 			<div className="mb-2.5 grid grid-cols-2 gap-2">
 				<SurfaceAction
 					className={cn(
@@ -1683,7 +1678,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 					>
 						<motion.div
 							ref={mobileSheetPanelRef}
-							className={cn(mobileSheetClass, ui.backdropPanel)}
+							className={cn(layer.mobileSheet, ui.backdropPanel)}
 							tabIndex={-1}
 							role="dialog"
 							aria-modal="true"

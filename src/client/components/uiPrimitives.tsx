@@ -248,7 +248,8 @@ export function Keycap({
 	return (
 		<span
 			className={cn(
-				"rounded-[6px] bg-control px-1.5 py-1 font-mono text-[11px] leading-none text-muted",
+				"bg-control px-1.5 py-1 font-mono text-[11px] leading-none text-muted",
+				radius.control,
 				className,
 			)}
 			{...props}
@@ -432,9 +433,9 @@ export const CollapsibleCard = memo(function CollapsibleCard({
 				: ui.card;
 	const headerClass =
 		surface === "plain"
-			? "group/card-header flex w-full items-center gap-2 bg-transparent transition duration-150 ease-out hover:bg-control/24 focus-within:bg-control/24"
+			? "group/card-header flex w-full items-center gap-2 bg-transparent transition duration-150 ease-out hover:bg-control/28 focus-within:bg-control/28"
 			: surface === "outline"
-				? "group/card-header flex w-full items-center gap-2 bg-transparent transition duration-150 ease-out hover:bg-control/40 focus-within:bg-control/40"
+				? "group/card-header flex w-full items-center gap-2 bg-transparent transition duration-150 ease-out hover:bg-control/36 focus-within:bg-control/36"
 				: "flex w-full items-center gap-2 bg-control/35";
 	const headerButtonClass =
 		surface === "plain" || surface === "outline"
@@ -600,7 +601,7 @@ export const InfoTile = memo(function InfoTile({
 	return (
 		<div
 			className={cn(
-				"flex w-full min-w-0 gap-2.5 bg-field/70",
+				"flex w-full min-w-0 gap-2.5 bg-detail/92",
 				inline
 					? "min-h-9 items-center px-2.5 py-2"
 					: "min-h-[56px] items-start px-3 py-2.5",
@@ -625,7 +626,7 @@ export const InfoTile = memo(function InfoTile({
 			>
 				<span
 					className={cn(
-						"truncate text-[11px] font-medium uppercase text-muted-strong",
+						"truncate text-[12px] font-medium text-muted",
 						inline ? "shrink-0" : "block",
 					)}
 				>

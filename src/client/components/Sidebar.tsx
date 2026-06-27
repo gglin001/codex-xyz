@@ -3,7 +3,7 @@ import { Check, ChevronDown, Plus, Search } from "lucide-react";
 import type { ReactNode } from "react";
 import { memo, useMemo, useState } from "react";
 import { codexThreadCommandLabels } from "../codexCommandLabels.js";
-import { cn, ui } from "../designSystem.js";
+import { cn, motionPresets, ui } from "../designSystem.js";
 import { ProjectResultRow, projectResultTitle } from "./ProjectResultRow.js";
 import {
 	ThreadResultRow,
@@ -135,7 +135,7 @@ export const Sidebar = memo(function Sidebar({
 							initial={{ opacity: 0, y: -8, scale: 0.98 }}
 							animate={{ opacity: 1, y: 0, scale: 1 }}
 							exit={{ opacity: 0, y: -8, scale: 0.98 }}
-							transition={{ type: "spring", stiffness: 420, damping: 32 }}
+							transition={motionPresets.quick}
 							role="menu"
 						>
 							{projects.map((project) => (
@@ -161,7 +161,7 @@ export const Sidebar = memo(function Sidebar({
 				</AnimatePresence>
 			</div>
 
-			<div className="flex shrink-0 items-center gap-2 bg-panel/70 px-3 pb-3 pt-2">
+			<div className="flex shrink-0 items-center gap-2 bg-panel/40 px-3 pb-3 pt-2">
 				<div className="min-w-0 flex-1">
 					<FieldShell icon={<Search size={14} />} className="h-9 w-full">
 						<input
@@ -194,11 +194,11 @@ export const Sidebar = memo(function Sidebar({
 						initial={{ opacity: 0, x: -10 }}
 						animate={{ opacity: 1, x: 0 }}
 						exit={{ opacity: 0, x: 10 }}
-						transition={{ type: "spring", stiffness: 360, damping: 34 }}
-						className="grid gap-5"
+						transition={motionPresets.item}
+						className="grid gap-4"
 					>
 						{threadGroups.length === 0 ? (
-							<ControlCard className="bg-field/40 px-3 py-7 text-center text-[12px] text-muted">
+							<ControlCard className="px-3 py-7 text-center text-[12px] text-muted">
 								{threadQuery.trim()
 									? "No matching threads"
 									: "No Codex threads yet"}
@@ -206,7 +206,7 @@ export const Sidebar = memo(function Sidebar({
 						) : null}
 						{threadGroups.map((group) => (
 							<section key={group.bucket} className="grid gap-1">
-								<div className="px-2 pb-1 text-[11px] font-medium uppercase tracking-normal text-muted-strong">
+								<div className="px-2 pb-1 text-[12px] font-medium text-muted">
 									{group.bucket}
 								</div>
 								{group.threads.map((thread) => {

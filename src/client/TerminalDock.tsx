@@ -14,7 +14,7 @@ import {
 	writeTerminalInput,
 } from "./api.js";
 import { IconButton, Pill } from "./components/uiPrimitives.js";
-import { cn, tone, ui } from "./designSystem.js";
+import { cn, layer, motionPresets, radius, tone, ui } from "./designSystem.js";
 import { openEventStream, parseSseJsonEvent } from "./eventStream.js";
 import { type ThemeMode, terminalTheme } from "./theme.js";
 
@@ -50,9 +50,6 @@ const inputFlushMs = 8;
 const resizeFlushMs = 100;
 const metricsCommitMs = 500;
 const dragDismissThreshold = 80;
-const mobileHandleClass = "h-1 w-14 rounded-full bg-control-hover";
-const mobileTerminalSheetClass =
-	"pointer-events-auto absolute inset-x-0 top-[var(--mobile-sheet-top)] flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden rounded-t-[16px] md:inset-auto md:rounded-[12px]";
 const desktopMargin = 16;
 const desktopDefaultWidth = 560;
 const desktopDefaultHeight = 320;
@@ -206,8 +203,8 @@ function useMediaQuery(query: string) {
 	return matches;
 }
 
-const spring = { type: "spring", stiffness: 360, damping: 36 } as const;
-const sheetSpring = { type: "spring", stiffness: 380, damping: 38 } as const;
+const spring = motionPresets.spring;
+const sheetSpring = motionPresets.sheet;
 
 function DragHandle() {
 	return (
@@ -215,7 +212,7 @@ function DragHandle() {
 			className="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center md:hidden"
 			aria-hidden="true"
 		>
-			<div className={mobileHandleClass} />
+			<div className={layer.mobileHandle} />
 		</div>
 	);
 }
@@ -735,7 +732,7 @@ export function TerminalDock({
 
 	const header = (
 		<div
-			className="grid min-h-12 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 bg-detail/70 px-3.5 py-1.5 md:cursor-move"
+			className="grid min-h-12 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 bg-panel/40 px-3.5 py-1.5 md:cursor-move"
 			onPointerDown={startDesktopMove}
 			onPointerMove={updateDesktopInteraction}
 			onPointerUp={finishDesktopInteraction}
@@ -798,7 +795,10 @@ export function TerminalDock({
 	const resizeHandle = (
 		<button
 			type="button"
-			className="absolute bottom-1 right-1 hidden h-6 w-6 cursor-nwse-resize items-end justify-end rounded-[10px] text-muted transition duration-150 ease-out hover:bg-control hover:text-fg-strong md:flex"
+			className={cn(
+				"absolute bottom-1 right-1 hidden h-6 w-6 cursor-nwse-resize items-end justify-end text-muted transition duration-150 ease-out hover:bg-control hover:text-fg-strong md:flex",
+				radius.control,
+			)}
 			title="Resize terminal"
 			aria-label="Resize terminal"
 			onPointerDown={startDesktopResize}
@@ -826,7 +826,7 @@ export function TerminalDock({
 				>
 					<motion.div
 						key="terminal-backdrop"
-						className="absolute inset-0 bg-black/60 backdrop-blur-sm md:hidden"
+						className={cn("absolute inset-0 md:hidden", ui.overlay)}
 						initial={{ opacity: 0 }}
 						animate={{ opacity: 1 }}
 						exit={{ opacity: 0 }}
@@ -835,7 +835,7 @@ export function TerminalDock({
 					/>
 
 					<motion.section
-						className={cn(mobileTerminalSheetClass, ui.popover)}
+						className={cn(layer.mobileTerminalSheet, ui.popover)}
 						style={
 							isMobileSheet
 								? undefined

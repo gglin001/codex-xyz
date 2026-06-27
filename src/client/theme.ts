@@ -24,8 +24,8 @@ export const themeModeLabels: Record<ThemeMode, string> = {
 };
 
 const themeChromeColors: Record<ThemeMode, string> = {
-	dark: "#161718",
-	day: "#f5f5f7",
+	dark: "#131314",
+	day: "#f7f8fb",
 };
 
 export function normalizeThemeMode(
@@ -96,17 +96,17 @@ export function terminalTheme(mode: ThemeMode): TerminalTheme {
 	}
 
 	return {
-		background: "#0b0d0c",
-		foreground: "#d8ded7",
+		background: "#0d0e10",
+		foreground: "#e3e3e7",
 		cursor: "#a8c8ff",
 		selectionBackground: "#2c382d",
-		black: "#151816",
+		black: "#131314",
 		red: "#fb7185",
 		green: "#67d28f",
 		yellow: "#e2c26d",
 		blue: "#a8c8ff",
 		magenta: "#c4b5fd",
 		cyan: "#67e8f9",
-		white: "#f3f7f0",
+		white: "#f5f5f7",
 	};
 }

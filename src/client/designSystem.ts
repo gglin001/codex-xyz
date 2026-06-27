@@ -4,29 +4,44 @@ export function cn(...values: Array<string | false | null | undefined>) {
 
 export const radius = {
 	control: "rounded-[8px]",
-	controlLg: "rounded-[10px]",
+	controlLg: "rounded-[8px]",
 	nav: "rounded-[8px]",
 	card: "rounded-[8px]",
-	cardLg: "rounded-[10px]",
+	cardLg: "rounded-[8px]",
 	panel: "rounded-[12px]",
-	sheet: "rounded-[16px]",
+	sheet: "rounded-[12px]",
+} as const;
+
+export const motionPresets = {
+	spring: { type: "spring", stiffness: 360, damping: 36 },
+	sheet: { type: "spring", stiffness: 360, damping: 36 },
+	item: { type: "spring", stiffness: 360, damping: 34 },
+	quick: { type: "spring", stiffness: 420, damping: 34 },
+} as const;
+
+export const layer = {
+	mobileHandle: "h-1 w-14 rounded-full bg-control-hover",
+	mobileSheet:
+		"mobile-sheet-surface absolute inset-x-0 top-[var(--mobile-sheet-top)] flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden rounded-t-[12px] md:rounded-[12px]",
+	mobileTerminalSheet:
+		"mobile-sheet-surface pointer-events-auto absolute inset-x-0 top-[var(--mobile-sheet-top)] flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden rounded-t-[12px] md:inset-auto md:rounded-[12px]",
 } as const;
 
 export const tone = {
 	neutral: {
 		dot: "bg-muted",
 		badge: "bg-control text-fg",
-		alert: "bg-detail/90 text-fg",
+		alert: "bg-control text-fg",
 	},
 	selected: {
 		badge: "bg-selected text-fg-strong",
 		strong: "bg-selected-strong text-fg-strong",
 	},
 	running: {
-		dot: "bg-running-dot shadow-[0_0_10px_rgba(103,210,143,0.28)]",
+		dot: "bg-running-dot",
 		icon: "text-running-dot",
 		badge: "bg-running text-running-fg",
-		alert: "bg-emerald-400/8 text-running-fg",
+		alert: "bg-success text-success-fg",
 	},
 	stale: {
 		dot: "bg-stale-dot",
@@ -35,9 +50,9 @@ export const tone = {
 	},
 	error: {
 		dot: "bg-failed-dot",
-		icon: "text-rose-300",
+		icon: "text-error-fg",
 		badge: "bg-error text-error-fg",
-		alert: "bg-rose-400/10 text-rose-100",
+		alert: "bg-error text-error-fg",
 	},
 	completed: {
 		dot: "bg-completed-dot",
@@ -66,7 +81,7 @@ export function formatDisplayScale(value: number) {
 
 const interactiveTransition = "transition duration-150 ease-out";
 const disabledState = "disabled:cursor-not-allowed disabled:opacity-40";
-const pressState = "active:translate-y-px";
+const pressState = "active:bg-control-hover";
 const staggeredTransition =
 	"transition-[background-color,color] duration-150 ease-out";
 const focusRing =
@@ -86,9 +101,9 @@ export const ui = {
 	outlineCard: `overflow-hidden ${radius.card} bg-surface-subtle/72 ${interactiveTransition} hover:bg-detail/76`,
 	cardLarge: `overflow-hidden ${radius.cardLg} bg-detail/92 ${interactiveTransition} hover:bg-surface/80`,
 	panelCard: `overflow-hidden ${radius.panel} bg-detail/92 ${interactiveTransition} hover:bg-surface/80`,
-	popover: `overflow-hidden ${radius.panel} bg-detail/96 md:backdrop-blur-md`,
-	overlay: "bg-black/55 md:backdrop-blur-sm",
-	backdropPanel: "bg-panel/96 backdrop-blur-xl",
+	popover: `overflow-hidden ${radius.panel} bg-panel/98 md:backdrop-blur-md`,
+	overlay: "bg-app-bg/70 md:bg-app-bg/62 md:backdrop-blur-sm",
+	backdropPanel: "bg-panel/98 backdrop-blur-xl",
 	controlBase,
 	iconButton: `inline-flex h-8 min-w-8 items-center justify-center ${radius.control} bg-control text-muted-strong ${interactiveTransition} hover:bg-control-hover hover:text-fg-strong ${focusRing} ${disabledState} ${pressState}`,
 	largeIconButton: `inline-flex h-9 w-9 shrink-0 items-center justify-center ${radius.nav} bg-transparent text-muted-strong shadow-none ${interactiveTransition} hover:bg-control hover:text-fg-strong active:bg-control-hover active:text-fg-strong ${focusRing} ${disabledState} ${pressState}`,
@@ -103,6 +118,7 @@ export const ui = {
 	segment: `inline-flex h-8 items-center justify-center ${radius.control} px-3 text-[13px] font-medium ${interactiveTransition} hover:text-fg-strong ${focusRing}`,
 	menuItem: `flex min-w-0 items-center text-left ${radius.control} ${interactiveRow}`,
 	alert: `${radius.controlLg} px-3.5 py-2.5 text-[12px]`,
+	alertDismissButton: `inline-flex h-6 w-6 shrink-0 items-center justify-center ${radius.control} text-current opacity-70 ${interactiveTransition} hover:bg-control-hover hover:opacity-100 focus-visible:bg-control-hover focus-visible:outline-none`,
 	iconBox: `flex shrink-0 items-center justify-center ${radius.control} bg-control text-fg`,
 	avatar: `flex shrink-0 items-center justify-center ${radius.control} bg-control text-[12px] font-semibold text-fg`,
 	selected: "bg-selected text-fg-strong",
@@ -116,7 +132,6 @@ export const ui = {
 	row: interactiveRow,
 	meta: "text-muted",
 	subtleMeta: "text-[12px] text-muted",
-	sectionLabel:
-		"flex items-center gap-2 text-[11px] font-medium uppercase text-muted",
+	sectionLabel: "flex items-center gap-2 text-[12px] font-medium text-muted",
 	pill: "inline-flex h-5 shrink-0 items-center justify-center gap-1 rounded-full bg-control px-1.5 text-[11px] font-medium leading-none text-fg",
 } as const;

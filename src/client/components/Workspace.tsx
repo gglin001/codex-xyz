@@ -45,7 +45,7 @@ import type {
 import { threadDisplayStatus } from "../../server/domain.js";
 import { copyToClipboard } from "../clipboard.js";
 import { codexThreadCommandLabels } from "../codexCommandLabels.js";
-import { cn, tone, ui } from "../designSystem.js";
+import { cn, layer, motionPresets, tone, ui } from "../designSystem.js";
 import { getFirstLineTextPreview } from "../textPreview.js";
 import {
 	getTranscriptEntries,
@@ -140,11 +140,10 @@ type ChatMessage = {
 	time: string;
 };
 
-const spring = { type: "spring", stiffness: 340, damping: 34 } as const;
+const spring = motionPresets.item;
 const threadContentWidthClass = "[--thread-content-width:900px]";
 const threadContentFrameClass =
 	"mx-auto w-full min-w-0 max-w-[var(--thread-content-width)]";
-const mobileHandleClass = "h-1 w-14 rounded-full bg-control-hover";
 const mobileComposerSwipeAxisLockRatio = 1.15;
 const mobileComposerSwipeDirectionThresholds = {
 	up: 88,
@@ -385,10 +384,7 @@ const DismissibleAlert = memo(function DismissibleAlert({
 			<span className="min-w-0 flex-1 break-words leading-5">{message}</span>
 			<button
 				type="button"
-				className={cn(
-					"inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] transition duration-150 ease-out focus-visible:bg-control-hover focus-visible:outline-none",
-					buttonClassName,
-				)}
+				className={cn(ui.alertDismissButton, buttonClassName)}
 				aria-label={dismissLabel}
 				title={dismissLabel}
 				onClick={onDismiss}
@@ -854,7 +850,7 @@ const Composer = memo(
 								message={notice}
 								onDismiss={onDismissNotice}
 								toneClass={tone.running.alert}
-								buttonClassName="text-current opacity-70 hover:bg-emerald-300/10 hover:opacity-100"
+								buttonClassName=""
 								dismissLabel="Dismiss notice"
 							/>
 						) : null}
@@ -863,7 +859,7 @@ const Composer = memo(
 								message={error}
 								onDismiss={onDismissError}
 								toneClass={tone.error.alert}
-								buttonClassName="text-current opacity-70 hover:bg-rose-300/10 hover:opacity-100"
+								buttonClassName=""
 								dismissLabel="Dismiss error"
 								role="alert"
 							/>
@@ -919,7 +915,7 @@ const Composer = memo(
 							<span
 								className={cn(
 									"pointer-events-none absolute -bottom-2 left-1/2 -translate-x-1/2 md:hidden",
-									mobileHandleClass,
+									layer.mobileHandle,
 								)}
 								aria-hidden="true"
 							/>

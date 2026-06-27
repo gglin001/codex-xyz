@@ -407,6 +407,8 @@
 
 	.mobile-sheet-surface {
 		background: var(--panel-bg);
+		border-bottom-left-radius: 0 !important;
+		border-bottom-right-radius: 0 !important;
 	}
 
 	:root[data-keyboard-visible] .mobile-keyboard-scroll {
