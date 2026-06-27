@@ -5,17 +5,13 @@ import {
 	Check,
 	Copy,
 	Ellipsis,
-	FileText,
 	GitFork,
 	Goal,
-	Image as ImageIcon,
 	ListTree,
 	Menu,
 	Minimize2,
-	Paperclip,
 	Play,
 	Plus,
-	Search,
 	Send,
 	Settings,
 	Square,
@@ -23,7 +19,6 @@ import {
 	X,
 } from "lucide-react";
 import type {
-	ChangeEvent,
 	CSSProperties,
 	KeyboardEvent,
 	MouseEvent,
@@ -42,7 +37,6 @@ import {
 } from "react";
 import type {
 	ControlThread,
-	FileSearchResult,
 	ThreadDetail,
 	ThreadDisplayStatus,
 	ThreadItem,
@@ -50,11 +44,6 @@ import type {
 import { threadDisplayStatus } from "../../server/domain.js";
 import { copyToClipboard } from "../clipboard.js";
 import { codexThreadCommandLabels } from "../codexCommandLabels.js";
-import {
-	type ComposerContextItem,
-	contextDisplayName,
-	newComposerContextId,
-} from "../composerContext.js";
 import { cn, tone, ui } from "../designSystem.js";
 import { getFirstLineTextPreview } from "../textPreview.js";
 import {
@@ -101,16 +90,11 @@ export type WorkspaceProps = {
 	goalMode: boolean;
 	canUseGoalMode: boolean;
 	canSubmitPrompt: boolean;
-	composerContextItems: ComposerContextItem[];
 	wrapThreadContent: boolean;
 	displayScale: number;
 	navigatorVisible: boolean;
 	inspectorVisible: boolean;
 	onPromptChange: (value: string) => void;
-	onAddComposerContextItem: (item: ComposerContextItem) => void;
-	onRemoveComposerContextItem: (itemId: string) => void;
-	onSearchComposerFiles: (query: string) => Promise<FileSearchResult[]>;
-	onComposerError: (message: string) => void;
 	onPromptKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
 	onPromptSubmit: (event: SubmitEvent<HTMLFormElement>) => void;
 	onModeChange: (mode: ComposerMode) => void;
@@ -155,80 +139,6 @@ const mobileComposerSwipeDirectionThresholds = {
 };
 const mobileTranscriptInitialWindow = 80;
 const mobileTranscriptWindowStep = 80;
-const uploadTextBytesLimit = 512 * 1024;
-const fileMentionSearchDebounceMs = 180;
-const maxFileMentionResults = 8;
-
-type FileMentionRange = {
-	start: number;
-	end: number;
-	query: string;
-};
-
-function fileNameFromPath(path: string) {
-	const normalized = path.replace(/\\/g, "/");
-	return normalized.split("/").filter(Boolean).at(-1) ?? path;
-}
-
-function isTextUpload(file: File) {
-	if (file.type.startsWith("text/")) {
-		return true;
-	}
-	if (
-		file.type === "application/json" ||
-		file.type === "application/xml" ||
-		file.type === "application/javascript" ||
-		file.type === "application/typescript"
-	) {
-		return true;
-	}
-	return /\.(c|cc|cpp|css|csv|go|h|hpp|html|java|js|json|jsx|log|md|mdx|py|rs|sh|sql|svg|toml|ts|tsx|txt|xml|yaml|yml)$/i.test(
-		file.name,
-	);
-}
-
-function readFileAsDataUrl(file: File) {
-	return new Promise<string>((resolve, reject) => {
-		const reader = new FileReader();
-		reader.onload = () => {
-			if (typeof reader.result === "string") {
-				resolve(reader.result);
-				return;
-			}
-			reject(new Error(`Failed to read ${file.name}`));
-		};
-		reader.onerror = () => {
-			reject(reader.error ?? new Error(`Failed to read ${file.name}`));
-		};
-		reader.readAsDataURL(file);
-	});
-}
-
-function activeFileMention(
-	value: string,
-	cursor: number,
-): FileMentionRange | null {
-	const beforeCursor = value.slice(0, cursor);
-	const match = beforeCursor.match(/(^|\s)@([^\s@]*)$/);
-	if (!match || match.index === undefined) {
-		return null;
-	}
-	const prefix = match[1] ?? "";
-	const query = match[2] ?? "";
-	const start = match.index + prefix.length;
-	return {
-		start,
-		end: cursor,
-		query,
-	};
-}
-
-function contextIcon(item: ComposerContextItem) {
-	if (item.type === "uploaded_image") {
-		return <ImageIcon size={13} />;
-	}
-	return <FileText size={13} />;
-}
 
 function ThreadContentFrame({
 	children,
@@ -580,14 +490,9 @@ type ComposerProps = Pick<
 	| "goalMode"
 	| "canUseGoalMode"
 	| "canSubmitPrompt"
-	| "composerContextItems"
 	| "selectedThread"
 	| "selectedThreadId"
 	| "onPromptChange"
-	| "onAddComposerContextItem"
-	| "onRemoveComposerContextItem"
-	| "onSearchComposerFiles"
-	| "onComposerError"
 	| "onPromptKeyDown"
 	| "onPromptSubmit"
 	| "onModeChange"
@@ -621,13 +526,8 @@ const Composer = memo(
 			selectedThreadId,
 			canUseGoalMode,
 			canSubmitPrompt,
-			composerContextItems,
 			selectedThread,
 			onPromptChange,
-			onAddComposerContextItem,
-			onRemoveComposerContextItem,
-			onSearchComposerFiles,
-			onComposerError,
 			onPromptKeyDown,
 			onPromptSubmit,
 			onModeChange,
@@ -646,7 +546,6 @@ const Composer = memo(
 		ref,
 	) {
 		const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-		const fileInputRef = useRef<HTMLInputElement | null>(null);
 		const actionBarRef = useRef<HTMLDivElement | null>(null);
 		const selectedThreadArchived = Boolean(selectedThread?.archivedAt);
 		const canInterrupt =
@@ -671,14 +570,6 @@ const Composer = memo(
 		const canUseBackgroundTerminals =
 			Boolean(selectedThreadId) && !selectedThreadArchived && !busy;
 		const [moreActionsOpen, setMoreActionsOpen] = useState(false);
-		const [fileMentionRange, setFileMentionRange] =
-			useState<FileMentionRange | null>(null);
-		const [fileSearchResults, setFileSearchResults] = useState<
-			FileSearchResult[]
-		>([]);
-		const [fileSearchLoading, setFileSearchLoading] = useState(false);
-		const [fileSearchError, setFileSearchError] = useState<string | null>(null);
-		const [fileSearchActiveIndex, setFileSearchActiveIndex] = useState(0);
 		const submitTitle = goalMode
 			? codexThreadCommandLabels.goal
 			: promptTarget === "thread"
@@ -716,60 +607,6 @@ const Composer = memo(
 			textarea.style.height = `${Math.min(160, Math.max(30, textarea.scrollHeight))}px`;
 		});
 
-		useEffect(() => {
-			if (!fileMentionRange) {
-				setFileSearchResults([]);
-				setFileSearchLoading(false);
-				setFileSearchError(null);
-				setFileSearchActiveIndex(0);
-				return;
-			}
-
-			const query = fileMentionRange.query.trim();
-			if (!query) {
-				setFileSearchResults([]);
-				setFileSearchLoading(false);
-				setFileSearchError(null);
-				setFileSearchActiveIndex(0);
-				return;
-			}
-
-			let cancelled = false;
-			setFileSearchLoading(true);
-			setFileSearchError(null);
-			const timer = window.setTimeout(() => {
-				onSearchComposerFiles(query)
-					.then((results) => {
-						if (cancelled) {
-							return;
-						}
-						setFileSearchResults(results.slice(0, maxFileMentionResults));
-						setFileSearchActiveIndex(0);
-					})
-					.catch((searchError: unknown) => {
-						if (cancelled) {
-							return;
-						}
-						setFileSearchResults([]);
-						setFileSearchError(
-							searchError instanceof Error
-								? searchError.message
-								: "Failed to search files",
-						);
-					})
-					.finally(() => {
-						if (!cancelled) {
-							setFileSearchLoading(false);
-						}
-					});
-			}, fileMentionSearchDebounceMs);
-
-			return () => {
-				cancelled = true;
-				window.clearTimeout(timer);
-			};
-		}, [fileMentionRange, onSearchComposerFiles]);
-
 		const focusPromptOnNextFrame = useCallback(() => {
 			window.requestAnimationFrame(() => {
 				const textarea = textareaRef.current;
@@ -781,175 +618,6 @@ const Composer = memo(
 				textarea.setSelectionRange(caret, caret);
 			});
 		}, []);
-
-		const updateFileMentionForSelection = useCallback((value: string) => {
-			const textarea = textareaRef.current;
-			if (!textarea) {
-				setFileMentionRange(null);
-				return;
-			}
-			const selectionStart = textarea.selectionStart ?? value.length;
-			const selectionEnd = textarea.selectionEnd ?? selectionStart;
-			if (selectionStart !== selectionEnd) {
-				setFileMentionRange(null);
-				return;
-			}
-			setFileMentionRange(activeFileMention(value, selectionStart));
-		}, []);
-
-		const selectFileMention = useCallback(
-			(result: FileSearchResult) => {
-				const range = fileMentionRange;
-				if (!range) {
-					return;
-				}
-				const before = prompt.slice(0, range.start);
-				const after = prompt.slice(range.end);
-				const needsLeadingSpace = before.length > 0 && !/\s$/.test(before);
-				const needsTrailingSpace = after.length > 0 && !/^\s/.test(after);
-				const inserted = `${needsLeadingSpace ? " " : ""}${result.path}${
-					needsTrailingSpace ? " " : ""
-				}`;
-				const nextPrompt = `${before}${inserted}${after}`;
-				const nextCursor = before.length + inserted.length;
-				onPromptChange(nextPrompt);
-				if (
-					!composerContextItems.some(
-						(item) => item.type === "file" && item.path === result.path,
-					)
-				) {
-					onAddComposerContextItem({
-						id: newComposerContextId(),
-						type: "file",
-						name: result.fileName || fileNameFromPath(result.path),
-						path: result.path,
-					});
-				}
-				setFileMentionRange(null);
-				window.requestAnimationFrame(() => {
-					const textarea = textareaRef.current;
-					if (!textarea || textarea.disabled) {
-						return;
-					}
-					textarea.focus({ preventScroll: true });
-					textarea.setSelectionRange(nextCursor, nextCursor);
-				});
-			},
-			[
-				composerContextItems,
-				fileMentionRange,
-				onAddComposerContextItem,
-				onPromptChange,
-				prompt,
-			],
-		);
-
-		const handlePromptChange = useCallback(
-			(event: ChangeEvent<HTMLTextAreaElement>) => {
-				const nextPrompt = event.target.value;
-				onPromptChange(nextPrompt);
-				setFileMentionRange(
-					activeFileMention(nextPrompt, event.target.selectionStart),
-				);
-			},
-			[onPromptChange],
-		);
-
-		const handlePromptKeyDown = useCallback(
-			(event: KeyboardEvent<HTMLTextAreaElement>) => {
-				if (fileMentionRange) {
-					if (event.key === "Escape") {
-						event.preventDefault();
-						setFileMentionRange(null);
-						return;
-					}
-					if (event.key === "ArrowDown") {
-						event.preventDefault();
-						setFileSearchActiveIndex((index) =>
-							Math.min(fileSearchResults.length - 1, index + 1),
-						);
-						return;
-					}
-					if (event.key === "ArrowUp") {
-						event.preventDefault();
-						setFileSearchActiveIndex((index) => Math.max(0, index - 1));
-						return;
-					}
-					if (event.key === "Enter" && fileSearchResults.length > 0) {
-						event.preventDefault();
-						selectFileMention(fileSearchResults[fileSearchActiveIndex]);
-						return;
-					}
-				}
-				onPromptKeyDown(event);
-			},
-			[
-				fileMentionRange,
-				fileSearchActiveIndex,
-				fileSearchResults,
-				onPromptKeyDown,
-				selectFileMention,
-			],
-		);
-
-		const handleUploadChange = useCallback(
-			(event: ChangeEvent<HTMLInputElement>) => {
-				const files = Array.from(event.target.files ?? []);
-				event.target.value = "";
-				if (files.length === 0) {
-					return;
-				}
-				void (async () => {
-					const errors: string[] = [];
-					for (const file of files) {
-						try {
-							if (file.type.startsWith("image/")) {
-								const dataUrl = await readFileAsDataUrl(file);
-								onAddComposerContextItem({
-									id: newComposerContextId(),
-									type: "uploaded_image",
-									name: file.name,
-									mimeType: file.type || "application/octet-stream",
-									dataUrl,
-								});
-								continue;
-							}
-							if (!isTextUpload(file)) {
-								errors.push(
-									`${file.name} is not a supported text or image file`,
-								);
-								continue;
-							}
-							if (file.size > uploadTextBytesLimit) {
-								errors.push(
-									`${file.name} is larger than ${Math.round(
-										uploadTextBytesLimit / 1024,
-									)}KB`,
-								);
-								continue;
-							}
-							onAddComposerContextItem({
-								id: newComposerContextId(),
-								type: "uploaded_text",
-								name: file.name,
-								mimeType: file.type || null,
-								text: await file.text(),
-							});
-						} catch (uploadError) {
-							errors.push(
-								uploadError instanceof Error
-									? uploadError.message
-									: `Failed to read ${file.name}`,
-							);
-						}
-					}
-					if (errors.length > 0) {
-						onComposerError(errors.join("; "));
-					}
-				})();
-			},
-			[onAddComposerContextItem, onComposerError],
-		);
 
 		useSwipeGesture(
 			actionBarRef,
@@ -1015,41 +683,7 @@ const Composer = memo(
 				) : null}
 
 				<form onSubmit={onPromptSubmit}>
-					<div className={cn(ui.composerShell, "relative")}>
-						<input
-							ref={fileInputRef}
-							type="file"
-							multiple
-							className="hidden"
-							onChange={handleUploadChange}
-						/>
-						{composerContextItems.length > 0 ? (
-							<div className="flex max-h-20 flex-wrap gap-1.5 overflow-y-auto pr-1">
-								{composerContextItems.map((item) => (
-									<span
-										key={item.id}
-										className="inline-flex max-w-full items-center gap-1.5 rounded-[8px] border border-border bg-control px-2 py-1 text-[11px] leading-4 text-fg shadow-control"
-										title={contextDisplayName(item)}
-									>
-										<span className="shrink-0 text-muted" aria-hidden="true">
-											{contextIcon(item)}
-										</span>
-										<span className="min-w-0 max-w-[16rem] truncate">
-											{contextDisplayName(item)}
-										</span>
-										<button
-											type="button"
-											className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] text-muted transition hover:bg-control-hover hover:text-fg-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-											title="Remove context"
-											aria-label={`Remove ${contextDisplayName(item)}`}
-											onClick={() => onRemoveComposerContextItem(item.id)}
-										>
-											<X size={11} />
-										</button>
-									</span>
-								))}
-							</div>
-						) : null}
+					<div className={ui.composerShell}>
 						<textarea
 							ref={textareaRef}
 							className={cn(
@@ -1057,85 +691,15 @@ const Composer = memo(
 								"max-h-[160px] min-h-[34px] px-0.5 py-0.5 text-[length:var(--composer-font-size)] leading-[var(--composer-line-height)]",
 							)}
 							value={prompt}
-							onChange={handlePromptChange}
-							onKeyDown={handlePromptKeyDown}
-							onSelect={() => updateFileMentionForSelection(prompt)}
-							onFocus={(event) => {
-								onPromptFocus?.();
-								setFileMentionRange(
-									activeFileMention(prompt, event.target.selectionStart),
-								);
-							}}
+							onChange={(event) => onPromptChange(event.target.value)}
+							onKeyDown={onPromptKeyDown}
+							onFocus={onPromptFocus}
 							placeholder={placeholder}
 							disabled={busy}
 							autoCapitalize="sentences"
 							autoCorrect="on"
 							spellCheck={true}
 						/>
-						<AnimatePresence>
-							{fileMentionRange ? (
-								<motion.div
-									className="absolute bottom-[3.45rem] left-3.5 right-3.5 z-30 max-h-64 overflow-hidden rounded-[12px] border border-border bg-detail shadow-popover"
-									role="listbox"
-									initial={{ opacity: 0, y: 6 }}
-									animate={{ opacity: 1, y: 0 }}
-									exit={{ opacity: 0, y: 6 }}
-									transition={spring}
-								>
-									<div className="flex h-9 items-center gap-2 border-b border-border px-3 text-[12px] text-muted">
-										<Search size={13} />
-										<span className="min-w-0 truncate">
-											{fileMentionRange.query.trim()
-												? `Search files for "${fileMentionRange.query}"`
-												: "Type after @ to search files"}
-										</span>
-									</div>
-									<div className="max-h-52 overflow-y-auto p-1">
-										{fileSearchLoading ? (
-											<div className="px-3 py-3 text-[12px] text-muted">
-												Searching...
-											</div>
-										) : fileSearchError ? (
-											<div className="px-3 py-3 text-[12px] text-rose-200">
-												{fileSearchError}
-											</div>
-										) : fileSearchResults.length === 0 ? (
-											<div className="px-3 py-3 text-[12px] text-muted">
-												No files found
-											</div>
-										) : (
-											fileSearchResults.map((result, index) => (
-												<button
-													key={`${result.root}:${result.path}`}
-													type="button"
-													role="option"
-													aria-selected={index === fileSearchActiveIndex}
-													className={cn(
-														"flex h-11 w-full min-w-0 items-center gap-2 rounded-[8px] px-2 text-left transition duration-150 ease-out hover:bg-control",
-														index === fileSearchActiveIndex
-															? "bg-selected text-fg-strong"
-															: "text-fg",
-													)}
-													onMouseEnter={() => setFileSearchActiveIndex(index)}
-													onMouseDown={(event) => event.preventDefault()}
-													onClick={() => selectFileMention(result)}
-												>
-													<FileText size={14} className="shrink-0 text-muted" />
-													<span className="min-w-0 flex-1">
-														<span className="block truncate text-[12px] font-medium">
-															{result.fileName || fileNameFromPath(result.path)}
-														</span>
-														<span className="block truncate text-[11px] text-muted">
-															{result.path}
-														</span>
-													</span>
-												</button>
-											))
-										)}
-									</div>
-								</motion.div>
-							) : null}
-						</AnimatePresence>
 						<div
 							ref={actionBarRef}
 							className="relative flex items-center justify-between gap-3 border-t border-border pt-2"
@@ -1148,14 +712,6 @@ const Composer = memo(
 								aria-hidden="true"
 							/>
 							<div className="flex min-w-0 items-center gap-1.5">
-								<ComposerIconButton
-									title="Attach files"
-									aria-label="Attach files"
-									disabled={busy}
-									onClick={() => fileInputRef.current?.click()}
-								>
-									<Paperclip size={14} />
-								</ComposerIconButton>
 								<ComposerIconButton
 									title={codexThreadCommandLabels.new}
 									aria-label={codexThreadCommandLabels.new}
@@ -1369,12 +925,7 @@ export const Workspace = memo(
 			inspectorVisible,
 			canUseGoalMode,
 			canSubmitPrompt,
-			composerContextItems,
 			onPromptChange,
-			onAddComposerContextItem,
-			onRemoveComposerContextItem,
-			onSearchComposerFiles,
-			onComposerError,
 			onPromptKeyDown,
 			onPromptSubmit,
 			onModeChange,
@@ -1714,12 +1265,7 @@ export const Workspace = memo(
 									selectedThread={selectedThread}
 									canUseGoalMode={canUseGoalMode}
 									canSubmitPrompt={canSubmitPrompt}
-									composerContextItems={composerContextItems}
 									onPromptChange={onPromptChange}
-									onAddComposerContextItem={onAddComposerContextItem}
-									onRemoveComposerContextItem={onRemoveComposerContextItem}
-									onSearchComposerFiles={onSearchComposerFiles}
-									onComposerError={onComposerError}
 									onPromptKeyDown={onPromptKeyDown}
 									onPromptSubmit={onPromptSubmit}
 									onModeChange={onModeChange}

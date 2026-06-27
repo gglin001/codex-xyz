@@ -1,6 +1,4 @@
 import {
-	type ComposerInput,
-	type ComposerInputItem,
 	type CozEvent,
 	type GoalStatusUpdate,
 	isSummaryEventType,
@@ -83,100 +81,6 @@ function optionalPositiveInteger(body: Record<string, unknown>, key: string) {
 		throw new Error(`${key} must be a positive integer`);
 	}
 	return number;
-}
-
-function optionalStringArray(body: Record<string, unknown>, key: string) {
-	const value = body[key];
-	if (value === undefined || value === null) {
-		return null;
-	}
-	if (!Array.isArray(value)) {
-		throw new Error(`${key} must be an array`);
-	}
-	const strings = value
-		.map((entry) => (typeof entry === "string" ? entry.trim() : ""))
-		.filter(Boolean);
-	if (strings.length === 0) {
-		throw new Error(`${key} must include at least one string`);
-	}
-	return strings;
-}
-
-function optionalImageDetail(value: unknown) {
-	return value === "auto" ||
-		value === "low" ||
-		value === "high" ||
-		value === "original"
-		? value
-		: undefined;
-}
-
-function optionalComposerInput(
-	body: Record<string, unknown>,
-): ComposerInput | null {
-	const value = body.input;
-	if (value === undefined || value === null) {
-		return null;
-	}
-	if (!Array.isArray(value)) {
-		throw new Error("input must be an array");
-	}
-	return value.map((entry): ComposerInputItem => {
-		if (!entry || typeof entry !== "object") {
-			throw new Error("input items must be objects");
-		}
-		const item = entry as Record<string, unknown>;
-		if (item.type === "text") {
-			return {
-				type: "text",
-				text: typeof item.text === "string" ? item.text : "",
-				text_elements: Array.isArray(item.text_elements)
-					? item.text_elements.filter(
-							(element): element is Record<string, unknown> =>
-								Boolean(element) && typeof element === "object",
-						)
-					: [],
-			};
-		}
-		if (item.type === "image") {
-			if (typeof item.url !== "string" || item.url.trim().length === 0) {
-				throw new Error("image input requires url");
-			}
-			return {
-				type: "image",
-				url: item.url,
-				...(optionalImageDetail(item.detail)
-					? { detail: optionalImageDetail(item.detail) }
-					: {}),
-			};
-		}
-		if (item.type === "localImage") {
-			if (typeof item.path !== "string" || item.path.trim().length === 0) {
-				throw new Error("localImage input requires path");
-			}
-			return {
-				type: "localImage",
-				path: item.path,
-				...(optionalImageDetail(item.detail)
-					? { detail: optionalImageDetail(item.detail) }
-					: {}),
-			};
-		}
-		if (item.type === "skill" || item.type === "mention") {
-			if (typeof item.name !== "string" || item.name.trim().length === 0) {
-				throw new Error(`${item.type} input requires name`);
-			}
-			if (typeof item.path !== "string" || item.path.trim().length === 0) {
-				throw new Error(`${item.type} input requires path`);
-			}
-			return {
-				type: item.type,
-				name: item.name,
-				path: item.path,
-			};
-		}
-		throw new Error(`Unsupported input item type: ${String(item.type)}`);
-	});
 }
 
 function optionalQueryInteger(url: URL, key: string, options: { min: number }) {
@@ -510,18 +414,6 @@ async function routeApiRequest(
 		return jsonResponse(await service.restartCodexAppServer());
 	}
 
-	if (method === "POST" && route === "api/files/search") {
-		const body = await readJson(request);
-		return jsonResponse(
-			await service.fuzzyFileSearch({
-				query: requireRawString(body, "query"),
-				roots: optionalStringArray(body, "roots") ?? [
-					service.dashboard().defaultCwd,
-				],
-			}),
-		);
-	}
-
 	if (method === "POST" && route === "api/terminal/start") {
 		const body = await readJson(request);
 		return jsonResponse(
@@ -572,7 +464,6 @@ async function routeApiRequest(
 			await service.createThread({
 				cwd: requireString(body, "cwd"),
 				prompt: requireString(body, "prompt"),
-				input: optionalComposerInput(body),
 				goalMode: optionalBoolean(body, "goalMode"),
 				name: optionalString(body, "name"),
 				model: optionalString(body, "model"),
@@ -605,7 +496,6 @@ async function routeApiRequest(
 			const turn = await service.startTurn({
 				threadId,
 				prompt: requireString(body, "prompt"),
-				input: optionalComposerInput(body),
 				model: optionalString(body, "model"),
 			});
 			return jsonResponse(turn, 201);

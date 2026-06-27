@@ -14,7 +14,6 @@ import type {
 	ControlThread,
 	CozEvent,
 	DashboardState,
-	FileSearchResult,
 	ThreadDetail,
 	Turn,
 } from "../server/domain.js";
@@ -31,7 +30,6 @@ import {
 	listBackgroundTerminals,
 	restartCodexAppServer,
 	resumeThread,
-	searchFiles,
 	startGoal,
 	startTurn,
 } from "./api.js";
@@ -44,11 +42,6 @@ import type {
 	ComposerMode,
 	WorkbenchThread,
 } from "./components/workbenchTypes.js";
-import {
-	buildUserInput,
-	type ComposerContextItem,
-	promptHasVisibleInput,
-} from "./composerContext.js";
 import {
 	clampDisplayScale,
 	displayScale as displayScaleConfig,
@@ -145,8 +138,6 @@ type OptimisticThreadSubmission = {
 	id: string;
 	previousThreadId: string | null;
 	prompt: string;
-	displayPrompt: string;
-	contextItems: ComposerContextItem[];
 	cwd: string;
 	name: string;
 	goalMode: boolean;
@@ -157,9 +148,6 @@ type OptimisticThreadSubmission = {
 type OptimisticTurnSubmission = {
 	turnId: string;
 	threadId: string;
-	prompt: string;
-	displayPrompt: string;
-	contextItems: ComposerContextItem[];
 	previousThread: ControlThread;
 	draft: ReturnType<typeof createOptimisticTurnDraft>;
 };
@@ -184,23 +172,6 @@ function isMobileViewport() {
 		typeof window.matchMedia === "function" &&
 		window.matchMedia("(max-width: 767px)").matches
 	);
-}
-
-function composerPreviewPrompt(
-	prompt: string,
-	contextItems: ComposerContextItem[],
-) {
-	const trimmed = prompt.trim();
-	if (trimmed) {
-		return trimmed;
-	}
-	if (contextItems.length === 0) {
-		return "";
-	}
-	if (contextItems.length === 1) {
-		return "Use the attached context.";
-	}
-	return `Use the ${contextItems.length} attached context items.`;
 }
 
 function backgroundTerminalSummary(
@@ -309,9 +280,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	);
 	const [detail, setDetail] = useState<ThreadDetail | null>(null);
 	const [prompt, setPrompt] = useState("");
-	const [composerContextItems, setComposerContextItems] = useState<
-		ComposerContextItem[]
-	>([]);
 	const [goalMode, setGoalMode] = useState(false);
 	const [workdir, setWorkdir] = useState("");
 	const [workdirTouched, setWorkdirTouched] = useState(false);
@@ -1047,9 +1015,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			? Boolean(activeThreadId)
 			: Boolean(trimmedWorkdir);
 	const canSubmitPrompt =
-		promptHasVisibleInput(prompt, composerContextItems) &&
-		!busy &&
-		canSubmitTurnPrompt;
+		Boolean(prompt.trim()) && !busy && canSubmitTurnPrompt;
 	useEffect(() => {
 		if (!workdirTouched && workdir.length === 0 && state.defaultCwd) {
 			setWorkdir(state.defaultCwd);
@@ -1077,7 +1043,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		}
 		setComposerMode("new");
 		setPrompt("");
-		setComposerContextItems([]);
 		setGoalMode(false);
 		if (selectedProject?.path) {
 			setWorkdir(selectedProject.path);
@@ -1190,7 +1155,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			}
 			setComposerMode("new");
 			setPrompt("");
-			setComposerContextItems([]);
 			setGoalMode(false);
 			if (project?.path) {
 				setWorkdir(project.path);
@@ -1216,7 +1180,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			setComposerMode("new");
 			if (options.clearPrompt) {
 				setPrompt("");
-				setComposerContextItems([]);
 			}
 			setGoalMode(false);
 			if (selectedProject?.path) {
@@ -1279,16 +1242,9 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		}
 	}
 
-	async function createThreadOptimistically(
-		currentPrompt: string,
-		contextItems: ComposerContextItem[],
-	) {
+	async function createThreadOptimistically(currentPrompt: string) {
 		const cwd = trimmedWorkdir;
-		const submittedPrompt = composerPreviewPrompt(currentPrompt, contextItems);
-		const structuredInput =
-			contextItems.length > 0
-				? buildUserInput(currentPrompt, contextItems)
-				: null;
+		const submittedPrompt = currentPrompt.trim();
 		const optimisticThreadId = createOptimisticThreadId();
 		const previousThreadId = activeThreadId;
 		const creatingGoalMode = goalMode;
@@ -1307,9 +1263,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		const submission: OptimisticThreadSubmission = {
 			id: optimisticThreadId,
 			previousThreadId,
-			prompt: currentPrompt,
-			displayPrompt: submittedPrompt,
-			contextItems,
+			prompt: submittedPrompt,
 			cwd,
 			name: draft.thread.name,
 			goalMode: creatingGoalMode,
@@ -1345,7 +1299,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			const result = await createThread({
 				cwd,
 				prompt: submittedPrompt,
-				input: structuredInput,
 				goalMode: creatingGoalMode,
 				model,
 			});
@@ -1453,7 +1406,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				setComposerMode("new");
 				setGoalMode(submission.goalMode);
 				setPrompt(submission.prompt);
-				setComposerContextItems(submission.contextItems);
 				setWorkdir(submission.cwd);
 				setWorkdirTouched(true);
 				setSelectedThreadId(fallbackThreadId);
@@ -1495,7 +1447,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	async function startTurnOptimistically(input: {
 		threadId: string;
 		prompt: string;
-		contextItems: ComposerContextItem[];
 		goalMode: boolean;
 	}) {
 		const currentThread =
@@ -1505,14 +1456,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		if (!currentThread) {
 			return;
 		}
-		const submittedPrompt = composerPreviewPrompt(
-			input.prompt,
-			input.contextItems,
-		);
-		const structuredInput =
-			input.contextItems.length > 0
-				? buildUserInput(input.prompt, input.contextItems)
-				: null;
+		const submittedPrompt = input.prompt.trim();
 		const draft = createOptimisticTurnDraft({
 			thread: currentThread,
 			prompt: submittedPrompt,
@@ -1523,9 +1467,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			{
 				turnId: draft.turnId,
 				threadId: input.threadId,
-				prompt: input.prompt,
-				displayPrompt: submittedPrompt,
-				contextItems: input.contextItems,
 				previousThread: currentThread,
 				draft,
 			},
@@ -1540,11 +1481,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			const result = input.goalMode
 				? await startGoal(input.threadId, submittedPrompt)
 				: {
-						turn: await startTurn(
-							input.threadId,
-							submittedPrompt,
-							structuredInput,
-						),
+						turn: await startTurn(input.threadId, submittedPrompt),
 						thread: null,
 					};
 			const turnStillPending = optimisticTurnsRef.current.some(
@@ -1580,7 +1517,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 					}),
 				);
 				setPrompt(input.prompt);
-				setComposerContextItems(input.contextItems);
 				setGoalMode(input.goalMode);
 			} else if (selectedThreadIdRef.current === input.threadId) {
 				void loadThreadDetail(input.threadId).catch(() => {
@@ -1725,11 +1661,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			return;
 		}
 		const currentPrompt = prompt;
-		const currentContextItems = composerContextItems;
-		if (goalMode && currentContextItems.length > 0) {
-			setError("Attached context is not supported in goal mode yet");
-			return;
-		}
 
 		if (goalMode && promptTarget === "thread") {
 			if (!activeThreadId || !canUseGoalMode) {
@@ -1737,33 +1668,29 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			}
 			const threadId = activeThreadId;
 			setPrompt("");
-			setComposerContextItems([]);
 			setComposerMode("thread");
 			setGoalMode(false);
 			void startTurnOptimistically({
 				threadId,
 				prompt: currentPrompt,
-				contextItems: currentContextItems,
 				goalMode: true,
 			});
 			return;
 		}
 
 		setPrompt("");
-		setComposerContextItems([]);
 
 		if (promptTarget === "thread" && activeThreadId) {
 			const threadId = activeThreadId;
 			void startTurnOptimistically({
 				threadId,
 				prompt: currentPrompt,
-				contextItems: currentContextItems,
 				goalMode: false,
 			});
 			return;
 		}
 
-		void createThreadOptimistically(currentPrompt, currentContextItems);
+		void createThreadOptimistically(currentPrompt);
 	}
 
 	function submitPrompt(event: FormEvent) {
@@ -1852,26 +1779,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		void archiveThreadOptimistically(activeThreadId);
 	}
 
-	function addComposerContextItem(item: ComposerContextItem) {
-		setComposerContextItems((current) => [...current, item]);
-	}
-
-	function removeComposerContextItem(itemId: string) {
-		setComposerContextItems((current) =>
-			current.filter((item) => item.id !== itemId),
-		);
-	}
-
-	async function searchComposerFiles(query: string) {
-		const roots = [promptTarget === "new" ? trimmedWorkdir : activeThread?.cwd]
-			.filter((value): value is string => Boolean(value?.trim()))
-			.map((value) => value.trim());
-		return searchFiles({
-			query,
-			roots: roots.length > 0 ? roots : null,
-		});
-	}
-
 	function listSelectedBackgroundTerminals() {
 		if (!activeThreadId) {
 			return;
@@ -1946,7 +1853,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				goalMode={goalMode}
 				canUseGoalMode={canUseGoalMode}
 				canSubmitPrompt={canSubmitPrompt}
-				composerContextItems={composerContextItems}
 				onNavigatorVisibleChange={setNavigatorVisible}
 				onInspectorVisibleChange={setInspectorVisible}
 				onWrapThreadContentChange={setWrapThreadContent}
@@ -1957,10 +1863,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				onThreadQueryChange={setThreadQuery}
 				onTerminalVisibleChange={setTerminalVisible}
 				onPromptChange={setPrompt}
-				onAddComposerContextItem={addComposerContextItem}
-				onRemoveComposerContextItem={removeComposerContextItem}
-				onSearchComposerFiles={searchComposerFiles}
-				onComposerError={setError}
 				onPromptKeyDown={handlePromptKeyDown}
 				onPromptSubmit={submitPrompt}
 				onModeChange={changeComposerMode}

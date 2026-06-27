@@ -369,22 +369,6 @@ function handle(message, state) {
     return
   }
 
-  if (message.method === "fuzzyFileSearch") {
-    respond(message.id, {
-      files: [
-        {
-          root: message.params.roots[0],
-          path: "src/client/App.tsx",
-          match_type: "file",
-          file_name: "App.tsx",
-          score: 91,
-          indices: [0, 4]
-        }
-      ]
-    })
-    return
-  }
-
   if (message.method === "thread/backgroundTerminals/list") {
     respond(message.id, {
       data: [
@@ -1069,7 +1053,7 @@ describe("AppServerRuntime", () => {
 		);
 	});
 
-	it("sends structured composer input when starting and steering turns", async () => {
+	it("sends prompt text when starting and steering turns", async () => {
 		const command = createFakeCodexCommand();
 		runtime = new AppServerRuntime(command, appServerOptions());
 		const thread = await runtime.resumeThread({
@@ -1077,29 +1061,15 @@ describe("AppServerRuntime", () => {
 			cwd: process.cwd(),
 			model: "test-model",
 		});
-		const input = [
-			{
-				type: "text" as const,
-				text: "Summarize this",
-				text_elements: [],
-			},
-			{
-				type: "image" as const,
-				url: "data:image/png;base64,abc",
-				detail: "auto" as const,
-			},
-		];
 
 		await runtime.startTurn({
 			threadId: thread.id,
-			prompt: "fallback prompt",
-			input,
+			prompt: "start prompt",
 		});
 		await runtime.steerTurn({
 			threadId: thread.id,
 			turnId,
-			prompt: "fallback steer",
-			input,
+			prompt: "steer prompt",
 		});
 
 		const requests = readRequestLog();
@@ -1112,42 +1082,12 @@ describe("AppServerRuntime", () => {
 
 		expect(startRequest?.params).toMatchObject({
 			threadId: thread.id,
-			input,
+			input: [{ type: "text", text: "start prompt", text_elements: [] }],
 		});
 		expect(steerRequest?.params).toMatchObject({
 			threadId: thread.id,
 			expectedTurnId: turnId,
-			input,
-		});
-	});
-
-	it("proxies fuzzy file search through the app-server", async () => {
-		const command = createFakeCodexCommand();
-		runtime = new AppServerRuntime(command, appServerOptions());
-
-		const results = await runtime.fuzzyFileSearch({
-			query: "app",
-			roots: [process.cwd()],
-			cancellationToken: "search-1",
-		});
-
-		expect(results).toEqual([
-			{
-				root: process.cwd(),
-				path: "src/client/App.tsx",
-				matchType: "file",
-				fileName: "App.tsx",
-				score: 91,
-				indices: [0, 4],
-			},
-		]);
-		expect(
-			readRequestLog().find((request) => request.method === "fuzzyFileSearch")
-				?.params,
-		).toMatchObject({
-			query: "app",
-			roots: [process.cwd()],
-			cancellationToken: "search-1",
+			input: [{ type: "text", text: "steer prompt", text_elements: [] }],
 		});
 	});
 

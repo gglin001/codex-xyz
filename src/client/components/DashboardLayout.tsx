@@ -36,12 +36,10 @@ import {
 } from "react";
 import type {
 	ControlThread,
-	FileSearchResult,
 	ThreadDetail,
 	ThreadDisplayStatus,
 } from "../../server/domain.js";
 import { codexThreadCommandLabels } from "../codexCommandLabels.js";
-import type { ComposerContextItem } from "../composerContext.js";
 import {
 	cn,
 	displayScale as displayScaleConfig,
@@ -92,7 +90,6 @@ export type DashboardLayoutProps = {
 	goalMode: boolean;
 	canUseGoalMode: boolean;
 	canSubmitPrompt: boolean;
-	composerContextItems: ComposerContextItem[];
 	onNavigatorVisibleChange: (visible: boolean) => void;
 	onInspectorVisibleChange: (visible: boolean) => void;
 	onWrapThreadContentChange: (value: boolean) => void;
@@ -109,10 +106,6 @@ export type DashboardLayoutProps = {
 	onThreadQueryChange: (value: string) => void;
 	onTerminalVisibleChange: (visible: boolean) => void;
 	onPromptChange: (value: string) => void;
-	onAddComposerContextItem: (item: ComposerContextItem) => void;
-	onRemoveComposerContextItem: (itemId: string) => void;
-	onSearchComposerFiles: (query: string) => Promise<FileSearchResult[]>;
-	onComposerError: (message: string) => void;
 	onPromptKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
 	onPromptSubmit: (event: SubmitEvent<HTMLFormElement>) => void;
 	onModeChange: (mode: ComposerMode) => void;
@@ -796,7 +789,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 	goalMode,
 	canUseGoalMode,
 	canSubmitPrompt,
-	composerContextItems,
 	onNavigatorVisibleChange,
 	onInspectorVisibleChange,
 	onWrapThreadContentChange,
@@ -810,10 +802,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 	onThreadQueryChange,
 	onTerminalVisibleChange,
 	onPromptChange,
-	onAddComposerContextItem,
-	onRemoveComposerContextItem,
-	onSearchComposerFiles,
-	onComposerError,
 	onPromptKeyDown,
 	onPromptSubmit,
 	onModeChange,
@@ -1409,16 +1397,11 @@ export const DashboardLayout = memo(function DashboardLayout({
 							goalMode={goalMode}
 							canUseGoalMode={canUseGoalMode}
 							canSubmitPrompt={canSubmitPrompt}
-							composerContextItems={composerContextItems}
 							wrapThreadContent={wrapThreadContent}
 							displayScale={displayScale}
 							navigatorVisible={navigatorVisible}
 							inspectorVisible={inspectorVisible}
 							onPromptChange={onPromptChange}
-							onAddComposerContextItem={onAddComposerContextItem}
-							onRemoveComposerContextItem={onRemoveComposerContextItem}
-							onSearchComposerFiles={onSearchComposerFiles}
-							onComposerError={onComposerError}
 							onPromptKeyDown={onPromptKeyDown}
 							onPromptSubmit={onPromptSubmit}
 							onModeChange={onModeChange}
@@ -1475,16 +1458,11 @@ export const DashboardLayout = memo(function DashboardLayout({
 						goalMode={goalMode}
 						canUseGoalMode={canUseGoalMode}
 						canSubmitPrompt={canSubmitPrompt}
-						composerContextItems={composerContextItems}
 						wrapThreadContent={wrapThreadContent}
 						displayScale={displayScale}
 						navigatorVisible={mobileSheet === "navigator"}
 						inspectorVisible={mobileSheet === "inspector"}
 						onPromptChange={onPromptChange}
-						onAddComposerContextItem={onAddComposerContextItem}
-						onRemoveComposerContextItem={onRemoveComposerContextItem}
-						onSearchComposerFiles={onSearchComposerFiles}
-						onComposerError={onComposerError}
 						onPromptKeyDown={onPromptKeyDown}
 						onPromptSubmit={onPromptSubmit}
 						onModeChange={onModeChange}

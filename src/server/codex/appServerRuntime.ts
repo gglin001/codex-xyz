@@ -22,7 +22,7 @@ import {
 	debugRecordLevel,
 	extractThreadId,
 	extractTurnId,
-	inputItems,
+	inputText,
 	isYoloApprovalRequest,
 	type JsonRpcMessage,
 	normalizeGoal,
@@ -46,7 +46,6 @@ import type {
 	RuntimeBackgroundTerminal,
 	RuntimeEvent,
 	RuntimeEventHandler,
-	RuntimeFileSearchResult,
 	RuntimeThreadSnapshot,
 	RuntimeTurnSnapshot,
 	StartRuntimeTurnInput,
@@ -208,7 +207,7 @@ export class AppServerRuntime implements CodexRuntime {
 		const result = asRecord(
 			await this.request("turn/start", {
 				threadId: input.threadId,
-				input: inputItems(input.prompt, input.input),
+				input: inputText(input.prompt),
 				model: input.model ?? undefined,
 				...yoloTurnOptions,
 			}),
@@ -273,16 +272,11 @@ export class AppServerRuntime implements CodexRuntime {
 		}
 	}
 
-	async steerTurn(input: {
-		threadId: string;
-		turnId: string;
-		prompt: string;
-		input?: StartRuntimeTurnInput["input"];
-	}) {
+	async steerTurn(input: { threadId: string; turnId: string; prompt: string }) {
 		await this.request("turn/steer", {
 			threadId: input.threadId,
 			expectedTurnId: input.turnId,
-			input: inputItems(input.prompt, input.input),
+			input: inputText(input.prompt),
 		});
 	}
 
@@ -396,37 +390,6 @@ export class AppServerRuntime implements CodexRuntime {
 
 	async clearGoal(threadId: string) {
 		await this.request("thread/goal/clear", { threadId });
-	}
-
-	async fuzzyFileSearch(input: {
-		query: string;
-		roots: string[];
-		cancellationToken?: string | null;
-	}): Promise<RuntimeFileSearchResult[]> {
-		const result = asRecord(
-			await this.request("fuzzyFileSearch", {
-				query: input.query,
-				roots: input.roots,
-				cancellationToken: input.cancellationToken ?? null,
-			}),
-		);
-		const files = Array.isArray(result.files) ? result.files : [];
-		return files.map((file) => {
-			const record = asRecord(file);
-			const matchType = String(record.match_type ?? record.matchType ?? "file");
-			return {
-				root: String(record.root ?? ""),
-				path: String(record.path ?? ""),
-				matchType: matchType === "directory" ? "directory" : "file",
-				fileName: String(record.file_name ?? record.fileName ?? ""),
-				score: typeof record.score === "number" ? record.score : 0,
-				indices: Array.isArray(record.indices)
-					? record.indices.filter(
-							(value): value is number => typeof value === "number",
-						)
-					: null,
-			};
-		});
 	}
 
 	async listBackgroundTerminals(input: {

@@ -1,10 +1,8 @@
 import type {
 	BackgroundTerminalPage,
 	CodexAppServerRestartResponse,
-	ComposerInput,
 	ControlThread,
 	DashboardState,
-	FileSearchResult,
 	GoalStatus,
 	TerminalSnapshot,
 	ThreadDetail,
@@ -86,7 +84,6 @@ export function getThreadsPage(input: {
 export function createThread(input: {
 	cwd: string;
 	prompt: string;
-	input?: ComposerInput | null;
 	goalMode?: boolean | null;
 	name?: string | null;
 	model?: string | null;
@@ -106,24 +103,10 @@ export function createThread(input: {
 	});
 }
 
-export function startTurn(
-	threadId: string,
-	prompt: string,
-	input?: ComposerInput | null,
-) {
+export function startTurn(threadId: string, prompt: string) {
 	return request<Turn>(`/api/threads/${threadId}/turns`, {
 		method: "POST",
-		body: JSON.stringify({ prompt, input: input ?? null }),
-	});
-}
-
-export function searchFiles(input: { query: string; roots?: string[] | null }) {
-	return request<FileSearchResult[]>("/api/files/search", {
-		method: "POST",
-		body: JSON.stringify({
-			query: input.query,
-			roots: input.roots ?? null,
-		}),
+		body: JSON.stringify({ prompt }),
 	});
 }
 

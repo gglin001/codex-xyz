@@ -262,15 +262,6 @@ export type TerminalStatusEvent = {
 
 export type TerminalEvent = TerminalOutputEvent | TerminalStatusEvent;
 
-export type FileSearchResult = {
-	root: string;
-	path: string;
-	matchType: "file" | "directory";
-	fileName: string;
-	score: number;
-	indices: number[] | null;
-};
-
 export type BackgroundTerminal = {
 	itemId: string;
 	processId: string;
@@ -286,39 +277,9 @@ export type BackgroundTerminalPage = {
 	nextCursor: string | null;
 };
 
-export type ComposerInputItem =
-	| {
-			type: "text";
-			text: string;
-			text_elements: Array<Record<string, unknown>>;
-	  }
-	| {
-			type: "image";
-			url: string;
-			detail?: "auto" | "low" | "high" | "original";
-	  }
-	| {
-			type: "localImage";
-			path: string;
-			detail?: "auto" | "low" | "high" | "original";
-	  }
-	| {
-			type: "skill";
-			name: string;
-			path: string;
-	  }
-	| {
-			type: "mention";
-			name: string;
-			path: string;
-	  };
-
-export type ComposerInput = ComposerInputItem[];
-
 export type CreateThreadInput = {
 	cwd: string;
 	prompt: string;
-	input?: ComposerInput | null;
 	goalMode?: boolean | null;
 	name?: string | null;
 	model?: string | null;
@@ -327,7 +288,6 @@ export type CreateThreadInput = {
 export type StartTurnInput = {
 	threadId: string;
 	prompt: string;
-	input?: ComposerInput | null;
 	model?: string | null;
 };
 

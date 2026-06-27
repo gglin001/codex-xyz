@@ -8,7 +8,6 @@ import {
 	type RuntimeBackgroundTerminal,
 	type RuntimeEvent,
 	type RuntimeEventHandler,
-	type RuntimeFileSearchResult,
 	type RuntimeGoalSnapshot,
 	type RuntimeGoalStart,
 	RuntimeThreadNotFoundError,
@@ -36,13 +35,6 @@ export class TestCodexRuntime implements CodexRuntime {
 	readonly version = "test";
 	restartCount = 0;
 	lastStartTurnInput: StartRuntimeTurnInput | null = null;
-	lastSteerTurnInput: {
-		threadId: string;
-		turnId: string;
-		prompt: string;
-		input?: StartRuntimeTurnInput["input"];
-	} | null = null;
-	fileSearchResults: RuntimeFileSearchResult[] = [];
 	backgroundTerminals: RuntimeBackgroundTerminal[] = [];
 	backgroundTerminalsCleanCount = 0;
 	private handler: RuntimeEventHandler = () => {};
@@ -142,12 +134,7 @@ export class TestCodexRuntime implements CodexRuntime {
 		return { id: turnId, status: "in_progress" };
 	}
 
-	async steerTurn(input: {
-		threadId: string;
-		turnId: string;
-		prompt: string;
-		input?: StartRuntimeTurnInput["input"];
-	}) {
+	async steerTurn(input: { threadId: string; turnId: string; prompt: string }) {
 		const thread = this.requireThread(input.threadId);
 		if (
 			thread.activeTurnId !== input.turnId ||
@@ -155,7 +142,6 @@ export class TestCodexRuntime implements CodexRuntime {
 		) {
 			throw new Error("no active turn to steer");
 		}
-		this.lastSteerTurnInput = input;
 		this.emit({
 			type: "item.created",
 			threadId: input.threadId,
@@ -291,10 +277,6 @@ export class TestCodexRuntime implements CodexRuntime {
 
 	async clearGoal(threadId: string) {
 		this.requireThread(threadId).goal = null;
-	}
-
-	async fuzzyFileSearch() {
-		return this.fileSearchResults;
 	}
 
 	async listBackgroundTerminals(): Promise<{

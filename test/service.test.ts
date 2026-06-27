@@ -10,7 +10,6 @@ import {
 	type RunShellCommandInput,
 	type RuntimeBackgroundTerminal,
 	type RuntimeEventHandler,
-	type RuntimeFileSearchResult,
 	type RuntimeGoalSnapshot,
 	type RuntimeGoalStart,
 	RuntimeThreadNotFoundError,
@@ -226,10 +225,6 @@ class VolatileCodexRuntime implements CodexRuntime {
 
 	async clearGoal(threadId: string) {
 		this.requireThread(threadId);
-	}
-
-	async fuzzyFileSearch(): Promise<RuntimeFileSearchResult[]> {
-		return [];
 	}
 
 	async listBackgroundTerminals() {
@@ -457,10 +452,6 @@ class EagerEventCodexRuntime implements CodexRuntime {
 		this.requireThread(threadId);
 	}
 
-	async fuzzyFileSearch(): Promise<RuntimeFileSearchResult[]> {
-		return [];
-	}
-
 	async listBackgroundTerminals() {
 		return emptyBackgroundTerminals();
 	}
@@ -653,10 +644,6 @@ class InterruptDriftCodexRuntime implements CodexRuntime {
 
 	async clearGoal() {}
 
-	async fuzzyFileSearch(): Promise<RuntimeFileSearchResult[]> {
-		return [];
-	}
-
 	async listBackgroundTerminals() {
 		return emptyBackgroundTerminals();
 	}
@@ -722,41 +709,6 @@ describe("ControlService", () => {
 					item.type === "agent" && item.text.includes("Test run started"),
 			),
 		).toBe(true);
-	});
-
-	it("passes structured composer input when creating and starting turns", async () => {
-		const input = [
-			{
-				type: "text" as const,
-				text: "Use this context",
-				text_elements: [],
-			},
-			{
-				type: "image" as const,
-				url: "data:image/png;base64,abc",
-				detail: "auto" as const,
-			},
-		];
-		const result = await service.createThread({
-			cwd: tempDir,
-			prompt: "Review attachments",
-			input,
-		});
-		expect(testRuntime.lastStartTurnInput?.input).toEqual(input);
-		const threadId = result.thread?.id;
-		if (!threadId) {
-			throw new Error("Expected created thread id");
-		}
-		await waitForEvents();
-
-		await service.startTurn({
-			threadId,
-			prompt: "Follow up",
-			input,
-		});
-
-		expect(testRuntime.lastStartTurnInput?.input).toEqual(input);
-		expect(testRuntime.lastStartTurnInput?.prompt).toBe("Follow up");
 	});
 
 	it("lists and cleans runtime background terminals", async () => {

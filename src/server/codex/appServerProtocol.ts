@@ -1,9 +1,4 @@
-import type {
-	ComposerInput,
-	ComposerInputItem,
-	ThreadRuntimeStatus,
-	TurnStatus,
-} from "../domain.js";
+import type { ThreadRuntimeStatus, TurnStatus } from "../domain.js";
 import {
 	type RuntimeEvent,
 	type RuntimeGoalSnapshot,
@@ -90,55 +85,6 @@ export function debugRecordLevel(
 
 export function inputText(text: string) {
 	return [{ type: "text", text, text_elements: [] }];
-}
-
-function normalizedTextElements(value: unknown) {
-	return Array.isArray(value)
-		? value.filter((entry) => entry && typeof entry === "object")
-		: [];
-}
-
-function normalizeInputItem(item: ComposerInputItem) {
-	if (item.type === "text") {
-		return {
-			type: "text",
-			text: item.text,
-			text_elements: normalizedTextElements(item.text_elements),
-		};
-	}
-	if (item.type === "image") {
-		return {
-			type: "image",
-			url: item.url,
-			...(item.detail ? { detail: item.detail } : {}),
-		};
-	}
-	if (item.type === "localImage") {
-		return {
-			type: "localImage",
-			path: item.path,
-			...(item.detail ? { detail: item.detail } : {}),
-		};
-	}
-	if (item.type === "skill") {
-		return {
-			type: "skill",
-			name: item.name,
-			path: item.path,
-		};
-	}
-	return {
-		type: "mention",
-		name: item.name,
-		path: item.path,
-	};
-}
-
-export function inputItems(prompt: string, input?: ComposerInput | null) {
-	if (!input || input.length === 0) {
-		return inputText(prompt);
-	}
-	return input.map(normalizeInputItem);
 }
 
 function textFromUserInput(value: unknown) {
