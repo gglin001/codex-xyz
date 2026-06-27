@@ -196,7 +196,6 @@ type CommandAction =
 type CommandActionRenderItem = {
 	action: CommandAction;
 	parentHasVisibleChildren: boolean;
-	lastVisibleChild: boolean;
 };
 
 type MobileSheet = "navigator" | "inspector";
@@ -204,7 +203,7 @@ type MobileSheet = "navigator" | "inspector";
 const spring = { type: "spring", stiffness: 360, damping: 36 } as const;
 const dragDismissThreshold = 80;
 const mobileViewportQuery = "(max-width: 767px)";
-const mobileHandleClass = "h-1 w-14 rounded-full bg-border";
+const mobileHandleClass = "h-1 w-14 rounded-full bg-control-hover";
 const mobileSheetClass =
 	"mobile-sheet-surface absolute inset-x-0 top-[var(--mobile-sheet-top)] flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden rounded-t-[16px]";
 
@@ -437,23 +436,18 @@ function annotateCommandActions(
 		}
 	}
 
-	const seenChildren = new Map<string, number>();
 	return actions.map((action) => {
 		const parentId = commandParentId(action);
 		if (!parentId) {
 			return {
 				action,
 				parentHasVisibleChildren: (visibleChildCounts.get(action.id) ?? 0) > 0,
-				lastVisibleChild: false,
 			};
 		}
 
-		const nextIndex = (seenChildren.get(parentId) ?? 0) + 1;
-		seenChildren.set(parentId, nextIndex);
 		return {
 			action,
 			parentHasVisibleChildren: false,
-			lastVisibleChild: nextIndex === (visibleChildCounts.get(parentId) ?? 0),
 		};
 	});
 }
@@ -461,7 +455,6 @@ function annotateCommandActions(
 function CommandActionGlyph({
 	action,
 	parentHasVisibleChildren,
-	lastVisibleChild,
 }: CommandActionRenderItem) {
 	if (action.kind === "project") {
 		return (
@@ -470,7 +463,7 @@ function CommandActionGlyph({
 				aria-hidden="true"
 			>
 				{parentHasVisibleChildren ? (
-					<span className="absolute left-4 top-8 h-2 border-l border-border-soft" />
+					<span className="absolute -bottom-1 left-3.5 h-2 w-1 rounded-full bg-control-hover" />
 				) : null}
 				<span
 					className={cn(
@@ -491,7 +484,7 @@ function CommandActionGlyph({
 				aria-hidden="true"
 			>
 				{parentHasVisibleChildren ? (
-					<span className="absolute left-4 top-8 h-2 border-l border-border-soft" />
+					<span className="absolute -bottom-1 left-3.5 h-2 w-1 rounded-full bg-control-hover" />
 				) : null}
 				<span className={cn("h-8 w-8 text-muted-strong", ui.iconBox)}>
 					<Settings size={14} />
@@ -507,7 +500,7 @@ function CommandActionGlyph({
 				aria-hidden="true"
 			>
 				{parentHasVisibleChildren ? (
-					<span className="absolute left-4 top-8 h-2 border-l border-border-soft" />
+					<span className="absolute -bottom-1 left-3.5 h-2 w-1 rounded-full bg-control-hover" />
 				) : null}
 				<span
 					className={cn(
@@ -527,13 +520,7 @@ function CommandActionGlyph({
 				className="relative flex h-8 w-12 shrink-0 items-center"
 				aria-hidden="true"
 			>
-				<span
-					className={cn(
-						"absolute left-2 border-l border-border-soft",
-						lastVisibleChild ? "-top-2 h-6" : "-top-2 -bottom-2",
-					)}
-				/>
-				<span className="absolute left-2 top-4 w-3 border-t border-border-soft" />
+				<span className="absolute left-1 top-1 h-6 w-8 rounded-[8px] bg-control/35" />
 				<span
 					className={cn(
 						"absolute right-0 top-0 h-8 w-8 text-muted-strong",
@@ -572,13 +559,7 @@ function CommandActionGlyph({
 				className="relative flex h-8 w-12 shrink-0 items-center"
 				aria-hidden="true"
 			>
-				<span
-					className={cn(
-						"absolute left-2 border-l border-border-soft",
-						lastVisibleChild ? "-top-2 h-6" : "-top-2 -bottom-2",
-					)}
-				/>
-				<span className="absolute left-2 top-4 w-3 border-t border-border-soft" />
+				<span className="absolute left-1 top-1 h-6 w-8 rounded-[8px] bg-control/35" />
 				<span
 					className={cn(
 						"absolute right-0 top-0 h-8 w-8 text-muted-strong",
@@ -613,13 +594,7 @@ function CommandActionGlyph({
 				className="relative flex h-8 w-12 shrink-0 items-center"
 				aria-hidden="true"
 			>
-				<span
-					className={cn(
-						"absolute left-2 border-l border-border-soft",
-						lastVisibleChild ? "-top-2 h-6" : "-top-2 -bottom-2",
-					)}
-				/>
-				<span className="absolute left-2 top-4 w-3 border-t border-border-soft" />
+				<span className="absolute left-1 top-1 h-6 w-8 rounded-[8px] bg-control/35" />
 				<span
 					className={cn(
 						"absolute right-0 top-0 h-8 w-8 text-muted-strong",
@@ -804,7 +779,7 @@ const CommandPalette = memo(function CommandPalette({
 								<input
 									type="search"
 									ref={inputRef}
-									className={cn(ui.input, "h-9 text-[14px]")}
+									className={cn(ui.input, "h-[1lh] text-[14px] leading-5")}
 									value={query}
 									onChange={(event) => {
 										setQuery(event.target.value);
@@ -851,10 +826,7 @@ const CommandPalette = memo(function CommandPalette({
 								</div>
 							) : null}
 							{renderItems.map(
-								(
-									{ action, parentHasVisibleChildren, lastVisibleChild },
-									index,
-								) => (
+								({ action, parentHasVisibleChildren }, index) => (
 									<MenuItemButton
 										key={action.id}
 										data-command-index={index}
@@ -888,7 +860,6 @@ const CommandPalette = memo(function CommandPalette({
 										<CommandActionGlyph
 											action={action}
 											parentHasVisibleChildren={parentHasVisibleChildren}
-											lastVisibleChild={lastVisibleChild}
 										/>
 										{action.kind === "thread" ? (
 											<ThreadResultRow
@@ -1473,7 +1444,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 	}, [inspectorVisible, onInspectorVisibleChange, openMobileSheet]);
 
 	const sidebarFooter = (
-		<div className="shrink-0 p-3 shadow-[inset_0_1px_0_var(--border-soft)]">
+		<div className="shrink-0 bg-panel/70 p-3">
 			<div className="mb-2.5 grid grid-cols-2 gap-2">
 				<SurfaceAction
 					className={cn(

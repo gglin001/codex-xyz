@@ -51,7 +51,7 @@ export function LargeIconButton({
 			type="button"
 			className={cn(
 				ui.largeIconButton,
-				pressed ? "bg-control text-fg-strong ring-border-soft" : null,
+				pressed ? "bg-control text-fg-strong" : null,
 				className,
 			)}
 			aria-pressed={pressed}
@@ -196,7 +196,7 @@ export function FieldShell({
 }) {
 	return (
 		<div
-			className={cn("flex h-11 items-center gap-2.5 px-3", ui.field, className)}
+			className={cn("flex h-9 items-center gap-2.5 px-3", ui.field, className)}
 			{...props}
 		>
 			{icon ? (
@@ -248,7 +248,7 @@ export function Keycap({
 	return (
 		<span
 			className={cn(
-				"rounded-[6px] bg-control px-1.5 py-1 font-mono text-[11px] leading-none text-muted ring-1 ring-inset ring-border-soft",
+				"rounded-[6px] bg-control px-1.5 py-1 font-mono text-[11px] leading-none text-muted",
 				className,
 			)}
 			{...props}
@@ -426,7 +426,7 @@ export const CollapsibleCard = memo(function CollapsibleCard({
 	const previewPadding = size === "compact" ? "px-3 pb-2" : "px-4 pb-3";
 	const cardClass =
 		surface === "plain"
-			? `overflow-hidden ${radius.card} bg-transparent shadow-none ring-1 ring-inset ring-transparent`
+			? `overflow-hidden ${radius.card} bg-transparent shadow-none`
 			: surface === "outline"
 				? ui.outlineCard
 				: ui.card;
@@ -435,7 +435,7 @@ export const CollapsibleCard = memo(function CollapsibleCard({
 			? "group/card-header flex w-full items-center gap-2 bg-transparent transition duration-150 ease-out hover:bg-control/24 focus-within:bg-control/24"
 			: surface === "outline"
 				? "group/card-header flex w-full items-center gap-2 bg-transparent transition duration-150 ease-out hover:bg-control/40 focus-within:bg-control/40"
-				: "flex w-full items-center gap-2 bg-control/35 shadow-[inset_0_-1px_0_var(--border-soft)]";
+				: "flex w-full items-center gap-2 bg-control/35";
 	const headerButtonClass =
 		surface === "plain" || surface === "outline"
 			? "flex min-w-0 flex-1 items-center gap-3 text-left"
@@ -542,7 +542,7 @@ export function DisclosureRow({
 			type="button"
 			className={cn(
 				"flex min-h-10 w-full items-center justify-between gap-3 px-4 py-2 text-left text-[13px] text-fg",
-				divided ? "shadow-[inset_0_1px_0_var(--border-soft)]" : null,
+				divided ? "bg-control/20" : null,
 				ui.row,
 				className,
 			)}
@@ -570,7 +570,7 @@ export function SettingsSection({
 	children: ReactNode;
 }) {
 	return (
-		<section className="w-full min-w-0 px-4 py-4 shadow-[inset_0_-1px_0_var(--border-soft)] last:shadow-none">
+		<section className="w-full min-w-0 px-4 py-4">
 			<div className={cn(ui.sectionLabel, "mb-3 min-w-0")}>
 				<span className="shrink-0">{icon}</span>
 				<span className="truncate">{title}</span>
@@ -600,7 +600,7 @@ export const InfoTile = memo(function InfoTile({
 	return (
 		<div
 			className={cn(
-				"flex w-full min-w-0 gap-2.5 bg-field/70 ring-1 ring-inset ring-border-soft",
+				"flex w-full min-w-0 gap-2.5 bg-field/70",
 				inline
 					? "min-h-9 items-center px-2.5 py-2"
 					: "min-h-[56px] items-start px-3 py-2.5",
@@ -649,8 +649,8 @@ export function SwitchControl({ checked }: { checked: boolean }) {
 	return (
 		<span
 			className={cn(
-				"relative h-6 w-10 shrink-0 rounded-full transition duration-150 ease-out ring-1 ring-inset",
-				checked ? "bg-accent ring-accent-soft" : "bg-control ring-border-soft",
+				"relative h-6 w-10 shrink-0 rounded-full transition duration-150 ease-out",
+				checked ? "bg-accent" : "bg-control",
 			)}
 			aria-hidden="true"
 		>

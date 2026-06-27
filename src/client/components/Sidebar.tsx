@@ -97,11 +97,7 @@ export const Sidebar = memo(function Sidebar({
 
 	return (
 		<aside
-			className={cn(
-				"flex h-full min-h-0 flex-col shadow-[inset_-1px_0_0_var(--border-soft)]",
-				ui.sidePanel,
-				className,
-			)}
+			className={cn("flex h-full min-h-0 flex-col", ui.sidePanel, className)}
 		>
 			<div className="relative shrink-0 p-3 pb-2">
 				<SurfaceAction
@@ -165,12 +161,12 @@ export const Sidebar = memo(function Sidebar({
 				</AnimatePresence>
 			</div>
 
-			<div className="flex shrink-0 items-center gap-2 px-3 pb-3 pt-2 shadow-[inset_0_-1px_0_var(--border-soft)]">
+			<div className="flex shrink-0 items-center gap-2 bg-panel/70 px-3 pb-3 pt-2">
 				<div className="min-w-0 flex-1">
 					<FieldShell icon={<Search size={14} />} className="h-9 w-full">
 						<input
 							type="search"
-							className={cn(ui.input, "text-[13px]")}
+							className={cn(ui.input, "h-[1lh] text-[13px] leading-5")}
 							value={threadQuery}
 							onChange={(event) => onThreadQueryChange(event.target.value)}
 							placeholder="Search threads"
@@ -202,7 +198,7 @@ export const Sidebar = memo(function Sidebar({
 						className="grid gap-5"
 					>
 						{threadGroups.length === 0 ? (
-							<ControlCard className="bg-field/40 px-3 py-7 text-center text-[12px] text-muted ring-border-soft">
+							<ControlCard className="bg-field/40 px-3 py-7 text-center text-[12px] text-muted">
 								{threadQuery.trim()
 									? "No matching threads"
 									: "No Codex threads yet"}

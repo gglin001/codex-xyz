@@ -50,7 +50,7 @@ const inputFlushMs = 8;
 const resizeFlushMs = 100;
 const metricsCommitMs = 500;
 const dragDismissThreshold = 80;
-const mobileHandleClass = "h-1 w-14 rounded-full bg-border-strong";
+const mobileHandleClass = "h-1 w-14 rounded-full bg-control-hover";
 const mobileTerminalSheetClass =
 	"pointer-events-auto absolute inset-x-0 top-[var(--mobile-sheet-top)] flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden rounded-t-[16px] md:inset-auto md:rounded-[12px]";
 const desktopMargin = 16;
@@ -331,7 +331,7 @@ export function TerminalDock({
 
 		const terminal = new XTerm({
 			cursorBlink: true,
-			cursorInactiveStyle: "outline",
+			cursorInactiveStyle: "block",
 			fontFamily:
 				'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
 			fontSize: 12,
@@ -735,7 +735,7 @@ export function TerminalDock({
 
 	const header = (
 		<div
-			className="grid min-h-12 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 border-b border-border px-3.5 py-1.5 md:cursor-move"
+			className="grid min-h-12 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 bg-detail/70 px-3.5 py-1.5 md:cursor-move"
 			onPointerDown={startDesktopMove}
 			onPointerMove={updateDesktopInteraction}
 			onPointerUp={finishDesktopInteraction}
@@ -807,7 +807,7 @@ export function TerminalDock({
 			onPointerCancel={finishDesktopInteraction}
 		>
 			<span
-				className="mb-1 mr-1 h-2.5 w-2.5 rounded-br-[6px] border-b border-r border-current"
+				className="mb-1 mr-1 h-2.5 w-2.5 rounded-[4px] bg-current opacity-45"
 				aria-hidden="true"
 			/>
 		</button>

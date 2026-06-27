@@ -144,7 +144,7 @@ const spring = { type: "spring", stiffness: 340, damping: 34 } as const;
 const threadContentWidthClass = "[--thread-content-width:900px]";
 const threadContentFrameClass =
 	"mx-auto w-full min-w-0 max-w-[var(--thread-content-width)]";
-const mobileHandleClass = "h-1 w-14 rounded-full bg-border";
+const mobileHandleClass = "h-1 w-14 rounded-full bg-control-hover";
 const mobileComposerSwipeAxisLockRatio = 1.15;
 const mobileComposerSwipeDirectionThresholds = {
 	up: 88,
@@ -212,12 +212,12 @@ function messageCardTitle(message: ChatMessage) {
 function messageSurfaceClass(message: ChatMessage) {
 	const name = messageCardTitle(message);
 	if (name === "Prompt") {
-		return "bg-transparent ring-transparent";
+		return "bg-transparent";
 	}
 	if (name === "Response") {
-		return "bg-transparent ring-transparent";
+		return "bg-transparent";
 	}
-	return "bg-transparent ring-transparent";
+	return "bg-transparent";
 }
 
 function headerMeta(value: string) {
@@ -295,9 +295,9 @@ const MobileWorkspaceHeader = memo(function MobileWorkspaceHeader({
 					<span className="shrink-0 text-muted-strong">
 						{statusLabel(status)}
 					</span>
-					<span className="h-3 shrink-0 border-l border-border-soft" />
-					<span className="shrink-0">{formatTokens(tokens)}</span>
-					<span className="h-3 shrink-0 border-l border-border-soft" />
+					<span className="shrink-0 rounded-full bg-control/70 px-1.5 py-0.5 leading-none">
+						{formatTokens(tokens)}
+					</span>
 					<span className="min-w-0 truncate">{subtitle}</span>
 				</div>
 			</div>
@@ -386,7 +386,7 @@ const DismissibleAlert = memo(function DismissibleAlert({
 			<button
 				type="button"
 				className={cn(
-					"inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] transition duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring",
+					"inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] transition duration-150 ease-out focus-visible:bg-control-hover focus-visible:outline-none",
 					buttonClassName,
 				)}
 				aria-label={dismissLabel}
@@ -464,7 +464,7 @@ const ProcessItemBlock = memo(function ProcessItemBlock({
 			}
 			size="compact"
 			surface="plain"
-			className="bg-transparent ring-transparent"
+			className="bg-transparent"
 		>
 			{message.text ? (
 				<div
@@ -523,7 +523,7 @@ const ProcessOutputBlock = memo(function ProcessOutputBlock({
 			}
 			bodyClassName="grid gap-1.5 px-3 pb-3 pt-0"
 			surface="plain"
-			className="bg-transparent ring-transparent"
+			className="bg-transparent"
 		>
 			{messages.map((message) => (
 				<ProcessItemBlock
@@ -811,8 +811,12 @@ const Composer = memo(
 			if (!textarea) {
 				return;
 			}
+			const lineHeight = Number.parseFloat(
+				window.getComputedStyle(textarea).lineHeight,
+			);
+			const minHeight = Number.isFinite(lineHeight) ? lineHeight : 26;
 			textarea.style.height = "0px";
-			textarea.style.height = `${Math.min(160, Math.max(30, textarea.scrollHeight))}px`;
+			textarea.style.height = `${Math.min(160, Math.max(minHeight, textarea.scrollHeight))}px`;
 		});
 
 		const focusPromptOnNextFrame = useCallback(() => {
@@ -868,12 +872,12 @@ const Composer = memo(
 				) : null}
 
 				{promptTarget === "new" ? (
-					<FieldShell className="mb-3 h-9 px-3">
+					<FieldShell className="h-8 px-2.5">
 						<div className="workdir-input-scroll min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
 							<input
 								className={cn(
 									ui.input,
-									"block min-w-full flex-none whitespace-nowrap font-mono text-[12px] text-fg",
+									"block h-[1lh] min-w-full flex-none whitespace-nowrap font-mono text-[12px] leading-4 text-fg",
 								)}
 								style={{ width: `${Math.max(workdir.length + 4, 48)}ch` }}
 								value={workdir}
@@ -896,7 +900,7 @@ const Composer = memo(
 							ref={textareaRef}
 							className={cn(
 								ui.textarea,
-								"max-h-[160px] min-h-[34px] px-0.5 py-0.5 text-[length:var(--composer-font-size)] leading-[var(--composer-line-height)]",
+								"max-h-[160px] min-h-[var(--composer-line-height)] px-0 text-[length:var(--composer-font-size)] leading-[var(--composer-line-height)]",
 							)}
 							value={prompt}
 							onChange={(event) => onPromptChange(event.target.value)}
@@ -1233,11 +1237,9 @@ export const Workspace = memo(
 							</h1>
 							<div className="flex min-w-0 items-center gap-2 text-[11px] leading-4 text-muted">
 								<span className="truncate">{subtitle}</span>
-								<span className="hidden h-3 border-l border-border-soft sm:inline" />
-								<span className="hidden shrink-0 sm:inline">
+								<span className="hidden shrink-0 rounded-full bg-control/65 px-1.5 py-0.5 leading-none sm:inline">
 									{formatTokens(tokens)} tokens
 								</span>
-								<span className="hidden h-3 border-l border-border-soft sm:inline" />
 								<span className="inline-flex shrink-0 items-center gap-1.5 text-muted-strong">
 									<span
 										className={cn(
@@ -1303,7 +1305,7 @@ export const Workspace = memo(
 										<button
 											type="button"
 											className={cn(
-												"min-h-10 rounded-[8px] bg-control px-3.5 text-[12px] font-medium text-muted-strong ring-1 ring-inset ring-border-soft active:bg-control-hover",
+												"min-h-10 rounded-[8px] bg-control px-3.5 text-[12px] font-medium text-muted-strong active:bg-control-hover",
 												ui.row,
 											)}
 											onClick={() =>
