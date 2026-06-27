@@ -1,5 +1,6 @@
 import {
 	Activity,
+	Archive,
 	BadgeCheck,
 	Bot,
 	CircleDotDashed,
@@ -139,32 +140,6 @@ function SettingsIconToggle({
 	);
 }
 
-function SettingsIconButton({
-	disabled,
-	icon,
-	label,
-	title = label,
-	onClick,
-}: {
-	disabled?: boolean;
-	icon: ReactNode;
-	label: string;
-	title?: string;
-	onClick: () => void;
-}) {
-	return (
-		<SurfaceAction
-			className="h-9 w-9 justify-center p-0 text-muted-strong"
-			title={title}
-			aria-label={label}
-			disabled={disabled}
-			onClick={onClick}
-		>
-			<span className="shrink-0 text-muted">{icon}</span>
-		</SurfaceAction>
-	);
-}
-
 function tagScoreLabel(score: ThreadTagScore | null | undefined) {
 	return score ? `${score} star thread tag` : "No thread tag score";
 }
@@ -269,51 +244,33 @@ export const ParamPanel = memo(function ParamPanel({
 			)}
 		>
 			<div className="mobile-keyboard-scroll min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden scroll-mask-y">
-				<SettingsSection icon={<Star size={13} />} title="Tag">
-					<TagScoreControl
-						disabled={!thread}
-						score={thread?.tagScore ?? null}
-						onChange={onThreadTagScoreChange}
-					/>
-				</SettingsSection>
-
-				<SettingsSection icon={<Server size={13} />} title="Runtime">
+				<SettingsSection icon={<ListTree size={13} />} title="Current Thread">
 					<div className="grid min-w-0 gap-2">
-						<ControlCard className="flex w-full min-w-0 items-center justify-between gap-3 bg-field/70 px-3 py-2.5">
-							<span className="inline-flex min-w-0 items-center gap-2">
-								<span
-									className={cn(
-										"h-2 w-2 shrink-0 rounded-full",
-										runtimeStatusTone(status),
-									)}
-								/>
-								<span className="truncate text-[13px] font-medium text-fg">
-									{statusLabel(status)}
+						<ControlCard className="grid w-full min-w-0 gap-2 bg-field/70 px-3 py-2.5">
+							<div className="flex min-w-0 items-center justify-between gap-3">
+								<span className="inline-flex min-w-0 items-center gap-2">
+									<span
+										className={cn(
+											"h-2 w-2 shrink-0 rounded-full",
+											runtimeStatusTone(status),
+										)}
+									/>
+									<span className="truncate text-[13px] font-medium text-fg">
+										{statusLabel(status)}
+									</span>
 								</span>
-							</span>
-							<Pill className="font-mono text-[11px] text-muted">
-								app-server
-							</Pill>
+								<Pill className="font-mono text-[11px] text-muted">
+									{thread?.archivedAt ? "view-only" : "thread"}
+								</Pill>
+							</div>
+							<div className="truncate text-[11px] text-muted">
+								{thread?.archivedAt
+									? "Archived threads are view-only"
+									: thread
+										? "Thread actions depend on the current run state"
+										: "Select or create a thread to begin"}
+							</div>
 						</ControlCard>
-						<InfoTile
-							icon={<Bot size={13} />}
-							label="Model"
-							value={model}
-							mono
-							layout="inline"
-						/>
-						<InfoTile
-							icon={<Cpu size={13} />}
-							label="Runtime"
-							value="codex app-server socket"
-							mono
-							layout="inline"
-						/>
-					</div>
-				</SettingsSection>
-
-				<SettingsSection icon={<ListTree size={13} />} title="Thread">
-					<div className="grid min-w-0 gap-2">
 						<InfoTile
 							icon={<Hash size={13} />}
 							label="Name"
@@ -342,6 +299,18 @@ export const ParamPanel = memo(function ParamPanel({
 							value={thread?.cwd ?? threadSummary?.cwd ?? defaultCwd}
 							mono
 						/>
+						<InfoTile
+							icon={<Archive size={13} />}
+							label="Mode"
+							value={
+								thread?.archivedAt
+									? "Archived and view-only"
+									: thread
+										? "Active workspace thread"
+										: "No thread selected"
+							}
+							layout="inline"
+						/>
 						{thread?.forkedFromId ? (
 							<InfoTile
 								icon={<GitFork size={13} />}
@@ -351,13 +320,15 @@ export const ParamPanel = memo(function ParamPanel({
 								layout="inline"
 							/>
 						) : null}
+						<TagScoreControl
+							disabled={!thread}
+							score={thread?.tagScore ?? null}
+							onChange={onThreadTagScoreChange}
+						/>
 					</div>
 				</SettingsSection>
 
-				<SettingsSection
-					icon={<TimerReset size={13} />}
-					title="Goal and Tokens"
-				>
+				<SettingsSection icon={<TimerReset size={13} />} title="Goal and Usage">
 					<div className="grid min-w-0 gap-2">
 						<ControlCard
 							size="large"
@@ -420,10 +391,40 @@ export const ParamPanel = memo(function ParamPanel({
 					</div>
 				</SettingsSection>
 
-				<SettingsSection
-					icon={<SlidersHorizontal size={13} />}
-					title="Settings"
-				>
+				<SettingsSection icon={<Server size={13} />} title="Runtime">
+					<div className="grid min-w-0 gap-2">
+						<InfoTile
+							icon={<Bot size={13} />}
+							label="Model"
+							value={model}
+							mono
+							layout="inline"
+						/>
+						<InfoTile
+							icon={<Cpu size={13} />}
+							label="Runtime"
+							value="codex app-server socket"
+							mono
+							layout="inline"
+						/>
+						<SurfaceAction
+							className="h-10 justify-center gap-2 px-2 text-[12px] font-medium text-muted-strong"
+							title={
+								restartCodexAppServerDisabled
+									? "Another action is running"
+									: "Restart Codex app-server"
+							}
+							aria-label="Restart Codex app-server"
+							disabled={restartCodexAppServerDisabled}
+							onClick={onRestartCodexAppServer}
+						>
+							<RefreshCw size={14} />
+							<span className="truncate">Restart app-server</span>
+						</SurfaceAction>
+					</div>
+				</SettingsSection>
+
+				<SettingsSection icon={<SlidersHorizontal size={13} />} title="View">
 					<div className="grid min-w-0 gap-2">
 						<ControlCard className="w-full min-w-0 bg-field/70 px-3 py-2.5">
 							<ScaleControl
@@ -433,12 +434,6 @@ export const ParamPanel = memo(function ParamPanel({
 							/>
 						</ControlCard>
 						<div className="flex min-w-0 flex-wrap gap-2">
-							<SettingsIconButton
-								disabled={restartCodexAppServerDisabled}
-								icon={<RefreshCw size={15} />}
-								label="Restart Codex app-server"
-								onClick={onRestartCodexAppServer}
-							/>
 							<SettingsIconToggle
 								checked={themeMode === "day"}
 								icon={<Sun size={15} />}
