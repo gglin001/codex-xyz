@@ -49,11 +49,15 @@ import {
 } from "../designSystem.js";
 import { isPromptFocusShortcut } from "../promptShortcut.js";
 import { nextThemeMode, type ThemeMode, themeModeLabels } from "../theme.js";
-import { formatTokens } from "../uiFormat.js";
 import { useFullscreen } from "../useFullscreen.js";
 import { useMobileViewportGeometry } from "../useMobileViewportGeometry.js";
 import type { PwaState } from "../usePwa.js";
 import { ParamPanel } from "./ParamPanel.js";
+import {
+	ProjectResultRow,
+	projectResultDetail,
+	projectResultTitle,
+} from "./ProjectResultRow.js";
 import { Sidebar } from "./Sidebar.js";
 import {
 	ThreadResultRow,
@@ -61,7 +65,7 @@ import {
 	threadResultTitle,
 } from "./ThreadResultRow.js";
 import { ThreadStatusIcon } from "./threadStatusIcon.js";
-import { AvatarBadge, MenuItemButton, SurfaceAction } from "./uiPrimitives.js";
+import { MenuItemButton, SurfaceAction } from "./uiPrimitives.js";
 import { Workspace, type WorkspaceHandle } from "./Workspace.js";
 import type {
 	ComposerMode,
@@ -145,6 +149,7 @@ type CommandAction =
 			kind: "project";
 			projectId: string;
 			projectInitials: string;
+			project: WorkbenchProject;
 	  })
 	| (CommandActionBase & {
 			kind: "thread";
@@ -240,16 +245,80 @@ function blurActiveElement() {
 	}
 }
 
-function projectCommandDetail(project: WorkbenchProject) {
-	const parts = [
-		project.path,
-		`${project.totalThreads} threads`,
-		`${formatTokens(project.tokenTotal)} tokens`,
-	];
-	if (project.runningThreads > 0) {
-		parts.push(`${project.runningThreads} running`);
+function activeElement() {
+	const active = document.activeElement;
+	return active instanceof HTMLElement ? active : null;
+}
+
+const focusableSelector = [
+	"a[href]",
+	"button:not([disabled])",
+	"input:not([disabled])",
+	"select:not([disabled])",
+	"textarea:not([disabled])",
+	'[tabindex]:not([tabindex="-1"])',
+].join(",");
+
+function isTextEntryElement(element: HTMLElement) {
+	return (
+		element instanceof HTMLInputElement ||
+		element instanceof HTMLTextAreaElement ||
+		element.isContentEditable
+	);
+}
+
+function restoreFocus(element: HTMLElement | null) {
+	if (!element?.isConnected) {
+		return;
 	}
-	return parts.join(" / ");
+	if (isMobileViewport() && isTextEntryElement(element)) {
+		return;
+	}
+	window.requestAnimationFrame(() => {
+		element.focus({ preventScroll: true });
+	});
+}
+
+function focusableElements(container: HTMLElement | null) {
+	if (!container) {
+		return [];
+	}
+	return Array.from(
+		container.querySelectorAll<HTMLElement>(focusableSelector),
+	).filter((element) => {
+		const style = window.getComputedStyle(element);
+		return (
+			style.visibility !== "hidden" &&
+			style.display !== "none" &&
+			element.getAttribute("aria-hidden") !== "true"
+		);
+	});
+}
+
+function cycleDialogFocus(
+	event: KeyboardEvent<HTMLElement>,
+	container: HTMLElement | null,
+) {
+	if (event.key !== "Tab") {
+		return;
+	}
+	const focusable = focusableElements(container);
+	if (focusable.length === 0) {
+		event.preventDefault();
+		container?.focus({ preventScroll: true });
+		return;
+	}
+	const current = activeElement();
+	const currentIndex = current ? focusable.indexOf(current) : -1;
+	const nextIndex = event.shiftKey
+		? currentIndex <= 0
+			? focusable.length - 1
+			: currentIndex - 1
+		: currentIndex === -1 || currentIndex === focusable.length - 1
+			? 0
+			: currentIndex + 1;
+	event.preventDefault();
+	focusable[nextIndex]?.focus({ preventScroll: true });
 }
 
 type MobileSheetHandleProps = {
@@ -403,9 +472,14 @@ function CommandActionGlyph({
 				{parentHasVisibleChildren ? (
 					<span className="absolute left-4 top-8 h-2 border-l border-border-soft" />
 				) : null}
-				<AvatarBadge className="h-8 w-8 text-[11px]">
+				<span
+					className={cn(
+						"h-8 w-8 font-semibold text-[11px] text-fg-strong",
+						ui.iconBox,
+					)}
+				>
 					{action.projectInitials}
-				</AvatarBadge>
+				</span>
 			</span>
 		);
 	}
@@ -586,11 +660,13 @@ const CommandPalette = memo(function CommandPalette({
 	open: boolean;
 	actions: CommandAction[];
 	autoFocusInput: boolean;
-	onClose: () => void;
+	onClose: (options?: { restoreFocus?: boolean }) => void;
 }) {
 	const [query, setQuery] = useState("");
 	const [activeIndex, setActiveIndex] = useState(0);
 	const inputRef = useRef<HTMLInputElement | null>(null);
+	const panelRef = useRef<HTMLDivElement | null>(null);
+	const listRef = useRef<HTMLDivElement | null>(null);
 	const dragControls = useDragControls();
 
 	const filteredActions = useMemo(() => {
@@ -609,7 +685,10 @@ const CommandPalette = memo(function CommandPalette({
 			return;
 		}
 		if (!autoFocusInput) {
-			return;
+			const frame = window.requestAnimationFrame(() => {
+				panelRef.current?.focus({ preventScroll: true });
+			});
+			return () => window.cancelAnimationFrame(frame);
 		}
 		const frame = window.requestAnimationFrame(() => {
 			inputRef.current?.focus({ preventScroll: true });
@@ -617,13 +696,35 @@ const CommandPalette = memo(function CommandPalette({
 		return () => window.cancelAnimationFrame(frame);
 	}, [autoFocusInput, open]);
 
+	useEffect(() => {
+		if (!open) {
+			return;
+		}
+		setActiveIndex((index) => {
+			if (filteredActions.length === 0) {
+				return 0;
+			}
+			return Math.min(index, filteredActions.length - 1);
+		});
+	}, [filteredActions.length, open]);
+
+	useEffect(() => {
+		if (!open) {
+			return;
+		}
+		const activeItem = listRef.current?.querySelector<HTMLElement>(
+			`[data-command-index="${activeIndex}"]`,
+		);
+		activeItem?.scrollIntoView({ block: "nearest" });
+	}, [activeIndex, open]);
+
 	const runActive = useCallback(() => {
 		const action = filteredActions[activeIndex];
 		if (!action || action.disabled) {
 			return;
 		}
 		action.run();
-		onClose();
+		onClose({ restoreFocus: false });
 	}, [activeIndex, filteredActions, onClose]);
 
 	return (
@@ -638,14 +739,19 @@ const CommandPalette = memo(function CommandPalette({
 					animate={{ opacity: 1 }}
 					exit={{ opacity: 0 }}
 					transition={spring}
-					onMouseDown={onClose}
+					onMouseDown={() => onClose()}
 				>
 					<motion.div
+						ref={panelRef}
 						className={cn(
 							mobileSheetClass,
 							"px-0 md:static md:h-auto md:max-h-[min(40rem,calc(100dvh_-_7rem))] md:w-[44rem] md:max-w-[calc(100vw_-_2rem)] md:rounded-[12px]",
 							ui.popover,
 						)}
+						tabIndex={-1}
+						role="dialog"
+						aria-modal="true"
+						aria-label="Command palette"
 						initial={
 							isMobileViewport()
 								? { y: "100%", opacity: 0 }
@@ -676,6 +782,14 @@ const CommandPalette = memo(function CommandPalette({
 								onClose();
 							}
 						}}
+						onKeyDown={(event) => {
+							if (event.key === "Escape") {
+								event.preventDefault();
+								onClose();
+								return;
+							}
+							cycleDialogFocus(event, panelRef.current);
+						}}
 						onMouseDown={(event) => event.stopPropagation()}
 					>
 						<div className="md:hidden">
@@ -704,12 +818,16 @@ const CommandPalette = memo(function CommandPalette({
 									if (event.key === "Escape") {
 										event.preventDefault();
 										onClose();
+										return;
 									}
 									if (event.key === "ArrowDown") {
 										event.preventDefault();
-										setActiveIndex((index) =>
-											Math.min(filteredActions.length - 1, index + 1),
-										);
+										setActiveIndex((index) => {
+											if (filteredActions.length === 0) {
+												return 0;
+											}
+											return Math.min(filteredActions.length - 1, index + 1);
+										});
 									}
 									if (event.key === "ArrowUp") {
 										event.preventDefault();
@@ -722,7 +840,10 @@ const CommandPalette = memo(function CommandPalette({
 								}}
 							/>
 						</div>
-						<div className="mobile-keyboard-scroll min-h-0 flex-1 overflow-y-auto p-1.5 md:max-h-[min(31rem,calc(100dvh_-_12rem))]">
+						<div
+							ref={listRef}
+							className="mobile-keyboard-scroll min-h-0 flex-1 overflow-y-auto p-1.5 md:max-h-[min(31rem,calc(100dvh_-_12rem))]"
+						>
 							{filteredActions.length === 0 ? (
 								<div className="px-3 py-8 text-center text-[13px] text-muted">
 									No commands found
@@ -735,17 +856,22 @@ const CommandPalette = memo(function CommandPalette({
 								) => (
 									<MenuItemButton
 										key={action.id}
+										data-command-index={index}
 										className={cn(
 											action.kind === "thread"
 												? "min-h-[78px] w-full items-start gap-2.5 px-2.5 py-2"
-												: "h-11 w-full gap-2.5 px-2.5",
+												: action.kind === "project"
+													? "min-h-[66px] w-full items-start gap-2.5 px-2.5 py-2"
+													: "h-11 w-full gap-2.5 px-2.5",
 											index === activeIndex ? null : "bg-transparent",
 											action.disabled ? "opacity-45" : null,
 										)}
 										title={
 											action.kind === "thread"
 												? threadResultTitle(action.thread, action.projectName)
-												: action.detail
+												: action.kind === "project"
+													? projectResultTitle(action.project)
+													: action.detail
 										}
 										selected={index === activeIndex}
 										disabled={action.disabled}
@@ -755,7 +881,7 @@ const CommandPalette = memo(function CommandPalette({
 												return;
 											}
 											action.run();
-											onClose();
+											onClose({ restoreFocus: false });
 										}}
 									>
 										<CommandActionGlyph
@@ -768,6 +894,11 @@ const CommandPalette = memo(function CommandPalette({
 												thread={action.thread}
 												projectName={action.projectName}
 												showStatusIcon={false}
+											/>
+										) : action.kind === "project" ? (
+											<ProjectResultRow
+												project={action.project}
+												showAvatar={false}
 											/>
 										) : (
 											<span className="min-w-0 flex-1">
@@ -852,6 +983,9 @@ export const DashboardLayout = memo(function DashboardLayout({
 	const [commandAutoFocusInput, setCommandAutoFocusInput] = useState(true);
 	const desktopWorkspaceRef = useRef<WorkspaceHandle | null>(null);
 	const mobileWorkspaceRef = useRef<WorkspaceHandle | null>(null);
+	const commandReturnFocusRef = useRef<HTMLElement | null>(null);
+	const mobileSheetReturnFocusRef = useRef<HTMLElement | null>(null);
+	const mobileSheetPanelRef = useRef<HTMLDivElement | null>(null);
 	const mobileSheetDragControls = useDragControls();
 	const viewportMode = useResponsiveViewportMode();
 	const renderDesktopShell = viewportMode !== "mobile";
@@ -869,12 +1003,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 
 	useMobileViewportGeometry();
 
-	useEffect(() => {
-		if (viewportMode === "desktop") {
-			setMobileSheet(null);
-		}
-	}, [viewportMode]);
-
 	const focusVisiblePrompt = useCallback(() => {
 		const useDesktopWorkspace =
 			typeof window.matchMedia === "function"
@@ -891,46 +1019,105 @@ export const DashboardLayout = memo(function DashboardLayout({
 		window.requestAnimationFrame(focusVisiblePrompt);
 	}, [focusVisiblePrompt, onCreateThread]);
 
+	const closeCommandPalette = useCallback(
+		(options: { restoreFocus?: boolean } = {}) => {
+			const restore = options.restoreFocus ?? true;
+			const returnFocusTarget = commandReturnFocusRef.current;
+			commandReturnFocusRef.current = null;
+			setCommandOpen(false);
+			if (restore) {
+				restoreFocus(returnFocusTarget);
+			}
+		},
+		[],
+	);
+
+	const closeMobileSheet = useCallback(
+		(options: { restoreFocus?: boolean } = {}) => {
+			const restore = options.restoreFocus ?? true;
+			const returnFocusTarget = mobileSheetReturnFocusRef.current;
+			mobileSheetReturnFocusRef.current = null;
+			setMobileSheet(null);
+			if (restore) {
+				restoreFocus(returnFocusTarget);
+			}
+		},
+		[],
+	);
+
 	const openCommandPalette = useCallback(
 		(options?: { autoFocusInput?: boolean }) => {
 			const autoFocusInput = options?.autoFocusInput ?? !isMobileViewport();
+			commandReturnFocusRef.current = activeElement();
 			setCommandAutoFocusInput(autoFocusInput);
 			if (!autoFocusInput) {
 				blurActiveElement();
 			}
-			setMobileSheet(null);
+			closeMobileSheet({ restoreFocus: false });
 			setCommandOpen(true);
 		},
-		[],
+		[closeMobileSheet],
 	);
+
+	const openMobileSheet = useCallback(
+		(sheet: MobileSheet) => {
+			if (mobileSheet === sheet) {
+				closeMobileSheet();
+				return;
+			}
+			mobileSheetReturnFocusRef.current = activeElement();
+			blurActiveElement();
+			closeCommandPalette({ restoreFocus: false });
+			onTerminalVisibleChange(false);
+			setMobileSheet(sheet);
+		},
+		[
+			closeCommandPalette,
+			closeMobileSheet,
+			mobileSheet,
+			onTerminalVisibleChange,
+		],
+	);
+
+	useEffect(() => {
+		if (viewportMode === "desktop") {
+			closeMobileSheet({ restoreFocus: false });
+		}
+	}, [closeMobileSheet, viewportMode]);
+
+	useEffect(() => {
+		if (!mobileSheet) {
+			return;
+		}
+		const frame = window.requestAnimationFrame(() => {
+			mobileSheetPanelRef.current?.focus({ preventScroll: true });
+		});
+		return () => window.cancelAnimationFrame(frame);
+	}, [mobileSheet]);
 
 	const openCommandPaletteFromSwipe = useCallback(() => {
 		openCommandPalette({ autoFocusInput: false });
 	}, [openCommandPalette]);
 
 	const toggleCommandPalette = useCallback(() => {
-		const opening = !commandOpen;
-		if (opening) {
-			const autoFocusInput = !isMobileViewport();
-			setCommandAutoFocusInput(autoFocusInput);
-			if (!autoFocusInput) {
-				blurActiveElement();
-			}
+		if (commandOpen) {
+			closeCommandPalette();
+			return;
 		}
-		setMobileSheet(null);
-		setCommandOpen(opening);
-	}, [commandOpen]);
+		openCommandPalette();
+	}, [closeCommandPalette, commandOpen, openCommandPalette]);
 
 	useEffect(() => {
 		const handleKeyDown = (event: globalThis.KeyboardEvent) => {
 			if (event.key === "Escape") {
-				setCommandOpen(false);
-				setMobileSheet(null);
+				closeCommandPalette();
+				closeMobileSheet();
 				return;
 			}
 			if (!commandOpen && isPromptFocusShortcut(event)) {
 				event.preventDefault();
-				setMobileSheet(null);
+				closeCommandPalette({ restoreFocus: false });
+				closeMobileSheet({ restoreFocus: false });
 				window.requestAnimationFrame(focusVisiblePrompt);
 				return;
 			}
@@ -944,41 +1131,41 @@ export const DashboardLayout = memo(function DashboardLayout({
 		return () => {
 			window.removeEventListener("keydown", handleKeyDown, true);
 		};
-	}, [commandOpen, focusVisiblePrompt, toggleCommandPalette]);
+	}, [
+		closeCommandPalette,
+		closeMobileSheet,
+		commandOpen,
+		focusVisiblePrompt,
+		toggleCommandPalette,
+	]);
 
 	useEffect(() => {
 		if (terminalVisible) {
-			setMobileSheet(null);
+			closeMobileSheet({ restoreFocus: false });
 		}
-	}, [terminalVisible]);
+	}, [closeMobileSheet, terminalVisible]);
 
 	const commandActions = useMemo<CommandAction[]>(() => {
 		const setNavigatorVisible = () => {
 			if (isMobileViewport()) {
-				onTerminalVisibleChange(false);
-				setMobileSheet((current) =>
-					current === "navigator" ? null : "navigator",
-				);
+				openMobileSheet("navigator");
 				return;
 			}
 			onNavigatorVisibleChange(!navigatorVisible);
 		};
 		const setInspectorVisible = () => {
 			if (isMobileViewport()) {
-				onTerminalVisibleChange(false);
-				setMobileSheet((current) =>
-					current === "inspector" ? null : "inspector",
-				);
+				openMobileSheet("inspector");
 				return;
 			}
 			onInspectorVisibleChange(!inspectorVisible);
 		};
 		const showTerminal = () => {
-			setMobileSheet(null);
+			closeMobileSheet({ restoreFocus: false });
 			onTerminalVisibleChange(true);
 		};
 		const focusPrompt = () => {
-			setMobileSheet(null);
+			closeMobileSheet({ restoreFocus: false });
 			window.requestAnimationFrame(focusVisiblePrompt);
 		};
 		const selectedThreadArchived = Boolean(selectedThread?.archivedAt);
@@ -1202,10 +1389,11 @@ export const DashboardLayout = memo(function DashboardLayout({
 			actions.push({
 				id: `project:${project.id}`,
 				name: project.name,
-				detail: projectCommandDetail(project),
+				detail: projectResultDetail(project),
 				kind: "project",
 				projectId: project.id,
 				projectInitials: project.initials,
+				project,
 				run: () => onProjectChange(project.id),
 			});
 			for (const projectThread of project.threads) {
@@ -1252,9 +1440,11 @@ export const DashboardLayout = memo(function DashboardLayout({
 		onNavigatorVisibleChange,
 		onResume,
 		onCleanBackgroundTerminals,
+		onTerminalVisibleChange,
 		onThemeModeChange,
 		onWrapThreadContentChange,
-		onTerminalVisibleChange,
+		closeMobileSheet,
+		openMobileSheet,
 		onProjectChange,
 		onRestartCodexAppServer,
 		onSelectThread,
@@ -1264,14 +1454,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 	const toggleDesktopTerminal = useCallback(() => {
 		onTerminalVisibleChange(!terminalVisible);
 	}, [onTerminalVisibleChange, terminalVisible]);
-
-	const openMobileSheet = useCallback(
-		(sheet: MobileSheet) => {
-			onTerminalVisibleChange(false);
-			setMobileSheet((current) => (current === sheet ? null : sheet));
-		},
-		[onTerminalVisibleChange],
-	);
 
 	const toggleNavigator = useCallback(() => {
 		if (isMobileViewport()) {
@@ -1525,10 +1707,17 @@ export const DashboardLayout = memo(function DashboardLayout({
 						animate={{ opacity: 1 }}
 						exit={{ opacity: 0 }}
 						transition={spring}
-						onMouseDown={() => setMobileSheet(null)}
+						onMouseDown={() => closeMobileSheet()}
 					>
 						<motion.div
+							ref={mobileSheetPanelRef}
 							className={cn(mobileSheetClass, ui.backdropPanel)}
+							tabIndex={-1}
+							role="dialog"
+							aria-modal="true"
+							aria-label={
+								mobileSheet === "navigator" ? "Thread navigator" : "Settings"
+							}
 							initial={{ y: "100%", opacity: 0 }}
 							animate={{ y: 0, opacity: 1 }}
 							exit={{ y: "100%", opacity: 0 }}
@@ -1544,8 +1733,16 @@ export const DashboardLayout = memo(function DashboardLayout({
 									info.offset.y > dragDismissThreshold ||
 									info.velocity.y > 600
 								) {
-									setMobileSheet(null);
+									closeMobileSheet();
 								}
+							}}
+							onKeyDown={(event) => {
+								if (event.key === "Escape") {
+									event.preventDefault();
+									closeMobileSheet();
+									return;
+								}
+								cycleDialogFocus(event, mobileSheetPanelRef.current);
 							}}
 							onMouseDown={(event) => event.stopPropagation()}
 						>
@@ -1565,11 +1762,11 @@ export const DashboardLayout = memo(function DashboardLayout({
 									onThreadQueryChange={onThreadQueryChange}
 									onSelectThread={(nextThread) => {
 										onSelectThread(nextThread);
-										setMobileSheet(null);
+										closeMobileSheet({ restoreFocus: false });
 									}}
 									onCreateThread={() => {
 										createThreadAndFocusPrompt();
-										setMobileSheet(null);
+										closeMobileSheet({ restoreFocus: false });
 									}}
 								/>
 							) : (
@@ -1603,7 +1800,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 				open={commandOpen}
 				actions={commandActions}
 				autoFocusInput={commandAutoFocusInput}
-				onClose={() => setCommandOpen(false)}
+				onClose={closeCommandPalette}
 			/>
 		</main>
 	);

@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { memo, useMemo, useState } from "react";
 import { codexThreadCommandLabels } from "../codexCommandLabels.js";
 import { cn, ui } from "../designSystem.js";
-import { formatTokens } from "../uiFormat.js";
+import { ProjectResultRow, projectResultTitle } from "./ProjectResultRow.js";
 import {
 	ThreadResultRow,
 	threadResultSearchText,
@@ -39,18 +39,6 @@ export type SidebarProps = {
 };
 
 const bucketOrder: DateBucket[] = ["Today", "Yesterday", "Older"];
-
-function projectTitle(project: WorkbenchProject) {
-	const parts = [
-		project.path,
-		`${project.totalThreads} threads`,
-		`${formatTokens(project.tokenTotal)} tokens`,
-	];
-	if (project.runningThreads > 0) {
-		parts.push(`${project.runningThreads} running`);
-	}
-	return parts.join("\n");
-}
 
 function filterThreads(project: WorkbenchProject, query: string) {
 	const queryTokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
@@ -119,7 +107,9 @@ export const Sidebar = memo(function Sidebar({
 				<SurfaceAction
 					className="h-11 w-full gap-2.5 px-2.5"
 					name={
-						selectedProject ? projectTitle(selectedProject) : "Switch project"
+						selectedProject
+							? projectResultTitle(selectedProject)
+							: "Switch project"
 					}
 					aria-haspopup="menu"
 					aria-expanded={projectMenuOpen}
@@ -155,26 +145,16 @@ export const Sidebar = memo(function Sidebar({
 							{projects.map((project) => (
 								<MenuItemButton
 									key={project.id}
-									className="h-10 w-full gap-2.5 px-2.5"
+									className="min-h-[62px] w-full gap-2.5 px-2.5 py-2"
 									role="menuitem"
 									selected={project.id === selectedProjectId}
+									title={projectResultTitle(project)}
 									onClick={() => {
 										onProjectChange(project.id);
 										setProjectMenuOpen(false);
 									}}
 								>
-									<AvatarBadge className="h-7 w-7 text-[11px]">
-										{project.initials}
-									</AvatarBadge>
-									<span className="min-w-0 flex-1">
-										<span className="block truncate text-[13px] font-medium text-fg-strong">
-											{project.name}
-										</span>
-										<span className="block truncate text-[11px] text-muted">
-											{project.totalThreads} threads /{" "}
-											{formatTokens(project.tokenTotal)} tokens
-										</span>
-									</span>
+									<ProjectResultRow project={project} />
 									{project.id === selectedProjectId ? (
 										<Check size={14} className="text-fg-strong" />
 									) : null}
