@@ -64,6 +64,7 @@ import {
 } from "./uiPrimitives.js";
 import type {
 	ComposerMode,
+	SubmittedPromptFocusTarget,
 	WorkbenchProject,
 	WorkbenchThread,
 } from "./workbenchTypes.js";
@@ -92,6 +93,7 @@ export type WorkspaceProps = {
 	commandVisible: boolean;
 	navigatorVisible: boolean;
 	inspectorVisible: boolean;
+	submittedPromptFocusTarget: SubmittedPromptFocusTarget | null;
 	onPromptChange: (value: string) => void;
 	onPromptKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
 	onPromptSubmit: (event: SubmitEvent<HTMLFormElement>) => void;
@@ -177,6 +179,15 @@ function transcriptHiddenItemCount(entries: TranscriptEntry[]) {
 		(total, entry) => total + transcriptEntryItemCount(entry),
 		0,
 	);
+}
+
+function transcriptItemDataAttributes(entry: TranscriptEntry) {
+	return entry.kind === "item"
+		? {
+				"data-transcript-item-id": entry.item.id,
+				tabIndex: -1,
+			}
+		: {};
 }
 
 function processPreview(entry: TranscriptProcessEntry) {
@@ -473,6 +484,23 @@ const MessageBlock = memo(function MessageBlock({
 	);
 });
 
+const TranscriptEntryBlock = memo(function TranscriptEntryBlock({
+	entry,
+	wrapContent,
+}: {
+	entry: TranscriptEntry;
+	wrapContent: boolean;
+}) {
+	return entry.kind === "process" ? (
+		<ProcessOutputBlock entry={entry} wrapContent={wrapContent} />
+	) : (
+		<MessageBlock
+			message={messageFromItem(entry.item)}
+			wrapContent={wrapContent}
+		/>
+	);
+});
+
 const ProcessItemBlock = memo(function ProcessItemBlock({
 	message,
 	wrapContent,
@@ -653,7 +681,8 @@ type ComposerProps = Pick<
 	| "onListBackgroundTerminals"
 	| "onCleanBackgroundTerminals"
 > & {
-	onPromptFocus?: () => void;
+	onPromptFocusIntent?: () => void;
+	onPromptViewportChange?: () => void;
 };
 
 const Composer = memo(
@@ -686,7 +715,8 @@ const Composer = memo(
 			onArchive,
 			onListBackgroundTerminals,
 			onCleanBackgroundTerminals,
-			onPromptFocus,
+			onPromptFocusIntent,
+			onPromptViewportChange,
 		},
 		ref,
 	) {
@@ -833,7 +863,12 @@ const Composer = memo(
 			);
 			const minHeight = Number.isFinite(lineHeight) ? lineHeight : 26;
 			textarea.style.height = "0px";
-			textarea.style.height = `${Math.min(160, Math.max(minHeight, textarea.scrollHeight))}px`;
+			const maxHeight =
+				typeof window.matchMedia === "function" &&
+				window.matchMedia("(max-width: 767px)").matches
+					? 112
+					: 160;
+			textarea.style.height = `${Math.min(maxHeight, Math.max(minHeight, textarea.scrollHeight))}px`;
 		});
 
 		const focusPromptOnNextFrame = useCallback(() => {
@@ -908,12 +943,15 @@ const Composer = memo(
 							ref={textareaRef}
 							className={cn(
 								ui.textarea,
-								"max-h-[160px] min-h-[var(--composer-line-height)] px-0 text-[length:var(--composer-font-size)] leading-[var(--composer-line-height)]",
+								"max-h-[112px] min-h-[var(--composer-line-height)] px-0 text-[length:var(--composer-font-size)] leading-[var(--composer-line-height)] md:max-h-[160px]",
 							)}
 							value={prompt}
 							onChange={(event) => onPromptChange(event.target.value)}
 							onKeyDown={onPromptKeyDown}
-							onFocus={onPromptFocus}
+							onPointerDown={onPromptFocusIntent}
+							onTouchStart={onPromptFocusIntent}
+							onFocus={onPromptViewportChange}
+							onBlur={onPromptViewportChange}
 							placeholder={placeholder}
 							disabled={busy}
 							autoCapitalize="sentences"
@@ -1000,7 +1038,7 @@ const Composer = memo(
 								title={submitTitle}
 								aria-label={submitTitle}
 							>
-								<Send size={14} />
+								{goalMode ? <Goal size={14} /> : <Send size={14} />}
 							</button>
 						</div>
 					</div>
@@ -1034,6 +1072,7 @@ export const Workspace = memo(
 			commandVisible,
 			navigatorVisible,
 			inspectorVisible,
+			submittedPromptFocusTarget,
 			canUseGoalMode,
 			canSubmitPrompt,
 			onPromptChange,
@@ -1060,6 +1099,8 @@ export const Workspace = memo(
 		const rootRef = useRef<HTMLElement | null>(null);
 		const transcriptScrollRef = useRef<HTMLDivElement | null>(null);
 		const mobileTranscriptDetailIdRef = useRef<string | null>(null);
+		const preservedTranscriptScrollTopRef = useRef<number | null>(null);
+		const handledSubmittedPromptFocusRef = useRef<number | null>(null);
 		const transcriptScrollId = useId();
 		const [mobileVisibleEntryCount, setMobileVisibleEntryCount] = useState(
 			mobileTranscriptInitialWindow,
@@ -1172,7 +1213,7 @@ export const Workspace = memo(
 			};
 		}, []);
 
-		const settleMobilePromptFocus = useCallback(() => {
+		const captureMobileTranscriptPosition = useCallback(() => {
 			if (
 				typeof window.matchMedia !== "function" ||
 				!window.matchMedia("(max-width: 767px)").matches
@@ -1183,18 +1224,89 @@ export const Workspace = memo(
 			if (!scrollElement) {
 				return;
 			}
+			preservedTranscriptScrollTopRef.current = scrollElement.scrollTop;
+		}, []);
 
-			const scrollToEnd = () => {
-				scrollElement.scrollTo({
-					top: scrollElement.scrollHeight,
-					behavior: "auto",
-				});
+		const restoreMobileTranscriptPosition = useCallback(() => {
+			if (
+				typeof window.matchMedia !== "function" ||
+				!window.matchMedia("(max-width: 767px)").matches
+			) {
+				return;
+			}
+			const scrollElement = transcriptScrollRef.current;
+			if (!scrollElement) {
+				return;
+			}
+			if (preservedTranscriptScrollTopRef.current === null) {
+				preservedTranscriptScrollTopRef.current = scrollElement.scrollTop;
+			}
+
+			const restorePosition = () => {
+				const scrollTop = preservedTranscriptScrollTopRef.current;
+				if (scrollTop === null) {
+					return;
+				}
+				scrollElement.scrollTop = scrollTop;
 			};
 
-			window.requestAnimationFrame(scrollToEnd);
-			window.setTimeout(scrollToEnd, 180);
-			window.setTimeout(scrollToEnd, 360);
+			window.requestAnimationFrame(restorePosition);
+			window.setTimeout(restorePosition, 120);
+			window.setTimeout(restorePosition, 300);
 		}, []);
+
+		useEffect(() => {
+			const target = submittedPromptFocusTarget;
+			if (
+				!target ||
+				handledSubmittedPromptFocusRef.current === target.sequence
+			) {
+				return;
+			}
+			const scrollElement = transcriptScrollRef.current;
+			if (!scrollElement) {
+				return;
+			}
+			const selector = `[data-transcript-item-id="${CSS.escape(target.itemId)}"]`;
+			let attempts = 0;
+			let timer: number | null = null;
+			let frame: number | null = null;
+
+			const focusSubmittedPrompt = () => {
+				attempts += 1;
+				const targetElement =
+					scrollElement.querySelector<HTMLElement>(selector);
+				if (targetElement) {
+					handledSubmittedPromptFocusRef.current = target.sequence;
+					targetElement.scrollIntoView({
+						block: "nearest",
+						inline: "nearest",
+						behavior: "smooth",
+					});
+					targetElement.focus({ preventScroll: true });
+					return;
+				}
+				if (attempts >= 8) {
+					handledSubmittedPromptFocusRef.current = target.sequence;
+					return;
+				}
+				timer = window.setTimeout(scheduleFocus, attempts < 3 ? 40 : 120);
+			};
+
+			const scheduleFocus = () => {
+				frame = window.requestAnimationFrame(focusSubmittedPrompt);
+			};
+
+			scheduleFocus();
+			return () => {
+				if (frame !== null) {
+					window.cancelAnimationFrame(frame);
+				}
+				if (timer !== null) {
+					window.clearTimeout(timer);
+				}
+			};
+		}, [submittedPromptFocusTarget]);
 
 		return (
 			<section
@@ -1300,18 +1412,15 @@ export const Workspace = memo(
 									) : null}
 									{isMobilePresentation ? (
 										visibleEntries.map((entry) => (
-											<div key={entry.id} className="min-w-0">
-												{entry.kind === "process" ? (
-													<ProcessOutputBlock
-														entry={entry}
-														wrapContent={wrapThreadContent}
-													/>
-												) : (
-													<MessageBlock
-														message={messageFromItem(entry.item)}
-														wrapContent={wrapThreadContent}
-													/>
-												)}
+											<div
+												key={entry.id}
+												className="min-w-0 scroll-mt-3 focus:outline-none"
+												{...transcriptItemDataAttributes(entry)}
+											>
+												<TranscriptEntryBlock
+													entry={entry}
+													wrapContent={wrapThreadContent}
+												/>
 											</div>
 										))
 									) : (
@@ -1319,23 +1428,17 @@ export const Workspace = memo(
 											{visibleEntries.map((entry) => (
 												<motion.div
 													key={entry.id}
-													className="min-w-0"
+													className="min-w-0 scroll-mt-3 focus:outline-none"
+													{...transcriptItemDataAttributes(entry)}
 													initial={{ opacity: 0, y: 10 }}
 													animate={{ opacity: 1, y: 0 }}
 													exit={{ opacity: 0, y: -10 }}
 													transition={spring}
 												>
-													{entry.kind === "process" ? (
-														<ProcessOutputBlock
-															entry={entry}
-															wrapContent={wrapThreadContent}
-														/>
-													) : (
-														<MessageBlock
-															message={messageFromItem(entry.item)}
-															wrapContent={wrapThreadContent}
-														/>
-													)}
+													<TranscriptEntryBlock
+														entry={entry}
+														wrapContent={wrapThreadContent}
+													/>
 												</motion.div>
 											))}
 										</AnimatePresence>
@@ -1389,7 +1492,8 @@ export const Workspace = memo(
 									onArchive={onArchive}
 									onListBackgroundTerminals={onListBackgroundTerminals}
 									onCleanBackgroundTerminals={onCleanBackgroundTerminals}
-									onPromptFocus={settleMobilePromptFocus}
+									onPromptFocusIntent={captureMobileTranscriptPosition}
+									onPromptViewportChange={restoreMobileTranscriptPosition}
 								/>
 							</ThreadContentFrame>
 						</div>

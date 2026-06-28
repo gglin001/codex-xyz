@@ -42,6 +42,7 @@ import {
 } from "./components/workbenchData.js";
 import type {
 	ComposerMode,
+	SubmittedPromptFocusTarget,
 	WorkbenchThread,
 } from "./components/workbenchTypes.js";
 import {
@@ -288,6 +289,8 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	const [threadQuery, setThreadQuery] = useState("");
 	const [archivedThreads, setArchivedThreads] = useState<ControlThread[]>([]);
 	const [composerMode, setComposerMode] = useState<ComposerMode>("thread");
+	const [submittedPromptFocusTarget, setSubmittedPromptFocusTarget] =
+		useState<SubmittedPromptFocusTarget | null>(null);
 	const [busyAction, setBusyAction] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [notice, setNotice] = useState<string | null>(null);
@@ -327,6 +330,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	const optimisticThreadRef = useRef<OptimisticThreadSubmission | null>(null);
 	const optimisticTurnsRef = useRef<OptimisticTurnSubmission[]>([]);
 	const optimisticArchiveRef = useRef<OptimisticArchiveSubmission | null>(null);
+	const submittedPromptFocusSequenceRef = useRef(0);
 	const projectionRef = useRef<ClientProjection>({
 		state: appInitialState,
 		detail: null,
@@ -344,6 +348,14 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		if (next.detail !== previous.detail) {
 			setDetail(next.detail);
 		}
+	}, []);
+
+	const requestSubmittedPromptFocus = useCallback((itemId: string) => {
+		submittedPromptFocusSequenceRef.current += 1;
+		setSubmittedPromptFocusTarget({
+			itemId,
+			sequence: submittedPromptFocusSequenceRef.current,
+		});
 	}, []);
 
 	const beginRefresh = useCallback(() => {
@@ -1290,6 +1302,9 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			),
 			detail: draft.detail,
 		});
+		if (draft.detail.items[0]) {
+			requestSubmittedPromptFocus(draft.detail.items[0].id);
+		}
 
 		try {
 			const result = await createThread({
@@ -1468,6 +1483,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			},
 		];
 		commitProjection(applyOptimisticTurnDraft(projectionRef.current, draft));
+		requestSubmittedPromptFocus(draft.itemId);
 		setComposerMode("thread");
 		setError(null);
 		setNotice(null);
@@ -1711,6 +1727,9 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			return;
 		}
 		const currentPrompt = prompt;
+		if (document.activeElement instanceof HTMLElement) {
+			document.activeElement.blur();
+		}
 
 		if (goalMode && promptTarget === "thread") {
 			if (!activeThreadId || !canUseGoalMode) {
@@ -1906,6 +1925,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				goalMode={goalMode}
 				canUseGoalMode={canUseGoalMode}
 				canSubmitPrompt={canSubmitPrompt}
+				submittedPromptFocusTarget={submittedPromptFocusTarget}
 				onNavigatorVisibleChange={setNavigatorVisible}
 				onInspectorVisibleChange={setInspectorVisible}
 				onWrapThreadContentChange={setWrapThreadContent}

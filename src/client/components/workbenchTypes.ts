@@ -10,6 +10,11 @@ import type {
 export type DateBucket = "Today" | "Yesterday" | "Older";
 export type ComposerMode = "thread" | "new";
 
+export type SubmittedPromptFocusTarget = {
+	itemId: string;
+	sequence: number;
+};
+
 export type ProjectAccent = "emerald" | "violet" | "sky" | "slate";
 
 export type WorkbenchThread = {

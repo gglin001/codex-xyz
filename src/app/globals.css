@@ -125,6 +125,7 @@
 		);
 		--mobile-sheet-top: var(--mobile-header-height);
 		--composer-height: 132px;
+		--mobile-composer-lift: 10px;
 	}
 
 	:root,
@@ -548,7 +549,10 @@
 
 	.mobile-transcript-scroll {
 		padding-bottom: 0;
-		scroll-padding-bottom: var(--composer-height, 132px);
+		scroll-padding-bottom: calc(
+			var(--composer-height, 132px) +
+			var(--mobile-composer-lift)
+		);
 		overscroll-behavior: contain;
 		touch-action: pan-y;
 		-webkit-overflow-scrolling: touch;
@@ -559,11 +563,14 @@
 	}
 
 	.mobile-composer-bar {
-		padding-bottom: var(--safe-inset-bottom);
+		padding-bottom: calc(
+			var(--safe-inset-bottom) +
+			var(--mobile-composer-lift)
+		);
 	}
 
 	:root[data-keyboard-visible] .mobile-composer-bar {
-		padding-bottom: 0;
+		padding-bottom: 4px;
 	}
 
 	input:not([type="range"]),

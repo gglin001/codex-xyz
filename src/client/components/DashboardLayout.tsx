@@ -61,6 +61,7 @@ import {
 import { Workspace, type WorkspaceHandle } from "./Workspace.js";
 import type {
 	ComposerMode,
+	SubmittedPromptFocusTarget,
 	WorkbenchProject,
 	WorkbenchThread,
 } from "./workbenchTypes.js";
@@ -92,6 +93,7 @@ export type DashboardLayoutProps = {
 	goalMode: boolean;
 	canUseGoalMode: boolean;
 	canSubmitPrompt: boolean;
+	submittedPromptFocusTarget: SubmittedPromptFocusTarget | null;
 	onNavigatorVisibleChange: (visible: boolean) => void;
 	onInspectorVisibleChange: (visible: boolean) => void;
 	onWrapThreadContentChange: (value: boolean) => void;
@@ -795,6 +797,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 	goalMode,
 	canUseGoalMode,
 	canSubmitPrompt,
+	submittedPromptFocusTarget,
 	onNavigatorVisibleChange,
 	onInspectorVisibleChange,
 	onWrapThreadContentChange,
@@ -1468,6 +1471,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 							goalMode={goalMode}
 							canUseGoalMode={canUseGoalMode}
 							canSubmitPrompt={canSubmitPrompt}
+							submittedPromptFocusTarget={submittedPromptFocusTarget}
 							wrapThreadContent={wrapThreadContent}
 							displayScale={displayScale}
 							commandVisible={commandOpen}
@@ -1531,6 +1535,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 						goalMode={goalMode}
 						canUseGoalMode={canUseGoalMode}
 						canSubmitPrompt={canSubmitPrompt}
+						submittedPromptFocusTarget={submittedPromptFocusTarget}
 						wrapThreadContent={wrapThreadContent}
 						displayScale={displayScale}
 						commandVisible={commandOpen}
