@@ -710,7 +710,7 @@ const CommandPalette = memo(function CommandPalette({
 			{open ? (
 				<motion.div
 					className={cn(
-						"fixed inset-0 flex items-start justify-center md:px-6 md:pt-[clamp(56px,10vh,96px)]",
+						"fixed inset-0 flex items-start justify-center md:px-3 md:pt-3",
 						layer.overlayZ,
 						ui.overlay,
 					)}
@@ -724,7 +724,7 @@ const CommandPalette = memo(function CommandPalette({
 						ref={panelRef}
 						className={cn(
 							layer.mobileSheet,
-							"px-0 md:static md:h-auto md:max-h-[min(40rem,calc(100dvh_-_7rem))] md:w-[44rem] md:max-w-[calc(100vw_-_2rem)] md:rounded-[12px]",
+							"px-0 md:static md:h-auto md:max-h-[min(44rem,calc(100dvh_-_1.5rem))] md:w-[44rem] md:max-w-[calc(100vw_-_1.5rem)] md:rounded-[12px]",
 							ui.popover,
 						)}
 						tabIndex={-1}
@@ -775,7 +775,7 @@ const CommandPalette = memo(function CommandPalette({
 							/>
 						</div>
 						<div className="px-2 pb-1 pt-2">
-							<FieldShell icon={<Search size={16} />} className="h-10 w-full">
+							<FieldShell icon={<Search size={16} />} className="h-9 w-full">
 								<input
 									type="search"
 									ref={inputRef}
@@ -819,7 +819,7 @@ const CommandPalette = memo(function CommandPalette({
 						<div className="relative min-h-0 flex-1">
 							<div
 								ref={listRef}
-								className="mobile-keyboard-scroll h-full min-h-0 overflow-y-auto px-1.5 py-1 md:max-h-[min(31rem,calc(100dvh_-_12rem))]"
+								className="mobile-keyboard-scroll h-full min-h-0 overflow-y-auto px-1.5 py-1 md:max-h-[min(39rem,calc(100dvh_-_5rem))]"
 							>
 								{filteredActions.length === 0 ? (
 									<div className="px-3 py-8 text-center text-[13px] text-muted">
@@ -833,10 +833,10 @@ const CommandPalette = memo(function CommandPalette({
 											data-command-index={index}
 											className={cn(
 												action.kind === "thread"
-													? "min-h-[78px] w-full items-start gap-2.5 px-2.5 py-2"
+													? "min-h-[62px] w-full items-start gap-2.5 px-2.5 py-1.5"
 													: action.kind === "project"
-														? "min-h-[66px] w-full items-start gap-2.5 px-2.5 py-2"
-														: "h-11 w-full gap-2.5 px-2.5",
+														? "min-h-[58px] w-full items-start gap-2.5 px-2.5 py-1.5"
+														: "h-10 w-full gap-2.5 px-2.5",
 												action.disabled ? "opacity-45" : null,
 											)}
 											title={
@@ -866,6 +866,7 @@ const CommandPalette = memo(function CommandPalette({
 													thread={action.thread}
 													projectName={action.projectName}
 													showStatusIcon={false}
+													showPreview={false}
 												/>
 											) : action.kind === "project" ? (
 												<ProjectResultRow
@@ -1447,11 +1448,11 @@ export const DashboardLayout = memo(function DashboardLayout({
 	}, [inspectorVisible, onInspectorVisibleChange, openMobileSheet]);
 
 	const sidebarFooter = (
-		<div className={cn("shrink-0 px-2.5 pb-2 pt-1", ui.panelBand)}>
-			<div className="mb-1.5 grid grid-cols-2 gap-1.5">
+		<div className={cn("shrink-0 px-2 pb-1.5 pt-0.5", ui.panelBand)}>
+			<div className="mb-1 grid grid-cols-2 gap-1.5">
 				<SurfaceAction
 					className={cn(
-						"h-10 justify-center gap-2 px-2 text-[12px] font-medium",
+						"h-9 justify-center gap-2 px-2 text-[12px] font-medium",
 						terminalVisible ? null : "text-muted-strong",
 					)}
 					title="Toggle terminal"
@@ -1464,7 +1465,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 				</SurfaceAction>
 				<SurfaceAction
 					className={cn(
-						"h-10 justify-center gap-2 px-2 text-[12px] font-medium",
+						"h-9 justify-center gap-2 px-2 text-[12px] font-medium",
 						inspectorVisible ? null : "text-muted-strong",
 					)}
 					title={inspectorVisible ? "Hide settings" : "Open settings"}
@@ -1478,14 +1479,14 @@ export const DashboardLayout = memo(function DashboardLayout({
 			</div>
 
 			<SurfaceAction
-				className="h-10 w-full gap-2.5 px-2.5"
+				className="h-9 w-full gap-2.5 px-2.5"
 				title="Open commands"
 				aria-label="Open commands"
 				onClick={() => openCommandPalette()}
 			>
 				<span
 					className={cn(
-						"h-7 w-7 font-mono text-[15px] leading-none",
+						"h-6 w-6 font-mono text-[14px] leading-none",
 						ui.iconBox,
 					)}
 					aria-hidden="true"

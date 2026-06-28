@@ -246,8 +246,8 @@ export const ParamPanel = memo(function ParamPanel({
 			<div className="relative min-h-0 min-w-0 flex-1">
 				<div className="mobile-keyboard-scroll h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden scroll-mask-y">
 					<SettingsSection icon={<ListTree size={13} />} title="Current Thread">
-						<div className="grid min-w-0 gap-2">
-							<ControlCard className="grid w-full min-w-0 gap-2 px-3 py-2.5">
+						<div className="grid min-w-0 gap-1.5">
+							<ControlCard className="grid w-full min-w-0 gap-1.5 px-2.5 py-2">
 								<div className="flex min-w-0 items-center justify-between gap-3">
 									<span className="inline-flex min-w-0 items-center gap-2">
 										<span
@@ -333,9 +333,9 @@ export const ParamPanel = memo(function ParamPanel({
 						icon={<TimerReset size={13} />}
 						title="Goal and Usage"
 					>
-						<div className="grid min-w-0 gap-2">
-							<ControlCard size="large" className="w-full min-w-0 p-3">
-								<div className="mb-3 flex min-w-0 items-center justify-between gap-3 text-[12px]">
+						<div className="grid min-w-0 gap-1.5">
+							<ControlCard size="large" className="w-full min-w-0 p-2.5">
+								<div className="mb-2 flex min-w-0 items-center justify-between gap-3 text-[12px]">
 									<span className="truncate font-medium text-fg">
 										{tokenBudget ? "Goal budget" : "Tokens used"}
 									</span>
@@ -355,7 +355,7 @@ export const ParamPanel = memo(function ParamPanel({
 										style={{ width: tokenBudget ? `${tokenPercent}%` : "0%" }}
 									/>
 								</div>
-								<div className="mt-3 flex min-w-0 items-center justify-between gap-3 text-[11px] text-muted">
+								<div className="mt-2 flex min-w-0 items-center justify-between gap-3 text-[11px] text-muted">
 									<span className="truncate">
 										{thread?.goalStatus
 											? statusLabel(thread.goalStatus)
@@ -369,13 +369,13 @@ export const ParamPanel = memo(function ParamPanel({
 								</div>
 							</ControlCard>
 							{thread?.goalObjective ? (
-								<ControlCard className="w-full min-w-0 px-3 py-2.5 text-[12px] leading-5 text-fg">
+								<ControlCard className="w-full min-w-0 px-2.5 py-2 text-[12px] leading-5 text-fg">
 									<span className="block truncate" title={thread.goalObjective}>
 										{thread.goalObjective}
 									</span>
 								</ControlCard>
 							) : null}
-							<div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
+							<div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-1.5">
 								<InfoTile
 									icon={<Play size={13} />}
 									label="Turns"
@@ -393,7 +393,7 @@ export const ParamPanel = memo(function ParamPanel({
 					</SettingsSection>
 
 					<SettingsSection icon={<Server size={13} />} title="Runtime">
-						<div className="grid min-w-0 gap-2">
+						<div className="grid min-w-0 gap-1.5">
 							<InfoTile
 								icon={<Bot size={13} />}
 								label="Model"
@@ -409,7 +409,7 @@ export const ParamPanel = memo(function ParamPanel({
 								layout="inline"
 							/>
 							<SurfaceAction
-								className="h-10 justify-center gap-2 px-2 text-[12px] font-medium text-muted-strong"
+								className="h-9 justify-center gap-2 px-2 text-[12px] font-medium text-muted-strong"
 								title={
 									restartCodexAppServerDisabled
 										? "Another action is running"
@@ -426,15 +426,15 @@ export const ParamPanel = memo(function ParamPanel({
 					</SettingsSection>
 
 					<SettingsSection icon={<SlidersHorizontal size={13} />} title="View">
-						<div className="grid min-w-0 gap-2">
-							<ControlCard className="w-full min-w-0 px-3 py-2.5">
+						<div className="grid min-w-0 gap-1.5">
+							<ControlCard className="w-full min-w-0 px-2.5 py-2">
 								<ScaleControl
 									label="Scale"
 									value={displayScale}
 									onChange={onDisplayScaleChange}
 								/>
 							</ControlCard>
-							<div className="flex min-w-0 flex-wrap gap-2">
+							<div className="flex min-w-0 flex-wrap gap-1.5">
 								<SettingsIconToggle
 									checked={themeMode === "day"}
 									icon={<Sun size={15} />}
@@ -475,8 +475,8 @@ export const ParamPanel = memo(function ParamPanel({
 					</SettingsSection>
 
 					<SettingsSection icon={<Download size={13} />} title="Web App">
-						<div className="grid min-w-0 gap-2">
-							<ControlCard className="grid w-full min-w-0 gap-2 px-3 py-2.5">
+						<div className="grid min-w-0 gap-1.5">
+							<ControlCard className="grid w-full min-w-0 gap-1.5 px-2.5 py-2">
 								<div className="flex min-w-0 items-center justify-between gap-3">
 									<span className="inline-flex min-w-0 items-center gap-2">
 										<span
@@ -509,9 +509,9 @@ export const ParamPanel = memo(function ParamPanel({
 									</span>
 								</div>
 							</ControlCard>
-							<div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
+							<div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-1.5">
 								<SurfaceAction
-									className="h-10 justify-center gap-2 px-2 text-[12px] font-medium"
+									className="h-9 justify-center gap-2 px-2 text-[12px] font-medium"
 									disabled={!pwa.canInstall}
 									title={pwaInstallLabel(pwa.installState)}
 									aria-label={pwaInstallLabel(pwa.installState)}
@@ -530,7 +530,7 @@ export const ParamPanel = memo(function ParamPanel({
 									</span>
 								</SurfaceAction>
 								<SurfaceAction
-									className="h-10 justify-center gap-2 px-2 text-[12px] font-medium"
+									className="h-9 justify-center gap-2 px-2 text-[12px] font-medium"
 									disabled={pwa.updateState !== "available"}
 									title={
 										pwa.updateState === "available"

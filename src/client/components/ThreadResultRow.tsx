@@ -84,18 +84,20 @@ export const ThreadResultRow = memo(function ThreadResultRow({
 	thread,
 	projectName,
 	showStatusIcon = true,
+	showPreview = true,
 	className,
 }: {
 	thread: WorkbenchThread;
 	projectName?: string;
 	showStatusIcon?: boolean;
+	showPreview?: boolean;
 	className?: string;
 }) {
 	const context = threadContext(thread, projectName);
 	return (
 		<span className={cn("flex min-w-0 flex-1 items-start gap-2", className)}>
 			{showStatusIcon ? (
-				<span className="flex h-[62px] w-4 shrink-0 flex-col items-center gap-0.5">
+				<span className="flex h-12 w-4 shrink-0 flex-col items-center gap-0.5">
 					<span
 						className="mt-1 flex h-4 w-4 shrink-0 items-center justify-center"
 						aria-hidden="true"
@@ -125,9 +127,11 @@ export const ThreadResultRow = memo(function ThreadResultRow({
 					{formatTokens(thread.tokensUsed)} tokens /{" "}
 					{statusLabel(thread.status)}
 				</span>
-				<span className="truncate text-[11px] leading-[18px] text-muted-strong">
-					{thread.preview}
-				</span>
+				{showPreview ? (
+					<span className="truncate text-[11px] leading-[18px] text-muted-strong">
+						{thread.preview}
+					</span>
+				) : null}
 			</span>
 		</span>
 	);

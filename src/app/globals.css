@@ -118,8 +118,11 @@
 		--safe-area-bottom-bg: rgba(18, 19, 20, 0.92);
 		--app-visual-height: 100dvh;
 		--keyboard-inset-bottom: 0px;
-		--mobile-sheet-height: 92dvh;
-		--mobile-sheet-top: 8dvh;
+		--mobile-sheet-height: calc(
+			var(--app-visual-height) -
+			var(--safe-inset-top)
+		);
+		--mobile-sheet-top: var(--safe-inset-top);
 		--composer-height: 132px;
 	}
 
@@ -465,6 +468,7 @@
 
 	.mobile-sheet-surface {
 		background: var(--panel-bg);
+		border-radius: 0 !important;
 		border-bottom-left-radius: 0 !important;
 		border-bottom-right-radius: 0 !important;
 		box-shadow: none !important;

@@ -747,7 +747,7 @@ export function TerminalDock({
 	const header = (
 		<div
 			className={cn(
-				"grid min-h-10 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 px-3 py-1 md:cursor-move",
+				"grid min-h-9 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 px-2.5 py-1 md:cursor-move",
 				ui.panelBand,
 			)}
 			onPointerDown={startDesktopMove}
@@ -805,7 +805,7 @@ export function TerminalDock({
 	const terminalCanvas = (
 		<div className="relative min-h-[160px] flex-1 bg-terminal">
 			<div
-				className="h-full p-3 [&_.xterm]:h-full [&_.xterm-screen]:will-change-transform [&_.xterm-viewport]:!bg-transparent"
+				className="h-full p-2 [&_.xterm]:h-full [&_.xterm-screen]:will-change-transform [&_.xterm-viewport]:!bg-transparent"
 				ref={containerRef}
 			/>
 			<div className="chrome-edge-fade chrome-edge-fade-short chrome-edge-fade-terminal chrome-edge-fade-top" />

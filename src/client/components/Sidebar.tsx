@@ -99,9 +99,9 @@ export const Sidebar = memo(function Sidebar({
 		<aside
 			className={cn("flex h-full min-h-0 flex-col", ui.sidePanel, className)}
 		>
-			<div className="relative shrink-0 px-2.5 pb-1 pt-2">
+			<div className="relative shrink-0 px-2 pb-0.5 pt-1">
 				<SurfaceAction
-					className="h-11 w-full gap-2.5 px-2.5"
+					className="h-10 w-full gap-2.5 px-2.5"
 					name={
 						selectedProject
 							? projectResultTitle(selectedProject)
@@ -129,7 +129,7 @@ export const Sidebar = memo(function Sidebar({
 					{projectMenuOpen ? (
 						<motion.div
 							className={cn(
-								"absolute left-2.5 right-2.5 top-[54px] p-1.5",
+								"absolute left-2 right-2 top-[46px] p-1",
 								layer.localMenuZ,
 								ui.popover,
 							)}
@@ -164,12 +164,12 @@ export const Sidebar = memo(function Sidebar({
 
 			<div
 				className={cn(
-					"flex shrink-0 items-center gap-2 px-2.5 pb-1.5 pt-0.5",
+					"flex shrink-0 items-center gap-1.5 px-2 pb-1 pt-0.5",
 					ui.panelBand,
 				)}
 			>
 				<div className="min-w-0 flex-1">
-					<FieldShell icon={<Search size={14} />} className="h-9 w-full">
+					<FieldShell icon={<Search size={14} />} className="h-8 w-full">
 						<input
 							type="search"
 							className={cn(ui.input, ui.inputTextCompact)}
@@ -184,7 +184,7 @@ export const Sidebar = memo(function Sidebar({
 					</FieldShell>
 				</div>
 				<ControlButton
-					className="h-9 w-9 shrink-0 bg-transparent"
+					className="h-8 w-8 shrink-0 bg-transparent"
 					onClick={onCreateThread}
 					name={codexThreadCommandLabels.new}
 					aria-label={codexThreadCommandLabels.new}
@@ -194,7 +194,7 @@ export const Sidebar = memo(function Sidebar({
 			</div>
 
 			<div className="relative min-h-0 flex-1">
-				<div className="mobile-keyboard-scroll h-full min-h-0 overflow-y-auto px-2.5 py-1.5 scroll-mask-y">
+				<div className="mobile-keyboard-scroll h-full min-h-0 overflow-y-auto px-2 py-1 scroll-mask-y">
 					<AnimatePresence mode="popLayout">
 						<motion.div
 							key={selectedProject?.id ?? "empty"}
@@ -202,7 +202,7 @@ export const Sidebar = memo(function Sidebar({
 							animate={{ opacity: 1, x: 0 }}
 							exit={{ opacity: 0, x: 10 }}
 							transition={motionPresets.item}
-							className="grid gap-2.5"
+							className="grid gap-1.5"
 						>
 							{threadGroups.length === 0 ? (
 								<ControlCard className="px-3 py-7 text-center text-[12px] text-muted">
@@ -213,7 +213,7 @@ export const Sidebar = memo(function Sidebar({
 							) : null}
 							{threadGroups.map((group) => (
 								<section key={group.bucket} className="grid gap-0.5">
-									<div className="px-2 pb-0.5 text-[12px] font-medium text-muted">
+									<div className="px-2 pb-0.5 text-[11px] font-medium text-muted">
 										{group.bucket}
 									</div>
 									{group.threads.map((thread) => {
@@ -224,13 +224,13 @@ export const Sidebar = memo(function Sidebar({
 											<NavAction
 												key={thread.id}
 												className={cn(
-													"group w-full items-start gap-2 px-2.5 py-1.5",
+													"group w-full items-start gap-2 px-2.5 py-1",
 												)}
 												selected={selected}
 												name={threadResultTitle(thread)}
 												onClick={() => onSelectThread(thread)}
 											>
-												<ThreadResultRow thread={thread} />
+												<ThreadResultRow thread={thread} showPreview={false} />
 											</NavAction>
 										);
 									})}

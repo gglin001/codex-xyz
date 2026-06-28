@@ -1225,7 +1225,7 @@ export const Workspace = memo(
 				) : null}
 				<header
 					className={cn(
-						"hidden shrink-0 items-center justify-between gap-3 md:relative md:flex md:h-10 md:px-5",
+						"hidden shrink-0 items-center justify-between gap-3 md:relative md:flex md:h-9 md:px-5",
 						layer.workspaceChromeZ,
 					)}
 				>
@@ -1381,7 +1381,7 @@ export const Workspace = memo(
 						<div
 							ref={composerShellRef}
 							className={cn(
-								"mobile-composer-bar relative shrink-0 overflow-visible pb-1 pl-4 pr-[calc(1rem+var(--transcript-scrollbar-width,0px))] md:pb-1 md:pl-8 md:pr-[calc(2rem+var(--transcript-scrollbar-width,0px))]",
+								"mobile-composer-bar relative shrink-0 overflow-visible pb-0.5 pl-4 pr-[calc(1rem+var(--transcript-scrollbar-width,0px))] md:pb-0.5 md:pl-8 md:pr-[calc(2rem+var(--transcript-scrollbar-width,0px))]",
 								layer.composerZ,
 							)}
 						>

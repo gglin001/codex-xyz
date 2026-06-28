@@ -15,7 +15,6 @@ const mobileSheetTopProperty = "--mobile-sheet-top";
 const keyboardVisibleAttribute = "data-keyboard-visible";
 const mobileViewportQuery = "(max-width: 767px)";
 const keyboardVisibilityThreshold = 80;
-const mobileSheetHeightRatio = 0.92;
 
 function setKeyboardState(insetValue: number) {
 	const inset = Math.max(
@@ -47,23 +46,22 @@ function setMobileSheetGeometry(heightValue: number | null) {
 	if (heightValue === null) {
 		document.documentElement.style.setProperty(
 			mobileSheetHeightProperty,
-			"92dvh",
+			"calc(var(--app-visual-height) - var(--safe-inset-top))",
 		);
-		document.documentElement.style.setProperty(mobileSheetTopProperty, "8dvh");
+		document.documentElement.style.setProperty(
+			mobileSheetTopProperty,
+			"var(--safe-inset-top)",
+		);
 		return;
 	}
 	const viewportHeight = Math.max(320, Math.round(heightValue));
-	const sheetHeight = Math.max(
-		320,
-		Math.round(viewportHeight * mobileSheetHeightRatio),
-	);
 	document.documentElement.style.setProperty(
 		mobileSheetHeightProperty,
-		`${sheetHeight}px`,
+		`calc(${viewportHeight}px - var(--safe-inset-top))`,
 	);
 	document.documentElement.style.setProperty(
 		mobileSheetTopProperty,
-		`${Math.max(0, viewportHeight - sheetHeight)}px`,
+		"var(--safe-inset-top)",
 	);
 }
 

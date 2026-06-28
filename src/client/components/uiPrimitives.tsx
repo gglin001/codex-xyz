@@ -196,7 +196,7 @@ export function FieldShell({
 }) {
 	return (
 		<div
-			className={cn("flex h-9 items-center gap-2.5 px-3", ui.field, className)}
+			className={cn("flex h-8 items-center gap-2 px-2.5", ui.field, className)}
 			{...props}
 		>
 			{icon ? (
@@ -561,8 +561,8 @@ export function SettingsSection({
 	children: ReactNode;
 }) {
 	return (
-		<section className="w-full min-w-0 px-3 py-3">
-			<div className={cn(ui.sectionLabel, "mb-2.5 min-w-0")}>
+		<section className="w-full min-w-0 px-2.5 py-2">
+			<div className={cn(ui.sectionLabel, "mb-2 min-w-0")}>
 				<span className="shrink-0">{icon}</span>
 				<span className="truncate">{title}</span>
 			</div>
@@ -591,10 +591,10 @@ export const InfoTile = memo(function InfoTile({
 	return (
 		<div
 			className={cn(
-				"flex w-full min-w-0 gap-2.5 bg-surface-subtle/54",
+				"flex w-full min-w-0 gap-2 bg-surface-subtle/54",
 				inline
-					? "min-h-9 items-center px-2.5 py-2"
-					: "min-h-[56px] items-start px-3 py-2.5",
+					? "min-h-8 items-center px-2.5 py-1.5"
+					: "min-h-12 items-start px-2.5 py-2",
 				radius.control,
 				className,
 			)}
