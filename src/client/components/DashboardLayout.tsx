@@ -33,7 +33,6 @@ import {
 import type {
 	ControlThread,
 	ThreadDetail,
-	ThreadDisplayStatus,
 	ThreadTagScore,
 } from "../../server/domain.js";
 import { codexThreadCommandLabels } from "../codexCommandLabels.js";
@@ -52,18 +51,7 @@ import { useMobileViewportGeometry } from "../useMobileViewportGeometry.js";
 import type { PwaState } from "../usePwa.js";
 import { MobileFloatingScroller } from "./MobileFloatingScroller.js";
 import { ParamPanel } from "./ParamPanel.js";
-import {
-	ProjectResultRow,
-	projectResultDetail,
-	projectResultTitle,
-} from "./ProjectResultRow.js";
 import { Sidebar } from "./Sidebar.js";
-import {
-	ThreadResultRow,
-	threadResultSearchText,
-	threadResultTitle,
-} from "./ThreadResultRow.js";
-import { ThreadStatusIcon } from "./threadStatusIcon.js";
 import {
 	FieldShell,
 	MenuItemButton,
@@ -113,10 +101,7 @@ export type DashboardLayoutProps = {
 	onDisplayScaleChange: (value: number) => void;
 	onThreadTagScoreChange: (value: ThreadTagScore | null) => void;
 	onProjectChange: (projectId: string) => void;
-	onSelectThread: (
-		threadSummary: WorkbenchThread,
-		options?: { clearThreadQuery?: boolean },
-	) => void;
+	onSelectThread: (threadSummary: WorkbenchThread) => void;
 	onCreateThread: () => void;
 	onThreadQueryChange: (value: string) => void;
 	onTerminalVisibleChange: (visible: boolean) => void;
@@ -148,19 +133,6 @@ type CommandActionBase = {
 type CommandAction =
 	| (CommandActionBase & {
 			kind: "navigator" | "terminal" | "prompt";
-	  })
-	| (CommandActionBase & {
-			kind: "project";
-			projectId: string;
-			projectInitials: string;
-			project: WorkbenchProject;
-	  })
-	| (CommandActionBase & {
-			kind: "thread";
-			projectId: string;
-			status: ThreadDisplayStatus;
-			thread: WorkbenchThread;
-			projectName: string;
 	  })
 	| (CommandActionBase & {
 			kind: "settingsGroup";
@@ -353,17 +325,11 @@ function cycleDialogFocus(
 }
 
 function commandActionMatches(action: CommandAction, normalizedQuery: string) {
-	const searchable =
-		action.kind === "thread"
-			? threadResultSearchText(action.thread, action.projectName)
-			: `${action.name} ${action.detail}`;
+	const searchable = `${action.name} ${action.detail}`;
 	return searchable.toLowerCase().includes(normalizedQuery);
 }
 
 function commandParentId(action: CommandAction) {
-	if (action.kind === "thread") {
-		return `project:${action.projectId}`;
-	}
 	if (action.kind === "settingsItem") {
 		return `settings:${action.settingsGroupId}`;
 	}
@@ -436,27 +402,6 @@ function CommandActionGlyph({
 	action,
 	parentHasVisibleChildren,
 }: CommandActionRenderItem) {
-	if (action.kind === "project") {
-		return (
-			<span
-				className="relative flex h-8 w-8 shrink-0 items-center justify-center"
-				aria-hidden="true"
-			>
-				{parentHasVisibleChildren ? (
-					<span className={layer.groupContinuationMark} />
-				) : null}
-				<span
-					className={cn(
-						"h-8 w-8 font-semibold text-[11px] text-fg-strong",
-						ui.iconBox,
-					)}
-				>
-					{action.projectInitials}
-				</span>
-			</span>
-		);
-	}
-
 	if (action.kind === "settingsGroup") {
 		return (
 			<span
@@ -489,25 +434,6 @@ function CommandActionGlyph({
 					)}
 				>
 					/
-				</span>
-			</span>
-		);
-	}
-
-	if (action.kind === "thread") {
-		return (
-			<span
-				className="relative flex h-8 w-12 shrink-0 items-center"
-				aria-hidden="true"
-			>
-				<span className={layer.stackedIconPlate} />
-				<span
-					className={cn(
-						"absolute right-0 top-0 h-8 w-8 text-muted-strong",
-						ui.iconBox,
-					)}
-				>
-					<ThreadStatusIcon status={action.status} />
 				</span>
 			</span>
 		);
@@ -741,7 +667,7 @@ const CommandPalette = memo(function CommandPalette({
 										setQuery(event.target.value);
 										setActiveIndex(0);
 									}}
-									placeholder="Search Anything"
+									placeholder="Search commands"
 									autoCapitalize="off"
 									autoCorrect="off"
 									spellCheck={false}
@@ -789,20 +715,10 @@ const CommandPalette = memo(function CommandPalette({
 											key={action.id}
 											data-command-index={index}
 											className={cn(
-												action.kind === "thread"
-													? "min-h-[68px] w-full items-start gap-2.5 px-2.5 py-1.5"
-													: action.kind === "project"
-														? "min-h-[58px] w-full items-start gap-2.5 px-2.5 py-1.5"
-														: "h-10 w-full gap-2.5 px-2.5",
+												"h-10 w-full gap-2.5 px-2.5",
 												action.disabled ? "opacity-45" : null,
 											)}
-											title={
-												action.kind === "thread"
-													? threadResultTitle(action.thread, action.projectName)
-													: action.kind === "project"
-														? projectResultTitle(action.project)
-														: action.detail
-											}
+											title={action.detail}
 											selected={index === activeIndex}
 											disabled={action.disabled}
 											onMouseEnter={() => setActiveIndex(index)}
@@ -818,37 +734,22 @@ const CommandPalette = memo(function CommandPalette({
 												action={action}
 												parentHasVisibleChildren={parentHasVisibleChildren}
 											/>
-											{action.kind === "thread" ? (
-												<ThreadResultRow
-													thread={action.thread}
-													projectName={action.projectName}
-													showStatusIcon={false}
-													mobileStaticText
-												/>
-											) : action.kind === "project" ? (
-												<ProjectResultRow
-													project={action.project}
-													showAvatar={false}
-													mobileStaticText
-												/>
-											) : (
-												<span className="min-w-0 flex-1">
-													<ScrollableText
-														className="block text-[13px] font-medium"
-														mobileStatic
-													>
-														{action.name}
-													</ScrollableText>
-													<ScrollableText
-														className="block text-[11px] text-muted"
-														mobileStatic
-													>
-														{action.disabled
-															? (action.disabledDetail ?? action.detail)
-															: action.detail}
-													</ScrollableText>
-												</span>
-											)}
+											<span className="min-w-0 flex-1">
+												<ScrollableText
+													className="block text-[13px] font-medium"
+													mobileStatic
+												>
+													{action.name}
+												</ScrollableText>
+												<ScrollableText
+													className="block text-[11px] text-muted"
+													mobileStatic
+												>
+													{action.disabled
+														? (action.disabledDetail ?? action.detail)
+														: action.detail}
+												</ScrollableText>
+											</span>
 										</MenuItemButton>
 									),
 								)}
@@ -1402,34 +1303,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 			},
 		];
 
-		for (const project of projects) {
-			actions.push({
-				id: `project:${project.id}`,
-				name: project.name,
-				detail: projectResultDetail(project),
-				kind: "project",
-				projectId: project.id,
-				projectInitials: project.initials,
-				project,
-				run: () => onProjectChange(project.id),
-			});
-			for (const projectThread of project.threads) {
-				actions.push({
-					id: `thread:${projectThread.id}`,
-					name: projectThread.name,
-					detail: threadResultSearchText(projectThread, project.name),
-					kind: "thread",
-					projectId: project.id,
-					status: projectThread.status,
-					thread: projectThread,
-					projectName: project.name,
-					run: () => {
-						onSelectThread(projectThread, { clearThreadQuery: true });
-					},
-				});
-			}
-		}
-
 		return actions;
 	}, [
 		canUseGoalMode,
@@ -1461,10 +1334,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 		onWrapThreadContentChange,
 		closeMobileSheet,
 		openMobileSheet,
-		onProjectChange,
 		onRestartCodexAppServer,
-		onSelectThread,
-		projects,
 		toggleTerminal,
 	]);
 
@@ -1603,7 +1473,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 							commandVisible={commandOpen}
 							navigatorVisible={navigatorVisible}
 							inspectorVisible={inspectorVisible}
-							terminalVisible={terminalVisible}
 							onPromptChange={onPromptChange}
 							onPromptKeyDown={onPromptKeyDown}
 							onPromptSubmit={onPromptSubmit}
@@ -1619,7 +1488,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 							onCleanBackgroundTerminals={onCleanBackgroundTerminals}
 							onToggleNavigator={toggleNavigator}
 							onToggleInspector={toggleInspector}
-							onToggleTerminal={toggleTerminal}
 							onOpenCommands={toggleCommandPalette}
 						/>
 					</div>
@@ -1668,7 +1536,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 						commandVisible={commandOpen}
 						navigatorVisible={mobileSheet === "navigator"}
 						inspectorVisible={mobileSheet === "inspector"}
-						terminalVisible={terminalVisible}
 						onPromptChange={onPromptChange}
 						onPromptKeyDown={onPromptKeyDown}
 						onPromptSubmit={onPromptSubmit}
@@ -1684,7 +1551,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 						onCleanBackgroundTerminals={onCleanBackgroundTerminals}
 						onToggleNavigator={() => openMobileSheet("navigator")}
 						onToggleInspector={() => openMobileSheet("inspector")}
-						onToggleTerminal={toggleTerminal}
 						onOpenCommands={toggleCommandPalette}
 					/>
 				</div>

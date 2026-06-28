@@ -10,7 +10,6 @@ import {
 	Search,
 	Send,
 	Settings,
-	Terminal,
 	X,
 } from "lucide-react";
 import type {
@@ -93,7 +92,6 @@ export type WorkspaceProps = {
 	commandVisible: boolean;
 	navigatorVisible: boolean;
 	inspectorVisible: boolean;
-	terminalVisible: boolean;
 	onPromptChange: (value: string) => void;
 	onPromptKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
 	onPromptSubmit: (event: SubmitEvent<HTMLFormElement>) => void;
@@ -109,7 +107,6 @@ export type WorkspaceProps = {
 	onCleanBackgroundTerminals: () => void;
 	onToggleNavigator: () => void;
 	onToggleInspector: () => void;
-	onToggleTerminal?: () => void;
 	onOpenCommands?: () => void;
 };
 
@@ -279,10 +276,8 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 	commandVisible,
 	navigatorVisible,
 	inspectorVisible,
-	terminalVisible,
 	onToggleNavigator,
 	onToggleInspector,
-	onToggleTerminal,
 	onOpenCommands,
 }: {
 	mode: "desktop" | "mobile";
@@ -294,10 +289,8 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 	commandVisible: boolean;
 	navigatorVisible: boolean;
 	inspectorVisible: boolean;
-	terminalVisible: boolean;
 	onToggleNavigator: () => void;
 	onToggleInspector: () => void;
-	onToggleTerminal?: () => void;
 	onOpenCommands?: () => void;
 }) {
 	const mobile = mode === "mobile";
@@ -351,17 +344,6 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 						onClick={onOpenCommands}
 					>
 						<Search size={15} />
-					</LargeIconButton>
-				) : null}
-				{mobile && onToggleTerminal ? (
-					<LargeIconButton
-						className="h-9 w-9"
-						title={terminalVisible ? "Hide terminal" : "Open terminal"}
-						aria-label={terminalVisible ? "Hide terminal" : "Open terminal"}
-						pressed={terminalVisible}
-						onClick={onToggleTerminal}
-					>
-						<Terminal size={15} />
 					</LargeIconButton>
 				) : null}
 				<LargeIconButton
@@ -1052,7 +1034,6 @@ export const Workspace = memo(
 			commandVisible,
 			navigatorVisible,
 			inspectorVisible,
-			terminalVisible,
 			canUseGoalMode,
 			canSubmitPrompt,
 			onPromptChange,
@@ -1070,7 +1051,6 @@ export const Workspace = memo(
 			onCleanBackgroundTerminals,
 			onToggleNavigator,
 			onToggleInspector,
-			onToggleTerminal,
 			onOpenCommands,
 		},
 		ref,
@@ -1236,10 +1216,8 @@ export const Workspace = memo(
 						commandVisible={commandVisible}
 						navigatorVisible={navigatorVisible}
 						inspectorVisible={inspectorVisible}
-						terminalVisible={terminalVisible}
 						onToggleNavigator={onToggleNavigator}
 						onToggleInspector={onToggleInspector}
-						onToggleTerminal={onToggleTerminal}
 						onOpenCommands={onOpenCommands}
 					/>
 				) : null}
@@ -1254,10 +1232,8 @@ export const Workspace = memo(
 						commandVisible={commandVisible}
 						navigatorVisible={navigatorVisible}
 						inspectorVisible={inspectorVisible}
-						terminalVisible={terminalVisible}
 						onToggleNavigator={onToggleNavigator}
 						onToggleInspector={onToggleInspector}
-						onToggleTerminal={onToggleTerminal}
 						onOpenCommands={onOpenCommands}
 					/>
 				) : null}

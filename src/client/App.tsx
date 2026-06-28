@@ -1118,19 +1118,13 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	}, []);
 
 	const selectWorkbenchThread = useCallback(
-		(
-			threadSummary: WorkbenchThread,
-			options: { clearThreadQuery?: boolean } = {},
-		) => {
+		(threadSummary: WorkbenchThread) => {
 			const project = findProjectForThread(
 				workbenchProjects,
 				threadSummary.threadId,
 			);
 			if (project) {
 				setSelectedProjectId(project.id);
-			}
-			if (options.clearThreadQuery) {
-				setThreadQuery("");
 			}
 			setComposerMode("thread");
 			setError(null);
