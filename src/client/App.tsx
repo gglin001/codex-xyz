@@ -1,5 +1,6 @@
 "use client";
 
+import { MotionConfig } from "framer-motion";
 import type { FormEvent, KeyboardEvent } from "react";
 import {
 	lazy,
@@ -1889,7 +1890,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	}
 
 	return (
-		<>
+		<MotionConfig reducedMotion="user">
 			<DashboardLayout
 				projects={workbenchProjects}
 				selectedProjectId={selectedProjectId}
@@ -1959,6 +1960,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 					/>
 				) : null}
 			</Suspense>
-		</>
+		</MotionConfig>
 	);
 }

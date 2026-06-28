@@ -3,7 +3,7 @@ import { Check, ChevronDown, Plus, Search } from "lucide-react";
 import type { ReactNode } from "react";
 import { memo, useId, useMemo, useRef, useState } from "react";
 import { codexThreadCommandLabels } from "../codexCommandLabels.js";
-import { cn, layer, motionPresets, ui } from "../designSystem.js";
+import { cn, layer, motionPresets, motionStates, ui } from "../designSystem.js";
 import { MobileFloatingScroller } from "./MobileFloatingScroller.js";
 import { ProjectResultRow, projectResultTitle } from "./ProjectResultRow.js";
 import {
@@ -137,9 +137,9 @@ export const Sidebar = memo(function Sidebar({
 								layer.localMenuZ,
 								ui.popover,
 							)}
-							initial={{ opacity: 0, y: -8, scale: 0.98 }}
-							animate={{ opacity: 1, y: 0, scale: 1 }}
-							exit={{ opacity: 0, y: -8, scale: 0.98 }}
+							initial={motionStates.localMenu.initial}
+							animate={motionStates.localMenu.animate}
+							exit={motionStates.localMenu.exit}
 							transition={motionPresets.quick}
 							role="menu"
 						>
@@ -206,9 +206,9 @@ export const Sidebar = memo(function Sidebar({
 					<AnimatePresence mode="popLayout">
 						<motion.div
 							key={selectedProject?.id ?? "empty"}
-							initial={{ opacity: 0, x: -10 }}
-							animate={{ opacity: 1, x: 0 }}
-							exit={{ opacity: 0, x: 10 }}
+							initial={motionStates.listItem.initial}
+							animate={motionStates.listItem.animate}
+							exit={motionStates.listItem.exit}
 							transition={motionPresets.item}
 							className="grid gap-1.5"
 						>

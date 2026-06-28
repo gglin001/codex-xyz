@@ -42,6 +42,7 @@ import {
 	formatDisplayScale,
 	layer,
 	motionPresets,
+	motionStates,
 	ui,
 } from "../designSystem.js";
 import { isPromptFocusShortcut } from "../promptShortcut.js";
@@ -179,7 +180,9 @@ type CommandActionRenderItem = {
 
 type MobileSheet = "navigator" | "inspector";
 
-const spring = motionPresets.spring;
+const overlayMotion = motionStates.overlay;
+const mobileSheetMotion = motionStates.mobileSheet;
+const desktopPopoverMotion = motionStates.desktopPopover;
 const mobileViewportQuery = "(max-width: 767px)";
 
 function isMobileViewport() {
@@ -685,10 +688,10 @@ const CommandPalette = memo(function CommandPalette({
 						layer.overlayZ,
 						ui.overlay,
 					)}
-					initial={{ opacity: 0 }}
-					animate={{ opacity: 1 }}
-					exit={{ opacity: 0 }}
-					transition={spring}
+					initial={overlayMotion.initial}
+					animate={overlayMotion.animate}
+					exit={overlayMotion.exit}
+					transition={motionPresets.fade}
 					onMouseDown={() => onClose()}
 				>
 					<motion.div
@@ -704,16 +707,22 @@ const CommandPalette = memo(function CommandPalette({
 						aria-label="Command palette"
 						initial={
 							isMobileViewport()
-								? { y: -6, opacity: 0 }
-								: { opacity: 0, y: -12, scale: 0.98 }
+								? mobileSheetMotion.initial
+								: desktopPopoverMotion.initial
 						}
-						animate={{ opacity: 1, y: 0, scale: 1 }}
+						animate={
+							isMobileViewport()
+								? mobileSheetMotion.animate
+								: desktopPopoverMotion.animate
+						}
 						exit={
 							isMobileViewport()
-								? { y: -6, opacity: 0 }
-								: { opacity: 0, y: -12, scale: 0.98 }
+								? mobileSheetMotion.exit
+								: desktopPopoverMotion.exit
 						}
-						transition={isMobileViewport() ? spring : motionPresets.quick}
+						transition={
+							isMobileViewport() ? motionPresets.sheet : motionPresets.quick
+						}
 						onKeyDown={(event) => {
 							if (event.key === "Escape") {
 								event.preventDefault();
@@ -1536,7 +1545,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 								initial={{ width: 0, opacity: 0 }}
 								animate={{ width: 316, opacity: 1 }}
 								exit={{ width: 0, opacity: 0 }}
-								transition={spring}
+								transition={motionPresets.panel}
 							>
 								{sidebar}
 							</motion.div>
@@ -1597,7 +1606,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 								initial={{ width: 0, opacity: 0 }}
 								animate={{ width: 316, opacity: 1 }}
 								exit={{ width: 0, opacity: 0 }}
-								transition={spring}
+								transition={motionPresets.panel}
 							>
 								{inspector}
 							</motion.div>
@@ -1662,10 +1671,10 @@ export const DashboardLayout = memo(function DashboardLayout({
 							layer.overlayZ,
 							ui.overlay,
 						)}
-						initial={{ opacity: 0 }}
-						animate={{ opacity: 1 }}
-						exit={{ opacity: 0 }}
-						transition={spring}
+						initial={overlayMotion.initial}
+						animate={overlayMotion.animate}
+						exit={overlayMotion.exit}
+						transition={motionPresets.fade}
 						onMouseDown={() => closeMobileSheet()}
 					>
 						<motion.div
@@ -1677,10 +1686,10 @@ export const DashboardLayout = memo(function DashboardLayout({
 							aria-label={
 								mobileSheet === "navigator" ? "Thread navigator" : "Settings"
 							}
-							initial={{ y: -6, opacity: 0 }}
-							animate={{ y: 0, opacity: 1 }}
-							exit={{ y: -6, opacity: 0 }}
-							transition={spring}
+							initial={mobileSheetMotion.initial}
+							animate={mobileSheetMotion.animate}
+							exit={mobileSheetMotion.exit}
+							transition={motionPresets.sheet}
 							onKeyDown={(event) => {
 								if (event.key === "Escape") {
 									event.preventDefault();

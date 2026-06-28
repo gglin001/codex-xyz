@@ -14,7 +14,14 @@ import {
 	writeTerminalInput,
 } from "./api.js";
 import { IconButton, Pill } from "./components/uiPrimitives.js";
-import { cn, layer, motionPresets, tone, ui } from "./designSystem.js";
+import {
+	cn,
+	layer,
+	motionPresets,
+	motionStates,
+	tone,
+	ui,
+} from "./designSystem.js";
 import { openEventStream, parseSseJsonEvent } from "./eventStream.js";
 import { type ThemeMode, terminalTheme } from "./theme.js";
 
@@ -213,7 +220,6 @@ function useMediaQuery(query: string) {
 	return matches;
 }
 
-const spring = motionPresets.spring;
 const sheetSpring = motionPresets.sheet;
 
 function TerminalActions({
@@ -828,18 +834,18 @@ export function TerminalDock({
 						"fixed inset-x-0 bottom-0 top-[var(--mobile-sheet-top)] md:inset-0 md:pointer-events-none",
 						layer.overlayZ,
 					)}
-					initial={{ opacity: 0 }}
-					animate={{ opacity: 1 }}
-					exit={{ opacity: 0 }}
-					transition={spring}
+					initial={motionStates.overlay.initial}
+					animate={motionStates.overlay.animate}
+					exit={motionStates.overlay.exit}
+					transition={motionPresets.fade}
 				>
 					<motion.div
 						key="terminal-backdrop"
 						className={cn("absolute inset-0 md:hidden", ui.overlay)}
-						initial={{ opacity: 0 }}
-						animate={{ opacity: 1 }}
-						exit={{ opacity: 0 }}
-						transition={spring}
+						initial={motionStates.overlay.initial}
+						animate={motionStates.overlay.animate}
+						exit={motionStates.overlay.exit}
+						transition={motionPresets.fade}
 						onClick={onClose}
 					/>
 
@@ -857,20 +863,20 @@ export function TerminalDock({
 						}
 						initial={
 							isMobileSheet
-								? { y: -6, opacity: 0 }
-								: { opacity: 0, y: 24, scale: 0.97 }
+								? motionStates.mobileSheet.initial
+								: motionStates.desktopFloating.initial
 						}
-						animate={{
-							y: 0,
-							opacity: 1,
-							scale: 1,
-						}}
+						animate={
+							isMobileSheet
+								? motionStates.mobileSheet.animate
+								: motionStates.desktopFloating.animate
+						}
 						exit={
 							isMobileSheet
-								? { y: -6, opacity: 0 }
-								: { opacity: 0, y: 24, scale: 0.97 }
+								? motionStates.mobileSheet.exit
+								: motionStates.desktopFloating.exit
 						}
-						transition={sheetSpring}
+						transition={isMobileSheet ? sheetSpring : motionPresets.quick}
 						onClick={(event) => event.stopPropagation()}
 						aria-label="Terminal"
 					>

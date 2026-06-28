@@ -40,7 +40,14 @@ import type {
 import { threadDisplayStatus } from "../../server/domain.js";
 import { copyToClipboard } from "../clipboard.js";
 import { codexThreadCommandLabels } from "../codexCommandLabels.js";
-import { cn, layer, motionPresets, tone, ui } from "../designSystem.js";
+import {
+	cn,
+	layer,
+	motionPresets,
+	motionStates,
+	tone,
+	ui,
+} from "../designSystem.js";
 import { getFirstLineTextPreview } from "../textPreview.js";
 import {
 	getTranscriptEntries,
@@ -140,7 +147,10 @@ type ChatMessage = {
 	time: string;
 };
 
-const spring = motionPresets.item;
+const overlayMotion = motionStates.overlay;
+const localMenuMotion = motionStates.localMenu;
+const listItemMotion = motionStates.listItem;
+const revealMotion = motionStates.reveal;
 const threadContentWidthClass = "[--thread-content-width:900px]";
 const threadContentFrameClass =
 	"mx-auto w-full min-w-0 max-w-[var(--thread-content-width)]";
@@ -889,57 +899,79 @@ const Composer = memo(
 
 		return (
 			<div>
-				{busyAction || notice || error ? (
-					<div className="mb-3 grid gap-2 text-[12px]">
-						{busyAction ? (
-							<div className={cn(ui.alert, tone.neutral.alert)}>
-								{busyAction}...
-							</div>
-						) : null}
-						{notice ? (
-							<DismissibleAlert
-								message={notice}
-								onDismiss={onDismissNotice}
-								toneClass={tone.running.alert}
-								buttonClassName=""
-								dismissLabel="Dismiss notice"
-							/>
-						) : null}
-						{error ? (
-							<DismissibleAlert
-								message={error}
-								onDismiss={onDismissError}
-								toneClass={tone.error.alert}
-								buttonClassName=""
-								dismissLabel="Dismiss error"
-								role="alert"
-							/>
-						) : null}
-					</div>
-				) : null}
+				<AnimatePresence initial={false}>
+					{busyAction || notice || error ? (
+						<motion.div
+							key="composer-alerts"
+							className="mb-3 grid gap-2 overflow-hidden text-[12px]"
+							initial={revealMotion.initial}
+							animate={revealMotion.animate}
+							exit={revealMotion.exit}
+							transition={motionPresets.item}
+						>
+							{busyAction ? (
+								<div className={cn(ui.alert, tone.neutral.alert)}>
+									{busyAction}...
+								</div>
+							) : null}
+							{notice ? (
+								<DismissibleAlert
+									message={notice}
+									onDismiss={onDismissNotice}
+									toneClass={tone.running.alert}
+									buttonClassName=""
+									dismissLabel="Dismiss notice"
+								/>
+							) : null}
+							{error ? (
+								<DismissibleAlert
+									message={error}
+									onDismiss={onDismissError}
+									toneClass={tone.error.alert}
+									buttonClassName=""
+									dismissLabel="Dismiss error"
+									role="alert"
+								/>
+							) : null}
+						</motion.div>
+					) : null}
+				</AnimatePresence>
 
-				{promptTarget === "new" ? (
-					<FieldShell className="h-8 px-2.5">
-						<div className="workdir-input-scroll min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
-							<input
-								className={cn(
-									ui.input,
-									"block h-[1lh] min-w-full flex-none whitespace-nowrap font-mono text-[12px] leading-4 text-fg",
-								)}
-								style={{ width: `${Math.max(workdir.length + 4, 48)}ch` }}
-								value={workdir}
-								onChange={(event) => onWorkdirChange(event.target.value)}
-								placeholder="/path/to/repo"
-								disabled={busy}
-								aria-label="Working directory"
-								autoCapitalize="off"
-								autoCorrect="off"
-								spellCheck={false}
-								inputMode="url"
-							/>
-						</div>
-					</FieldShell>
-				) : null}
+				<AnimatePresence initial={false}>
+					{promptTarget === "new" ? (
+						<motion.div
+							key="composer-workdir"
+							className="mb-1 overflow-hidden"
+							initial={revealMotion.initial}
+							animate={revealMotion.animate}
+							exit={revealMotion.exit}
+							transition={motionPresets.item}
+						>
+							<FieldShell className="h-8 px-2.5">
+								<div className="workdir-input-scroll min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
+									<input
+										className={cn(
+											ui.input,
+											"block h-[1lh] min-w-full flex-none whitespace-nowrap font-mono text-[12px] leading-4 text-fg",
+										)}
+										style={{
+											width: `${Math.max(workdir.length + 4, 48)}ch`,
+										}}
+										value={workdir}
+										onChange={(event) => onWorkdirChange(event.target.value)}
+										placeholder="/path/to/repo"
+										disabled={busy}
+										aria-label="Working directory"
+										autoCapitalize="off"
+										autoCorrect="off"
+										spellCheck={false}
+										inputMode="url"
+									/>
+								</div>
+							</FieldShell>
+						</motion.div>
+					) : null}
+				</AnimatePresence>
 
 				<form onSubmit={onPromptSubmit}>
 					<div className={ui.composerShell}>
@@ -992,6 +1024,11 @@ const Composer = memo(
 								</ComposerIconButton>
 								<div className={cn("relative", layer.localBackdropZ)}>
 									<ComposerIconButton
+										className={
+											moreActionsOpen
+												? cn("relative", layer.localMenuZ)
+												: undefined
+										}
 										title="More actions"
 										aria-label="More actions"
 										pressed={moreActionsOpen}
@@ -1006,22 +1043,23 @@ const Composer = memo(
 											<>
 												<motion.div
 													className={cn("fixed inset-0", layer.localBackdropZ)}
-													initial={{ opacity: 0 }}
-													animate={{ opacity: 1 }}
-													exit={{ opacity: 0 }}
+													initial={overlayMotion.initial}
+													animate={overlayMotion.animate}
+													exit={overlayMotion.exit}
+													transition={motionPresets.fade}
 													onClick={() => setMoreActionsOpen(false)}
 												/>
 												<motion.div
 													className={cn(
 														"absolute bottom-full left-0 mb-2 w-36 max-w-[calc(100vw-2rem)] p-1",
-														layer.localFloatingZ,
+														layer.localMenuZ,
 														ui.popover,
 													)}
 													role="menu"
-													initial={{ opacity: 0, y: 6 }}
-													animate={{ opacity: 1, y: 0 }}
-													exit={{ opacity: 0, y: 6 }}
-													transition={spring}
+													initial={localMenuMotion.initial}
+													animate={localMenuMotion.animate}
+													exit={localMenuMotion.exit}
+													transition={motionPresets.quick}
 												>
 													{composerMenuActions.map((action) => (
 														<ComposerMenuItem
@@ -1359,7 +1397,7 @@ export const Workspace = memo(
 					<motion.div
 						className="flex min-h-0 min-w-0 flex-1 flex-col"
 						animate={{ width: "100%" }}
-						transition={spring}
+						transition={motionPresets.panel}
 					>
 						<div className="relative min-h-0 flex-1">
 							<div
@@ -1368,31 +1406,23 @@ export const Workspace = memo(
 								className="mobile-custom-scroll mobile-transcript-scroll h-full min-h-0 overflow-y-auto px-4 py-0 md:px-8 md:[scrollbar-gutter:stable]"
 							>
 								<ThreadContentFrame className="grid gap-[var(--transcript-gap)]">
-									{entries.length === 0 ? (
-										isMobilePresentation ? (
-											<div className="min-w-0">
+									<AnimatePresence initial={false}>
+										{entries.length === 0 ? (
+											<motion.div
+												key="empty-transcript"
+												className="min-w-0"
+												initial={listItemMotion.initial}
+												animate={listItemMotion.animate}
+												exit={listItemMotion.exit}
+												transition={motionPresets.item}
+											>
 												<EmptyTranscript
 													hasThread={Boolean(selectedThreadId)}
 													projectPath={project?.path ?? workdir}
 												/>
-											</div>
-										) : (
-											<AnimatePresence initial={false}>
-												<motion.div
-													key="empty-transcript"
-													initial={{ opacity: 0, y: 10 }}
-													animate={{ opacity: 1, y: 0 }}
-													exit={{ opacity: 0, y: -10 }}
-													transition={spring}
-												>
-													<EmptyTranscript
-														hasThread={Boolean(selectedThreadId)}
-														projectPath={project?.path ?? workdir}
-													/>
-												</motion.div>
-											</AnimatePresence>
-										)
-									) : null}
+											</motion.div>
+										) : null}
+									</AnimatePresence>
 									{canLoadEarlierEntries ? (
 										<div className="flex justify-center">
 											<button
@@ -1415,39 +1445,24 @@ export const Workspace = memo(
 											</button>
 										</div>
 									) : null}
-									{isMobilePresentation ? (
-										visibleEntries.map((entry) => (
-											<div
+									<AnimatePresence initial={false}>
+										{visibleEntries.map((entry) => (
+											<motion.div
 												key={entry.id}
 												className="min-w-0 scroll-mt-3 focus:outline-none"
 												{...transcriptItemDataAttributes(entry)}
+												initial={listItemMotion.initial}
+												animate={listItemMotion.animate}
+												exit={listItemMotion.exit}
+												transition={motionPresets.item}
 											>
 												<TranscriptEntryBlock
 													entry={entry}
 													wrapContent={wrapThreadContent}
 												/>
-											</div>
-										))
-									) : (
-										<AnimatePresence initial={false}>
-											{visibleEntries.map((entry) => (
-												<motion.div
-													key={entry.id}
-													className="min-w-0 scroll-mt-3 focus:outline-none"
-													{...transcriptItemDataAttributes(entry)}
-													initial={{ opacity: 0, y: 10 }}
-													animate={{ opacity: 1, y: 0 }}
-													exit={{ opacity: 0, y: -10 }}
-													transition={spring}
-												>
-													<TranscriptEntryBlock
-														entry={entry}
-														wrapContent={wrapThreadContent}
-													/>
-												</motion.div>
-											))}
-										</AnimatePresence>
-									)}
+											</motion.div>
+										))}
+									</AnimatePresence>
 								</ThreadContentFrame>
 							</div>
 							<div className="chrome-edge-fade chrome-edge-fade-app chrome-edge-fade-top" />

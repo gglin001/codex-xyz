@@ -13,10 +13,50 @@ export const radius = {
 } as const;
 
 export const motionPresets = {
-	spring: { type: "spring", stiffness: 360, damping: 36 },
-	sheet: { type: "spring", stiffness: 360, damping: 36 },
-	item: { type: "spring", stiffness: 360, damping: 34 },
-	quick: { type: "spring", stiffness: 420, damping: 34 },
+	spring: { type: "spring", stiffness: 360, damping: 36, mass: 0.9 },
+	sheet: { type: "spring", stiffness: 420, damping: 42, mass: 0.92 },
+	panel: { type: "spring", stiffness: 430, damping: 44, mass: 0.86 },
+	item: { type: "spring", stiffness: 420, damping: 36, mass: 0.78 },
+	quick: { type: "spring", stiffness: 520, damping: 38, mass: 0.72 },
+	fade: { duration: 0.16, ease: [0.2, 0, 0, 1] },
+} as const;
+
+export const motionStates = {
+	overlay: {
+		initial: { opacity: 0 },
+		animate: { opacity: 1 },
+		exit: { opacity: 0 },
+	},
+	mobileSheet: {
+		initial: { opacity: 0, y: 16 },
+		animate: { opacity: 1, y: 0 },
+		exit: { opacity: 0, y: 10 },
+	},
+	desktopPopover: {
+		initial: { opacity: 0, y: -10, scale: 0.985 },
+		animate: { opacity: 1, y: 0, scale: 1 },
+		exit: { opacity: 0, y: -8, scale: 0.985 },
+	},
+	localMenu: {
+		initial: { opacity: 0, y: 8, scale: 0.985 },
+		animate: { opacity: 1, y: 0, scale: 1 },
+		exit: { opacity: 0, y: 6, scale: 0.985 },
+	},
+	desktopFloating: {
+		initial: { opacity: 0, y: 18, scale: 0.985 },
+		animate: { opacity: 1, y: 0, scale: 1 },
+		exit: { opacity: 0, y: 12, scale: 0.985 },
+	},
+	listItem: {
+		initial: { opacity: 0, y: 6 },
+		animate: { opacity: 1, y: 0 },
+		exit: { opacity: 0, y: -4 },
+	},
+	reveal: {
+		initial: { height: 0, opacity: 0, y: 6 },
+		animate: { height: "auto", opacity: 1, y: 0 },
+		exit: { height: 0, opacity: 0, y: -4 },
+	},
 } as const;
 
 export const layer = {

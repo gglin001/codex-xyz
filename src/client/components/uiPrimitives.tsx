@@ -1,3 +1,4 @@
+import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 import type {
 	ButtonHTMLAttributes,
@@ -10,6 +11,7 @@ import {
 	cn,
 	displayScale,
 	formatDisplayScale,
+	motionPresets,
 	radius,
 	ui,
 } from "../designSystem.js";
@@ -527,15 +529,39 @@ export const CollapsibleCard = memo(function CollapsibleCard({
 				)}
 			</div>
 
-			{!expanded && preview ? (
-				<div className={cn(previewPadding, previewClassName)}>{preview}</div>
-			) : null}
+			<AnimatePresence initial={false}>
+				{!expanded && preview ? (
+					<motion.div
+						key="preview"
+						className="overflow-hidden"
+						initial={{ height: 0, opacity: 0 }}
+						animate={{ height: "auto", opacity: 1 }}
+						exit={{ height: 0, opacity: 0 }}
+						transition={motionPresets.item}
+					>
+						<div className={cn(previewPadding, previewClassName)}>
+							{preview}
+						</div>
+					</motion.div>
+				) : null}
+			</AnimatePresence>
 
-			{expanded && children ? (
-				<div className={cn("min-w-0", bodyPadding, bodyClassName)}>
-					{children}
-				</div>
-			) : null}
+			<AnimatePresence initial={false}>
+				{expanded && children ? (
+					<motion.div
+						key="body"
+						className="overflow-hidden"
+						initial={{ height: 0, opacity: 0 }}
+						animate={{ height: "auto", opacity: 1 }}
+						exit={{ height: 0, opacity: 0 }}
+						transition={motionPresets.item}
+					>
+						<div className={cn("min-w-0", bodyPadding, bodyClassName)}>
+							{children}
+						</div>
+					</motion.div>
+				) : null}
+			</AnimatePresence>
 		</article>
 	);
 });
