@@ -230,6 +230,7 @@ const inspectorVisibleStorageKey = "coz-inspector-visible";
 // Keep the existing key so current users retain their transcript wrap preference.
 const wrapThreadContentStorageKey = "coz-wrap-session-content";
 const displayScaleStorageKey = "coz-display-scale";
+const promptDraftStorageKey = "coz-prompt-draft";
 const TerminalDock = lazy(async () => ({
 	default: (await import("./TerminalDock.js")).TerminalDock,
 }));
@@ -268,6 +269,32 @@ function readStoredDisplayScale() {
 			: displayScaleConfig.defaultValue;
 	} catch {
 		return displayScaleConfig.defaultValue;
+	}
+}
+
+function readStoredPromptDraft() {
+	if (typeof window === "undefined") {
+		return "";
+	}
+	try {
+		return window.localStorage.getItem(promptDraftStorageKey) ?? "";
+	} catch {
+		return "";
+	}
+}
+
+function writeStoredPromptDraft(value: string) {
+	if (typeof window === "undefined") {
+		return;
+	}
+	try {
+		if (value.length > 0) {
+			window.localStorage.setItem(promptDraftStorageKey, value);
+		} else {
+			window.localStorage.removeItem(promptDraftStorageKey);
+		}
+	} catch {
+		// Keep the in-memory draft even if the browser blocks persistence.
 	}
 }
 
@@ -611,6 +638,10 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		setWrapThreadContent(readStoredBoolean(wrapThreadContentStorageKey, true));
 		setDisplayScale(readStoredDisplayScale());
 		setPreferencesReady(true);
+	}, []);
+
+	useEffect(() => {
+		setPrompt(readStoredPromptDraft());
 	}, []);
 
 	useEffect(() => {
@@ -1057,7 +1088,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			return;
 		}
 		setComposerMode("new");
-		setPrompt("");
 		setGoalMode(false);
 		if (selectedProject?.path) {
 			setWorkdir(selectedProject.path);
@@ -1126,6 +1156,11 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		setWorkdirTouched(true);
 	}, []);
 
+	const updatePrompt = useCallback((value: string) => {
+		setPrompt(value);
+		writeStoredPromptDraft(value);
+	}, []);
+
 	const updateGoalMode = useCallback((value: boolean) => {
 		setGoalMode(value);
 	}, []);
@@ -1163,7 +1198,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				return;
 			}
 			setComposerMode("new");
-			setPrompt("");
 			setGoalMode(false);
 			if (project?.path) {
 				setWorkdir(project.path);
@@ -1189,6 +1223,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			setComposerMode("new");
 			if (options.clearPrompt) {
 				setPrompt("");
+				writeStoredPromptDraft("");
 			}
 			setGoalMode(false);
 			if (selectedProject?.path) {
@@ -1318,6 +1353,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			if (!thread) {
 				throw new Error("Thread was not created");
 			}
+			writeStoredPromptDraft("");
 
 			const pending = optimisticThreadRef.current;
 			if (pending?.id === optimisticThreadId) {
@@ -1418,6 +1454,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				setComposerMode("new");
 				setGoalMode(submission.goalMode);
 				setPrompt(submission.prompt);
+				writeStoredPromptDraft(submission.prompt);
 				setWorkdir(submission.cwd);
 				setWorkdirTouched(true);
 				setSelectedThreadId(fallbackThreadId);
@@ -1510,6 +1547,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 					}),
 				);
 			}
+			writeStoredPromptDraft("");
 			if (selectedThreadIdRef.current === input.threadId) {
 				void loadThreadDetail(input.threadId).catch(() => {
 					if (selectedThreadIdRef.current === input.threadId) {
@@ -1530,6 +1568,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 					}),
 				);
 				setPrompt(input.prompt);
+				writeStoredPromptDraft(input.prompt);
 				setGoalMode(input.goalMode);
 			} else if (selectedThreadIdRef.current === input.threadId) {
 				void loadThreadDetail(input.threadId).catch(() => {
@@ -1936,7 +1975,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				onCreateThread={createWorkbenchThread}
 				onThreadQueryChange={setThreadQuery}
 				onTerminalVisibleChange={setTerminalVisible}
-				onPromptChange={setPrompt}
+				onPromptChange={updatePrompt}
 				onPromptKeyDown={handlePromptKeyDown}
 				onPromptSubmit={submitPrompt}
 				onModeChange={changeComposerMode}

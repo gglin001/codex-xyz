@@ -1,19 +1,11 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
-	Archive,
-	GitFork,
 	Goal,
-	ListTree,
 	Maximize2,
 	Menu,
-	Minimize2,
-	Play,
-	Plus,
 	RefreshCw,
 	Search,
 	Settings,
-	Square,
-	SquareX,
 	Sun,
 	Terminal,
 	TextCursorInput,
@@ -35,7 +27,6 @@ import type {
 	ThreadDetail,
 	ThreadTagScore,
 } from "../../server/domain.js";
-import { codexThreadCommandLabels } from "../codexCommandLabels.js";
 import {
 	cn,
 	displayScale as displayScaleConfig,
@@ -153,24 +144,6 @@ type CommandAction =
 				| "theme"
 				| "wrap"
 				| "zoom";
-	  })
-	| (CommandActionBase & {
-			kind: "slashGroup";
-			slashGroupId: string;
-	  })
-	| (CommandActionBase & {
-			kind: "slashItem";
-			slashGroupId: string;
-			icon:
-				| "archive"
-				| "compact"
-				| "fork"
-				| "goal"
-				| "interrupt"
-				| "ps"
-				| "new"
-				| "resume"
-				| "stop";
 	  });
 
 type CommandActionRenderItem = {
@@ -404,9 +377,6 @@ function commandParentId(action: CommandAction) {
 	if (action.kind === "settingsItem") {
 		return `settings:${action.settingsGroupId}`;
 	}
-	if (action.kind === "slashItem") {
-		return `slash:${action.slashGroupId}`;
-	}
 	return null;
 }
 
@@ -484,66 +454,6 @@ function CommandActionGlyph({
 				) : null}
 				<span className={cn("h-8 w-8 text-muted-strong", ui.iconBox)}>
 					<Settings size={14} />
-				</span>
-			</span>
-		);
-	}
-
-	if (action.kind === "slashGroup") {
-		return (
-			<span
-				className="relative flex h-8 w-8 shrink-0 items-center justify-center"
-				aria-hidden="true"
-			>
-				{parentHasVisibleChildren ? (
-					<span className={layer.groupContinuationMark} />
-				) : null}
-				<span
-					className={cn(
-						"h-8 w-8 font-mono text-[16px] text-muted-strong",
-						ui.iconBox,
-					)}
-				>
-					/
-				</span>
-			</span>
-		);
-	}
-
-	if (action.kind === "slashItem") {
-		const itemIcon =
-			action.icon === "archive" ? (
-				<Archive size={14} />
-			) : action.icon === "compact" ? (
-				<Minimize2 size={14} />
-			) : action.icon === "fork" ? (
-				<GitFork size={14} />
-			) : action.icon === "goal" ? (
-				<Goal size={14} />
-			) : action.icon === "interrupt" ? (
-				<Square size={14} />
-			) : action.icon === "ps" ? (
-				<ListTree size={14} />
-			) : action.icon === "new" ? (
-				<Plus size={14} />
-			) : action.icon === "stop" ? (
-				<SquareX size={14} />
-			) : (
-				<Play size={14} />
-			);
-		return (
-			<span
-				className="relative flex h-8 w-12 shrink-0 items-center"
-				aria-hidden="true"
-			>
-				<span className={layer.stackedIconPlate} />
-				<span
-					className={cn(
-						"absolute right-0 top-0 h-8 w-8 text-muted-strong",
-						ui.iconBox,
-					)}
-				>
-					{itemIcon}
 				</span>
 			</span>
 		);
@@ -1191,28 +1101,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 			closeMobileSheet({ restoreFocus: false });
 			window.requestAnimationFrame(focusVisiblePrompt);
 		};
-		const selectedThreadArchived = Boolean(selectedThread?.archivedAt);
-		const canInterrupt =
-			selectedThread?.status === "active" && !selectedThreadArchived && !busy;
-		const canResume =
-			Boolean(selectedThreadId) &&
-			selectedThread?.status !== "active" &&
-			!selectedThreadArchived &&
-			!busy;
-		const canFork =
-			Boolean(selectedThreadId) && !selectedThreadArchived && !busy;
-		const canCompact =
-			Boolean(selectedThreadId) &&
-			selectedThread?.status !== "active" &&
-			!selectedThreadArchived &&
-			!busy;
-		const canArchive =
-			Boolean(selectedThreadId) &&
-			selectedThread?.status !== "active" &&
-			!selectedThreadArchived &&
-			!busy;
-		const canUseBackgroundTerminals =
-			Boolean(selectedThreadId) && !selectedThreadArchived && !busy;
 		const actions: CommandAction[] = [
 			{
 				id: "focus-prompt",
@@ -1298,143 +1186,22 @@ export const DashboardLayout = memo(function DashboardLayout({
 				disabledDetail: "Another action is running",
 				run: onRestartCodexAppServer,
 			},
-			{
-				id: "slash:root",
-				name: "/",
-				detail: "Jump to the composer input",
-				kind: "slashGroup",
-				slashGroupId: "root",
-				run: focusPrompt,
-			},
-			{
-				id: "slash:archive",
-				name: codexThreadCommandLabels.archive,
-				detail: "Archive the current chat",
-				kind: "slashItem",
-				slashGroupId: "root",
-				icon: "archive",
-				disabled: !canArchive,
-				disabledDetail: "Select an idle thread before archiving",
-				run: onArchive,
-			},
-			{
-				id: "slash:compact",
-				name: codexThreadCommandLabels.compact,
-				detail: "Summarize conversation to prevent hitting the context limit",
-				kind: "slashItem",
-				slashGroupId: "root",
-				icon: "compact",
-				disabled: !canCompact,
-				disabledDetail: "Select an idle thread before compacting",
-				run: onCompact,
-			},
-			{
-				id: "slash:interrupt",
-				name: codexThreadCommandLabels.interrupt,
-				detail: "Interrupt the active turn",
-				kind: "slashItem",
-				slashGroupId: "root",
-				icon: "interrupt",
-				disabled: !canInterrupt,
-				disabledDetail: "No active turn is running",
-				run: onInterrupt,
-			},
-			{
-				id: "slash:fork",
-				name: codexThreadCommandLabels.fork,
-				detail: "Fork the current chat",
-				kind: "slashItem",
-				slashGroupId: "root",
-				icon: "fork",
-				disabled: !canFork,
-				disabledDetail: "Select a thread before forking",
-				run: onFork,
-			},
-			{
-				id: "slash:ps",
-				name: codexThreadCommandLabels.ps,
-				detail: "List app-server background terminals",
-				kind: "slashItem",
-				slashGroupId: "root",
-				icon: "ps",
-				disabled: !canUseBackgroundTerminals,
-				disabledDetail: "Select a thread before listing terminals",
-				run: onListBackgroundTerminals,
-			},
-			{
-				id: "slash:stop",
-				name: codexThreadCommandLabels.stop,
-				detail: "Stop app-server background terminals",
-				kind: "slashItem",
-				slashGroupId: "root",
-				icon: "stop",
-				disabled: !canUseBackgroundTerminals,
-				disabledDetail: "Select a thread before stopping terminals",
-				run: onCleanBackgroundTerminals,
-			},
-			{
-				id: "slash:goal",
-				name: codexThreadCommandLabels.goal,
-				detail: goalMode
-					? "Composer will send normal prompts"
-					: "Composer will start or continue a goal",
-				kind: "slashItem",
-				slashGroupId: "root",
-				icon: "goal",
-				disabled: !goalMode && !canUseGoalMode,
-				disabledDetail:
-					"Select a thread or working directory before using goal mode",
-				run: () => onGoalModeChange(!goalMode),
-			},
-			{
-				id: "slash:new",
-				name: codexThreadCommandLabels.new,
-				detail: "Start a fresh Codex app-server thread",
-				kind: "slashItem",
-				slashGroupId: "root",
-				icon: "new",
-				run: createThreadAndFocusPrompt,
-			},
-			{
-				id: "slash:resume",
-				name: codexThreadCommandLabels.resume,
-				detail: "Resume a saved chat",
-				kind: "slashItem",
-				slashGroupId: "root",
-				icon: "resume",
-				disabled: !canResume,
-				disabledDetail: "Select an idle thread before resuming",
-				run: onResume,
-			},
 		];
 
 		return actions;
 	}, [
-		canUseGoalMode,
 		busy,
 		displayScale,
 		focusVisiblePrompt,
 		fullscreenSupported,
-		goalMode,
 		inspectorVisible,
 		navigatorVisible,
 		themeMode,
 		toggleFullscreen,
 		wrapThreadContent,
-		selectedThread,
-		selectedThreadId,
-		createThreadAndFocusPrompt,
-		onArchive,
 		onDisplayScaleChange,
-		onCompact,
-		onFork,
-		onGoalModeChange,
 		onInspectorVisibleChange,
-		onInterrupt,
-		onListBackgroundTerminals,
 		onNavigatorVisibleChange,
-		onResume,
-		onCleanBackgroundTerminals,
 		onThemeModeChange,
 		onWrapThreadContentChange,
 		closeMobileSheet,

@@ -973,7 +973,7 @@ const Composer = memo(
 					) : null}
 				</AnimatePresence>
 
-				<form onSubmit={onPromptSubmit}>
+				<form onSubmit={onPromptSubmit} autoComplete="off">
 					<div className={ui.composerShell}>
 						<textarea
 							ref={textareaRef}
@@ -991,6 +991,7 @@ const Composer = memo(
 							onBlur={onPromptViewportChange}
 							placeholder={placeholder}
 							disabled={busy}
+							autoComplete="off"
 							autoCapitalize="sentences"
 							autoCorrect="on"
 							spellCheck={true}
@@ -1078,6 +1079,7 @@ const Composer = memo(
 								type="submit"
 								className={cn(ui.submitButton, "h-8 min-w-8 px-0")}
 								disabled={!canSubmitPrompt}
+								suppressHydrationWarning
 								title={submitTitle}
 								aria-label={submitTitle}
 							>
