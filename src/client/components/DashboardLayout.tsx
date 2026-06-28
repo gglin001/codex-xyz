@@ -658,47 +658,57 @@ const CommandPalette = memo(function CommandPalette({
 						}}
 						onMouseDown={(event) => event.stopPropagation()}
 					>
-						<div className="px-2 pb-1 pt-2">
-							<FieldShell icon={<Search size={16} />} className="h-9 w-full">
-								<input
-									type="search"
-									ref={inputRef}
-									className={cn(ui.input, ui.inputText)}
-									value={query}
-									onChange={(event) => {
-										setQuery(event.target.value);
-										setActiveIndex(0);
-									}}
-									placeholder="Search commands"
-									autoCapitalize="off"
-									autoCorrect="off"
-									spellCheck={false}
-									onKeyDown={(event) => {
-										if (event.key === "Escape") {
-											event.preventDefault();
-											onClose();
-											return;
-										}
-										if (event.key === "ArrowDown") {
-											event.preventDefault();
-											setActiveIndex((index) => {
-												if (filteredActions.length === 0) {
-													return 0;
-												}
-												return Math.min(filteredActions.length - 1, index + 1);
-											});
-										}
-										if (event.key === "ArrowUp") {
-											event.preventDefault();
-											setActiveIndex((index) => Math.max(0, index - 1));
-										}
-										if (event.key === "Enter") {
-											event.preventDefault();
-											runActive();
-										}
-									}}
-								/>
-							</FieldShell>
+						<div
+							className={cn(
+								"flex shrink-0 items-center gap-1.5 px-2 pb-1 pt-0.5",
+								ui.panelBand,
+							)}
+						>
+							<div className="min-w-0 flex-1">
+								<FieldShell icon={<Search size={14} />} className="h-8 w-full">
+									<input
+										type="search"
+										ref={inputRef}
+										className={cn(ui.input, ui.inputTextCompact)}
+										value={query}
+										onChange={(event) => {
+											setQuery(event.target.value);
+											setActiveIndex(0);
+										}}
+										placeholder="Search commands"
+										autoCapitalize="off"
+										autoCorrect="off"
+										spellCheck={false}
+										onKeyDown={(event) => {
+											if (event.key === "Escape") {
+												event.preventDefault();
+												onClose();
+												return;
+											}
+											if (event.key === "ArrowDown") {
+												event.preventDefault();
+												setActiveIndex((index) => {
+													if (filteredActions.length === 0) {
+														return 0;
+													}
+													return Math.min(
+														filteredActions.length - 1,
+														index + 1,
+													);
+												});
+											}
+											if (event.key === "ArrowUp") {
+												event.preventDefault();
+												setActiveIndex((index) => Math.max(0, index - 1));
+											}
+											if (event.key === "Enter") {
+												event.preventDefault();
+												runActive();
+											}
+										}}
+									/>
+								</FieldShell>
+							</div>
 						</div>
 						<div className="relative min-h-0 flex-1">
 							<div

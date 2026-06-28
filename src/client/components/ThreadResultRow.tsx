@@ -8,7 +8,7 @@ import type { WorkbenchThread } from "./workbenchTypes.js";
 
 function threadDetailParts(thread: WorkbenchThread, projectName?: string) {
 	return [
-		`${formatTokens(thread.tokensUsed)} tokens`,
+		`${formatTokens(thread.tokensUsed)} tk`,
 		statusLabel(thread.status),
 		formatFullDateTime(thread.updatedAt),
 		projectName,

@@ -344,7 +344,7 @@ export const ParamPanel = memo(function ParamPanel({
 							<ControlCard size="large" className="w-full min-w-0 p-2.5">
 								<div className="mb-2 flex min-w-0 items-center justify-between gap-3 text-[12px]">
 									<span className="truncate font-medium text-fg">
-										{tokenBudget ? "Goal budget" : "Tokens used"}
+										{tokenBudget ? "Goal budget" : "Tk used"}
 									</span>
 									<span className="shrink-0 truncate font-mono text-[11px] text-muted">
 										{tokenBudget
@@ -371,7 +371,7 @@ export const ParamPanel = memo(function ParamPanel({
 									<span className="shrink-0 truncate">
 										{tokenBudget
 											? `${tokenPercent}%`
-											: `${formatTokens(contextTokens)} total`}
+											: `${formatTokens(contextTokens)} tk total`}
 									</span>
 								</div>
 							</ControlCard>

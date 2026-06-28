@@ -9,7 +9,7 @@ export function projectResultDetail(project: WorkbenchProject) {
 	const parts = [
 		project.path,
 		`${project.totalThreads} threads`,
-		`${formatTokens(project.tokenTotal)} tokens`,
+		`${formatTokens(project.tokenTotal)} tk`,
 	];
 	if (project.runningThreads > 0) {
 		parts.push(`${project.runningThreads} running`);
@@ -63,8 +63,7 @@ export const ProjectResultRow = memo(function ProjectResultRow({
 					className="text-[11px] leading-4 text-muted"
 					mobileStatic={mobileStaticText}
 				>
-					{project.totalThreads} threads / {formatTokens(project.tokenTotal)}{" "}
-					tokens
+					{project.totalThreads} threads / {formatTokens(project.tokenTotal)} tk
 					{project.runningThreads > 0
 						? ` / ${project.runningThreads} running`
 						: ""}

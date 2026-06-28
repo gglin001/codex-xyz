@@ -26,6 +26,7 @@ import {
 	useEffect,
 	useId,
 	useImperativeHandle,
+	useLayoutEffect,
 	useMemo,
 	useRef,
 	useState,
@@ -111,6 +112,9 @@ export type WorkspaceProps = {
 	onToggleInspector: () => void;
 	onOpenCommands?: () => void;
 };
+
+const useAutosizeLayoutEffect =
+	typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 export type WorkspaceHandle = {
 	focusPrompt: () => boolean;
@@ -262,7 +266,7 @@ function HeaderDetailRail({
 	return (
 		<div className="scrollable-row flex min-w-0 items-center gap-2 text-[11px] leading-4 text-muted">
 			<span className="shrink-0 rounded-full bg-control/70 px-1.5 py-0.5 leading-none">
-				{formatTokens(tokens)} tokens
+				{formatTokens(tokens)} tk
 			</span>
 			<span className="inline-flex shrink-0 items-center gap-1.5 text-muted-strong">
 				<span
@@ -853,7 +857,7 @@ const Composer = memo(
 			[],
 		);
 
-		useEffect(() => {
+		useAutosizeLayoutEffect(() => {
 			const textarea = textareaRef.current;
 			if (!textarea) {
 				return;
@@ -862,7 +866,7 @@ const Composer = memo(
 				window.getComputedStyle(textarea).lineHeight,
 			);
 			const minHeight = Number.isFinite(lineHeight) ? lineHeight : 26;
-			textarea.style.height = "0px";
+			textarea.style.height = "auto";
 			const maxHeight =
 				typeof window.matchMedia === "function" &&
 				window.matchMedia("(max-width: 767px)").matches
@@ -941,6 +945,7 @@ const Composer = memo(
 					<div className={ui.composerShell}>
 						<textarea
 							ref={textareaRef}
+							rows={1}
 							className={cn(
 								ui.textarea,
 								"max-h-[112px] min-h-[var(--composer-line-height)] px-0 text-[length:var(--composer-font-size)] leading-[var(--composer-line-height)] md:max-h-[160px]",
