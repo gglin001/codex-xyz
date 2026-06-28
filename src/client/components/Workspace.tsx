@@ -733,10 +733,10 @@ const Composer = memo(
 				? "Send prompt"
 				: "Create thread";
 		const placeholder = goalMode
-			? "Describe the goal objective"
+			? "/goal"
 			: promptTarget === "thread"
-				? "Start typing a prompt"
-				: "Start a new Codex thread";
+				? "/prompt"
+				: "/new";
 		const threadActionDisabledReason = () => {
 			if (!selectedThreadId) {
 				return "Select a thread first";
