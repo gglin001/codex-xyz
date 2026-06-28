@@ -220,6 +220,38 @@ function isMobileViewport() {
 }
 
 type ResponsiveViewportMode = "desktop" | "mobile";
+const mobileThreadOverlayHistoryKey = "__cozMobileThreadOverlay";
+
+function mobileThreadOverlayHistoryState() {
+	const current = window.history.state;
+	const base =
+		current && typeof current === "object" && !Array.isArray(current)
+			? (current as Record<string, unknown>)
+			: {};
+	return {
+		...base,
+		[mobileThreadOverlayHistoryKey]: true,
+	};
+}
+
+function mobileThreadMainHistoryState() {
+	const current = window.history.state;
+	const base =
+		current && typeof current === "object" && !Array.isArray(current)
+			? (current as Record<string, unknown>)
+			: {};
+	const next = { ...base };
+	delete next[mobileThreadOverlayHistoryKey];
+	return next;
+}
+
+function hasMobileThreadOverlayHistoryMarker(state: unknown) {
+	return (
+		Boolean(state) &&
+		typeof state === "object" &&
+		(state as Record<string, unknown>)[mobileThreadOverlayHistoryKey] === true
+	);
+}
 
 function useResponsiveViewportMode() {
 	const [viewportMode, setViewportMode] =
@@ -967,6 +999,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 	const mobileSheetReturnFocusRef = useRef<HTMLElement | null>(null);
 	const mobileSheetPanelRef = useRef<HTMLDivElement | null>(null);
 	const mobileSheetDragControls = useDragControls();
+	const mobileThreadOverlayHistoryPushedRef = useRef(false);
 	const viewportMode = useResponsiveViewportMode();
 	const renderDesktopShell = viewportMode !== "mobile";
 	const renderMobileShell = viewportMode !== "desktop";
@@ -1124,6 +1157,66 @@ export const DashboardLayout = memo(function DashboardLayout({
 			closeMobileSheet({ restoreFocus: false });
 		}
 	}, [closeMobileSheet, terminalVisible]);
+
+	useEffect(() => {
+		const mobileThreadOverlayOpen =
+			commandOpen || mobileSheet !== null || terminalVisible;
+		if (viewportMode !== "mobile") {
+			mobileThreadOverlayHistoryPushedRef.current = false;
+			return;
+		}
+		if (mobileThreadOverlayOpen) {
+			if (!hasMobileThreadOverlayHistoryMarker(window.history.state)) {
+				window.history.pushState(
+					mobileThreadOverlayHistoryState(),
+					"",
+					window.location.href,
+				);
+			}
+			mobileThreadOverlayHistoryPushedRef.current = true;
+			return;
+		}
+
+		if (!hasMobileThreadOverlayHistoryMarker(window.history.state)) {
+			mobileThreadOverlayHistoryPushedRef.current = false;
+			return;
+		}
+
+		if (mobileThreadOverlayHistoryPushedRef.current) {
+			mobileThreadOverlayHistoryPushedRef.current = false;
+			window.history.back();
+			return;
+		}
+
+		window.history.replaceState(
+			mobileThreadMainHistoryState(),
+			"",
+			window.location.href,
+		);
+	}, [commandOpen, mobileSheet, terminalVisible, viewportMode]);
+
+	useEffect(() => {
+		const handleMobilePopState = () => {
+			mobileThreadOverlayHistoryPushedRef.current = false;
+			if (
+				!isMobileViewport() ||
+				(!commandOpen && !mobileSheet && !terminalVisible)
+			) {
+				return;
+			}
+			setCommandOpen(false);
+			commandReturnFocusRef.current = null;
+			mobileSheetReturnFocusRef.current = null;
+			blurActiveElement();
+			onTerminalVisibleChange(false);
+			setMobileSheet(null);
+		};
+
+		window.addEventListener("popstate", handleMobilePopState);
+		return () => {
+			window.removeEventListener("popstate", handleMobilePopState);
+		};
+	}, [commandOpen, mobileSheet, onTerminalVisibleChange, terminalVisible]);
 
 	const commandActions = useMemo<CommandAction[]>(() => {
 		const setNavigatorVisible = () => {
