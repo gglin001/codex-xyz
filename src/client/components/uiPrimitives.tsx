@@ -561,8 +561,8 @@ export function SettingsSection({
 	children: ReactNode;
 }) {
 	return (
-		<section className="w-full min-w-0 px-4 py-4">
-			<div className={cn(ui.sectionLabel, "mb-3 min-w-0")}>
+		<section className="w-full min-w-0 px-3 py-3">
+			<div className={cn(ui.sectionLabel, "mb-2.5 min-w-0")}>
 				<span className="shrink-0">{icon}</span>
 				<span className="truncate">{title}</span>
 			</div>

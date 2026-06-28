@@ -26,7 +26,7 @@ export const layer = {
 	localBackdropZ: "z-[10]",
 	localFloatingZ: "z-[20]",
 	localMenuZ: "z-[30]",
-	mobileHandle: "h-1 w-14 rounded-full bg-control-hover",
+	mobileHandle: "h-1 w-12 rounded-full bg-control-hover/88",
 	mobileSheet:
 		"mobile-sheet-surface absolute inset-x-0 top-[var(--mobile-sheet-top)] flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden rounded-t-[12px] md:rounded-[12px]",
 	mobileTerminalSheet:
@@ -106,7 +106,7 @@ const sliderThumb =
 export const ui = {
 	appShell: "bg-app-bg text-fg antialiased",
 	workspaceCanvas: "bg-app-bg text-fg",
-	sidePanel: "bg-panel/94 text-fg md:backdrop-blur-xl",
+	sidePanel: "bg-panel/90 text-fg md:backdrop-blur-xl",
 	topBar: "h-16 shrink-0 bg-app-bg/92 md:backdrop-blur-xl",
 	card: `overflow-hidden ${radius.card} bg-surface-subtle/62 ${interactiveTransition} hover:bg-surface-subtle/78`,
 	outlineCard: `overflow-hidden ${radius.card} bg-surface-subtle/46 ${interactiveTransition} hover:bg-surface-subtle/70`,
@@ -114,9 +114,9 @@ export const ui = {
 	panelCard: `overflow-hidden ${radius.panel} bg-surface-subtle/62 ${interactiveTransition} hover:bg-surface-subtle/78`,
 	popover: `overflow-hidden ${radius.panel} bg-panel/98 shadow-none md:backdrop-blur-md`,
 	overlay: "bg-app-bg/70 md:bg-app-bg/62 md:backdrop-blur-sm",
-	backdropPanel: "bg-panel/98 shadow-none backdrop-blur-xl",
-	panelBand: "bg-surface-subtle/24",
-	panelBandStrong: "bg-surface-subtle/38",
+	backdropPanel: "bg-panel/96 shadow-none backdrop-blur-xl",
+	panelBand: "bg-transparent",
+	panelBandStrong: "bg-surface-subtle/16",
 	controlBase,
 	iconButton: `inline-flex h-8 min-w-8 items-center justify-center ${radius.control} bg-control/72 text-muted-strong ${interactiveTransition} hover:bg-control-hover hover:text-fg-strong ${focusRing} ${disabledState} ${pressState}`,
 	largeIconButton: `inline-flex h-9 w-9 shrink-0 items-center justify-center ${radius.nav} bg-transparent text-muted-strong shadow-none ${interactiveTransition} hover:bg-control hover:text-fg-strong active:bg-control-hover active:text-fg-strong ${focusRing} ${disabledState} ${pressState}`,

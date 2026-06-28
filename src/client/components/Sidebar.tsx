@@ -99,7 +99,7 @@ export const Sidebar = memo(function Sidebar({
 		<aside
 			className={cn("flex h-full min-h-0 flex-col", ui.sidePanel, className)}
 		>
-			<div className="relative shrink-0 p-3 pb-2">
+			<div className="relative shrink-0 px-2.5 pb-1 pt-2">
 				<SurfaceAction
 					className="h-11 w-full gap-2.5 px-2.5"
 					name={
@@ -129,7 +129,7 @@ export const Sidebar = memo(function Sidebar({
 					{projectMenuOpen ? (
 						<motion.div
 							className={cn(
-								"absolute left-3 right-3 top-[58px] p-1.5",
+								"absolute left-2.5 right-2.5 top-[54px] p-1.5",
 								layer.localMenuZ,
 								ui.popover,
 							)}
@@ -164,7 +164,7 @@ export const Sidebar = memo(function Sidebar({
 
 			<div
 				className={cn(
-					"flex shrink-0 items-center gap-2 px-3 pb-2.5 pt-1.5",
+					"flex shrink-0 items-center gap-2 px-2.5 pb-1.5 pt-0.5",
 					ui.panelBand,
 				)}
 			>
@@ -193,50 +193,54 @@ export const Sidebar = memo(function Sidebar({
 				</ControlButton>
 			</div>
 
-			<div className="mobile-keyboard-scroll min-h-0 flex-1 overflow-y-auto px-3 py-2.5 scroll-mask-y">
-				<AnimatePresence mode="popLayout">
-					<motion.div
-						key={selectedProject?.id ?? "empty"}
-						initial={{ opacity: 0, x: -10 }}
-						animate={{ opacity: 1, x: 0 }}
-						exit={{ opacity: 0, x: 10 }}
-						transition={motionPresets.item}
-						className="grid gap-4"
-					>
-						{threadGroups.length === 0 ? (
-							<ControlCard className="px-3 py-7 text-center text-[12px] text-muted">
-								{threadQuery.trim()
-									? "No matching threads"
-									: "No Codex threads yet"}
-							</ControlCard>
-						) : null}
-						{threadGroups.map((group) => (
-							<section key={group.bucket} className="grid gap-1">
-								<div className="px-2 pb-1 text-[12px] font-medium text-muted">
-									{group.bucket}
-								</div>
-								{group.threads.map((thread) => {
-									const selected =
-										selectedThreadKey === thread.id ||
-										selectedThreadKey === thread.threadId;
-									return (
-										<NavAction
-											key={thread.id}
-											className={cn(
-												"group w-full items-start gap-2 px-2.5 py-2",
-											)}
-											selected={selected}
-											name={threadResultTitle(thread)}
-											onClick={() => onSelectThread(thread)}
-										>
-											<ThreadResultRow thread={thread} />
-										</NavAction>
-									);
-								})}
-							</section>
-						))}
-					</motion.div>
-				</AnimatePresence>
+			<div className="relative min-h-0 flex-1">
+				<div className="mobile-keyboard-scroll h-full min-h-0 overflow-y-auto px-2.5 py-1.5 scroll-mask-y">
+					<AnimatePresence mode="popLayout">
+						<motion.div
+							key={selectedProject?.id ?? "empty"}
+							initial={{ opacity: 0, x: -10 }}
+							animate={{ opacity: 1, x: 0 }}
+							exit={{ opacity: 0, x: 10 }}
+							transition={motionPresets.item}
+							className="grid gap-2.5"
+						>
+							{threadGroups.length === 0 ? (
+								<ControlCard className="px-3 py-7 text-center text-[12px] text-muted">
+									{threadQuery.trim()
+										? "No matching threads"
+										: "No Codex threads yet"}
+								</ControlCard>
+							) : null}
+							{threadGroups.map((group) => (
+								<section key={group.bucket} className="grid gap-0.5">
+									<div className="px-2 pb-0.5 text-[12px] font-medium text-muted">
+										{group.bucket}
+									</div>
+									{group.threads.map((thread) => {
+										const selected =
+											selectedThreadKey === thread.id ||
+											selectedThreadKey === thread.threadId;
+										return (
+											<NavAction
+												key={thread.id}
+												className={cn(
+													"group w-full items-start gap-2 px-2.5 py-1.5",
+												)}
+												selected={selected}
+												name={threadResultTitle(thread)}
+												onClick={() => onSelectThread(thread)}
+											>
+												<ThreadResultRow thread={thread} />
+											</NavAction>
+										);
+									})}
+								</section>
+							))}
+						</motion.div>
+					</AnimatePresence>
+				</div>
+				<div className="chrome-edge-fade chrome-edge-fade-short chrome-edge-fade-panel chrome-edge-fade-top" />
+				<div className="chrome-edge-fade chrome-edge-fade-short chrome-edge-fade-panel chrome-edge-fade-bottom" />
 			</div>
 
 			{footer}

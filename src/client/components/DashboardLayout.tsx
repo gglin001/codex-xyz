@@ -328,16 +328,20 @@ const MobileSheetHandle = forwardRef<HTMLDivElement, MobileSheetHandleProps>(
 		return (
 			<div
 				ref={ref}
-				className={cn(
-					"flex h-7 shrink-0 items-start justify-center pt-2",
-					onPointerDown
-						? "cursor-grab touch-none active:cursor-grabbing"
-						: "pointer-events-none",
-				)}
-				onPointerDown={onPointerDown}
+				className="pointer-events-none absolute inset-x-0 top-0 z-[3] flex h-4 justify-center pt-1.5"
 				aria-hidden="true"
 			>
-				<span className={layer.mobileHandle} />
+				<div
+					className={cn(
+						"flex h-4 w-24 justify-center",
+						onPointerDown
+							? "pointer-events-auto cursor-grab touch-none active:cursor-grabbing"
+							: "pointer-events-none",
+					)}
+					onPointerDown={onPointerDown}
+				>
+					<span className={layer.mobileHandle} />
+				</div>
 			</div>
 		);
 	},
@@ -770,7 +774,7 @@ const CommandPalette = memo(function CommandPalette({
 								}}
 							/>
 						</div>
-						<div className="px-2 py-2">
+						<div className="px-2 pb-1 pt-2">
 							<FieldShell icon={<Search size={16} />} className="h-10 w-full">
 								<input
 									type="search"
@@ -812,76 +816,80 @@ const CommandPalette = memo(function CommandPalette({
 								/>
 							</FieldShell>
 						</div>
-						<div
-							ref={listRef}
-							className="mobile-keyboard-scroll min-h-0 flex-1 overflow-y-auto p-1.5 md:max-h-[min(31rem,calc(100dvh_-_12rem))]"
-						>
-							{filteredActions.length === 0 ? (
-								<div className="px-3 py-8 text-center text-[13px] text-muted">
-									No commands found
-								</div>
-							) : null}
-							{renderItems.map(
-								({ action, parentHasVisibleChildren }, index) => (
-									<MenuItemButton
-										key={action.id}
-										data-command-index={index}
-										className={cn(
-											action.kind === "thread"
-												? "min-h-[78px] w-full items-start gap-2.5 px-2.5 py-2"
-												: action.kind === "project"
-													? "min-h-[66px] w-full items-start gap-2.5 px-2.5 py-2"
-													: "h-11 w-full gap-2.5 px-2.5",
-											action.disabled ? "opacity-45" : null,
-										)}
-										title={
-											action.kind === "thread"
-												? threadResultTitle(action.thread, action.projectName)
-												: action.kind === "project"
-													? projectResultTitle(action.project)
-													: action.detail
-										}
-										selected={index === activeIndex}
-										disabled={action.disabled}
-										onMouseEnter={() => setActiveIndex(index)}
-										onClick={() => {
-											if (action.disabled) {
-												return;
+						<div className="relative min-h-0 flex-1">
+							<div
+								ref={listRef}
+								className="mobile-keyboard-scroll h-full min-h-0 overflow-y-auto px-1.5 py-1 md:max-h-[min(31rem,calc(100dvh_-_12rem))]"
+							>
+								{filteredActions.length === 0 ? (
+									<div className="px-3 py-8 text-center text-[13px] text-muted">
+										No commands found
+									</div>
+								) : null}
+								{renderItems.map(
+									({ action, parentHasVisibleChildren }, index) => (
+										<MenuItemButton
+											key={action.id}
+											data-command-index={index}
+											className={cn(
+												action.kind === "thread"
+													? "min-h-[78px] w-full items-start gap-2.5 px-2.5 py-2"
+													: action.kind === "project"
+														? "min-h-[66px] w-full items-start gap-2.5 px-2.5 py-2"
+														: "h-11 w-full gap-2.5 px-2.5",
+												action.disabled ? "opacity-45" : null,
+											)}
+											title={
+												action.kind === "thread"
+													? threadResultTitle(action.thread, action.projectName)
+													: action.kind === "project"
+														? projectResultTitle(action.project)
+														: action.detail
 											}
-											action.run();
-											onClose({ restoreFocus: false });
-										}}
-									>
-										<CommandActionGlyph
-											action={action}
-											parentHasVisibleChildren={parentHasVisibleChildren}
-										/>
-										{action.kind === "thread" ? (
-											<ThreadResultRow
-												thread={action.thread}
-												projectName={action.projectName}
-												showStatusIcon={false}
+											selected={index === activeIndex}
+											disabled={action.disabled}
+											onMouseEnter={() => setActiveIndex(index)}
+											onClick={() => {
+												if (action.disabled) {
+													return;
+												}
+												action.run();
+												onClose({ restoreFocus: false });
+											}}
+										>
+											<CommandActionGlyph
+												action={action}
+												parentHasVisibleChildren={parentHasVisibleChildren}
 											/>
-										) : action.kind === "project" ? (
-											<ProjectResultRow
-												project={action.project}
-												showAvatar={false}
-											/>
-										) : (
-											<span className="min-w-0 flex-1">
-												<span className="block truncate text-[13px] font-medium">
-													{action.name}
+											{action.kind === "thread" ? (
+												<ThreadResultRow
+													thread={action.thread}
+													projectName={action.projectName}
+													showStatusIcon={false}
+												/>
+											) : action.kind === "project" ? (
+												<ProjectResultRow
+													project={action.project}
+													showAvatar={false}
+												/>
+											) : (
+												<span className="min-w-0 flex-1">
+													<span className="block truncate text-[13px] font-medium">
+														{action.name}
+													</span>
+													<span className="block truncate text-[11px] text-muted">
+														{action.disabled
+															? (action.disabledDetail ?? action.detail)
+															: action.detail}
+													</span>
 												</span>
-												<span className="block truncate text-[11px] text-muted">
-													{action.disabled
-														? (action.disabledDetail ?? action.detail)
-														: action.detail}
-												</span>
-											</span>
-										)}
-									</MenuItemButton>
-								),
-							)}
+											)}
+										</MenuItemButton>
+									),
+								)}
+							</div>
+							<div className="chrome-edge-fade chrome-edge-fade-short chrome-edge-fade-panel chrome-edge-fade-top" />
+							<div className="chrome-edge-fade chrome-edge-fade-short chrome-edge-fade-panel chrome-edge-fade-bottom" />
 						</div>
 					</motion.div>
 				</motion.div>
@@ -1439,8 +1447,8 @@ export const DashboardLayout = memo(function DashboardLayout({
 	}, [inspectorVisible, onInspectorVisibleChange, openMobileSheet]);
 
 	const sidebarFooter = (
-		<div className={cn("shrink-0 p-3 pt-2", ui.panelBand)}>
-			<div className="mb-2.5 grid grid-cols-2 gap-2">
+		<div className={cn("shrink-0 px-2.5 pb-2 pt-1", ui.panelBand)}>
+			<div className="mb-1.5 grid grid-cols-2 gap-1.5">
 				<SurfaceAction
 					className={cn(
 						"h-10 justify-center gap-2 px-2 text-[12px] font-medium",

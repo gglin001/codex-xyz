@@ -68,7 +68,9 @@
 		font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 
 		--app-bg: #121314;
+		--app-bg-transparent: rgba(18, 19, 20, 0);
 		--panel-bg: #17181a;
+		--panel-bg-transparent: rgba(23, 24, 26, 0);
 		--detail-bg: #1d1e21;
 		--surface-bg: #242529;
 		--surface-subtle-bg: #1a1b1e;
@@ -78,6 +80,7 @@
 		--selected-bg: #29313d;
 		--selected-strong-bg: #334052;
 		--terminal-bg: #0d0e10;
+		--terminal-bg-transparent: rgba(13, 14, 16, 0);
 		--text: #e3e3e7;
 		--text-strong: #f5f5f7;
 		--muted: #98989e;
@@ -129,7 +132,9 @@
 		color-scheme: light;
 
 		--app-bg: #f8fafd;
+		--app-bg-transparent: rgba(248, 250, 253, 0);
 		--panel-bg: #fbfcff;
+		--panel-bg-transparent: rgba(251, 252, 255, 0);
 		--detail-bg: #ffffff;
 		--surface-bg: #eef2f7;
 		--surface-subtle-bg: #f2f5fa;
@@ -139,6 +144,7 @@
 		--selected-bg: #e7f0fe;
 		--selected-strong-bg: #d7e7ff;
 		--terminal-bg: #f5f5f7;
+		--terminal-bg-transparent: rgba(245, 245, 247, 0);
 		--text: #1d1d1f;
 		--text-strong: #0b0b0f;
 		--muted: #6e6e73;
@@ -381,6 +387,58 @@
 			scroll-behavior: auto !important;
 			transition-duration: 1ms !important;
 		}
+	}
+}
+
+@layer utilities {
+	.chrome-edge-fade {
+		position: absolute;
+		left: 0;
+		right: 0;
+		z-index: 2;
+		height: 18px;
+		pointer-events: none;
+	}
+
+	.chrome-edge-fade-short {
+		height: 8px;
+	}
+
+	.chrome-edge-fade-tall {
+		height: 28px;
+	}
+
+	.chrome-edge-fade-app {
+		--chrome-edge-bg: var(--app-bg);
+		--chrome-edge-bg-transparent: var(--app-bg-transparent);
+	}
+
+	.chrome-edge-fade-panel {
+		--chrome-edge-bg: var(--panel-bg);
+		--chrome-edge-bg-transparent: var(--panel-bg-transparent);
+	}
+
+	.chrome-edge-fade-terminal {
+		--chrome-edge-bg: var(--terminal-bg);
+		--chrome-edge-bg-transparent: var(--terminal-bg-transparent);
+	}
+
+	.chrome-edge-fade-top {
+		top: 0;
+		background: linear-gradient(
+			to bottom,
+			var(--chrome-edge-bg, var(--app-bg)) 0%,
+			var(--chrome-edge-bg-transparent, var(--app-bg-transparent)) 100%
+		);
+	}
+
+	.chrome-edge-fade-bottom {
+		bottom: 0;
+		background: linear-gradient(
+			to top,
+			var(--chrome-edge-bg, var(--app-bg)) 0%,
+			var(--chrome-edge-bg-transparent, var(--app-bg-transparent)) 100%
+		);
 	}
 }
 

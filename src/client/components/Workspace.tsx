@@ -1225,7 +1225,7 @@ export const Workspace = memo(
 				) : null}
 				<header
 					className={cn(
-						"hidden shrink-0 items-center justify-between gap-3 md:relative md:flex md:h-11 md:px-5",
+						"hidden shrink-0 items-center justify-between gap-3 md:relative md:flex md:h-10 md:px-5",
 						layer.workspaceChromeZ,
 					)}
 				>
@@ -1277,85 +1277,62 @@ export const Workspace = memo(
 						animate={{ width: "100%" }}
 						transition={spring}
 					>
-						<div
-							ref={transcriptScrollRef}
-							className="mobile-transcript-scroll min-h-0 flex-1 overflow-y-auto px-4 py-0 [scrollbar-gutter:stable] md:px-8"
-						>
-							<ThreadContentFrame className="grid gap-[var(--transcript-gap)]">
-								{entries.length === 0 ? (
-									isMobilePresentation ? (
-										<div className="min-w-0">
-											<EmptyTranscript
-												hasThread={Boolean(selectedThreadId)}
-												projectPath={project?.path ?? workdir}
-											/>
-										</div>
-									) : (
-										<AnimatePresence initial={false}>
-											<motion.div
-												key="empty-transcript"
-												initial={{ opacity: 0, y: 10 }}
-												animate={{ opacity: 1, y: 0 }}
-												exit={{ opacity: 0, y: -10 }}
-												transition={spring}
-											>
+						<div className="relative min-h-0 flex-1">
+							<div
+								ref={transcriptScrollRef}
+								className="mobile-transcript-scroll h-full min-h-0 overflow-y-auto px-4 py-0 [scrollbar-gutter:stable] md:px-8"
+							>
+								<ThreadContentFrame className="grid gap-[var(--transcript-gap)]">
+									{entries.length === 0 ? (
+										isMobilePresentation ? (
+											<div className="min-w-0">
 												<EmptyTranscript
 													hasThread={Boolean(selectedThreadId)}
 													projectPath={project?.path ?? workdir}
 												/>
-											</motion.div>
-										</AnimatePresence>
-									)
-								) : null}
-								{canLoadEarlierEntries ? (
-									<div className="flex justify-center">
-										<button
-											type="button"
-											className={cn(
-												"min-h-10 rounded-[8px] bg-control px-3.5 text-[12px] font-medium text-muted-strong active:bg-control-hover",
-												ui.row,
-											)}
-											onClick={() =>
-												setMobileVisibleEntryCount((current) =>
-													Math.min(
-														entries.length,
-														current + mobileTranscriptWindowStep,
-													),
-												)
-											}
-										>
-											Show {hiddenItemCount} earlier transcript{" "}
-											{hiddenItemCount === 1 ? "item" : "items"}
-										</button>
-									</div>
-								) : null}
-								{isMobilePresentation ? (
-									visibleEntries.map((entry) => (
-										<div key={entry.id} className="min-w-0">
-											{entry.kind === "process" ? (
-												<ProcessOutputBlock
-													entry={entry}
-													wrapContent={wrapThreadContent}
-												/>
-											) : (
-												<MessageBlock
-													message={messageFromItem(entry.item)}
-													wrapContent={wrapThreadContent}
-												/>
-											)}
-										</div>
-									))
-								) : (
-									<AnimatePresence initial={false}>
-										{visibleEntries.map((entry) => (
-											<motion.div
-												key={entry.id}
-												className="min-w-0"
-												initial={{ opacity: 0, y: 10 }}
-												animate={{ opacity: 1, y: 0 }}
-												exit={{ opacity: 0, y: -10 }}
-												transition={spring}
+											</div>
+										) : (
+											<AnimatePresence initial={false}>
+												<motion.div
+													key="empty-transcript"
+													initial={{ opacity: 0, y: 10 }}
+													animate={{ opacity: 1, y: 0 }}
+													exit={{ opacity: 0, y: -10 }}
+													transition={spring}
+												>
+													<EmptyTranscript
+														hasThread={Boolean(selectedThreadId)}
+														projectPath={project?.path ?? workdir}
+													/>
+												</motion.div>
+											</AnimatePresence>
+										)
+									) : null}
+									{canLoadEarlierEntries ? (
+										<div className="flex justify-center">
+											<button
+												type="button"
+												className={cn(
+													"min-h-10 rounded-[8px] bg-control px-3.5 text-[12px] font-medium text-muted-strong active:bg-control-hover",
+													ui.row,
+												)}
+												onClick={() =>
+													setMobileVisibleEntryCount((current) =>
+														Math.min(
+															entries.length,
+															current + mobileTranscriptWindowStep,
+														),
+													)
+												}
 											>
+												Show {hiddenItemCount} earlier transcript{" "}
+												{hiddenItemCount === 1 ? "item" : "items"}
+											</button>
+										</div>
+									) : null}
+									{isMobilePresentation ? (
+										visibleEntries.map((entry) => (
+											<div key={entry.id} className="min-w-0">
 												{entry.kind === "process" ? (
 													<ProcessOutputBlock
 														entry={entry}
@@ -1367,11 +1344,38 @@ export const Workspace = memo(
 														wrapContent={wrapThreadContent}
 													/>
 												)}
-											</motion.div>
-										))}
-									</AnimatePresence>
-								)}
-							</ThreadContentFrame>
+											</div>
+										))
+									) : (
+										<AnimatePresence initial={false}>
+											{visibleEntries.map((entry) => (
+												<motion.div
+													key={entry.id}
+													className="min-w-0"
+													initial={{ opacity: 0, y: 10 }}
+													animate={{ opacity: 1, y: 0 }}
+													exit={{ opacity: 0, y: -10 }}
+													transition={spring}
+												>
+													{entry.kind === "process" ? (
+														<ProcessOutputBlock
+															entry={entry}
+															wrapContent={wrapThreadContent}
+														/>
+													) : (
+														<MessageBlock
+															message={messageFromItem(entry.item)}
+															wrapContent={wrapThreadContent}
+														/>
+													)}
+												</motion.div>
+											))}
+										</AnimatePresence>
+									)}
+								</ThreadContentFrame>
+							</div>
+							<div className="chrome-edge-fade chrome-edge-fade-app chrome-edge-fade-top" />
+							<div className="chrome-edge-fade chrome-edge-fade-app chrome-edge-fade-bottom chrome-edge-fade-tall" />
 						</div>
 
 						<div
