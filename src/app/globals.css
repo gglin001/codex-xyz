@@ -479,10 +479,14 @@
 	}
 
 	.mobile-keyboard-scroll {
+		scroll-padding-top: 0.75rem;
 		scroll-padding-bottom: calc(var(--keyboard-inset-bottom) + 1rem);
+		overscroll-behavior-y: contain;
+		-webkit-overflow-scrolling: touch;
 	}
 
 	.mobile-sheet-surface .scroll-mask-y {
+		scroll-padding-top: 0.75rem;
 		scroll-padding-bottom: calc(var(--keyboard-inset-bottom) + 1rem);
 	}
 
@@ -503,8 +507,11 @@
 	}
 
 	.mobile-custom-scroll {
+		overscroll-behavior-x: auto;
+		overscroll-behavior-y: contain;
 		scrollbar-gutter: auto !important;
 		scrollbar-width: none !important;
+		-webkit-overflow-scrolling: touch;
 	}
 
 	.mobile-custom-scroll::-webkit-scrollbar {
@@ -523,7 +530,8 @@
 			var(--composer-height, 132px) +
 			var(--workspace-composer-bottom-gap)
 		);
-		overscroll-behavior: contain;
+		overscroll-behavior-x: auto;
+		overscroll-behavior-y: contain;
 		touch-action: pan-y;
 		-webkit-overflow-scrolling: touch;
 	}
@@ -531,7 +539,6 @@
 	:root[data-pwa-display-mode="standalone"] .mobile-transcript-scroll {
 		padding-top: 0;
 	}
-
 
 	input:not([type="range"]),
 	select,

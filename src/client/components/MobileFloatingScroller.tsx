@@ -5,35 +5,14 @@ import type {
 } from "react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "../designSystem.js";
-
-const mobileScrollPillHeight = 48;
-const mobileScrollKeyboardStep = 72;
-const mobileScrollKeyboardPageRatio = 0.82;
-
-type MobileScrollMetrics = {
-	canScroll: boolean;
-	thumbHeight: number;
-	thumbTop: number;
-	progress: number;
-};
-
-const mobileScrollInitialMetrics: MobileScrollMetrics = {
-	canScroll: false,
-	thumbHeight: mobileScrollPillHeight,
-	thumbTop: 0,
-	progress: 0,
-};
-
-function clamp(value: number, min: number, max: number) {
-	if (!Number.isFinite(value)) {
-		return min;
-	}
-	return Math.min(max, Math.max(min, value));
-}
-
-function maxScrollTop(element: HTMLElement) {
-	return Math.max(0, element.scrollHeight - element.clientHeight);
-}
+import {
+	clamp,
+	type MobileScrollMetrics,
+	maxScrollTop,
+	mobileScrollInitialMetrics,
+	resolveMobileKeyboardScrollTop,
+	resolveMobileScrollMetrics,
+} from "../mobileScrollPhysics.js";
 
 function scrollMetricsEqual(
 	current: MobileScrollMetrics,
@@ -90,26 +69,12 @@ export const MobileFloatingScroller = memo(function MobileFloatingScroller({
 			return;
 		}
 
-		const trackHeight = trackElement.clientHeight;
-		const scrollableTop = maxScrollTop(scrollElement);
-		if (scrollableTop <= 1 || trackHeight <= mobileScrollPillHeight) {
-			setMetrics((current) =>
-				scrollMetricsEqual(current, mobileScrollInitialMetrics)
-					? current
-					: mobileScrollInitialMetrics,
-			);
-			return;
-		}
-
-		const thumbHeight = mobileScrollPillHeight;
-		const maxThumbTop = Math.max(0, trackHeight - thumbHeight);
-		const progress = clamp(scrollElement.scrollTop / scrollableTop, 0, 1);
-		const nextMetrics = {
-			canScroll: true,
-			thumbHeight,
-			thumbTop: progress * maxThumbTop,
-			progress,
-		};
+		const nextMetrics = resolveMobileScrollMetrics({
+			scrollHeight: scrollElement.scrollHeight,
+			clientHeight: scrollElement.clientHeight,
+			scrollTop: scrollElement.scrollTop,
+			trackHeight: trackElement.clientHeight,
+		});
 
 		setMetrics((current) =>
 			scrollMetricsEqual(current, nextMetrics) ? current : nextMetrics,
@@ -194,7 +159,10 @@ export const MobileFloatingScroller = memo(function MobileFloatingScroller({
 				0,
 				trackElement.clientHeight - metrics.thumbHeight,
 			);
-			const scrollableTop = maxScrollTop(scrollElement);
+			const scrollableTop = maxScrollTop(
+				scrollElement.scrollHeight,
+				scrollElement.clientHeight,
+			);
 			if (maxThumbTop <= 0 || scrollableTop <= 0) {
 				return;
 			}
@@ -280,26 +248,19 @@ export const MobileFloatingScroller = memo(function MobileFloatingScroller({
 				return;
 			}
 
-			let nextTop = scrollElement.scrollTop;
-			if (event.key === "ArrowUp") {
-				nextTop -= mobileScrollKeyboardStep;
-			} else if (event.key === "ArrowDown") {
-				nextTop += mobileScrollKeyboardStep;
-			} else if (event.key === "PageUp") {
-				nextTop -= scrollElement.clientHeight * mobileScrollKeyboardPageRatio;
-			} else if (event.key === "PageDown") {
-				nextTop += scrollElement.clientHeight * mobileScrollKeyboardPageRatio;
-			} else if (event.key === "Home") {
-				nextTop = 0;
-			} else if (event.key === "End") {
-				nextTop = maxScrollTop(scrollElement);
-			} else {
+			const nextTop = resolveMobileKeyboardScrollTop({
+				key: event.key,
+				scrollHeight: scrollElement.scrollHeight,
+				clientHeight: scrollElement.clientHeight,
+				scrollTop: scrollElement.scrollTop,
+			});
+			if (nextTop === null) {
 				return;
 			}
 
 			event.preventDefault();
 			scrollElement.scrollTo({
-				top: clamp(nextTop, 0, maxScrollTop(scrollElement)),
+				top: nextTop,
 				behavior: "auto",
 			});
 			updateMetrics();
@@ -330,7 +291,7 @@ export const MobileFloatingScroller = memo(function MobileFloatingScroller({
 					aria-valuemax={100}
 					aria-valuenow={Math.round(metrics.progress * 100)}
 					className={cn(
-						"pointer-events-auto absolute right-1 h-12 w-5 cursor-grab touch-none rounded-full border border-border-strong bg-muted/58 shadow-none transition duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-muted-strong active:cursor-grabbing",
+						"pointer-events-auto absolute right-1 min-h-11 w-5 cursor-grab touch-none rounded-full border border-border-strong bg-muted/58 shadow-none transition-[background-color,border-color,opacity,transform] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-muted-strong active:cursor-grabbing",
 						dragging
 							? "scale-105 bg-muted-strong/78"
 							: "hover:scale-[1.04] hover:bg-muted/72",
