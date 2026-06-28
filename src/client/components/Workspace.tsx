@@ -1,22 +1,15 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
-	Archive,
 	Bot,
 	Check,
 	Copy,
 	Ellipsis,
-	GitFork,
 	Goal,
-	ListTree,
 	Menu,
-	Minimize2,
-	Play,
 	Plus,
 	Search,
 	Send,
 	Settings,
-	Square,
-	SquareX,
 	X,
 } from "lucide-react";
 import type {
@@ -129,7 +122,6 @@ type ComposerMenuAction = {
 	label: string;
 	detail: string;
 	disabledReason: string | null;
-	icon: ReactNode;
 	run: () => void;
 };
 
@@ -612,24 +604,18 @@ const ComposerMenuItem = memo(function ComposerMenuItem({
 	const disabled = Boolean(action.disabledReason);
 	return (
 		<MenuItemButton
-			className="w-full items-start gap-2.5 px-3 py-2.5 disabled:cursor-not-allowed disabled:opacity-45"
+			className="h-8 w-full items-center px-2.5 text-[13px] font-medium disabled:cursor-not-allowed disabled:opacity-45"
 			role="menuitem"
 			disabled={disabled}
-			title={action.disabledReason ?? action.detail}
-			aria-label={`${action.label}: ${action.disabledReason ?? action.detail}`}
+			title={action.disabledReason ?? action.label}
+			aria-label={
+				action.disabledReason
+					? `${action.label}: ${action.disabledReason}`
+					: action.label
+			}
 			onClick={() => onSelect(action)}
 		>
-			<span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-muted">
-				{action.icon}
-			</span>
-			<span className="grid min-w-0 flex-1 gap-0.5">
-				<span className="truncate text-[13px] font-medium leading-5 text-fg">
-					{action.label}
-				</span>
-				<span className="truncate text-[11px] leading-4 text-muted">
-					{action.disabledReason ?? action.detail}
-				</span>
-			</span>
+			<span className="truncate leading-5 text-fg">{action.label}</span>
 		</MenuItemButton>
 	);
 });
@@ -770,7 +756,6 @@ const Composer = memo(
 				label: codexThreadCommandLabels.archive,
 				detail: "Move this thread out of the active list",
 				disabledReason: idleThreadActionDisabledReason(),
-				icon: <Archive size={15} />,
 				run: onArchive,
 			},
 			{
@@ -778,7 +763,6 @@ const Composer = memo(
 				label: codexThreadCommandLabels.compact,
 				detail: "Summarize the transcript for more context",
 				disabledReason: idleThreadActionDisabledReason(),
-				icon: <Minimize2 size={15} />,
 				run: onCompact,
 			},
 			{
@@ -786,7 +770,6 @@ const Composer = memo(
 				label: codexThreadCommandLabels.interrupt,
 				detail: "Stop the currently running turn",
 				disabledReason: interruptDisabledReason(),
-				icon: <Square size={15} />,
 				run: onInterrupt,
 			},
 			{
@@ -794,7 +777,6 @@ const Composer = memo(
 				label: codexThreadCommandLabels.fork,
 				detail: "Continue from this thread in a new branch",
 				disabledReason: threadActionDisabledReason(),
-				icon: <GitFork size={15} />,
 				run: onFork,
 			},
 			{
@@ -802,7 +784,6 @@ const Composer = memo(
 				label: codexThreadCommandLabels.ps,
 				detail: "List app-server background terminals",
 				disabledReason: threadActionDisabledReason(),
-				icon: <ListTree size={15} />,
 				run: onListBackgroundTerminals,
 			},
 			{
@@ -810,7 +791,6 @@ const Composer = memo(
 				label: codexThreadCommandLabels.stop,
 				detail: "Stop app-server background terminals",
 				disabledReason: threadActionDisabledReason(),
-				icon: <SquareX size={15} />,
 				run: onCleanBackgroundTerminals,
 			},
 			{
@@ -818,7 +798,6 @@ const Composer = memo(
 				label: codexThreadCommandLabels.resume,
 				detail: "Resume this saved thread",
 				disabledReason: resumeDisabledReason(),
-				icon: <Play size={15} />,
 				run: onResume,
 			},
 		];
@@ -1010,7 +989,7 @@ const Composer = memo(
 												/>
 												<motion.div
 													className={cn(
-														"absolute bottom-full left-0 mb-2 w-64 max-w-[calc(100vw-2rem)] p-1",
+														"absolute bottom-full left-0 mb-2 w-36 max-w-[calc(100vw-2rem)] p-1",
 														layer.localFloatingZ,
 														ui.popover,
 													)}
