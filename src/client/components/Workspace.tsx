@@ -310,7 +310,7 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 			className={cn(
 				"relative flex shrink-0 items-center justify-between",
 				mobile
-					? "min-h-[var(--mobile-header-height)] gap-2 px-3 pt-[calc(var(--safe-inset-top)+var(--workspace-header-top-gap))] md:hidden"
+					? "min-h-[var(--mobile-header-height)] gap-2 px-3 pt-[var(--workspace-header-top-gap)] md:hidden"
 					: "hidden gap-3 md:relative md:flex md:min-h-[calc(var(--workspace-header-content-height)+var(--workspace-header-top-gap))] md:px-5 md:pt-[var(--workspace-header-top-gap)]",
 				layer.workspaceChromeZ,
 			)}

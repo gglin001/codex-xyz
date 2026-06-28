@@ -110,20 +110,13 @@
 		--stale-dot: #e2c26d;
 		--failed-dot: #fb7185;
 		--completed-dot: #7a7d82;
-		--safe-inset-top: env(safe-area-inset-top, 0px);
-		--safe-inset-right: env(safe-area-inset-right, 0px);
-		--safe-inset-bottom: env(safe-area-inset-bottom, 0px);
-		--safe-inset-left: env(safe-area-inset-left, 0px);
-		--safe-area-top-bg: rgba(18, 19, 20, 0.88);
 		--app-visual-height: 100dvh;
 		--keyboard-inset-bottom: 0px;
 		--workspace-edge-gap: 10px;
 		--workspace-header-top-gap: var(--workspace-edge-gap);
 		--workspace-header-content-height: 2.375rem;
 		--workspace-composer-bottom-gap: var(--workspace-edge-gap);
-		--workspace-composer-keyboard-gap: 4px;
 		--mobile-header-height: calc(
-			var(--safe-inset-top) +
 			var(--workspace-header-top-gap) +
 			var(--workspace-header-content-height)
 		);
@@ -186,7 +179,6 @@
 		--stale-dot: #ffcc00;
 		--failed-dot: #ff3b30;
 		--completed-dot: #8e8e93;
-		--safe-area-top-bg: rgba(247, 248, 251, 0.9);
 	}
 
 	* {
@@ -215,20 +207,6 @@
 		overscroll-behavior: none;
 		touch-action: manipulation;
 		-webkit-font-smoothing: antialiased;
-	}
-
-	body::before {
-		content: "";
-		position: fixed;
-		top: 0;
-		left: 0;
-		right: 0;
-		height: var(--safe-inset-top);
-		background: var(--safe-area-top-bg);
-		backdrop-filter: blur(12px);
-		-webkit-backdrop-filter: blur(12px);
-		pointer-events: none;
-		z-index: 1000;
 	}
 
 	button,
@@ -554,16 +532,6 @@
 		padding-top: 0;
 	}
 
-	.mobile-composer-bar {
-		padding-bottom: calc(
-			var(--safe-inset-bottom) +
-			var(--workspace-composer-bottom-gap)
-		);
-	}
-
-	:root[data-keyboard-visible] .mobile-composer-bar {
-		padding-bottom: var(--workspace-composer-keyboard-gap);
-	}
 
 	input:not([type="range"]),
 	select,

@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 	},
 	appleWebApp: {
 		capable: true,
-		statusBarStyle: "black-translucent",
+		statusBarStyle: "black",
 		title: "codex-xyz",
 	},
 	icons: {
@@ -39,7 +39,6 @@ export const viewport: Viewport = {
 	width: "device-width",
 	initialScale: 1,
 	maximumScale: 1,
-	viewportFit: "cover",
 	interactiveWidget: "resizes-content",
 	colorScheme: "dark light",
 	themeColor: [

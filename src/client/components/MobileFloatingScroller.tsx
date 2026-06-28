@@ -311,7 +311,7 @@ export const MobileFloatingScroller = memo(function MobileFloatingScroller({
 		<div
 			data-scrollable={metrics.canScroll ? "true" : "false"}
 			className={cn(
-				"mobile-floating-scroller pointer-events-none absolute bottom-4 right-[calc(var(--safe-inset-right)+0.625rem)] top-4 z-[4] w-8 transition-opacity duration-150 ease-out",
+				"mobile-floating-scroller pointer-events-none absolute bottom-4 right-2.5 top-4 z-[4] w-8 transition-opacity duration-150 ease-out",
 				metrics.canScroll ? "opacity-100" : "opacity-0",
 				className,
 			)}
