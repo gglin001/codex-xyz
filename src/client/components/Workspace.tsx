@@ -10,6 +10,7 @@ import {
 	Search,
 	Send,
 	Settings,
+	Terminal,
 	X,
 } from "lucide-react";
 import type {
@@ -89,8 +90,10 @@ export type WorkspaceProps = {
 	canSubmitPrompt: boolean;
 	wrapThreadContent: boolean;
 	displayScale: number;
+	commandVisible: boolean;
 	navigatorVisible: boolean;
 	inspectorVisible: boolean;
+	terminalVisible: boolean;
 	onPromptChange: (value: string) => void;
 	onPromptKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
 	onPromptSubmit: (event: SubmitEvent<HTMLFormElement>) => void;
@@ -106,6 +109,7 @@ export type WorkspaceProps = {
 	onCleanBackgroundTerminals: () => void;
 	onToggleNavigator: () => void;
 	onToggleInspector: () => void;
+	onToggleTerminal?: () => void;
 	onOpenCommands?: () => void;
 };
 
@@ -272,10 +276,13 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 	status,
 	model,
 	projectName,
+	commandVisible,
 	navigatorVisible,
 	inspectorVisible,
+	terminalVisible,
 	onToggleNavigator,
 	onToggleInspector,
+	onToggleTerminal,
 	onOpenCommands,
 }: {
 	mode: "desktop" | "mobile";
@@ -284,10 +291,13 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 	status: ThreadDisplayStatus;
 	model: string | null;
 	projectName: string | null;
+	commandVisible: boolean;
 	navigatorVisible: boolean;
 	inspectorVisible: boolean;
+	terminalVisible: boolean;
 	onToggleNavigator: () => void;
 	onToggleInspector: () => void;
+	onToggleTerminal?: () => void;
 	onOpenCommands?: () => void;
 }) {
 	const mobile = mode === "mobile";
@@ -327,16 +337,31 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 				/>
 			</div>
 			<div
-				className={cn("flex shrink-0 items-center", mobile ? "gap-1" : "gap-2")}
+				className={cn(
+					"flex min-w-fit shrink-0 items-center",
+					mobile ? "gap-1" : "gap-2",
+				)}
 			>
 				{onOpenCommands ? (
 					<LargeIconButton
 						className={mobile ? "h-9 w-9" : undefined}
-						title="Open commands"
-						aria-label="Open commands"
+						title="Toggle commands"
+						aria-label="Toggle commands"
+						pressed={commandVisible}
 						onClick={onOpenCommands}
 					>
 						<Search size={15} />
+					</LargeIconButton>
+				) : null}
+				{mobile && onToggleTerminal ? (
+					<LargeIconButton
+						className="h-9 w-9"
+						title={terminalVisible ? "Hide terminal" : "Open terminal"}
+						aria-label={terminalVisible ? "Hide terminal" : "Open terminal"}
+						pressed={terminalVisible}
+						onClick={onToggleTerminal}
+					>
+						<Terminal size={15} />
 					</LargeIconButton>
 				) : null}
 				<LargeIconButton
@@ -1024,8 +1049,10 @@ export const Workspace = memo(
 			goalMode,
 			wrapThreadContent,
 			displayScale,
+			commandVisible,
 			navigatorVisible,
 			inspectorVisible,
+			terminalVisible,
 			canUseGoalMode,
 			canSubmitPrompt,
 			onPromptChange,
@@ -1043,6 +1070,7 @@ export const Workspace = memo(
 			onCleanBackgroundTerminals,
 			onToggleNavigator,
 			onToggleInspector,
+			onToggleTerminal,
 			onOpenCommands,
 		},
 		ref,
@@ -1205,10 +1233,13 @@ export const Workspace = memo(
 						status={status}
 						model={model}
 						projectName={projectName}
+						commandVisible={commandVisible}
 						navigatorVisible={navigatorVisible}
 						inspectorVisible={inspectorVisible}
+						terminalVisible={terminalVisible}
 						onToggleNavigator={onToggleNavigator}
 						onToggleInspector={onToggleInspector}
+						onToggleTerminal={onToggleTerminal}
 						onOpenCommands={onOpenCommands}
 					/>
 				) : null}
@@ -1220,10 +1251,13 @@ export const Workspace = memo(
 						status={status}
 						model={model}
 						projectName={projectName}
+						commandVisible={commandVisible}
 						navigatorVisible={navigatorVisible}
 						inspectorVisible={inspectorVisible}
+						terminalVisible={terminalVisible}
 						onToggleNavigator={onToggleNavigator}
 						onToggleInspector={onToggleInspector}
+						onToggleTerminal={onToggleTerminal}
 						onOpenCommands={onOpenCommands}
 					/>
 				) : null}

@@ -118,11 +118,12 @@
 		--safe-area-bottom-bg: rgba(18, 19, 20, 0.92);
 		--app-visual-height: 100dvh;
 		--keyboard-inset-bottom: 0px;
+		--mobile-header-height: calc(var(--safe-inset-top) + 2.5rem);
 		--mobile-sheet-height: calc(
 			var(--app-visual-height) -
-			var(--safe-inset-top)
+			var(--mobile-sheet-top)
 		);
-		--mobile-sheet-top: var(--safe-inset-top);
+		--mobile-sheet-top: var(--mobile-header-height);
 		--composer-height: 132px;
 	}
 

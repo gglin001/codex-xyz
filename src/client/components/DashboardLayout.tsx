@@ -1,4 +1,4 @@
-import { AnimatePresence, motion, useDragControls } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
 	Archive,
 	GitFork,
@@ -20,13 +20,8 @@ import {
 	WrapText,
 	ZoomIn,
 } from "lucide-react";
-import type {
-	KeyboardEvent,
-	PointerEvent as ReactPointerEvent,
-	SubmitEvent,
-} from "react";
+import type { KeyboardEvent, SubmitEvent } from "react";
 import {
-	forwardRef,
 	memo,
 	useCallback,
 	useEffect,
@@ -210,7 +205,6 @@ type CommandActionRenderItem = {
 type MobileSheet = "navigator" | "inspector";
 
 const spring = motionPresets.spring;
-const dragDismissThreshold = 80;
 const mobileViewportQuery = "(max-width: 767px)";
 
 function isMobileViewport() {
@@ -356,62 +350,6 @@ function cycleDialogFocus(
 			: currentIndex + 1;
 	event.preventDefault();
 	focusable[nextIndex]?.focus({ preventScroll: true });
-}
-
-type MobileSheetHandleProps = {
-	onPointerDown?: (event: ReactPointerEvent<HTMLDivElement>) => void;
-};
-
-const MobileSheetHandle = forwardRef<HTMLDivElement, MobileSheetHandleProps>(
-	function MobileSheetHandle({ onPointerDown }, ref) {
-		return (
-			<div
-				ref={ref}
-				className="pointer-events-none absolute inset-x-0 top-0 z-[3] flex h-4 justify-center pt-1.5"
-				aria-hidden="true"
-			>
-				<div
-					className={cn(
-						"flex h-4 w-24 justify-center",
-						onPointerDown
-							? "pointer-events-auto cursor-grab touch-none active:cursor-grabbing"
-							: "pointer-events-none",
-					)}
-					onPointerDown={onPointerDown}
-				>
-					<span className={layer.mobileHandle} />
-				</div>
-			</div>
-		);
-	},
-);
-
-function shouldStartSheetDrag(event: ReactPointerEvent<HTMLDivElement>) {
-	return event.pointerType !== "mouse" || event.button === 0;
-}
-
-function startSheetDrag(
-	event: ReactPointerEvent<HTMLDivElement>,
-	dragControls: ReturnType<typeof useDragControls>,
-) {
-	if (!shouldStartSheetDrag(event)) {
-		return;
-	}
-	dragControls.start(event);
-}
-
-function isMobileSheetDragEnabled() {
-	return isMobileViewport();
-}
-
-function startMobileSheetDrag(
-	event: ReactPointerEvent<HTMLDivElement>,
-	dragControls: ReturnType<typeof useDragControls>,
-) {
-	if (!isMobileSheetDragEnabled()) {
-		return;
-	}
-	startSheetDrag(event, dragControls);
 }
 
 function commandActionMatches(action: CommandAction, normalizedQuery: string) {
@@ -685,7 +623,6 @@ const CommandPalette = memo(function CommandPalette({
 	const panelRef = useRef<HTMLDivElement | null>(null);
 	const listRef = useRef<HTMLDivElement | null>(null);
 	const listId = useId();
-	const dragControls = useDragControls();
 
 	const filteredActions = useMemo(() => {
 		const normalized = query.trim().toLowerCase();
@@ -750,7 +687,7 @@ const CommandPalette = memo(function CommandPalette({
 			{open ? (
 				<motion.div
 					className={cn(
-						"fixed inset-0 flex items-start justify-center md:px-3 md:pt-3",
+						"fixed inset-x-0 bottom-0 top-[var(--mobile-sheet-top)] flex items-start justify-center md:inset-0 md:px-3 md:pt-3",
 						layer.overlayZ,
 						ui.overlay,
 					)}
@@ -773,30 +710,16 @@ const CommandPalette = memo(function CommandPalette({
 						aria-label="Command palette"
 						initial={
 							isMobileViewport()
-								? { y: "100%", opacity: 0 }
+								? { y: -6, opacity: 0 }
 								: { opacity: 0, y: -12, scale: 0.98 }
 						}
 						animate={{ opacity: 1, y: 0, scale: 1 }}
 						exit={
 							isMobileViewport()
-								? { y: "100%", opacity: 0 }
+								? { y: -6, opacity: 0 }
 								: { opacity: 0, y: -12, scale: 0.98 }
 						}
 						transition={isMobileViewport() ? spring : motionPresets.quick}
-						drag={isMobileViewport() ? "y" : false}
-						dragControls={dragControls}
-						dragListener={false}
-						dragConstraints={{ top: 0, bottom: 0 }}
-						dragElastic={{ top: 0, bottom: 0.4 }}
-						dragMomentum={false}
-						onDragEnd={(_event, info) => {
-							if (
-								info.offset.y > dragDismissThreshold ||
-								info.velocity.y > 600
-							) {
-								onClose();
-							}
-						}}
 						onKeyDown={(event) => {
 							if (event.key === "Escape") {
 								event.preventDefault();
@@ -807,13 +730,6 @@ const CommandPalette = memo(function CommandPalette({
 						}}
 						onMouseDown={(event) => event.stopPropagation()}
 					>
-						<div className="md:hidden">
-							<MobileSheetHandle
-								onPointerDown={(event) => {
-									startMobileSheetDrag(event, dragControls);
-								}}
-							/>
-						</div>
 						<div className="px-2 pb-1 pt-2">
 							<FieldShell icon={<Search size={16} />} className="h-9 w-full">
 								<input
@@ -1014,7 +930,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 	const commandReturnFocusRef = useRef<HTMLElement | null>(null);
 	const mobileSheetReturnFocusRef = useRef<HTMLElement | null>(null);
 	const mobileSheetPanelRef = useRef<HTMLDivElement | null>(null);
-	const mobileSheetDragControls = useDragControls();
 	const mobileThreadOverlayHistoryPushedRef = useRef(false);
 	const viewportMode = useResponsiveViewportMode();
 	const renderDesktopShell = viewportMode !== "mobile";
@@ -1083,9 +998,12 @@ export const DashboardLayout = memo(function DashboardLayout({
 				blurActiveElement();
 			}
 			closeMobileSheet({ restoreFocus: false });
+			if (isMobileViewport()) {
+				onTerminalVisibleChange(false);
+			}
 			setCommandOpen(true);
 		},
-		[closeMobileSheet],
+		[closeMobileSheet, onTerminalVisibleChange],
 	);
 
 	const openMobileSheet = useCallback(
@@ -1131,6 +1049,24 @@ export const DashboardLayout = memo(function DashboardLayout({
 		}
 		openCommandPalette();
 	}, [closeCommandPalette, commandOpen, openCommandPalette]);
+
+	const toggleTerminal = useCallback(() => {
+		if (terminalVisible) {
+			onTerminalVisibleChange(false);
+			return;
+		}
+		if (isMobileViewport()) {
+			closeCommandPalette({ restoreFocus: false });
+			closeMobileSheet({ restoreFocus: false });
+			blurActiveElement();
+		}
+		onTerminalVisibleChange(true);
+	}, [
+		closeCommandPalette,
+		closeMobileSheet,
+		onTerminalVisibleChange,
+		terminalVisible,
+	]);
 
 	useEffect(() => {
 		const handleKeyDown = (event: globalThis.KeyboardEvent) => {
@@ -1245,10 +1181,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 			}
 			onInspectorVisibleChange(!inspectorVisible);
 		};
-		const showTerminal = () => {
-			closeMobileSheet({ restoreFocus: false });
-			onTerminalVisibleChange(true);
-		};
 		const focusPrompt = () => {
 			closeMobileSheet({ restoreFocus: false });
 			window.requestAnimationFrame(focusVisiblePrompt);
@@ -1293,9 +1225,9 @@ export const DashboardLayout = memo(function DashboardLayout({
 			{
 				id: "open-terminal",
 				name: "Terminal",
-				detail: "Open the terminal dock",
+				detail: "Toggle the terminal dock",
 				kind: "terminal",
-				run: showTerminal,
+				run: toggleTerminal,
 			},
 			{
 				id: "settings:panel",
@@ -1525,7 +1457,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 		onNavigatorVisibleChange,
 		onResume,
 		onCleanBackgroundTerminals,
-		onTerminalVisibleChange,
 		onThemeModeChange,
 		onWrapThreadContentChange,
 		closeMobileSheet,
@@ -1534,11 +1465,8 @@ export const DashboardLayout = memo(function DashboardLayout({
 		onRestartCodexAppServer,
 		onSelectThread,
 		projects,
+		toggleTerminal,
 	]);
-
-	const toggleDesktopTerminal = useCallback(() => {
-		onTerminalVisibleChange(!terminalVisible);
-	}, [onTerminalVisibleChange, terminalVisible]);
 
 	const toggleNavigator = useCallback(() => {
 		if (isMobileViewport()) {
@@ -1567,7 +1495,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 					title="Toggle terminal"
 					aria-label="Toggle terminal"
 					selected={terminalVisible}
-					onClick={toggleDesktopTerminal}
+					onClick={toggleTerminal}
 				>
 					<Terminal size={14} />
 					<span className="truncate">Terminal</span>
@@ -1672,8 +1600,10 @@ export const DashboardLayout = memo(function DashboardLayout({
 							canSubmitPrompt={canSubmitPrompt}
 							wrapThreadContent={wrapThreadContent}
 							displayScale={displayScale}
+							commandVisible={commandOpen}
 							navigatorVisible={navigatorVisible}
 							inspectorVisible={inspectorVisible}
+							terminalVisible={terminalVisible}
 							onPromptChange={onPromptChange}
 							onPromptKeyDown={onPromptKeyDown}
 							onPromptSubmit={onPromptSubmit}
@@ -1689,7 +1619,8 @@ export const DashboardLayout = memo(function DashboardLayout({
 							onCleanBackgroundTerminals={onCleanBackgroundTerminals}
 							onToggleNavigator={toggleNavigator}
 							onToggleInspector={toggleInspector}
-							onOpenCommands={() => openCommandPalette()}
+							onToggleTerminal={toggleTerminal}
+							onOpenCommands={toggleCommandPalette}
 						/>
 					</div>
 
@@ -1734,8 +1665,10 @@ export const DashboardLayout = memo(function DashboardLayout({
 						canSubmitPrompt={canSubmitPrompt}
 						wrapThreadContent={wrapThreadContent}
 						displayScale={displayScale}
+						commandVisible={commandOpen}
 						navigatorVisible={mobileSheet === "navigator"}
 						inspectorVisible={mobileSheet === "inspector"}
+						terminalVisible={terminalVisible}
 						onPromptChange={onPromptChange}
 						onPromptKeyDown={onPromptKeyDown}
 						onPromptSubmit={onPromptSubmit}
@@ -1751,7 +1684,8 @@ export const DashboardLayout = memo(function DashboardLayout({
 						onCleanBackgroundTerminals={onCleanBackgroundTerminals}
 						onToggleNavigator={() => openMobileSheet("navigator")}
 						onToggleInspector={() => openMobileSheet("inspector")}
-						onOpenCommands={() => openCommandPalette()}
+						onToggleTerminal={toggleTerminal}
+						onOpenCommands={toggleCommandPalette}
 					/>
 				</div>
 			) : null}
@@ -1760,7 +1694,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 				{renderMobileShell && mobileSheet ? (
 					<motion.div
 						className={cn(
-							"fixed inset-0 md:hidden",
+							"fixed inset-x-0 bottom-0 top-[var(--mobile-sheet-top)] md:hidden",
 							layer.overlayZ,
 							ui.overlay,
 						)}
@@ -1779,24 +1713,10 @@ export const DashboardLayout = memo(function DashboardLayout({
 							aria-label={
 								mobileSheet === "navigator" ? "Thread navigator" : "Settings"
 							}
-							initial={{ y: "100%", opacity: 0 }}
+							initial={{ y: -6, opacity: 0 }}
 							animate={{ y: 0, opacity: 1 }}
-							exit={{ y: "100%", opacity: 0 }}
+							exit={{ y: -6, opacity: 0 }}
 							transition={spring}
-							drag="y"
-							dragControls={mobileSheetDragControls}
-							dragListener={false}
-							dragConstraints={{ top: 0, bottom: 0 }}
-							dragElastic={{ top: 0, bottom: 0.4 }}
-							dragMomentum={false}
-							onDragEnd={(_event, info) => {
-								if (
-									info.offset.y > dragDismissThreshold ||
-									info.velocity.y > 600
-								) {
-									closeMobileSheet();
-								}
-							}}
 							onKeyDown={(event) => {
 								if (event.key === "Escape") {
 									event.preventDefault();
@@ -1807,11 +1727,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 							}}
 							onMouseDown={(event) => event.stopPropagation()}
 						>
-							<MobileSheetHandle
-								onPointerDown={(event) => {
-									startSheetDrag(event, mobileSheetDragControls);
-								}}
-							/>
 							{mobileSheet === "navigator" ? (
 								<Sidebar
 									className="shadow-none"

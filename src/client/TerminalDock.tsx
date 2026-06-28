@@ -49,7 +49,6 @@ const reconnectDelayMs = 1_200;
 const inputFlushMs = 8;
 const resizeFlushMs = 100;
 const metricsCommitMs = 500;
-const dragDismissThreshold = 80;
 const desktopMargin = 16;
 const desktopDefaultWidth = 560;
 const desktopDefaultHeight = 320;
@@ -216,20 +215,6 @@ function useMediaQuery(query: string) {
 
 const spring = motionPresets.spring;
 const sheetSpring = motionPresets.sheet;
-
-function DragHandle() {
-	return (
-		<div
-			className={cn(
-				"pointer-events-none absolute inset-x-0 top-2 flex justify-center md:hidden",
-				layer.localBackdropZ,
-			)}
-			aria-hidden="true"
-		>
-			<div className={layer.mobileHandle} />
-		</div>
-	);
-}
 
 function TerminalActions({
 	onStartOrAttach,
@@ -839,7 +824,10 @@ export function TerminalDock({
 			{visible ? (
 				<motion.div
 					key="terminal-root"
-					className={cn("fixed inset-0 md:pointer-events-none", layer.overlayZ)}
+					className={cn(
+						"fixed inset-x-0 bottom-0 top-[var(--mobile-sheet-top)] md:inset-0 md:pointer-events-none",
+						layer.overlayZ,
+					)}
 					initial={{ opacity: 0 }}
 					animate={{ opacity: 1 }}
 					exit={{ opacity: 0 }}
@@ -869,7 +857,7 @@ export function TerminalDock({
 						}
 						initial={
 							isMobileSheet
-								? { y: "100%", opacity: 0 }
+								? { y: -6, opacity: 0 }
 								: { opacity: 0, y: 24, scale: 0.97 }
 						}
 						animate={{
@@ -879,26 +867,13 @@ export function TerminalDock({
 						}}
 						exit={
 							isMobileSheet
-								? { y: "100%", opacity: 0 }
+								? { y: -6, opacity: 0 }
 								: { opacity: 0, y: 24, scale: 0.97 }
 						}
 						transition={sheetSpring}
-						drag={isMobileSheet ? "y" : false}
-						dragConstraints={{ top: 0, bottom: 0 }}
-						dragElastic={{ top: 0, bottom: 0.4 }}
-						dragMomentum={false}
-						onDragEnd={(_event, info) => {
-							if (
-								info.offset.y > dragDismissThreshold ||
-								info.velocity.y > 600
-							) {
-								onClose();
-							}
-						}}
 						onClick={(event) => event.stopPropagation()}
 						aria-label="Terminal"
 					>
-						<DragHandle />
 						{header}
 						{terminalCanvas}
 						{resizeHandle}

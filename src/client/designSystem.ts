@@ -26,11 +26,10 @@ export const layer = {
 	localBackdropZ: "z-[10]",
 	localFloatingZ: "z-[20]",
 	localMenuZ: "z-[30]",
-	mobileHandle: "h-1 w-12 rounded-full bg-control-hover/88",
 	mobileSheet:
-		"mobile-sheet-surface absolute inset-x-0 top-[var(--mobile-sheet-top)] flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden rounded-t-[12px] md:rounded-[12px]",
+		"mobile-sheet-surface absolute inset-x-0 top-0 flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden md:rounded-[12px]",
 	mobileTerminalSheet:
-		"mobile-sheet-surface pointer-events-auto absolute inset-x-0 top-[var(--mobile-sheet-top)] flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden rounded-t-[12px] md:inset-auto md:rounded-[12px]",
+		"mobile-sheet-surface pointer-events-auto absolute inset-x-0 top-0 flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden md:inset-auto md:rounded-[12px]",
 	groupContinuationMark:
 		"absolute -bottom-1 left-3.5 h-2 w-1 rounded-full bg-control-hover",
 	stackedIconPlate:

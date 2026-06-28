@@ -12,6 +12,7 @@ const appVisualHeightProperty = "--app-visual-height";
 const keyboardInsetProperty = "--keyboard-inset-bottom";
 const mobileSheetHeightProperty = "--mobile-sheet-height";
 const mobileSheetTopProperty = "--mobile-sheet-top";
+const mobileHeaderHeightProperty = "--mobile-header-height";
 const keyboardVisibleAttribute = "data-keyboard-visible";
 const mobileViewportQuery = "(max-width: 767px)";
 const keyboardVisibilityThreshold = 80;
@@ -46,22 +47,22 @@ function setMobileSheetGeometry(heightValue: number | null) {
 	if (heightValue === null) {
 		document.documentElement.style.setProperty(
 			mobileSheetHeightProperty,
-			"calc(var(--app-visual-height) - var(--safe-inset-top))",
+			"calc(var(--app-visual-height) - var(--mobile-sheet-top))",
 		);
 		document.documentElement.style.setProperty(
 			mobileSheetTopProperty,
-			"var(--safe-inset-top)",
+			`var(${mobileHeaderHeightProperty})`,
 		);
 		return;
 	}
 	const viewportHeight = Math.max(320, Math.round(heightValue));
 	document.documentElement.style.setProperty(
 		mobileSheetHeightProperty,
-		`calc(${viewportHeight}px - var(--safe-inset-top))`,
+		`calc(${viewportHeight}px - var(${mobileSheetTopProperty}))`,
 	);
 	document.documentElement.style.setProperty(
 		mobileSheetTopProperty,
-		"var(--safe-inset-top)",
+		`var(${mobileHeaderHeightProperty})`,
 	);
 }
 
