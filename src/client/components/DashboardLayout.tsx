@@ -47,6 +47,7 @@ import {
 import { isPromptFocusShortcut } from "../promptShortcut.js";
 import { nextThemeMode, type ThemeMode, themeModeLabels } from "../theme.js";
 import { useFullscreen } from "../useFullscreen.js";
+import { useMobileLongPressSelectionGuard } from "../useMobileLongPressSelectionGuard.js";
 import { useMobileViewportGeometry } from "../useMobileViewportGeometry.js";
 import type { PwaState } from "../usePwa.js";
 import { MobileFloatingScroller } from "./MobileFloatingScroller.js";
@@ -860,6 +861,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 		null;
 
 	useMobileViewportGeometry();
+	useMobileLongPressSelectionGuard();
 
 	const focusVisiblePrompt = useCallback(() => {
 		const useDesktopWorkspace =
