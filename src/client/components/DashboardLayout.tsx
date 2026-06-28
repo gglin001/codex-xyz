@@ -30,6 +30,7 @@ import {
 	memo,
 	useCallback,
 	useEffect,
+	useId,
 	useMemo,
 	useRef,
 	useState,
@@ -54,6 +55,7 @@ import { nextThemeMode, type ThemeMode, themeModeLabels } from "../theme.js";
 import { useFullscreen } from "../useFullscreen.js";
 import { useMobileViewportGeometry } from "../useMobileViewportGeometry.js";
 import type { PwaState } from "../usePwa.js";
+import { MobileFloatingScroller } from "./MobileFloatingScroller.js";
 import { ParamPanel } from "./ParamPanel.js";
 import {
 	ProjectResultRow,
@@ -682,6 +684,7 @@ const CommandPalette = memo(function CommandPalette({
 	const inputRef = useRef<HTMLInputElement | null>(null);
 	const panelRef = useRef<HTMLDivElement | null>(null);
 	const listRef = useRef<HTMLDivElement | null>(null);
+	const listId = useId();
 	const dragControls = useDragControls();
 
 	const filteredActions = useMemo(() => {
@@ -855,8 +858,9 @@ const CommandPalette = memo(function CommandPalette({
 						</div>
 						<div className="relative min-h-0 flex-1">
 							<div
+								id={listId}
 								ref={listRef}
-								className="mobile-keyboard-scroll h-full min-h-0 overflow-y-auto px-1.5 py-1 md:max-h-[min(39rem,calc(100dvh_-_5rem))]"
+								className="mobile-custom-scroll mobile-keyboard-scroll h-full min-h-0 overflow-y-auto px-1.5 py-1 md:max-h-[min(39rem,calc(100dvh_-_5rem))]"
 							>
 								{filteredActions.length === 0 ? (
 									<div className="px-3 py-8 text-center text-[13px] text-muted">
@@ -935,6 +939,10 @@ const CommandPalette = memo(function CommandPalette({
 							</div>
 							<div className="chrome-edge-fade chrome-edge-fade-short chrome-edge-fade-panel chrome-edge-fade-top" />
 							<div className="chrome-edge-fade chrome-edge-fade-short chrome-edge-fade-panel chrome-edge-fade-bottom" />
+							<MobileFloatingScroller
+								scrollRef={listRef}
+								scrollElementId={listId}
+							/>
 						</div>
 					</motion.div>
 				</motion.div>

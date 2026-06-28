@@ -24,6 +24,7 @@ import {
 	memo,
 	useCallback,
 	useEffect,
+	useId,
 	useImperativeHandle,
 	useMemo,
 	useRef,
@@ -51,6 +52,7 @@ import {
 	itemTitle,
 	statusLabel,
 } from "../uiFormat.js";
+import { MobileFloatingScroller } from "./MobileFloatingScroller.js";
 import {
 	CollapsibleCard,
 	ComposerIconButton,
@@ -1050,6 +1052,7 @@ export const Workspace = memo(
 		const rootRef = useRef<HTMLElement | null>(null);
 		const transcriptScrollRef = useRef<HTMLDivElement | null>(null);
 		const mobileTranscriptDetailIdRef = useRef<string | null>(null);
+		const transcriptScrollId = useId();
 		const [mobileVisibleEntryCount, setMobileVisibleEntryCount] = useState(
 			mobileTranscriptInitialWindow,
 		);
@@ -1233,8 +1236,9 @@ export const Workspace = memo(
 					>
 						<div className="relative min-h-0 flex-1">
 							<div
+								id={transcriptScrollId}
 								ref={transcriptScrollRef}
-								className="mobile-transcript-scroll h-full min-h-0 overflow-y-auto px-4 py-0 [scrollbar-gutter:stable] md:px-8"
+								className="mobile-custom-scroll mobile-transcript-scroll h-full min-h-0 overflow-y-auto px-4 py-0 md:px-8 md:[scrollbar-gutter:stable]"
 							>
 								<ThreadContentFrame className="grid gap-[var(--transcript-gap)]">
 									{entries.length === 0 ? (
@@ -1330,6 +1334,12 @@ export const Workspace = memo(
 							</div>
 							<div className="chrome-edge-fade chrome-edge-fade-app chrome-edge-fade-top" />
 							<div className="chrome-edge-fade chrome-edge-fade-app chrome-edge-fade-bottom chrome-edge-fade-tall" />
+							{isMobilePresentation ? (
+								<MobileFloatingScroller
+									scrollRef={transcriptScrollRef}
+									scrollElementId={transcriptScrollId}
+								/>
+							) : null}
 						</div>
 
 						<div

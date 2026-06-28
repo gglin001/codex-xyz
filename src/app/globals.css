@@ -487,6 +487,10 @@
 			var(--chrome-edge-bg-transparent, var(--app-bg-transparent)) 100%
 		);
 	}
+
+	.mobile-floating-scroller {
+		display: none;
+	}
 }
 
 @media (max-width: 767px) {
@@ -524,6 +528,21 @@
 
 	:root[data-keyboard-visible] .mobile-sheet-surface .scroll-mask-y {
 		padding-bottom: calc(var(--keyboard-inset-bottom) + 0.75rem);
+	}
+
+	.mobile-custom-scroll {
+		scrollbar-gutter: auto !important;
+		scrollbar-width: none !important;
+	}
+
+	.mobile-custom-scroll::-webkit-scrollbar {
+		display: none !important;
+		width: 0;
+		height: 0;
+	}
+
+	.mobile-floating-scroller {
+		display: block !important;
 	}
 
 	.mobile-transcript-scroll {

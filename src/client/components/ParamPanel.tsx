@@ -25,7 +25,7 @@ import {
 	WrapText,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { memo } from "react";
+import { memo, useId, useRef } from "react";
 import type {
 	ControlThread,
 	ThreadDetail,
@@ -35,6 +35,7 @@ import { cn, tone, ui } from "../designSystem.js";
 import { nextThemeMode, type ThemeMode } from "../theme.js";
 import { formatTokens, shortId, statusLabel } from "../uiFormat.js";
 import type { PwaState } from "../usePwa.js";
+import { MobileFloatingScroller } from "./MobileFloatingScroller.js";
 import {
 	ControlCard,
 	InfoTile,
@@ -224,6 +225,8 @@ export const ParamPanel = memo(function ParamPanel({
 	restartCodexAppServerDisabled,
 	onRestartCodexAppServer,
 }: ParamPanelProps) {
+	const settingsScrollRef = useRef<HTMLDivElement | null>(null);
+	const settingsScrollId = useId();
 	const thread = selectedThread ?? threadSummary?.thread ?? null;
 	const status = thread?.status ?? "idle";
 	const model = thread?.model ?? "default Codex model";
@@ -244,7 +247,11 @@ export const ParamPanel = memo(function ParamPanel({
 			)}
 		>
 			<div className="relative min-h-0 min-w-0 flex-1">
-				<div className="mobile-keyboard-scroll h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden scroll-mask-y">
+				<div
+					id={settingsScrollId}
+					ref={settingsScrollRef}
+					className="mobile-custom-scroll mobile-keyboard-scroll h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden scroll-mask-y"
+				>
 					<SettingsSection icon={<ListTree size={13} />} title="Current Thread">
 						<div className="grid min-w-0 gap-1.5">
 							<ControlCard className="grid w-full min-w-0 gap-1.5 px-2.5 py-2">
@@ -553,6 +560,10 @@ export const ParamPanel = memo(function ParamPanel({
 				</div>
 				<div className="chrome-edge-fade chrome-edge-fade-short chrome-edge-fade-panel chrome-edge-fade-top" />
 				<div className="chrome-edge-fade chrome-edge-fade-short chrome-edge-fade-panel chrome-edge-fade-bottom" />
+				<MobileFloatingScroller
+					scrollRef={settingsScrollRef}
+					scrollElementId={settingsScrollId}
+				/>
 			</div>
 		</aside>
 	);

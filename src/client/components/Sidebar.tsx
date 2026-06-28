@@ -1,9 +1,10 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, ChevronDown, Plus, Search } from "lucide-react";
 import type { ReactNode } from "react";
-import { memo, useMemo, useState } from "react";
+import { memo, useId, useMemo, useRef, useState } from "react";
 import { codexThreadCommandLabels } from "../codexCommandLabels.js";
 import { cn, layer, motionPresets, ui } from "../designSystem.js";
+import { MobileFloatingScroller } from "./MobileFloatingScroller.js";
 import { ProjectResultRow, projectResultTitle } from "./ProjectResultRow.js";
 import {
 	ThreadResultRow,
@@ -84,6 +85,8 @@ export const Sidebar = memo(function Sidebar({
 	onCreateThread,
 	footer,
 }: SidebarProps) {
+	const threadListRef = useRef<HTMLDivElement | null>(null);
+	const threadListId = useId();
 	const [projectMenuOpen, setProjectMenuOpen] = useState(false);
 	const selectedProject =
 		projects.find((project) => project.id === selectedProjectId) ?? projects[0];
@@ -195,7 +198,11 @@ export const Sidebar = memo(function Sidebar({
 			</div>
 
 			<div className="relative min-h-0 flex-1">
-				<div className="mobile-keyboard-scroll h-full min-h-0 overflow-y-auto px-2 py-1 scroll-mask-y">
+				<div
+					id={threadListId}
+					ref={threadListRef}
+					className="mobile-custom-scroll mobile-keyboard-scroll h-full min-h-0 overflow-y-auto px-2 py-1 scroll-mask-y"
+				>
 					<AnimatePresence mode="popLayout">
 						<motion.div
 							key={selectedProject?.id ?? "empty"}
@@ -242,6 +249,10 @@ export const Sidebar = memo(function Sidebar({
 				</div>
 				<div className="chrome-edge-fade chrome-edge-fade-short chrome-edge-fade-panel chrome-edge-fade-top" />
 				<div className="chrome-edge-fade chrome-edge-fade-short chrome-edge-fade-panel chrome-edge-fade-bottom" />
+				<MobileFloatingScroller
+					scrollRef={threadListRef}
+					scrollElementId={threadListId}
+				/>
 			</div>
 
 			{footer}
