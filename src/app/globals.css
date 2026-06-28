@@ -115,17 +115,24 @@
 		--safe-inset-bottom: env(safe-area-inset-bottom, 0px);
 		--safe-inset-left: env(safe-area-inset-left, 0px);
 		--safe-area-top-bg: rgba(18, 19, 20, 0.88);
-		--safe-area-bottom-bg: rgba(18, 19, 20, 0.92);
 		--app-visual-height: 100dvh;
 		--keyboard-inset-bottom: 0px;
-		--mobile-header-height: calc(var(--safe-inset-top) + 2.5rem);
+		--workspace-edge-gap: 10px;
+		--workspace-header-top-gap: var(--workspace-edge-gap);
+		--workspace-header-content-height: 2.375rem;
+		--workspace-composer-bottom-gap: var(--workspace-edge-gap);
+		--workspace-composer-keyboard-gap: 4px;
+		--mobile-header-height: calc(
+			var(--safe-inset-top) +
+			var(--workspace-header-top-gap) +
+			var(--workspace-header-content-height)
+		);
 		--mobile-sheet-height: calc(
 			var(--app-visual-height) -
 			var(--mobile-sheet-top)
 		);
 		--mobile-sheet-top: var(--mobile-header-height);
 		--composer-height: 132px;
-		--mobile-composer-lift: 10px;
 	}
 
 	:root,
@@ -180,7 +187,6 @@
 		--failed-dot: #ff3b30;
 		--completed-dot: #8e8e93;
 		--safe-area-top-bg: rgba(247, 248, 251, 0.9);
-		--safe-area-bottom-bg: rgba(247, 248, 251, 0.92);
 	}
 
 	* {
@@ -219,20 +225,6 @@
 		right: 0;
 		height: var(--safe-inset-top);
 		background: var(--safe-area-top-bg);
-		backdrop-filter: blur(12px);
-		-webkit-backdrop-filter: blur(12px);
-		pointer-events: none;
-		z-index: 1000;
-	}
-
-	body::after {
-		content: "";
-		position: fixed;
-		bottom: 0;
-		left: 0;
-		right: 0;
-		height: var(--safe-inset-bottom);
-		background: var(--safe-area-bottom-bg);
 		backdrop-filter: blur(12px);
 		-webkit-backdrop-filter: blur(12px);
 		pointer-events: none;
@@ -551,7 +543,7 @@
 		padding-bottom: 0;
 		scroll-padding-bottom: calc(
 			var(--composer-height, 132px) +
-			var(--mobile-composer-lift)
+			var(--workspace-composer-bottom-gap)
 		);
 		overscroll-behavior: contain;
 		touch-action: pan-y;
@@ -565,12 +557,12 @@
 	.mobile-composer-bar {
 		padding-bottom: calc(
 			var(--safe-inset-bottom) +
-			var(--mobile-composer-lift)
+			var(--workspace-composer-bottom-gap)
 		);
 	}
 
 	:root[data-keyboard-visible] .mobile-composer-bar {
-		padding-bottom: 4px;
+		padding-bottom: var(--workspace-composer-keyboard-gap);
 	}
 
 	input:not([type="range"]),
