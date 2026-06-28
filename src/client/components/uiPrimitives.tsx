@@ -370,11 +370,7 @@ export const CopyIconButton = memo(function CopyIconButton({
 	return (
 		<button
 			type="button"
-			className={cn(
-				"inline-flex h-7 w-7 shrink-0 items-center justify-center text-muted hover:bg-control hover:text-fg-strong",
-				radius.control,
-				ui.row,
-			)}
+			className={ui.compactIconButton}
 			title={label}
 			aria-label={label}
 			onClick={onClick}
@@ -470,10 +466,7 @@ export const CollapsibleCard = memo(function CollapsibleCard({
 					>
 						<button
 							type="button"
-							className={cn(
-								"inline-flex h-7 w-7 shrink-0 items-center justify-center text-muted transition duration-150 ease-out hover:bg-control hover:text-fg-strong",
-								radius.control,
-							)}
+							className={ui.compactIconButton}
 							aria-label={expanded ? `Collapse ${title}` : `Expand ${title}`}
 							aria-expanded={expanded}
 							title={expanded ? `Collapse ${title}` : `Expand ${title}`}
@@ -492,10 +485,7 @@ export const CollapsibleCard = memo(function CollapsibleCard({
 				) : (
 					<button
 						type="button"
-						className={cn(
-							"mr-2 inline-flex h-7 w-7 shrink-0 items-center justify-center text-muted transition duration-150 ease-out hover:bg-control hover:text-fg-strong",
-							radius.control,
-						)}
+						className={cn("mr-2", ui.compactIconButton)}
 						aria-label={expanded ? `Collapse ${title}` : `Expand ${title}`}
 						aria-expanded={expanded}
 						title={expanded ? `Collapse ${title}` : `Expand ${title}`}

@@ -3,7 +3,7 @@ import { Check, ChevronDown, Plus, Search } from "lucide-react";
 import type { ReactNode } from "react";
 import { memo, useMemo, useState } from "react";
 import { codexThreadCommandLabels } from "../codexCommandLabels.js";
-import { cn, motionPresets, ui } from "../designSystem.js";
+import { cn, layer, motionPresets, ui } from "../designSystem.js";
 import { ProjectResultRow, projectResultTitle } from "./ProjectResultRow.js";
 import {
 	ThreadResultRow,
@@ -129,7 +129,8 @@ export const Sidebar = memo(function Sidebar({
 					{projectMenuOpen ? (
 						<motion.div
 							className={cn(
-								"absolute left-3 right-3 top-[58px] z-30 p-1.5",
+								"absolute left-3 right-3 top-[58px] p-1.5",
+								layer.localMenuZ,
 								ui.popover,
 							)}
 							initial={{ opacity: 0, y: -8, scale: 0.98 }}
@@ -161,12 +162,17 @@ export const Sidebar = memo(function Sidebar({
 				</AnimatePresence>
 			</div>
 
-			<div className="flex shrink-0 items-center gap-2 bg-panel/20 px-3 pb-2.5 pt-1.5">
+			<div
+				className={cn(
+					"flex shrink-0 items-center gap-2 px-3 pb-2.5 pt-1.5",
+					ui.panelBand,
+				)}
+			>
 				<div className="min-w-0 flex-1">
 					<FieldShell icon={<Search size={14} />} className="h-9 w-full">
 						<input
 							type="search"
-							className={cn(ui.input, "h-[1lh] text-[13px] leading-5")}
+							className={cn(ui.input, ui.inputTextCompact)}
 							value={threadQuery}
 							onChange={(event) => onThreadQueryChange(event.target.value)}
 							placeholder="Search threads"
@@ -218,7 +224,6 @@ export const Sidebar = memo(function Sidebar({
 											key={thread.id}
 											className={cn(
 												"group w-full items-start gap-2 px-2.5 py-2",
-												selected ? null : "bg-transparent",
 											)}
 											selected={selected}
 											name={threadResultTitle(thread)}

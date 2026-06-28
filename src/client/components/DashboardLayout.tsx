@@ -462,7 +462,7 @@ function CommandActionGlyph({
 				aria-hidden="true"
 			>
 				{parentHasVisibleChildren ? (
-					<span className="absolute -bottom-1 left-3.5 h-2 w-1 rounded-full bg-control-hover" />
+					<span className={layer.groupContinuationMark} />
 				) : null}
 				<span
 					className={cn(
@@ -483,7 +483,7 @@ function CommandActionGlyph({
 				aria-hidden="true"
 			>
 				{parentHasVisibleChildren ? (
-					<span className="absolute -bottom-1 left-3.5 h-2 w-1 rounded-full bg-control-hover" />
+					<span className={layer.groupContinuationMark} />
 				) : null}
 				<span className={cn("h-8 w-8 text-muted-strong", ui.iconBox)}>
 					<Settings size={14} />
@@ -499,7 +499,7 @@ function CommandActionGlyph({
 				aria-hidden="true"
 			>
 				{parentHasVisibleChildren ? (
-					<span className="absolute -bottom-1 left-3.5 h-2 w-1 rounded-full bg-control-hover" />
+					<span className={layer.groupContinuationMark} />
 				) : null}
 				<span
 					className={cn(
@@ -775,7 +775,7 @@ const CommandPalette = memo(function CommandPalette({
 								<input
 									type="search"
 									ref={inputRef}
-									className={cn(ui.input, "h-[1lh] text-[14px] leading-5")}
+									className={cn(ui.input, ui.inputText)}
 									value={query}
 									onChange={(event) => {
 										setQuery(event.target.value);
@@ -832,7 +832,6 @@ const CommandPalette = memo(function CommandPalette({
 												: action.kind === "project"
 													? "min-h-[66px] w-full items-start gap-2.5 px-2.5 py-2"
 													: "h-11 w-full gap-2.5 px-2.5",
-											index === activeIndex ? null : "bg-transparent",
 											action.disabled ? "opacity-45" : null,
 										)}
 										title={
@@ -1440,7 +1439,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 	}, [inspectorVisible, onInspectorVisibleChange, openMobileSheet]);
 
 	const sidebarFooter = (
-		<div className="shrink-0 bg-panel/20 p-3 pt-2">
+		<div className={cn("shrink-0 p-3 pt-2", ui.panelBand)}>
 			<div className="mb-2.5 grid grid-cols-2 gap-2">
 				<SurfaceAction
 					className={cn(

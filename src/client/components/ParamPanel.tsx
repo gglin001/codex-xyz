@@ -31,7 +31,7 @@ import type {
 	ThreadDetail,
 	ThreadTagScore,
 } from "../../server/domain.js";
-import { cn, radius, tone } from "../designSystem.js";
+import { cn, tone, ui } from "../designSystem.js";
 import { nextThemeMode, type ThemeMode } from "../theme.js";
 import { formatTokens, shortId, statusLabel } from "../uiFormat.js";
 import type { PwaState } from "../usePwa.js";
@@ -173,11 +173,8 @@ function TagScoreControl({
 							key={value}
 							type="button"
 							className={cn(
-								"flex h-8 w-8 shrink-0 items-center justify-center transition duration-150 ease-out",
-								radius.control,
-								disabled
-									? "cursor-not-allowed opacity-45"
-									: "hover:bg-control-hover",
+								ui.iconButton,
+								disabled ? "cursor-not-allowed opacity-45" : null,
 								selected ? "text-accent" : "text-muted",
 							)}
 							aria-label={

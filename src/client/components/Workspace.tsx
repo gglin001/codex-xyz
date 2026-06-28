@@ -896,7 +896,7 @@ const Composer = memo(
 				) : null}
 
 				<form onSubmit={onPromptSubmit}>
-					<div className={cn(ui.composerShell, "md:bg-field/66")}>
+					<div className={ui.composerShell}>
 						<textarea
 							ref={textareaRef}
 							className={cn(
@@ -950,7 +950,7 @@ const Composer = memo(
 								>
 									<Goal size={14} />
 								</ComposerIconButton>
-								<div className="relative z-10">
+								<div className={cn("relative", layer.localBackdropZ)}>
 									<ComposerIconButton
 										title="More actions"
 										aria-label="More actions"
@@ -965,7 +965,7 @@ const Composer = memo(
 										{moreActionsOpen ? (
 											<>
 												<motion.div
-													className="fixed inset-0 z-10"
+													className={cn("fixed inset-0", layer.localBackdropZ)}
 													initial={{ opacity: 0 }}
 													animate={{ opacity: 1 }}
 													exit={{ opacity: 0 }}
@@ -973,7 +973,8 @@ const Composer = memo(
 												/>
 												<motion.div
 													className={cn(
-														"absolute bottom-full left-0 z-20 mb-2 w-64 max-w-[calc(100vw-2rem)] p-1",
+														"absolute bottom-full left-0 mb-2 w-64 max-w-[calc(100vw-2rem)] p-1",
+														layer.localFloatingZ,
 														ui.popover,
 													)}
 													role="menu"
@@ -1376,7 +1377,7 @@ export const Workspace = memo(
 						<div
 							ref={composerShellRef}
 							className={cn(
-								"mobile-composer-bar relative shrink-0 overflow-visible pb-1 pl-4 pr-[calc(1rem+var(--transcript-scrollbar-width,0px))] md:pb-2 md:pl-8 md:pr-[calc(2rem+var(--transcript-scrollbar-width,0px))]",
+								"mobile-composer-bar relative shrink-0 overflow-visible pb-1 pl-4 pr-[calc(1rem+var(--transcript-scrollbar-width,0px))] md:pb-1 md:pl-8 md:pr-[calc(2rem+var(--transcript-scrollbar-width,0px))]",
 								layer.composerZ,
 							)}
 						>

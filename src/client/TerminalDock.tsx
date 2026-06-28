@@ -14,7 +14,7 @@ import {
 	writeTerminalInput,
 } from "./api.js";
 import { IconButton, Pill } from "./components/uiPrimitives.js";
-import { cn, layer, motionPresets, radius, tone, ui } from "./designSystem.js";
+import { cn, layer, motionPresets, tone, ui } from "./designSystem.js";
 import { openEventStream, parseSseJsonEvent } from "./eventStream.js";
 import { type ThemeMode, terminalTheme } from "./theme.js";
 
@@ -220,7 +220,10 @@ const sheetSpring = motionPresets.sheet;
 function DragHandle() {
 	return (
 		<div
-			className="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center md:hidden"
+			className={cn(
+				"pointer-events-none absolute inset-x-0 top-2 flex justify-center md:hidden",
+				layer.localBackdropZ,
+			)}
 			aria-hidden="true"
 		>
 			<div className={layer.mobileHandle} />
@@ -743,7 +746,10 @@ export function TerminalDock({
 
 	const header = (
 		<div
-			className="grid min-h-12 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 bg-panel/20 px-3.5 py-1.5 md:cursor-move"
+			className={cn(
+				"grid min-h-12 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 px-3.5 py-1.5 md:cursor-move",
+				ui.panelBand,
+			)}
 			onPointerDown={startDesktopMove}
 			onPointerMove={updateDesktopInteraction}
 			onPointerUp={finishDesktopInteraction}
@@ -807,8 +813,8 @@ export function TerminalDock({
 		<button
 			type="button"
 			className={cn(
-				"absolute bottom-1 right-1 hidden h-6 w-6 cursor-nwse-resize items-end justify-end text-muted transition duration-150 ease-out hover:bg-control hover:text-fg-strong md:flex",
-				radius.control,
+				"absolute bottom-1 right-1 hidden h-6 w-6 cursor-nwse-resize items-end justify-end md:flex",
+				ui.compactIconState,
 			)}
 			title="Resize terminal"
 			aria-label="Resize terminal"

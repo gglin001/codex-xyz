@@ -23,11 +23,16 @@ export const layer = {
 	composerZ: "z-[90]",
 	workspaceChromeZ: "z-[110]",
 	overlayZ: "z-[120]",
+	localBackdropZ: "z-[10]",
+	localFloatingZ: "z-[20]",
+	localMenuZ: "z-[30]",
 	mobileHandle: "h-1 w-14 rounded-full bg-control-hover",
 	mobileSheet:
 		"mobile-sheet-surface absolute inset-x-0 top-[var(--mobile-sheet-top)] flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden rounded-t-[12px] md:rounded-[12px]",
 	mobileTerminalSheet:
 		"mobile-sheet-surface pointer-events-auto absolute inset-x-0 top-[var(--mobile-sheet-top)] flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden rounded-t-[12px] md:inset-auto md:rounded-[12px]",
+	groupContinuationMark:
+		"absolute -bottom-1 left-3.5 h-2 w-1 rounded-full bg-control-hover",
 	stackedIconPlate:
 		"absolute left-1 top-1 h-6 w-8 rounded-[8px] bg-surface-subtle/52",
 } as const;
@@ -110,9 +115,13 @@ export const ui = {
 	popover: `overflow-hidden ${radius.panel} bg-panel/98 shadow-none md:backdrop-blur-md`,
 	overlay: "bg-app-bg/70 md:bg-app-bg/62 md:backdrop-blur-sm",
 	backdropPanel: "bg-panel/98 shadow-none backdrop-blur-xl",
+	panelBand: "bg-surface-subtle/24",
+	panelBandStrong: "bg-surface-subtle/38",
 	controlBase,
 	iconButton: `inline-flex h-8 min-w-8 items-center justify-center ${radius.control} bg-control/72 text-muted-strong ${interactiveTransition} hover:bg-control-hover hover:text-fg-strong ${focusRing} ${disabledState} ${pressState}`,
 	largeIconButton: `inline-flex h-9 w-9 shrink-0 items-center justify-center ${radius.nav} bg-transparent text-muted-strong shadow-none ${interactiveTransition} hover:bg-control hover:text-fg-strong active:bg-control-hover active:text-fg-strong ${focusRing} ${disabledState} ${pressState}`,
+	compactIconButton: `inline-flex h-7 w-7 shrink-0 items-center justify-center ${radius.control} bg-transparent text-muted ${interactiveTransition} hover:bg-control hover:text-fg-strong ${focusRing} ${disabledState} ${pressState}`,
+	compactIconState: `shrink-0 items-center justify-center ${radius.control} bg-transparent text-muted ${interactiveTransition} hover:bg-control hover:text-fg-strong ${focusRing} ${disabledState} ${pressState}`,
 	composerIconButton: `inline-flex h-8 min-w-8 items-center justify-center ${radius.control} bg-transparent text-muted-strong ${interactiveTransition} hover:bg-control hover:text-fg-strong disabled:cursor-not-allowed disabled:opacity-35 ${focusRing} ${pressState}`,
 	composerShell: `grid min-h-0 gap-1.5 ${radius.panel} bg-field/72 px-3 py-2 shadow-none ${interactiveTransition} hover:bg-field/86 ${textInputFocus}`,
 	submitButton: `inline-flex h-8 min-w-[72px] shrink-0 items-center justify-center gap-1.5 ${radius.control} bg-accent px-3 text-[13px] font-semibold text-accent-fg ${interactiveTransition} hover:bg-accent disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-muted`,
@@ -134,6 +143,8 @@ export const ui = {
 		"min-h-0 min-w-0 flex-1 border-0 bg-transparent py-0 text-fg-strong caret-accent placeholder:text-muted focus:outline-none focus-visible:outline-none disabled:opacity-60",
 	textarea:
 		"block w-full resize-none border-0 bg-transparent py-0 text-fg-strong caret-accent placeholder:text-muted focus:outline-none focus-visible:outline-none disabled:opacity-60",
+	inputText: "h-[1lh] text-[14px] leading-5",
+	inputTextCompact: "h-[1lh] text-[13px] leading-5",
 	range: `block h-2 w-full cursor-pointer appearance-none rounded-full bg-control accent-accent ${sliderThumb} ${interactiveTransition} hover:bg-control-hover focus-visible:outline-none focus-visible:bg-control-hover`,
 	row: interactiveRow,
 	meta: "text-muted",
