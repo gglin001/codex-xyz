@@ -244,12 +244,17 @@ export function ScrollableText({
 	className,
 	children,
 	title,
+	mobileStatic = false,
 	...props
-}: HTMLAttributes<HTMLSpanElement>) {
+}: HTMLAttributes<HTMLSpanElement> & { mobileStatic?: boolean }) {
 	const fallbackTitle = typeof children === "string" ? children : undefined;
 	return (
 		<span
-			className={cn("scrollable-truncate block min-w-0 max-w-full", className)}
+			className={cn(
+				"scrollable-truncate block min-w-0 max-w-full",
+				mobileStatic ? "mobile-static-scroll" : null,
+				className,
+			)}
 			title={title ?? fallbackTitle}
 			{...props}
 		>

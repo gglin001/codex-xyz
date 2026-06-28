@@ -88,11 +88,13 @@ export const ThreadResultRow = memo(function ThreadResultRow({
 	thread,
 	projectName,
 	showStatusIcon = true,
+	mobileStaticText = false,
 	className,
 }: {
 	thread: WorkbenchThread;
 	projectName?: string;
 	showStatusIcon?: boolean;
+	mobileStaticText?: boolean;
 	className?: string;
 }) {
 	const detailParts = threadDetailParts(thread, projectName);
@@ -111,7 +113,10 @@ export const ThreadResultRow = memo(function ThreadResultRow({
 			) : null}
 			<span className="grid min-w-0 flex-1 gap-0.5">
 				<span className="flex min-w-0 items-center gap-2">
-					<ScrollableText className="text-[13px] font-medium leading-5">
+					<ScrollableText
+						className="text-[13px] font-medium leading-5"
+						mobileStatic={mobileStaticText}
+					>
 						{thread.name}
 					</ScrollableText>
 					<span
@@ -121,14 +126,22 @@ export const ThreadResultRow = memo(function ThreadResultRow({
 						)}
 					/>
 				</span>
-				<span className="scrollable-row flex min-w-0 items-center gap-1.5 text-[11px] leading-4 text-muted">
+				<span
+					className={cn(
+						"scrollable-row flex min-w-0 items-center gap-1.5 text-[11px] leading-4 text-muted",
+						mobileStaticText ? "mobile-static-scroll" : null,
+					)}
+				>
 					{detailParts.map((part) => (
 						<span key={part} className="shrink-0">
 							{part}
 						</span>
 					))}
 				</span>
-				<ScrollableText className="text-[11px] leading-[18px] text-muted-strong">
+				<ScrollableText
+					className="text-[11px] leading-[18px] text-muted-strong"
+					mobileStatic={mobileStaticText}
+				>
 					{thread.preview}
 				</ScrollableText>
 			</span>

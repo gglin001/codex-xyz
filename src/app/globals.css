@@ -428,6 +428,16 @@
 		height: 0;
 	}
 
+	@media (max-width: 767px) {
+		.scrollable-truncate.mobile-static-scroll,
+		.scrollable-row.mobile-static-scroll {
+			overflow-x: hidden;
+			overscroll-behavior-x: auto;
+			touch-action: pan-y;
+			-webkit-overflow-scrolling: auto;
+		}
+	}
+
 	.chrome-edge-fade {
 		position: absolute;
 		left: 0;

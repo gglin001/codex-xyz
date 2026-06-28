@@ -26,10 +26,12 @@ export function projectResultTitle(project: WorkbenchProject) {
 export const ProjectResultRow = memo(function ProjectResultRow({
 	project,
 	showAvatar = true,
+	mobileStaticText = false,
 	className,
 }: {
 	project: WorkbenchProject;
 	showAvatar?: boolean;
+	mobileStaticText?: boolean;
 	className?: string;
 }) {
 	return (
@@ -41,7 +43,10 @@ export const ProjectResultRow = memo(function ProjectResultRow({
 			) : null}
 			<span className="grid min-w-0 flex-1 gap-0.5">
 				<span className="flex min-w-0 items-center gap-2">
-					<ScrollableText className="text-[13px] font-medium leading-5 text-fg-strong">
+					<ScrollableText
+						className="text-[13px] font-medium leading-5 text-fg-strong"
+						mobileStatic={mobileStaticText}
+					>
 						{project.name}
 					</ScrollableText>
 					{project.runningThreads > 0 ? (
@@ -50,9 +55,14 @@ export const ProjectResultRow = memo(function ProjectResultRow({
 				</span>
 				<span className="inline-flex min-w-0 items-center gap-1.5 text-[11px] leading-4 text-muted">
 					<FolderGit2 size={12} className="shrink-0" aria-hidden="true" />
-					<ScrollableText className="font-mono">{project.path}</ScrollableText>
+					<ScrollableText className="font-mono" mobileStatic={mobileStaticText}>
+						{project.path}
+					</ScrollableText>
 				</span>
-				<ScrollableText className="text-[11px] leading-4 text-muted">
+				<ScrollableText
+					className="text-[11px] leading-4 text-muted"
+					mobileStatic={mobileStaticText}
+				>
 					{project.totalThreads} threads / {formatTokens(project.tokenTotal)}{" "}
 					tokens
 					{project.runningThreads > 0

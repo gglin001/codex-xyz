@@ -903,18 +903,26 @@ const CommandPalette = memo(function CommandPalette({
 													thread={action.thread}
 													projectName={action.projectName}
 													showStatusIcon={false}
+													mobileStaticText
 												/>
 											) : action.kind === "project" ? (
 												<ProjectResultRow
 													project={action.project}
 													showAvatar={false}
+													mobileStaticText
 												/>
 											) : (
 												<span className="min-w-0 flex-1">
-													<ScrollableText className="block text-[13px] font-medium">
+													<ScrollableText
+														className="block text-[13px] font-medium"
+														mobileStatic
+													>
 														{action.name}
 													</ScrollableText>
-													<ScrollableText className="block text-[11px] text-muted">
+													<ScrollableText
+														className="block text-[11px] text-muted"
+														mobileStatic
+													>
 														{action.disabled
 															? (action.disabledDetail ?? action.detail)
 															: action.detail}
@@ -1107,10 +1115,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 		});
 		return () => window.cancelAnimationFrame(frame);
 	}, [mobileSheet]);
-
-	const openCommandPaletteFromSwipe = useCallback(() => {
-		openCommandPalette({ autoFocusInput: false });
-	}, [openCommandPalette]);
 
 	const toggleCommandPalette = useCallback(() => {
 		if (commandOpen) {
@@ -1740,7 +1744,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 						onToggleNavigator={() => openMobileSheet("navigator")}
 						onToggleInspector={() => openMobileSheet("inspector")}
 						onOpenCommands={() => openCommandPalette()}
-						onSwipeUp={openCommandPaletteFromSwipe}
 					/>
 				</div>
 			) : null}

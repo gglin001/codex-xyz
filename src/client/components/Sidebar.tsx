@@ -231,7 +231,7 @@ export const Sidebar = memo(function Sidebar({
 												name={threadResultTitle(thread)}
 												onClick={() => onSelectThread(thread)}
 											>
-												<ThreadResultRow thread={thread} />
+												<ThreadResultRow thread={thread} mobileStaticText />
 											</NavAction>
 										);
 									})}

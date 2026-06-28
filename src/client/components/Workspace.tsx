@@ -51,7 +51,6 @@ import {
 	itemTitle,
 	statusLabel,
 } from "../uiFormat.js";
-import { useSwipeGesture } from "../useSwipeGesture.js";
 import {
 	CollapsibleCard,
 	ComposerIconButton,
@@ -106,7 +105,6 @@ export type WorkspaceProps = {
 	onToggleNavigator: () => void;
 	onToggleInspector: () => void;
 	onOpenCommands?: () => void;
-	onSwipeUp?: () => void;
 };
 
 export type WorkspaceHandle = {
@@ -137,10 +135,6 @@ const spring = motionPresets.item;
 const threadContentWidthClass = "[--thread-content-width:900px]";
 const threadContentFrameClass =
 	"mx-auto w-full min-w-0 max-w-[var(--thread-content-width)]";
-const mobileComposerSwipeAxisLockRatio = 1.15;
-const mobileComposerSwipeDirectionThresholds = {
-	up: 88,
-};
 const mobileTranscriptInitialWindow = 80;
 const mobileTranscriptWindowStep = 80;
 
@@ -651,7 +645,6 @@ type ComposerProps = Pick<
 	| "onCleanBackgroundTerminals"
 > & {
 	onPromptFocus?: () => void;
-	onSwipeUp?: () => void;
 };
 
 const Composer = memo(
@@ -685,12 +678,10 @@ const Composer = memo(
 			onListBackgroundTerminals,
 			onCleanBackgroundTerminals,
 			onPromptFocus,
-			onSwipeUp,
 		},
 		ref,
 	) {
 		const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-		const actionBarRef = useRef<HTMLDivElement | null>(null);
 		const selectedThreadArchived = Boolean(selectedThread?.archivedAt);
 		const [moreActionsOpen, setMoreActionsOpen] = useState(false);
 		const submitTitle = goalMode
@@ -848,15 +839,6 @@ const Composer = memo(
 			});
 		}, []);
 
-		useSwipeGesture(
-			actionBarRef,
-			{ onSwipeUp },
-			{
-				axisLockRatio: mobileComposerSwipeAxisLockRatio,
-				directionThresholds: mobileComposerSwipeDirectionThresholds,
-			},
-		);
-
 		return (
 			<div>
 				{busyAction || notice || error ? (
@@ -929,17 +911,7 @@ const Composer = memo(
 							autoCorrect="on"
 							spellCheck={true}
 						/>
-						<div
-							ref={actionBarRef}
-							className="relative flex min-h-8 items-center justify-between gap-3"
-						>
-							<span
-								className={cn(
-									"pointer-events-none absolute -bottom-2 left-1/2 -translate-x-1/2 md:hidden",
-									layer.mobileHandle,
-								)}
-								aria-hidden="true"
-							/>
+						<div className="flex min-h-8 items-center justify-between gap-3">
 							<div className="flex min-w-0 items-center gap-1.5">
 								<ComposerIconButton
 									title={codexThreadCommandLabels.new}
@@ -1070,7 +1042,6 @@ export const Workspace = memo(
 			onToggleNavigator,
 			onToggleInspector,
 			onOpenCommands,
-			onSwipeUp,
 		},
 		ref,
 	) {
@@ -1399,7 +1370,6 @@ export const Workspace = memo(
 									onListBackgroundTerminals={onListBackgroundTerminals}
 									onCleanBackgroundTerminals={onCleanBackgroundTerminals}
 									onPromptFocus={settleMobilePromptFocus}
-									onSwipeUp={onSwipeUp}
 								/>
 							</ThreadContentFrame>
 						</div>
