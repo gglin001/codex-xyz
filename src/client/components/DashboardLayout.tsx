@@ -191,29 +191,94 @@ function isMobileViewport() {
 }
 
 type ResponsiveViewportMode = "desktop" | "mobile";
+const mobileAppBaseHistoryKey = "__cozMobileAppBase";
+const mobileAppGuardHistoryKey = "__cozMobileAppGuard";
 const mobileThreadOverlayHistoryKey = "__cozMobileThreadOverlay";
 
-function mobileThreadOverlayHistoryState() {
+function currentHistoryStateRecord() {
 	const current = window.history.state;
-	const base =
-		current && typeof current === "object" && !Array.isArray(current)
-			? (current as Record<string, unknown>)
-			: {};
-	return {
-		...base,
-		[mobileThreadOverlayHistoryKey]: true,
-	};
+	return current && typeof current === "object" && !Array.isArray(current)
+		? (current as Record<string, unknown>)
+		: {};
+}
+
+function mobileHistoryState({
+	base,
+	guard,
+	overlay,
+}: {
+	base?: boolean;
+	guard?: boolean;
+	overlay?: boolean;
+}) {
+	const next = { ...currentHistoryStateRecord() };
+	if (base) {
+		next[mobileAppBaseHistoryKey] = true;
+	} else {
+		delete next[mobileAppBaseHistoryKey];
+	}
+	if (guard) {
+		next[mobileAppGuardHistoryKey] = true;
+	} else {
+		delete next[mobileAppGuardHistoryKey];
+	}
+	if (overlay) {
+		next[mobileThreadOverlayHistoryKey] = true;
+	} else {
+		delete next[mobileThreadOverlayHistoryKey];
+	}
+	return next;
+}
+
+function mobileAppBaseHistoryState() {
+	return mobileHistoryState({ base: true });
 }
 
 function mobileThreadMainHistoryState() {
-	const current = window.history.state;
-	const base =
-		current && typeof current === "object" && !Array.isArray(current)
-			? (current as Record<string, unknown>)
-			: {};
-	const next = { ...base };
-	delete next[mobileThreadOverlayHistoryKey];
-	return next;
+	return mobileHistoryState({ guard: true });
+}
+
+function mobileThreadOverlayHistoryState() {
+	return mobileHistoryState({ guard: true, overlay: true });
+}
+
+function ensureMobileAppGuardHistoryEntry() {
+	if (mobileAppGuardActive(window.history.state)) {
+		return;
+	}
+	window.history.replaceState(
+		mobileAppBaseHistoryState(),
+		"",
+		window.location.href,
+	);
+	window.history.pushState(
+		mobileThreadMainHistoryState(),
+		"",
+		window.location.href,
+	);
+}
+
+function hasMobileAppBaseHistoryMarker(state: unknown) {
+	return (
+		Boolean(state) &&
+		typeof state === "object" &&
+		(state as Record<string, unknown>)[mobileAppBaseHistoryKey] === true
+	);
+}
+
+function hasMobileAppGuardHistoryMarker(state: unknown) {
+	return (
+		Boolean(state) &&
+		typeof state === "object" &&
+		(state as Record<string, unknown>)[mobileAppGuardHistoryKey] === true
+	);
+}
+
+function mobileAppGuardActive(state: unknown) {
+	return (
+		hasMobileAppGuardHistoryMarker(state) ||
+		hasMobileThreadOverlayHistoryMarker(state)
+	);
 }
 
 function hasMobileThreadOverlayHistoryMarker(state: unknown) {
@@ -1023,6 +1088,13 @@ export const DashboardLayout = memo(function DashboardLayout({
 	}, [closeMobileSheet, terminalVisible]);
 
 	useEffect(() => {
+		if (viewportMode !== "mobile") {
+			return;
+		}
+		ensureMobileAppGuardHistoryEntry();
+	}, [viewportMode]);
+
+	useEffect(() => {
 		const mobileThreadOverlayOpen =
 			commandOpen || mobileSheet !== null || terminalVisible;
 		if (viewportMode !== "mobile") {
@@ -1060,12 +1132,9 @@ export const DashboardLayout = memo(function DashboardLayout({
 	}, [commandOpen, mobileSheet, terminalVisible, viewportMode]);
 
 	useEffect(() => {
-		const handleMobilePopState = () => {
+		const closeMobileThreadOverlaysForHistory = () => {
 			mobileThreadOverlayHistoryPushedRef.current = false;
-			if (
-				!isMobileViewport() ||
-				(!commandOpen && !mobileSheet && !terminalVisible)
-			) {
+			if (!commandOpen && !mobileSheet && !terminalVisible) {
 				return;
 			}
 			setCommandOpen(false);
@@ -1074,6 +1143,18 @@ export const DashboardLayout = memo(function DashboardLayout({
 			blurActiveElement();
 			onTerminalVisibleChange(false);
 			setMobileSheet(null);
+		};
+
+		const handleMobilePopState = (event: PopStateEvent) => {
+			if (!isMobileViewport()) {
+				return;
+			}
+			if (hasMobileAppBaseHistoryMarker(event.state)) {
+				ensureMobileAppGuardHistoryEntry();
+				closeMobileThreadOverlaysForHistory();
+				return;
+			}
+			closeMobileThreadOverlaysForHistory();
 		};
 
 		window.addEventListener("popstate", handleMobilePopState);
