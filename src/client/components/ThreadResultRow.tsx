@@ -3,10 +3,16 @@ import { memo } from "react";
 import { cn } from "../designSystem.js";
 import { formatFullDateTime, formatTokens, statusLabel } from "../uiFormat.js";
 import { ThreadStatusIcon, threadStatusDotClass } from "./threadStatusIcon.js";
+import { ScrollableText } from "./uiPrimitives.js";
 import type { WorkbenchThread } from "./workbenchTypes.js";
 
-function threadContext(thread: WorkbenchThread, projectName?: string) {
-	return projectName ? `${projectName} · ${thread.cwd}` : thread.cwd;
+function threadDetailParts(thread: WorkbenchThread, projectName?: string) {
+	return [
+		`${formatTokens(thread.tokensUsed)} tokens`,
+		statusLabel(thread.status),
+		formatFullDateTime(thread.updatedAt),
+		projectName,
+	].filter(Boolean);
 }
 
 export function threadResultTitle(
@@ -15,11 +21,9 @@ export function threadResultTitle(
 ) {
 	return [
 		thread.name,
-		threadContext(thread, projectName),
-		statusLabel(thread.status),
-		formatFullDateTime(thread.updatedAt),
-		`${formatTokens(thread.tokensUsed)} tokens`,
+		threadDetailParts(thread, projectName).join(" / "),
 		thread.preview,
+		thread.cwd,
 	]
 		.filter(Boolean)
 		.join("\n");
@@ -84,20 +88,18 @@ export const ThreadResultRow = memo(function ThreadResultRow({
 	thread,
 	projectName,
 	showStatusIcon = true,
-	showPreview = true,
 	className,
 }: {
 	thread: WorkbenchThread;
 	projectName?: string;
 	showStatusIcon?: boolean;
-	showPreview?: boolean;
 	className?: string;
 }) {
-	const context = threadContext(thread, projectName);
+	const detailParts = threadDetailParts(thread, projectName);
 	return (
 		<span className={cn("flex min-w-0 flex-1 items-start gap-2", className)}>
 			{showStatusIcon ? (
-				<span className="flex h-12 w-4 shrink-0 flex-col items-center gap-0.5">
+				<span className="flex h-14 w-4 shrink-0 flex-col items-center gap-0.5">
 					<span
 						className="mt-1 flex h-4 w-4 shrink-0 items-center justify-center"
 						aria-hidden="true"
@@ -109,9 +111,9 @@ export const ThreadResultRow = memo(function ThreadResultRow({
 			) : null}
 			<span className="grid min-w-0 flex-1 gap-0.5">
 				<span className="flex min-w-0 items-center gap-2">
-					<span className="truncate text-[13px] font-medium leading-5">
+					<ScrollableText className="text-[13px] font-medium leading-5">
 						{thread.name}
-					</span>
+					</ScrollableText>
 					<span
 						className={cn(
 							"h-1.5 w-1.5 shrink-0 rounded-full",
@@ -119,19 +121,16 @@ export const ThreadResultRow = memo(function ThreadResultRow({
 						)}
 					/>
 				</span>
-				<span className="truncate font-mono text-[11px] leading-4 text-muted">
-					{context}
+				<span className="scrollable-row flex min-w-0 items-center gap-1.5 text-[11px] leading-4 text-muted">
+					{detailParts.map((part) => (
+						<span key={part} className="shrink-0">
+							{part}
+						</span>
+					))}
 				</span>
-				<span className="truncate text-[11px] leading-4 text-muted">
-					{formatFullDateTime(thread.updatedAt)} /{" "}
-					{formatTokens(thread.tokensUsed)} tokens /{" "}
-					{statusLabel(thread.status)}
-				</span>
-				{showPreview ? (
-					<span className="truncate text-[11px] leading-[18px] text-muted-strong">
-						{thread.preview}
-					</span>
-				) : null}
+				<ScrollableText className="text-[11px] leading-[18px] text-muted-strong">
+					{thread.preview}
+				</ScrollableText>
 			</span>
 		</span>
 	);

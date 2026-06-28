@@ -66,6 +66,7 @@ import {
 	FieldShell,
 	LargeIconButton,
 	MenuItemButton,
+	ScrollableText,
 } from "./uiPrimitives.js";
 import type {
 	ComposerMode,
@@ -221,9 +222,9 @@ function messageSurfaceClass(message: ChatMessage) {
 
 function headerMeta(value: string) {
 	return (
-		<span className="block min-w-0 truncate whitespace-nowrap text-[11px] text-muted">
+		<ScrollableText className="block text-[11px] text-muted">
 			{value}
-		</span>
+		</ScrollableText>
 	);
 }
 
@@ -247,36 +248,73 @@ function statusDotClass(status: ThreadDisplayStatus) {
 	return tone.neutral.dot;
 }
 
-const MobileWorkspaceHeader = memo(function MobileWorkspaceHeader({
-	name,
-	subtitle,
+function HeaderDetailRail({
 	tokens,
 	status,
+	model,
+	projectName,
+}: {
+	tokens: number;
+	status: ThreadDisplayStatus;
+	model: string | null;
+	projectName: string | null;
+}) {
+	return (
+		<div className="scrollable-row flex min-w-0 items-center gap-2 text-[11px] leading-4 text-muted">
+			<span className="shrink-0 rounded-full bg-control/70 px-1.5 py-0.5 leading-none">
+				{formatTokens(tokens)} tokens
+			</span>
+			<span className="inline-flex shrink-0 items-center gap-1.5 text-muted-strong">
+				<span
+					className={cn("h-1.5 w-1.5 rounded-full", statusDotClass(status))}
+					aria-hidden="true"
+				/>
+				<span>{statusLabel(status)}</span>
+			</span>
+			{model ? <span className="shrink-0">{model}</span> : null}
+			{projectName ? <span className="shrink-0">{projectName}</span> : null}
+		</div>
+	);
+}
+
+const WorkspaceHeader = memo(function WorkspaceHeader({
+	mode,
+	name,
+	tokens,
+	status,
+	model,
+	projectName,
 	navigatorVisible,
 	inspectorVisible,
 	onToggleNavigator,
 	onToggleInspector,
 	onOpenCommands,
 }: {
+	mode: "desktop" | "mobile";
 	name: string;
-	subtitle: string;
 	tokens: number;
 	status: ThreadDisplayStatus;
+	model: string | null;
+	projectName: string | null;
 	navigatorVisible: boolean;
 	inspectorVisible: boolean;
 	onToggleNavigator: () => void;
 	onToggleInspector: () => void;
 	onOpenCommands?: () => void;
 }) {
+	const mobile = mode === "mobile";
 	return (
 		<header
 			className={cn(
-				"relative flex shrink-0 items-center justify-between gap-2 px-3 pt-[calc(var(--safe-inset-top)+0.125rem)] md:hidden",
+				"relative flex shrink-0 items-center justify-between",
+				mobile
+					? "gap-2 px-3 pt-[calc(var(--safe-inset-top)+0.125rem)] md:hidden"
+					: "hidden gap-3 md:relative md:flex md:h-9 md:px-5",
 				layer.workspaceChromeZ,
 			)}
 		>
 			<LargeIconButton
-				className="h-9 w-9"
+				className={mobile ? "h-9 w-9" : undefined}
 				title={navigatorVisible ? "Hide threads" : "Open threads"}
 				aria-label={navigatorVisible ? "Hide threads" : "Open threads"}
 				pressed={navigatorVisible}
@@ -285,37 +323,36 @@ const MobileWorkspaceHeader = memo(function MobileWorkspaceHeader({
 				<Menu size={15} />
 			</LargeIconButton>
 			<div className="grid min-w-0 flex-1 gap-0.5">
-				<h1 className="truncate text-[14px] font-semibold leading-5 text-fg-strong">
-					{name}
-				</h1>
-				<div className="flex min-w-0 items-center gap-2 text-[11px] leading-4 text-muted">
-					<span
-						className={cn(
-							"h-1.5 w-1.5 shrink-0 rounded-full",
-							statusDotClass(status),
-						)}
-						aria-hidden="true"
-					/>
-					<span className="shrink-0 text-muted-strong">
-						{statusLabel(status)}
-					</span>
-					<span className="shrink-0 rounded-full bg-control/70 px-1.5 py-0.5 leading-none">
-						{formatTokens(tokens)}
-					</span>
-					<span className="min-w-0 truncate">{subtitle}</span>
-				</div>
-			</div>
-			<div className="flex shrink-0 items-center gap-1">
-				<LargeIconButton
-					className="h-9 w-9"
-					title="Open commands"
-					aria-label="Open commands"
-					onClick={onOpenCommands}
+				<ScrollableText
+					className={cn(
+						"font-semibold leading-5 text-fg-strong",
+						mobile ? "text-[14px]" : "text-[15px]",
+					)}
 				>
-					<Search size={15} />
-				</LargeIconButton>
+					{name}
+				</ScrollableText>
+				<HeaderDetailRail
+					tokens={tokens}
+					status={status}
+					model={model}
+					projectName={projectName}
+				/>
+			</div>
+			<div
+				className={cn("flex shrink-0 items-center", mobile ? "gap-1" : "gap-2")}
+			>
+				{onOpenCommands ? (
+					<LargeIconButton
+						className={mobile ? "h-9 w-9" : undefined}
+						title="Open commands"
+						aria-label="Open commands"
+						onClick={onOpenCommands}
+					>
+						<Search size={15} />
+					</LargeIconButton>
+				) : null}
 				<LargeIconButton
-					className="h-9 w-9"
+					className={mobile ? "h-9 w-9" : undefined}
 					title={inspectorVisible ? "Hide settings" : "Open settings"}
 					aria-label={inspectorVisible ? "Hide settings" : "Open settings"}
 					pressed={inspectorVisible}
@@ -1087,15 +1124,12 @@ export const Workspace = memo(
 		const canLoadEarlierEntries = hiddenEntries.length > 0;
 		const name =
 			selectedThread?.name ?? threadSummary?.name ?? "New Codex thread";
-		const subtitle =
-			selectedThread?.cwd ??
-			threadSummary?.cwd ??
-			project?.path ??
-			"Select a project to begin";
 		const tokens = detail?.tokensUsed ?? threadSummary?.tokensUsed ?? 0;
 		const status = selectedThread
 			? threadDisplayStatus(selectedThread)
 			: (threadSummary?.status ?? "idle");
+		const model = selectedThread?.model ?? threadSummary?.model ?? null;
+		const projectName = project?.name ?? null;
 		const contentScaleStyle = useMemo(
 			() =>
 				({
@@ -1211,11 +1245,13 @@ export const Workspace = memo(
 				style={contentScaleStyle}
 			>
 				{isMobilePresentation ? (
-					<MobileWorkspaceHeader
+					<WorkspaceHeader
+						mode="mobile"
 						name={name}
-						subtitle={subtitle}
 						tokens={tokens}
 						status={status}
+						model={model}
+						projectName={projectName}
 						navigatorVisible={navigatorVisible}
 						inspectorVisible={inspectorVisible}
 						onToggleNavigator={onToggleNavigator}
@@ -1223,53 +1259,21 @@ export const Workspace = memo(
 						onOpenCommands={onOpenCommands}
 					/>
 				) : null}
-				<header
-					className={cn(
-						"hidden shrink-0 items-center justify-between gap-3 md:relative md:flex md:h-9 md:px-5",
-						layer.workspaceChromeZ,
-					)}
-				>
-					<div className="flex min-w-0 items-center gap-3">
-						<LargeIconButton
-							title={navigatorVisible ? "Hide threads" : "Open threads"}
-							aria-label={navigatorVisible ? "Hide threads" : "Open threads"}
-							pressed={navigatorVisible}
-							onClick={onToggleNavigator}
-						>
-							<Menu size={15} />
-						</LargeIconButton>
-						<div className="grid min-w-0 gap-0.5">
-							<h1 className="truncate text-[15px] font-semibold leading-5 text-fg-strong">
-								{name}
-							</h1>
-							<div className="flex min-w-0 items-center gap-2 text-[11px] leading-4 text-muted">
-								<span className="truncate">{subtitle}</span>
-								<span className="hidden shrink-0 rounded-full bg-control/65 px-1.5 py-0.5 leading-none sm:inline">
-									{formatTokens(tokens)} tokens
-								</span>
-								<span className="inline-flex shrink-0 items-center gap-1.5 text-muted-strong">
-									<span
-										className={cn(
-											"h-1.5 w-1.5 rounded-full",
-											statusDotClass(status),
-										)}
-									/>
-									<span>{statusLabel(status)}</span>
-								</span>
-							</div>
-						</div>
-					</div>
-					<div className="flex shrink-0 items-center gap-2">
-						<LargeIconButton
-							title={inspectorVisible ? "Hide settings" : "Open settings"}
-							aria-label={inspectorVisible ? "Hide settings" : "Open settings"}
-							pressed={inspectorVisible}
-							onClick={onToggleInspector}
-						>
-							<Settings size={15} />
-						</LargeIconButton>
-					</div>
-				</header>
+				{!isMobilePresentation ? (
+					<WorkspaceHeader
+						mode="desktop"
+						name={name}
+						tokens={tokens}
+						status={status}
+						model={model}
+						projectName={projectName}
+						navigatorVisible={navigatorVisible}
+						inspectorVisible={inspectorVisible}
+						onToggleNavigator={onToggleNavigator}
+						onToggleInspector={onToggleInspector}
+						onOpenCommands={onOpenCommands}
+					/>
+				) : null}
 
 				<div className="flex min-h-0 flex-1">
 					<motion.div

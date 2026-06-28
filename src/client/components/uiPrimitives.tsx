@@ -240,6 +240,24 @@ export function Pill({
 	);
 }
 
+export function ScrollableText({
+	className,
+	children,
+	title,
+	...props
+}: HTMLAttributes<HTMLSpanElement>) {
+	const fallbackTitle = typeof children === "string" ? children : undefined;
+	return (
+		<span
+			className={cn("scrollable-truncate block min-w-0 max-w-full", className)}
+			title={title ?? fallbackTitle}
+			{...props}
+		>
+			{children}
+		</span>
+	);
+}
+
 export function Keycap({
 	className,
 	children,
@@ -322,9 +340,9 @@ export function ScaleControl({
 	return (
 		<div className={cn("w-full min-w-0", className)}>
 			<div className="mb-2 flex items-center justify-between gap-3">
-				<span className="truncate text-[13px] font-medium text-fg">
+				<ScrollableText className="text-[13px] font-medium text-fg">
 					{label}
-				</span>
+				</ScrollableText>
 				<span className="shrink-0 font-mono text-[12px] tabular-nums text-muted-strong">
 					{formatDisplayScale(value)}
 				</span>
@@ -453,7 +471,9 @@ export const CollapsibleCard = memo(function CollapsibleCard({
 					onClick={onToggle}
 				>
 					<span className="min-w-0 shrink-0 max-w-[70%]">
-						<span className={cn("block truncate", titleClass)}>{title}</span>
+						<ScrollableText className={cn("block", titleClass)}>
+							{title}
+						</ScrollableText>
 					</span>
 					{meta ? <span className="min-w-0 flex-1">{meta}</span> : null}
 				</button>
@@ -539,7 +559,7 @@ export function DisclosureRow({
 			)}
 			onClick={onClick}
 		>
-			<span className="min-w-0 truncate">{children}</span>
+			<ScrollableText>{children}</ScrollableText>
 			<ChevronDown
 				size={15}
 				className={cn(
@@ -564,7 +584,7 @@ export function SettingsSection({
 		<section className="w-full min-w-0 px-2.5 py-2">
 			<div className={cn(ui.sectionLabel, "mb-2 min-w-0")}>
 				<span className="shrink-0">{icon}</span>
-				<span className="truncate">{title}</span>
+				<ScrollableText>{title}</ScrollableText>
 			</div>
 			{children}
 		</section>
@@ -614,23 +634,23 @@ export const InfoTile = memo(function InfoTile({
 					inline ? "flex items-center justify-between gap-2" : null,
 				)}
 			>
-				<span
+				<ScrollableText
 					className={cn(
-						"truncate text-[12px] font-medium text-muted",
+						"text-[12px] font-medium text-muted",
 						inline ? "shrink-0" : "block",
 					)}
 				>
 					{label}
-				</span>
-				<span
+				</ScrollableText>
+				<ScrollableText
 					className={cn(
-						"truncate text-[12px] text-fg",
+						"text-[12px] text-fg",
 						inline ? "min-w-0 text-right" : "block max-w-full",
 						mono ? "font-mono" : "font-medium",
 					)}
 				>
 					{value}
-				</span>
+				</ScrollableText>
 			</span>
 		</div>
 	);

@@ -17,6 +17,7 @@ import {
 	FieldShell,
 	MenuItemButton,
 	NavAction,
+	ScrollableText,
 	SurfaceAction,
 } from "./uiPrimitives.js";
 import type {
@@ -115,12 +116,12 @@ export const Sidebar = memo(function Sidebar({
 						{selectedProject?.initials ?? "CX"}
 					</AvatarBadge>
 					<span className="min-w-0 flex-1">
-						<span className="block truncate text-[14px] font-semibold text-fg-strong">
+						<ScrollableText className="block text-[14px] font-semibold text-fg-strong">
 							{selectedProject?.name ?? "Project"}
-						</span>
-						<span className="block truncate text-[11px] text-muted">
+						</ScrollableText>
+						<ScrollableText className="block text-[11px] text-muted">
 							{selectedProject?.path ?? "No project selected"}
-						</span>
+						</ScrollableText>
 					</span>
 					<ChevronDown size={15} className="shrink-0 text-muted" />
 				</SurfaceAction>
@@ -230,7 +231,7 @@ export const Sidebar = memo(function Sidebar({
 												name={threadResultTitle(thread)}
 												onClick={() => onSelectThread(thread)}
 											>
-												<ThreadResultRow thread={thread} showPreview={false} />
+												<ThreadResultRow thread={thread} />
 											</NavAction>
 										);
 									})}

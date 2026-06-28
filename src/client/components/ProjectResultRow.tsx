@@ -2,7 +2,7 @@ import { FolderGit2 } from "lucide-react";
 import { memo } from "react";
 import { cn } from "../designSystem.js";
 import { formatTokens } from "../uiFormat.js";
-import { AvatarBadge } from "./uiPrimitives.js";
+import { AvatarBadge, ScrollableText } from "./uiPrimitives.js";
 import type { WorkbenchProject } from "./workbenchTypes.js";
 
 export function projectResultDetail(project: WorkbenchProject) {
@@ -41,24 +41,24 @@ export const ProjectResultRow = memo(function ProjectResultRow({
 			) : null}
 			<span className="grid min-w-0 flex-1 gap-0.5">
 				<span className="flex min-w-0 items-center gap-2">
-					<span className="truncate text-[13px] font-medium leading-5 text-fg-strong">
+					<ScrollableText className="text-[13px] font-medium leading-5 text-fg-strong">
 						{project.name}
-					</span>
+					</ScrollableText>
 					{project.runningThreads > 0 ? (
 						<span className="h-1.5 w-1.5 shrink-0 rounded-full bg-running-dot" />
 					) : null}
 				</span>
 				<span className="inline-flex min-w-0 items-center gap-1.5 text-[11px] leading-4 text-muted">
 					<FolderGit2 size={12} className="shrink-0" aria-hidden="true" />
-					<span className="truncate font-mono">{project.path}</span>
+					<ScrollableText className="font-mono">{project.path}</ScrollableText>
 				</span>
-				<span className="truncate text-[11px] leading-4 text-muted">
+				<ScrollableText className="text-[11px] leading-4 text-muted">
 					{project.totalThreads} threads / {formatTokens(project.tokenTotal)}{" "}
 					tokens
 					{project.runningThreads > 0
 						? ` / ${project.runningThreads} running`
 						: ""}
-				</span>
+				</ScrollableText>
 			</span>
 		</span>
 	);

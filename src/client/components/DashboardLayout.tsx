@@ -67,7 +67,12 @@ import {
 	threadResultTitle,
 } from "./ThreadResultRow.js";
 import { ThreadStatusIcon } from "./threadStatusIcon.js";
-import { FieldShell, MenuItemButton, SurfaceAction } from "./uiPrimitives.js";
+import {
+	FieldShell,
+	MenuItemButton,
+	ScrollableText,
+	SurfaceAction,
+} from "./uiPrimitives.js";
 import { Workspace, type WorkspaceHandle } from "./Workspace.js";
 import type {
 	ComposerMode,
@@ -833,7 +838,7 @@ const CommandPalette = memo(function CommandPalette({
 											data-command-index={index}
 											className={cn(
 												action.kind === "thread"
-													? "min-h-[62px] w-full items-start gap-2.5 px-2.5 py-1.5"
+													? "min-h-[68px] w-full items-start gap-2.5 px-2.5 py-1.5"
 													: action.kind === "project"
 														? "min-h-[58px] w-full items-start gap-2.5 px-2.5 py-1.5"
 														: "h-10 w-full gap-2.5 px-2.5",
@@ -866,7 +871,6 @@ const CommandPalette = memo(function CommandPalette({
 													thread={action.thread}
 													projectName={action.projectName}
 													showStatusIcon={false}
-													showPreview={false}
 												/>
 											) : action.kind === "project" ? (
 												<ProjectResultRow
@@ -875,14 +879,14 @@ const CommandPalette = memo(function CommandPalette({
 												/>
 											) : (
 												<span className="min-w-0 flex-1">
-													<span className="block truncate text-[13px] font-medium">
+													<ScrollableText className="block text-[13px] font-medium">
 														{action.name}
-													</span>
-													<span className="block truncate text-[11px] text-muted">
+													</ScrollableText>
+													<ScrollableText className="block text-[11px] text-muted">
 														{action.disabled
 															? (action.disabledDetail ?? action.detail)
 															: action.detail}
-													</span>
+													</ScrollableText>
 												</span>
 											)}
 										</MenuItemButton>
@@ -1449,7 +1453,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 
 	const sidebarFooter = (
 		<div className={cn("shrink-0 px-2 pb-1.5 pt-0.5", ui.panelBand)}>
-			<div className="mb-1 grid grid-cols-2 gap-1.5">
+			<div className="grid grid-cols-2 gap-1.5">
 				<SurfaceAction
 					className={cn(
 						"h-9 justify-center gap-2 px-2 text-[12px] font-medium",
@@ -1477,34 +1481,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 					<span className="truncate">Settings</span>
 				</SurfaceAction>
 			</div>
-
-			<SurfaceAction
-				className="h-9 w-full gap-2.5 px-2.5"
-				title="Open commands"
-				aria-label="Open commands"
-				onClick={() => openCommandPalette()}
-			>
-				<span
-					className={cn(
-						"h-6 w-6 font-mono text-[14px] leading-none",
-						ui.iconBox,
-					)}
-					aria-hidden="true"
-				>
-					⌘
-				</span>
-				<span className="min-w-0 flex-1">
-					<span className="block truncate text-[12px] font-medium text-fg-strong">
-						Commands
-					</span>
-				</span>
-				<span
-					className="shrink-0 font-mono text-[12px] leading-none text-muted"
-					aria-hidden="true"
-				>
-					Cmd K
-				</span>
-			</SurfaceAction>
 		</div>
 	);
 
@@ -1608,6 +1584,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 							onCleanBackgroundTerminals={onCleanBackgroundTerminals}
 							onToggleNavigator={toggleNavigator}
 							onToggleInspector={toggleInspector}
+							onOpenCommands={() => openCommandPalette()}
 						/>
 					</div>
 

@@ -394,6 +394,40 @@
 }
 
 @layer utilities {
+	.truncate,
+	.scrollable-truncate {
+		overflow-x: auto;
+		overflow-y: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		overscroll-behavior-x: contain;
+		scrollbar-width: none;
+		touch-action: pan-x;
+		-webkit-overflow-scrolling: touch;
+	}
+
+	.truncate::-webkit-scrollbar,
+	.scrollable-truncate::-webkit-scrollbar {
+		display: none;
+		width: 0;
+		height: 0;
+	}
+
+	.scrollable-row {
+		overflow-x: auto;
+		overflow-y: hidden;
+		overscroll-behavior-x: contain;
+		scrollbar-width: none;
+		touch-action: pan-x;
+		-webkit-overflow-scrolling: touch;
+	}
+
+	.scrollable-row::-webkit-scrollbar {
+		display: none;
+		width: 0;
+		height: 0;
+	}
+
 	.chrome-edge-fade {
 		position: absolute;
 		left: 0;
