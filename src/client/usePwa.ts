@@ -47,33 +47,6 @@ function serviceWorkerIsSupported() {
 	);
 }
 
-function pwaIsEnabled() {
-	return process.env.NODE_ENV === "production";
-}
-
-async function clearPwaCaches() {
-	if (typeof window === "undefined" || !("caches" in window)) {
-		return;
-	}
-	const keys = await window.caches.keys();
-	await Promise.all(
-		keys
-			.filter((key) => key.startsWith("coz-pwa-"))
-			.map((key) => window.caches.delete(key)),
-	);
-}
-
-async function unregisterServiceWorkers() {
-	if (!serviceWorkerIsSupported()) {
-		return false;
-	}
-	const registrations = await navigator.serviceWorker.getRegistrations();
-	const unregisterResults = await Promise.all(
-		registrations.map((registration) => registration.unregister()),
-	);
-	return unregisterResults.some(Boolean);
-}
-
 export function usePwa(): PwaState {
 	const [displayMode, setDisplayMode] = useState<PwaDisplayMode>(
 		() => "browser",
@@ -94,7 +67,7 @@ export function usePwa(): PwaState {
 			setDisplayMode(standalone ? "standalone" : "browser");
 			setInstalled(standalone);
 		};
-		setSupported(pwaIsEnabled() && serviceWorkerIsSupported());
+		setSupported(serviceWorkerIsSupported());
 		setOnline(navigator.onLine);
 		const mediaQuery = window.matchMedia("(display-mode: standalone)");
 		updateDisplayMode();
@@ -143,41 +116,6 @@ export function usePwa(): PwaState {
 	}, []);
 
 	useEffect(() => {
-		if (!pwaIsEnabled()) {
-			let disposed = false;
-			const cleanupDevelopmentPwaState = async () => {
-				try {
-					const hadController = Boolean(navigator.serviceWorker?.controller);
-					const unregistered = await unregisterServiceWorkers();
-					await clearPwaCaches();
-					if (!disposed) {
-						setServiceWorkerReady(false);
-						setUpdateState("idle");
-					}
-					if (
-						hadController &&
-						unregistered &&
-						window.sessionStorage.getItem("coz-dev-sw-cleanup-reloaded") !==
-							"true"
-					) {
-						window.sessionStorage.setItem(
-							"coz-dev-sw-cleanup-reloaded",
-							"true",
-						);
-						window.location.reload();
-					}
-				} catch {
-					if (!disposed) {
-						setServiceWorkerReady(false);
-					}
-				}
-			};
-			void cleanupDevelopmentPwaState();
-			return () => {
-				disposed = true;
-			};
-		}
-
 		if (!serviceWorkerIsSupported()) {
 			return;
 		}
@@ -191,12 +129,9 @@ export function usePwa(): PwaState {
 
 		const registerServiceWorker = async () => {
 			try {
-				const registration = await navigator.serviceWorker.register(
-					"/sw.js?env=production",
-					{
-						scope: "/",
-					},
-				);
+				const registration = await navigator.serviceWorker.register("/sw.js", {
+					scope: "/",
+				});
 				if (disposed) {
 					return;
 				}

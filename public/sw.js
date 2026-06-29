@@ -1,8 +1,6 @@
 const CACHE_VERSION = "coz-pwa-v1";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
-const isProductionWorker =
-	new URL(self.location.href).searchParams.get("env") === "production";
 const PRECACHE_URLS = [
 	"/manifest.webmanifest",
 	"/offline.html",
@@ -61,10 +59,6 @@ async function networkFirstNavigation(request) {
 }
 
 self.addEventListener("install", (event) => {
-	if (!isProductionWorker) {
-		self.skipWaiting();
-		return;
-	}
 	event.waitUntil(
 		caches
 			.open(STATIC_CACHE)
@@ -75,23 +69,6 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-	if (!isProductionWorker) {
-		event.waitUntil(
-			caches
-				.keys()
-				.then((keys) =>
-					Promise.all(
-						keys
-							.filter((key) => key.startsWith("coz-pwa-"))
-							.map((key) => caches.delete(key)),
-					),
-				)
-				.then(() => self.registration.unregister())
-				.then(() => self.clients.claim()),
-		);
-		return;
-	}
-
 	event.waitUntil(
 		caches
 			.keys()
@@ -113,10 +90,6 @@ self.addEventListener("message", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-	if (!isProductionWorker) {
-		return;
-	}
-
 	const { request } = event;
 	if (request.method !== "GET") {
 		return;
