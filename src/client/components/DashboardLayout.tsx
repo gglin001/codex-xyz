@@ -699,7 +699,7 @@ const CommandPalette = memo(function CommandPalette({
 							<div
 								id={listId}
 								ref={listRef}
-								className="mobile-custom-scroll mobile-keyboard-scroll h-full min-h-0 overflow-y-auto px-1.5 py-1 md:max-h-[min(39rem,calc(100dvh_-_5rem))]"
+								className="mobile-custom-scroll mobile-keyboard-scroll h-full min-h-0 touch-pan-y overflow-x-hidden overflow-y-auto px-1.5 py-1 md:max-h-[min(39rem,calc(100dvh_-_5rem))]"
 							>
 								{filteredActions.length === 0 ? (
 									<div className="px-3 py-8 text-center text-[13px] text-muted">
