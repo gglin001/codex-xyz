@@ -343,7 +343,7 @@
 	.workdir-input-scroll {
 		overscroll-behavior-x: contain;
 		scrollbar-gutter: stable;
-		touch-action: pan-x;
+		touch-action: pan-x pan-y;
 		-webkit-overflow-scrolling: touch;
 	}
 
@@ -374,7 +374,7 @@
 		white-space: nowrap;
 		overscroll-behavior-x: contain;
 		scrollbar-width: none;
-		touch-action: pan-x;
+		touch-action: pan-x pan-y;
 		-webkit-overflow-scrolling: touch;
 	}
 
@@ -390,7 +390,7 @@
 		overflow-y: hidden;
 		overscroll-behavior-x: contain;
 		scrollbar-width: none;
-		touch-action: pan-x;
+		touch-action: pan-x pan-y;
 		-webkit-overflow-scrolling: touch;
 	}
 

@@ -1405,7 +1405,7 @@ export const Workspace = memo(
 							<div
 								id={transcriptScrollId}
 								ref={transcriptScrollRef}
-								className="mobile-custom-scroll mobile-transcript-scroll h-full min-h-0 overflow-y-auto px-4 py-0 md:px-8 md:[scrollbar-gutter:stable]"
+								className="mobile-custom-scroll mobile-transcript-scroll h-full min-h-0 overflow-x-hidden overflow-y-auto px-4 py-0 md:px-8 md:[scrollbar-gutter:stable]"
 							>
 								<ThreadContentFrame className="grid gap-[var(--transcript-gap)]">
 									<AnimatePresence initial={false}>
