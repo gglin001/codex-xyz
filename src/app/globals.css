@@ -136,49 +136,49 @@
 	:root[data-theme="day"] {
 		color-scheme: light;
 
-		--app-bg: #f8fafd;
-		--app-bg-transparent: rgba(248, 250, 253, 0);
-		--panel-bg: #fbfcff;
-		--panel-bg-transparent: rgba(251, 252, 255, 0);
-		--detail-bg: #ffffff;
-		--surface-bg: #eef2f7;
-		--surface-subtle-bg: #f2f5fa;
-		--field-bg: #f5f7fb;
-		--control-bg: #e9eef6;
-		--control-hover-bg: #dfe6f1;
-		--selected-bg: #e7f0fe;
-		--selected-strong-bg: #d7e7ff;
-		--terminal-bg: #f5f5f7;
-		--terminal-bg-transparent: rgba(245, 245, 247, 0);
-		--text: #1d1d1f;
-		--text-strong: #0b0b0f;
-		--muted: #6e6e73;
-		--muted-strong: #3a3a3c;
-		--border: rgba(60, 64, 67, 0.1);
-		--border-strong: rgba(60, 64, 67, 0.16);
-		--border-soft: rgba(60, 64, 67, 0.06);
-		--accent: #0b57d0;
-		--accent-text: #ffffff;
-		--accent-soft: rgba(0, 122, 255, 0.18);
+		--app-bg: #e8e9e6;
+		--app-bg-transparent: rgba(232, 233, 230, 0);
+		--panel-bg: #eeefec;
+		--panel-bg-transparent: rgba(238, 239, 236, 0);
+		--detail-bg: #f5f5f2;
+		--surface-bg: #dfe1dd;
+		--surface-subtle-bg: #e5e6e2;
+		--field-bg: #e2e4e0;
+		--control-bg: #d8dad6;
+		--control-hover-bg: #cfd2cd;
+		--selected-bg: #dfe5e7;
+		--selected-strong-bg: #d3dde1;
+		--terminal-bg: #e2e4e0;
+		--terminal-bg-transparent: rgba(226, 228, 224, 0);
+		--text: #252725;
+		--text-strong: #111312;
+		--muted: #747771;
+		--muted-strong: #4d514b;
+		--border: rgba(17, 19, 18, 0.08);
+		--border-strong: rgba(17, 19, 18, 0.13);
+		--border-soft: rgba(17, 19, 18, 0.05);
+		--accent: #4f677c;
+		--accent-text: #f7f8f5;
+		--accent-soft: rgba(79, 103, 124, 0.16);
 		--focus-ring: transparent;
-		--chip-bg: rgba(238, 241, 246, 0.9);
-		--chip-text: #1d1d1f;
-		--quiet-bg: rgba(255, 255, 255, 0.82);
-		--quiet-text: #6e6e73;
-		--running-bg: rgba(52, 199, 89, 0.14);
-		--running-text: #176d33;
-		--attention-bg: rgba(255, 59, 48, 0.12);
-		--attention-text: #b42318;
-		--stale-bg: rgba(255, 204, 0, 0.18);
-		--stale-text: #7a4f00;
-		--success-bg: rgba(52, 199, 89, 0.14);
-		--success-text: #176d33;
-		--error-bg: rgba(255, 59, 48, 0.12);
-		--error-text: #b42318;
-		--running-dot: #34c759;
-		--stale-dot: #ffcc00;
-		--failed-dot: #ff3b30;
-		--completed-dot: #8e8e93;
+		--chip-bg: rgba(215, 217, 213, 0.88);
+		--chip-text: #252725;
+		--quiet-bg: rgba(238, 239, 236, 0.82);
+		--quiet-text: #747771;
+		--running-bg: rgba(55, 132, 79, 0.13);
+		--running-text: #235d37;
+		--attention-bg: rgba(174, 54, 73, 0.12);
+		--attention-text: #812636;
+		--stale-bg: rgba(158, 122, 36, 0.14);
+		--stale-text: #6c5218;
+		--success-bg: rgba(55, 132, 79, 0.13);
+		--success-text: #235d37;
+		--error-bg: rgba(174, 54, 73, 0.12);
+		--error-text: #812636;
+		--running-dot: #3f8957;
+		--stale-dot: #a57f2d;
+		--failed-dot: #b8485d;
+		--completed-dot: #7c7f79;
 	}
 
 	* {
@@ -265,7 +265,7 @@
 	}
 
 	:root[data-theme="day"] ::selection {
-		background: rgba(0, 122, 255, 0.18);
+		background: rgba(79, 103, 124, 0.2);
 	}
 
 	:root[data-theme="dark"] *,
@@ -276,7 +276,7 @@
 
 	:root[data-theme="day"] * {
 		scrollbar-width: thin;
-		scrollbar-color: rgba(60, 60, 67, 0.26) transparent;
+		scrollbar-color: rgba(17, 19, 18, 0.24) transparent;
 	}
 
 	*::-webkit-scrollbar {
@@ -295,7 +295,7 @@
 	}
 
 	:root[data-theme="day"] *::-webkit-scrollbar-thumb {
-		background: rgba(60, 60, 67, 0.22);
+		background: rgba(17, 19, 18, 0.2);
 		border-radius: 999px;
 	}
 
@@ -305,7 +305,7 @@
 	}
 
 	:root[data-theme="day"] *::-webkit-scrollbar-thumb:hover {
-		background: rgba(60, 60, 67, 0.34);
+		background: rgba(17, 19, 18, 0.32);
 	}
 
 	.scroll-mask-y {

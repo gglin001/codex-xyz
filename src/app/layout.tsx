@@ -43,7 +43,7 @@ export const viewport: Viewport = {
 	colorScheme: "dark light",
 	themeColor: [
 		{ media: "(prefers-color-scheme: dark)", color: "#161718" },
-		{ media: "(prefers-color-scheme: light)", color: "#f5f5f7" },
+		{ media: "(prefers-color-scheme: light)", color: "#e8e9e6" },
 	],
 };
 
@@ -51,7 +51,7 @@ const themeBootScript = `
 (() => {
   try {
     const mode = window.localStorage.getItem("coz-theme-mode") === "day" ? "day" : "dark";
-    const chromeColor = mode === "day" ? "#f5f5f7" : "#161718";
+    const chromeColor = mode === "day" ? "#e8e9e6" : "#161718";
     document.documentElement.dataset.theme = mode;
     for (const meta of document.querySelectorAll('meta[name="theme-color"]')) {
       meta.setAttribute("content", chromeColor);
