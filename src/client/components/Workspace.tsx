@@ -320,7 +320,7 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 	return (
 		<header
 			className={cn(
-				"relative flex shrink-0 items-center justify-between",
+				"relative flex shrink-0 items-center justify-between border-b border-border-soft bg-app-bg/62 supports-[backdrop-filter]:bg-app-bg/52 md:backdrop-blur-md",
 				mobile
 					? "min-h-[var(--mobile-header-height)] gap-2 px-3 pt-[var(--workspace-header-top-gap)] md:hidden"
 					: "hidden gap-3 md:relative md:flex md:min-h-[calc(var(--workspace-header-content-height)+var(--workspace-header-top-gap))] md:px-5 md:pt-[var(--workspace-header-top-gap)]",
