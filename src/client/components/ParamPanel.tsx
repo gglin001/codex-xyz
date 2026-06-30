@@ -382,7 +382,7 @@ export const ParamPanel = memo(function ParamPanel({
 						<div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-1.5">
 							<InfoTile
 								icon={<TimerReset size={13} />}
-								label="Tk"
+								label="token"
 								value={formatCompact(contextTokens)}
 								mono
 								layout="inline"
