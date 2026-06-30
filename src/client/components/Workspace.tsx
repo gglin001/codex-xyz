@@ -319,6 +319,7 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 	const mobile = mode === "mobile";
 	return (
 		<header
+			data-mobile-workspace-header={mobile ? "" : undefined}
 			className={cn(
 				"relative flex shrink-0 items-center justify-between bg-app-bg/46 supports-[backdrop-filter]:bg-app-bg/38 md:backdrop-blur-md",
 				mobile

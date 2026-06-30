@@ -13,6 +13,7 @@ const keyboardInsetProperty = "--keyboard-inset-bottom";
 const mobileSheetHeightProperty = "--mobile-sheet-height";
 const mobileSheetTopProperty = "--mobile-sheet-top";
 const mobileHeaderHeightProperty = "--mobile-header-height";
+const mobileWorkspaceHeaderSelector = "[data-mobile-workspace-header]";
 const keyboardVisibleAttribute = "data-keyboard-visible";
 const mobileViewportQuery = "(max-width: 767px)";
 const keyboardVisibilityThreshold = 80;
@@ -43,6 +44,17 @@ function setAppVisualHeight(heightValue: number | null) {
 	);
 }
 
+function measuredMobileSheetTop() {
+	const header = document.querySelector<HTMLElement>(
+		mobileWorkspaceHeaderSelector,
+	);
+	const bottom = header?.getBoundingClientRect().bottom;
+	if (!bottom || !Number.isFinite(bottom)) {
+		return `var(${mobileHeaderHeightProperty})`;
+	}
+	return `${Math.max(0, Math.ceil(bottom))}px`;
+}
+
 function setMobileSheetGeometry(heightValue: number | null) {
 	if (heightValue === null) {
 		document.documentElement.style.setProperty(
@@ -55,15 +67,13 @@ function setMobileSheetGeometry(heightValue: number | null) {
 		);
 		return;
 	}
+	const sheetTop = measuredMobileSheetTop();
 	const viewportHeight = Math.max(320, Math.round(heightValue));
 	document.documentElement.style.setProperty(
 		mobileSheetHeightProperty,
 		`calc(${viewportHeight}px - var(${mobileSheetTopProperty}))`,
 	);
-	document.documentElement.style.setProperty(
-		mobileSheetTopProperty,
-		`var(${mobileHeaderHeightProperty})`,
-	);
+	document.documentElement.style.setProperty(mobileSheetTopProperty, sheetTop);
 }
 
 function viewportHeight() {
