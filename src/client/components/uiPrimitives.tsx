@@ -417,7 +417,10 @@ export const CollapsibleCard = memo(function CollapsibleCard({
 	surface = "outline",
 	className,
 	bodyClassName,
+	bodyPaddingClassName,
+	headerButtonPaddingClassName,
 	previewClassName,
+	previewPaddingClassName,
 }: {
 	title: string;
 	expanded: boolean;
@@ -430,7 +433,10 @@ export const CollapsibleCard = memo(function CollapsibleCard({
 	surface?: "filled" | "outline" | "plain";
 	className?: string;
 	bodyClassName?: string;
+	bodyPaddingClassName?: string;
+	headerButtonPaddingClassName?: string;
 	previewClassName?: string;
+	previewPaddingClassName?: string;
 }) {
 	const headerHeight =
 		size === "compact"
@@ -444,8 +450,13 @@ export const CollapsibleCard = memo(function CollapsibleCard({
 			: size === "prominent"
 				? "text-[14px] font-semibold text-fg-strong"
 				: "text-[13px] font-medium text-fg";
-	const bodyPadding = size === "compact" ? "px-3 pb-3 pt-1" : "px-4 pb-4 pt-1";
-	const previewPadding = size === "compact" ? "px-3 pb-2" : "px-4 pb-3";
+	const bodyPadding =
+		bodyPaddingClassName ??
+		(size === "compact" ? "px-3 pb-3 pt-1" : "px-4 pb-4 pt-1");
+	const previewPadding =
+		previewPaddingClassName ?? (size === "compact" ? "px-3 pb-2" : "px-4 pb-3");
+	const headerButtonPadding =
+		headerButtonPaddingClassName ?? (size === "compact" ? "px-3" : "px-4");
 	const cardClass =
 		surface === "plain"
 			? `overflow-hidden ${radius.card} bg-transparent shadow-none`
@@ -468,11 +479,7 @@ export const CollapsibleCard = memo(function CollapsibleCard({
 			<div className={cn(headerClass, headerHeight)}>
 				<button
 					type="button"
-					className={cn(
-						headerButtonClass,
-						headerHeight,
-						size === "compact" ? "px-3" : "px-4",
-					)}
+					className={cn(headerButtonClass, headerHeight, headerButtonPadding)}
 					aria-expanded={expanded}
 					title={expanded ? `Collapse ${title}` : `Expand ${title}`}
 					onClick={onToggle}

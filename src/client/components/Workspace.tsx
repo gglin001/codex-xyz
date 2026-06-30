@@ -151,9 +151,12 @@ const overlayMotion = motionStates.overlay;
 const localMenuMotion = motionStates.localMenu;
 const listItemMotion = motionStates.listItem;
 const revealMotion = motionStates.reveal;
-const threadContentWidthClass = "[--thread-content-width:900px]";
-const threadContentFrameClass =
-	"mx-auto w-full min-w-0 max-w-[var(--thread-content-width)]";
+const threadContentFrameClass = "w-full min-w-0";
+const transcriptCardPaddingClass = "px-0";
+const transcriptCardBodyPaddingClass = "px-0 pb-4 pt-1";
+const transcriptProcessBodyPaddingClass =
+	"grid gap-1.5 pl-[1ch] pr-0 pb-3 pt-0";
+const transcriptCardPreviewPaddingClass = "px-0 pb-3";
 const mobileTranscriptInitialWindow = 80;
 const mobileTranscriptWindowStep = 80;
 
@@ -475,6 +478,9 @@ const MessageBlock = memo(function MessageBlock({
 			}
 			surface="plain"
 			className={messageSurfaceClass(message)}
+			bodyPaddingClassName={transcriptCardBodyPaddingClass}
+			headerButtonPaddingClassName={transcriptCardPaddingClass}
+			previewPaddingClassName={transcriptCardPreviewPaddingClass}
 		>
 			{message.text ? (
 				<div
@@ -534,6 +540,9 @@ const ProcessItemBlock = memo(function ProcessItemBlock({
 			size="compact"
 			surface="plain"
 			className="bg-transparent"
+			bodyPaddingClassName="px-0 pb-3 pt-1"
+			headerButtonPaddingClassName={transcriptCardPaddingClass}
+			previewPaddingClassName="px-0 pb-2"
 		>
 			{message.text ? (
 				<div
@@ -590,7 +599,9 @@ const ProcessOutputBlock = memo(function ProcessOutputBlock({
 					{preview}
 				</div>
 			}
-			bodyClassName="grid gap-1.5 px-3 pb-3 pt-0"
+			bodyPaddingClassName={transcriptProcessBodyPaddingClass}
+			headerButtonPaddingClassName={transcriptCardPaddingClass}
+			previewPaddingClassName={transcriptCardPreviewPaddingClass}
 			surface="plain"
 			className="bg-transparent"
 		>
@@ -1349,10 +1360,7 @@ export const Workspace = memo(
 		return (
 			<section
 				ref={rootRef}
-				className={cn(
-					"flex h-full min-h-0 min-w-0 flex-col bg-app-bg text-fg",
-					threadContentWidthClass,
-				)}
+				className={cn("flex h-full min-h-0 min-w-0 flex-col bg-app-bg text-fg")}
 				style={contentScaleStyle}
 			>
 				{isMobilePresentation ? (
@@ -1396,7 +1404,7 @@ export const Workspace = memo(
 							<div
 								id={transcriptScrollId}
 								ref={transcriptScrollRef}
-								className="mobile-custom-scroll mobile-transcript-scroll h-full min-h-0 overflow-x-hidden overflow-y-auto px-4 py-0 md:px-8 md:[scrollbar-gutter:stable]"
+								className="mobile-custom-scroll mobile-transcript-scroll h-full min-h-0 overflow-x-hidden overflow-y-auto px-3 py-0 md:px-5 md:[scrollbar-gutter:stable]"
 							>
 								<ThreadContentFrame className="grid gap-[var(--transcript-gap)]">
 									<AnimatePresence initial={false}>
@@ -1471,7 +1479,7 @@ export const Workspace = memo(
 						<div
 							ref={composerShellRef}
 							className={cn(
-								"mobile-composer-bar relative shrink-0 overflow-visible pb-[var(--workspace-composer-bottom-gap)] pl-4 pr-[calc(1rem+var(--transcript-scrollbar-width,0px))] md:pl-8 md:pr-[calc(2rem+var(--transcript-scrollbar-width,0px))]",
+								"mobile-composer-bar relative shrink-0 overflow-visible pb-[var(--workspace-composer-bottom-gap)] pl-3 pr-[calc(0.75rem+var(--transcript-scrollbar-width,0px))] md:pl-5 md:pr-[calc(1.25rem+var(--transcript-scrollbar-width,0px))]",
 								layer.composerZ,
 							)}
 						>
