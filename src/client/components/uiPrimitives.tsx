@@ -628,6 +628,7 @@ export const InfoTile = memo(function InfoTile({
 	value,
 	mono = false,
 	layout = "stacked",
+	hideLabel = false,
 	className,
 }: {
 	icon: ReactNode;
@@ -635,6 +636,7 @@ export const InfoTile = memo(function InfoTile({
 	value: string;
 	mono?: boolean;
 	layout?: "stacked" | "inline";
+	hideLabel?: boolean;
 	className?: string;
 }) {
 	const inline = layout === "inline";
@@ -645,16 +647,18 @@ export const InfoTile = memo(function InfoTile({
 				"flex w-full min-w-0 gap-2 bg-surface-subtle/54",
 				inline
 					? "min-h-8 items-center px-2.5 py-1.5"
-					: "min-h-12 items-start px-2.5 py-2",
+					: hideLabel
+						? "min-h-10 items-center px-2.5 py-2"
+						: "min-h-12 items-start px-2.5 py-2",
 				radius.control,
 				className,
 			)}
-			title={`${label}: ${value}`}
+			title={hideLabel ? value : `${label}: ${value}`}
 		>
 			<span
 				className={cn(
 					"flex h-5 w-5 shrink-0 items-center justify-center text-muted",
-					inline ? null : "mt-0.5",
+					inline || hideLabel ? null : "mt-0.5",
 				)}
 			>
 				{icon}
@@ -662,13 +666,17 @@ export const InfoTile = memo(function InfoTile({
 			<span
 				className={cn(
 					"min-w-0 flex-1",
-					inline ? "flex items-center justify-between gap-2" : null,
+					inline
+						? "flex items-center justify-between gap-2"
+						: hideLabel
+							? "flex items-center"
+							: null,
 				)}
 			>
 				<ScrollableText
 					className={cn(
 						"text-[12px] font-medium text-muted",
-						inline ? "shrink-0" : "block",
+						hideLabel ? "sr-only" : inline ? "shrink-0" : "block",
 					)}
 				>
 					{label}
