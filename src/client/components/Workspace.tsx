@@ -265,12 +265,10 @@ function statusDotClass(status: ThreadDisplayStatus) {
 function HeaderDetailRail({
 	tokens,
 	status,
-	model,
 	projectName,
 }: {
 	tokens: number;
 	status: ThreadDisplayStatus;
-	model: string | null;
 	projectName: string | null;
 }) {
 	return (
@@ -285,7 +283,6 @@ function HeaderDetailRail({
 				/>
 				<span>{statusLabel(status)}</span>
 			</span>
-			{model ? <span className="shrink-0">{model}</span> : null}
 			{projectName ? <span className="shrink-0">{projectName}</span> : null}
 		</div>
 	);
@@ -296,7 +293,6 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 	name,
 	tokens,
 	status,
-	model,
 	projectName,
 	commandVisible,
 	navigatorVisible,
@@ -309,7 +305,6 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 	name: string;
 	tokens: number;
 	status: ThreadDisplayStatus;
-	model: string | null;
 	projectName: string | null;
 	commandVisible: boolean;
 	navigatorVisible: boolean;
@@ -350,7 +345,6 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 				<HeaderDetailRail
 					tokens={tokens}
 					status={status}
-					model={model}
 					projectName={projectName}
 				/>
 			</div>
@@ -1175,7 +1169,6 @@ export const Workspace = memo(
 		const status = selectedThread
 			? threadDisplayStatus(selectedThread)
 			: (threadSummary?.status ?? "idle");
-		const model = selectedThread?.model ?? threadSummary?.model ?? null;
 		const projectName = project?.name ?? null;
 		const contentScaleStyle = useMemo(
 			() =>
@@ -1368,7 +1361,6 @@ export const Workspace = memo(
 						name={name}
 						tokens={tokens}
 						status={status}
-						model={model}
 						projectName={projectName}
 						commandVisible={commandVisible}
 						navigatorVisible={navigatorVisible}
@@ -1384,7 +1376,6 @@ export const Workspace = memo(
 						name={name}
 						tokens={tokens}
 						status={status}
-						model={model}
 						projectName={projectName}
 						commandVisible={commandVisible}
 						navigatorVisible={navigatorVisible}
