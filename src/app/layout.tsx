@@ -14,25 +14,9 @@ export const metadata: Metadata = {
 		email: false,
 		telephone: false,
 	},
-	other: {
-		"apple-mobile-web-app-capable": "yes",
-		"msapplication-navbutton-color": "#161718",
-	},
-	appleWebApp: {
-		capable: true,
-		statusBarStyle: "black",
-		title: "codex-xyz",
-	},
 	icons: {
-		icon: [
-			{ url: "/icons/icon.svg", type: "image/svg+xml" },
-			{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
-			{ url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
-		],
-		shortcut: "/icons/icon-192.png",
-		apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+		icon: [{ url: "/icons/icon.svg", type: "image/svg+xml" }],
 	},
-	manifest: "/manifest.webmanifest",
 };
 
 export const viewport: Viewport = {

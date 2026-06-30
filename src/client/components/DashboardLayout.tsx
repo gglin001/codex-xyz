@@ -41,7 +41,6 @@ import { nextThemeMode, type ThemeMode, themeModeLabels } from "../theme.js";
 import { useFullscreen } from "../useFullscreen.js";
 import { useMobileLongPressSelectionGuard } from "../useMobileLongPressSelectionGuard.js";
 import { useMobileViewportGeometry } from "../useMobileViewportGeometry.js";
-import type { PwaState } from "../usePwa.js";
 import { MobileFloatingScroller } from "./MobileFloatingScroller.js";
 import { ParamPanel } from "./ParamPanel.js";
 import { Sidebar } from "./Sidebar.js";
@@ -91,7 +90,6 @@ export type DashboardLayoutProps = {
 	onInspectorVisibleChange: (visible: boolean) => void;
 	onWrapThreadContentChange: (value: boolean) => void;
 	onThemeModeChange: (mode: ThemeMode) => void;
-	pwa: PwaState;
 	displayScale: number;
 	onDisplayScaleChange: (value: number) => void;
 	onThreadTagScoreChange: (value: ThreadTagScore | null) => void;
@@ -797,7 +795,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 	onInspectorVisibleChange,
 	onWrapThreadContentChange,
 	onThemeModeChange,
-	pwa,
 	displayScale,
 	onDisplayScaleChange,
 	onThreadTagScoreChange,
@@ -1285,7 +1282,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 			defaultCwd={defaultCwd}
 			onWrapThreadContentChange={onWrapThreadContentChange}
 			onThemeModeChange={onThemeModeChange}
-			pwa={pwa}
 			fullscreenSupported={fullscreenSupported}
 			isFullscreen={isFullscreen}
 			onToggleFullscreen={toggleFullscreen}
@@ -1498,7 +1494,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 									defaultCwd={defaultCwd}
 									onWrapThreadContentChange={onWrapThreadContentChange}
 									onThemeModeChange={onThemeModeChange}
-									pwa={pwa}
 									fullscreenSupported={fullscreenSupported}
 									isFullscreen={isFullscreen}
 									onToggleFullscreen={toggleFullscreen}

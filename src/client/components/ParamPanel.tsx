@@ -1,11 +1,9 @@
 import {
 	Activity,
 	Archive,
-	BadgeCheck,
 	Bot,
 	CircleDotDashed,
 	Cpu,
-	Download,
 	FolderGit2,
 	GitFork,
 	Hash,
@@ -13,15 +11,12 @@ import {
 	Maximize2,
 	Minimize2,
 	Play,
-	RefreshCcw,
 	RefreshCw,
 	Server,
 	SlidersHorizontal,
 	Star,
 	Sun,
 	TimerReset,
-	Wifi,
-	WifiOff,
 	WrapText,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -34,7 +29,6 @@ import type {
 import { cn, tone, ui } from "../designSystem.js";
 import { nextThemeMode, type ThemeMode } from "../theme.js";
 import { formatTokens, shortId, statusLabel } from "../uiFormat.js";
-import type { PwaState } from "../usePwa.js";
 import { MobileFloatingScroller } from "./MobileFloatingScroller.js";
 import {
 	ControlCard,
@@ -58,7 +52,6 @@ export type ParamPanelProps = {
 	defaultCwd: string;
 	onWrapThreadContentChange: (value: boolean) => void;
 	onThemeModeChange: (mode: ThemeMode) => void;
-	pwa: PwaState;
 	fullscreenSupported: boolean;
 	isFullscreen: boolean;
 	onToggleFullscreen: () => void;
@@ -88,26 +81,6 @@ function runtimeStatusTone(status: string | null | undefined) {
 		return tone.stale.dot;
 	}
 	return tone.neutral.dot;
-}
-
-function pwaInstallLabel(installState: PwaState["installState"]) {
-	if (installState === "installed") {
-		return "Installed";
-	}
-	if (installState === "available") {
-		return "Install";
-	}
-	if (installState === "unsupported") {
-		return "Install unsupported";
-	}
-	return "Install from browser";
-}
-
-function pwaCacheLabel(pwa: PwaState) {
-	if (pwa.updateState === "available") {
-		return "Update ready";
-	}
-	return pwa.serviceWorkerReady ? "App shell cached" : "Cache starting";
 }
 
 function SettingsIconToggle({
@@ -217,7 +190,6 @@ export const ParamPanel = memo(function ParamPanel({
 	defaultCwd,
 	onWrapThreadContentChange,
 	onThemeModeChange,
-	pwa,
 	fullscreenSupported,
 	isFullscreen,
 	onToggleFullscreen,
@@ -477,83 +449,6 @@ export const ParamPanel = memo(function ParamPanel({
 										onClick={onToggleFullscreen}
 									/>
 								) : null}
-							</div>
-						</div>
-					</SettingsSection>
-
-					<SettingsSection icon={<Download size={13} />} title="Web App">
-						<div className="grid min-w-0 gap-1.5">
-							<ControlCard className="grid w-full min-w-0 gap-1.5 px-2.5 py-2">
-								<div className="flex min-w-0 items-center justify-between gap-3">
-									<span className="inline-flex min-w-0 items-center gap-2">
-										<span
-											className={cn(
-												"h-2 w-2 shrink-0 rounded-full",
-												pwa.online ? tone.running.dot : tone.error.dot,
-											)}
-										/>
-										<span className="truncate text-[13px] font-medium text-fg">
-											{pwa.online ? "Online" : "Offline"}
-										</span>
-									</span>
-									<Pill className="font-mono text-[11px] text-muted">
-										{pwa.displayMode}
-									</Pill>
-								</div>
-								<div className="flex min-w-0 items-center justify-between gap-3 text-[12px] text-muted">
-									<span className="inline-flex min-w-0 items-center gap-1.5">
-										{pwa.online ? (
-											<Wifi size={13} className="shrink-0" />
-										) : (
-											<WifiOff size={13} className="shrink-0" />
-										)}
-										<span className="truncate">{pwaCacheLabel(pwa)}</span>
-									</span>
-									<span className="shrink-0 truncate">
-										{pwa.installState === "installed"
-											? "standalone"
-											: "browser"}
-									</span>
-								</div>
-							</ControlCard>
-							<div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-1.5">
-								<SurfaceAction
-									className="h-9 justify-center gap-2 px-2 text-[12px] font-medium"
-									disabled={!pwa.canInstall}
-									title={pwaInstallLabel(pwa.installState)}
-									aria-label={pwaInstallLabel(pwa.installState)}
-									selected={pwa.installState === "installed"}
-									onClick={() => {
-										void pwa.install();
-									}}
-								>
-									{pwa.installState === "installed" ? (
-										<BadgeCheck size={14} />
-									) : (
-										<Download size={14} />
-									)}
-									<span className="truncate">
-										{pwaInstallLabel(pwa.installState)}
-									</span>
-								</SurfaceAction>
-								<SurfaceAction
-									className="h-9 justify-center gap-2 px-2 text-[12px] font-medium"
-									disabled={pwa.updateState !== "available"}
-									title={
-										pwa.updateState === "available"
-											? "Apply app update"
-											: "No app update available"
-									}
-									aria-label={
-										pwa.updateState === "available"
-											? "Apply app update"
-											: "No app update available"
-									}
-									onClick={pwa.activateUpdate}
-								>
-									<RefreshCcw size={14} />
-									<span className="truncate">Update</span>
-								</SurfaceAction>
 							</div>
 						</div>
 					</SettingsSection>

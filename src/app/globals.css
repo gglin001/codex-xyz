@@ -536,10 +536,6 @@
 		-webkit-overflow-scrolling: touch;
 	}
 
-	:root[data-pwa-display-mode="standalone"] .mobile-transcript-scroll {
-		padding-top: 0;
-	}
-
 	input:not([type="range"]),
 	select,
 	textarea,
