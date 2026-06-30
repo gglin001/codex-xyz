@@ -70,10 +70,6 @@ export const layer = {
 		"mobile-sheet-surface absolute inset-x-0 top-0 flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden md:rounded-[12px]",
 	mobileTerminalSheet:
 		"mobile-sheet-surface pointer-events-auto absolute inset-x-0 top-0 flex h-[var(--mobile-sheet-height)] flex-col overflow-hidden md:inset-auto md:rounded-[12px]",
-	groupContinuationMark:
-		"absolute -bottom-1 left-3.5 h-2 w-1 rounded-full bg-control-hover",
-	stackedIconPlate:
-		"absolute left-1 top-1 h-6 w-8 rounded-[8px] bg-surface-subtle/52",
 } as const;
 
 export const tone = {

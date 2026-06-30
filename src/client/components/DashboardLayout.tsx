@@ -144,11 +144,6 @@ type CommandAction =
 				| "zoom";
 	  });
 
-type CommandActionRenderItem = {
-	action: CommandAction;
-	parentHasVisibleChildren: boolean;
-};
-
 type MobileSheet = "navigator" | "inspector";
 
 const overlayMotion = motionStates.overlay;
@@ -407,49 +402,13 @@ function filterCommandActions(
 	});
 }
 
-function annotateCommandActions(
-	actions: CommandAction[],
-): CommandActionRenderItem[] {
-	const visibleChildCounts = new Map<string, number>();
-	for (const action of actions) {
-		const parentId = commandParentId(action);
-		if (parentId) {
-			visibleChildCounts.set(
-				parentId,
-				(visibleChildCounts.get(parentId) ?? 0) + 1,
-			);
-		}
-	}
-
-	return actions.map((action) => {
-		const parentId = commandParentId(action);
-		if (!parentId) {
-			return {
-				action,
-				parentHasVisibleChildren: (visibleChildCounts.get(action.id) ?? 0) > 0,
-			};
-		}
-
-		return {
-			action,
-			parentHasVisibleChildren: false,
-		};
-	});
-}
-
-function CommandActionGlyph({
-	action,
-	parentHasVisibleChildren,
-}: CommandActionRenderItem) {
+function CommandActionGlyph({ action }: { action: CommandAction }) {
 	if (action.kind === "settingsGroup") {
 		return (
 			<span
 				className="relative flex h-8 w-8 shrink-0 items-center justify-center"
 				aria-hidden="true"
 			>
-				{parentHasVisibleChildren ? (
-					<span className={layer.groupContinuationMark} />
-				) : null}
 				<span className={cn("h-8 w-8 text-muted-strong", ui.iconBox)}>
 					<Settings size={14} />
 				</span>
@@ -476,16 +435,10 @@ function CommandActionGlyph({
 			);
 		return (
 			<span
-				className="relative flex h-8 w-12 shrink-0 items-center"
+				className="flex h-8 w-8 shrink-0 items-center justify-center"
 				aria-hidden="true"
 			>
-				<span className={layer.stackedIconPlate} />
-				<span
-					className={cn(
-						"absolute right-0 top-0 h-8 w-8 text-muted-strong",
-						ui.iconBox,
-					)}
-				>
+				<span className={cn("h-8 w-8 text-muted-strong", ui.iconBox)}>
 					{itemIcon}
 				</span>
 			</span>
@@ -533,10 +486,6 @@ const CommandPalette = memo(function CommandPalette({
 		const normalized = query.trim().toLowerCase();
 		return filterCommandActions(actions, normalized);
 	}, [actions, query]);
-	const renderItems = useMemo(
-		() => annotateCommandActions(filteredActions),
-		[filteredActions],
-	);
 
 	useEffect(() => {
 		if (!open) {
@@ -704,50 +653,46 @@ const CommandPalette = memo(function CommandPalette({
 										No commands found
 									</div>
 								) : null}
-								{renderItems.map(
-									({ action, parentHasVisibleChildren }, index) => (
-										<MenuItemButton
-											key={action.id}
-											data-command-index={index}
-											className={cn(
-												"h-10 w-full gap-2.5 px-2.5",
-												action.disabled ? "opacity-45" : null,
-											)}
-											title={action.detail}
-											selected={index === activeIndex}
-											disabled={action.disabled}
-											onMouseEnter={() => setActiveIndex(index)}
-											onClick={() => {
-												if (action.disabled) {
-													return;
-												}
-												action.run();
-												onClose({ restoreFocus: false });
-											}}
-										>
-											<CommandActionGlyph
-												action={action}
-												parentHasVisibleChildren={parentHasVisibleChildren}
-											/>
-											<span className="min-w-0 flex-1">
-												<ScrollableText
-													className="block text-[13px] font-medium"
-													mobileStatic
-												>
-													{action.name}
-												</ScrollableText>
-												<ScrollableText
-													className="block text-[11px] text-muted"
-													mobileStatic
-												>
-													{action.disabled
-														? (action.disabledDetail ?? action.detail)
-														: action.detail}
-												</ScrollableText>
-											</span>
-										</MenuItemButton>
-									),
-								)}
+								{filteredActions.map((action, index) => (
+									<MenuItemButton
+										key={action.id}
+										data-command-index={index}
+										className={cn(
+											"h-10 w-full gap-2.5 px-2.5",
+											action.kind === "settingsItem" ? "pl-8" : null,
+											action.disabled ? "opacity-45" : null,
+										)}
+										title={action.detail}
+										selected={index === activeIndex}
+										disabled={action.disabled}
+										onMouseEnter={() => setActiveIndex(index)}
+										onClick={() => {
+											if (action.disabled) {
+												return;
+											}
+											action.run();
+											onClose({ restoreFocus: false });
+										}}
+									>
+										<CommandActionGlyph action={action} />
+										<span className="min-w-0 flex-1">
+											<ScrollableText
+												className="block text-[13px] font-medium"
+												mobileStatic
+											>
+												{action.name}
+											</ScrollableText>
+											<ScrollableText
+												className="block text-[11px] text-muted"
+												mobileStatic
+											>
+												{action.disabled
+													? (action.disabledDetail ?? action.detail)
+													: action.detail}
+											</ScrollableText>
+										</span>
+									</MenuItemButton>
+								))}
 							</div>
 							<div className="chrome-edge-fade chrome-edge-fade-short chrome-edge-fade-panel chrome-edge-fade-top" />
 							<div className="chrome-edge-fade chrome-edge-fade-short chrome-edge-fade-panel chrome-edge-fade-bottom" />
