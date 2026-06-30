@@ -143,24 +143,26 @@ export const Sidebar = memo(function Sidebar({
 							transition={motionPresets.quick}
 							role="menu"
 						>
-							{projects.map((project) => (
-								<MenuItemButton
-									key={project.id}
-									className="min-h-[62px] w-full gap-2.5 px-2.5 py-2"
-									role="menuitem"
-									selected={project.id === selectedProjectId}
-									title={projectResultTitle(project)}
-									onClick={() => {
-										onProjectChange(project.id);
-										setProjectMenuOpen(false);
-									}}
-								>
-									<ProjectResultRow project={project} />
-									{project.id === selectedProjectId ? (
-										<Check size={14} className="text-fg-strong" />
-									) : null}
-								</MenuItemButton>
-							))}
+							<div className="mobile-custom-scroll max-h-[216px] touch-pan-y overflow-x-hidden overflow-y-auto">
+								{projects.map((project) => (
+									<MenuItemButton
+										key={project.id}
+										className="min-h-[62px] w-full gap-2.5 px-2.5 py-2"
+										role="menuitem"
+										selected={project.id === selectedProjectId}
+										title={projectResultTitle(project)}
+										onClick={() => {
+											onProjectChange(project.id);
+											setProjectMenuOpen(false);
+										}}
+									>
+										<ProjectResultRow project={project} />
+										{project.id === selectedProjectId ? (
+											<Check size={14} className="text-fg-strong" />
+										) : null}
+									</MenuItemButton>
+								))}
+							</div>
 						</motion.div>
 					) : null}
 				</AnimatePresence>
