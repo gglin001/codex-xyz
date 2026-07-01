@@ -300,11 +300,11 @@ export const ParamPanel = memo(function ParamPanel({
 	return (
 		<aside
 			className={cn(
-				"flex h-full min-h-0 w-full min-w-0 flex-col bg-panel/90 text-fg",
+				"flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-x-hidden bg-panel/90 text-fg",
 				className,
 			)}
 		>
-			<div className="relative min-h-0 min-w-0 flex-1">
+			<div className="relative min-h-0 min-w-0 max-w-full flex-1 overflow-x-hidden">
 				<div
 					id={settingsScrollId}
 					ref={settingsScrollRef}

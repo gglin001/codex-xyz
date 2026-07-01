@@ -491,11 +491,28 @@
 	}
 
 	.mobile-sheet-surface {
+		inline-size: 100%;
+		max-inline-size: 100%;
 		background: var(--panel-bg);
 		border-radius: 0 !important;
 		border-bottom-left-radius: 0 !important;
 		border-bottom-right-radius: 0 !important;
 		box-shadow: none !important;
+	}
+
+	.mobile-sheet-overlay {
+		inline-size: 100vw;
+		max-inline-size: 100vw;
+		overflow-x: clip;
+		contain: inline-size;
+	}
+
+	.mobile-stable-settings-sheet {
+		inline-size: 100%;
+		max-inline-size: 100%;
+		min-inline-size: 0;
+		overflow-x: clip;
+		contain: inline-size;
 	}
 
 	:root[data-keyboard-visible] .mobile-keyboard-scroll {

@@ -1375,7 +1375,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 				{renderMobileShell && mobileSheet ? (
 					<motion.div
 						className={cn(
-							"fixed inset-x-0 bottom-0 top-[var(--mobile-sheet-top)] md:hidden",
+							"mobile-sheet-overlay fixed inset-x-0 bottom-0 top-[var(--mobile-sheet-top)] md:hidden",
 							layer.overlayZ,
 							ui.overlay,
 						)}
@@ -1387,7 +1387,13 @@ export const DashboardLayout = memo(function DashboardLayout({
 					>
 						<motion.div
 							ref={mobileSheetPanelRef}
-							className={cn(layer.mobileSheet, ui.backdropPanel)}
+							className={cn(
+								layer.mobileSheet,
+								mobileSheet === "inspector"
+									? "mobile-stable-settings-sheet"
+									: null,
+								ui.backdropPanel,
+							)}
 							tabIndex={-1}
 							role="dialog"
 							aria-modal="true"

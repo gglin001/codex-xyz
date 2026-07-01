@@ -672,7 +672,7 @@ export const InfoTile = memo(function InfoTile({
 			</span>
 			<span
 				className={cn(
-					"min-w-0 flex-1",
+					"min-w-0 flex-1 overflow-hidden",
 					inline
 						? "flex items-center justify-between gap-2"
 						: hideLabel
@@ -681,6 +681,7 @@ export const InfoTile = memo(function InfoTile({
 				)}
 			>
 				<ScrollableText
+					mobileStatic
 					className={cn(
 						"text-[12px] font-medium text-muted",
 						hideLabel ? "sr-only" : inline ? "shrink-0" : "block",
@@ -689,6 +690,7 @@ export const InfoTile = memo(function InfoTile({
 					{label}
 				</ScrollableText>
 				<ScrollableText
+					mobileStatic
 					className={cn(
 						"text-[12px] text-fg",
 						inline ? "min-w-0 text-right" : "block max-w-full",
