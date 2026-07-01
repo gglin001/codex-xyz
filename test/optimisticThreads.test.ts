@@ -4,7 +4,10 @@ import {
 	applyOptimisticTurnDraft,
 	createOptimisticThreadDraft,
 	createOptimisticTurnDraft,
+	failOptimisticThreadState,
+	failOptimisticTurnDraft,
 	insertOptimisticThreadState,
+	isOptimisticThreadId,
 	rebaseOptimisticThreadDetail,
 	removeOptimisticThreadState,
 	replaceOptimisticThreadState,
@@ -242,6 +245,58 @@ describe("optimistic thread projection helpers", () => {
 		expect(nextState.threadTotalCount).toBe(1);
 	});
 
+	it("marks an optimistic thread as failed without removing the submitted prompt", () => {
+		const draft = createOptimisticThreadDraft({
+			id: "optimistic-thread-1",
+			cwd: "/work/coz",
+			prompt: "Ship the UI",
+			goalMode: false,
+			model: null,
+			latestEventId: 10,
+			now: createdAt,
+		});
+		const current: ClientProjection = {
+			state: insertOptimisticThreadState(state(), draft.thread),
+			detail: draft.detail,
+		};
+
+		const failed = failOptimisticThreadState(current, {
+			optimisticThreadId: draft.thread.id,
+			message: "app-server websocket closed",
+			now: updatedAt,
+		});
+
+		expect(failed.state.threads[0]).toMatchObject({
+			id: "optimistic-thread-1",
+			status: "system_error",
+			activeTurnId: null,
+			lastTurnStatus: "failed",
+		});
+		expect(failed.detail?.turns[0]).toMatchObject({
+			id: "optimistic-thread-1:turn",
+			status: "failed",
+			completedAt: updatedAt,
+		});
+		expect(failed.detail?.items).toMatchObject([
+			{
+				type: "user",
+				text: "Ship the UI",
+			},
+			{
+				type: "system",
+				text: "app-server websocket closed",
+				data: { localSubmissionError: true },
+			},
+		]);
+		expect(failed.detail?.itemTotalCount).toBe(2);
+	});
+
+	it("identifies local optimistic thread ids", () => {
+		expect(isOptimisticThreadId("optimistic-thread-1")).toBe(true);
+		expect(isOptimisticThreadId("thread-1")).toBe(false);
+		expect(isOptimisticThreadId(null)).toBe(false);
+	});
+
 	it("applies and resolves an optimistic turn on an existing idle thread", () => {
 		const baseThread = thread({
 			status: "idle",
@@ -340,6 +395,64 @@ describe("optimistic thread projection helpers", () => {
 			status: "active",
 			activeTurnId: "turn-1",
 		});
+	});
+
+	it("marks an optimistic turn as failed without removing the submitted prompt", () => {
+		const baseThread = thread({
+			status: "idle",
+			activeTurnId: null,
+			lastTurnStatus: "completed",
+		});
+		const projection: ClientProjection = {
+			state: state({ threads: [baseThread] }),
+			detail: {
+				...baseThread,
+				turns: [],
+				items: [],
+				itemTotalCount: 0,
+				itemPageSize: 0,
+				itemNextCursor: null,
+				itemHasMore: false,
+				latestEventId: 10,
+			},
+		};
+		const draft = createOptimisticTurnDraft({
+			thread: baseThread,
+			prompt: "Continue the work",
+			goalMode: false,
+			now: createdAt,
+		});
+
+		const optimistic = applyOptimisticTurnDraft(projection, draft);
+		const failed = failOptimisticTurnDraft(optimistic, {
+			draft,
+			previousThread: baseThread,
+			message: "turn/start timed out",
+			now: updatedAt,
+		});
+
+		expect(failed.state.threads[0]).toMatchObject({
+			status: "idle",
+			activeTurnId: null,
+			lastTurnStatus: "failed",
+		});
+		expect(failed.detail?.turns[0]).toMatchObject({
+			status: "failed",
+			prompt: "Continue the work",
+			completedAt: updatedAt,
+		});
+		expect(failed.detail?.items).toMatchObject([
+			{
+				type: "user",
+				text: "Continue the work",
+			},
+			{
+				type: "system",
+				text: "turn/start timed out",
+				data: { localSubmissionError: true },
+			},
+		]);
+		expect(failed.detail?.itemTotalCount).toBe(2);
 	});
 
 	it("restores a thread after an optimistic archive rollback", () => {

@@ -48,6 +48,10 @@ import {
 	tone,
 	ui,
 } from "../designSystem.js";
+import {
+	isOptimisticThreadId,
+	isOptimisticTurnId,
+} from "../optimisticThreads.js";
 import { getFirstLineTextPreview } from "../textPreview.js";
 import {
 	getTranscriptEntries,
@@ -149,8 +153,12 @@ type ChatMessage = {
 
 const overlayMotion = motionStates.overlay;
 const localMenuMotion = motionStates.localMenu;
-const listItemMotion = motionStates.listItem;
 const revealMotion = motionStates.reveal;
+const transcriptItemMotion = {
+	initial: { opacity: 1 },
+	animate: { opacity: 1 },
+	exit: { opacity: 1 },
+} as const;
 const threadContentFrameClass = "mx-auto w-full min-w-0 md:max-w-[72rem]";
 const transcriptCardPaddingClass = "px-0";
 const transcriptCardBodyPaddingClass = "px-0 pb-4 pt-1";
@@ -176,7 +184,8 @@ function messageFromItem(item: ThreadItem): ChatMessage {
 	const fallbackText = item.text || "Pending...";
 	return {
 		id: item.id,
-		name: itemTitle(item),
+		name:
+			item.data.localSubmissionError === true ? "Submission" : itemTitle(item),
 		text: fallbackText,
 		copyText: fallbackText,
 		time: item.createdAt,
@@ -742,6 +751,9 @@ const Composer = memo(
 	) {
 		const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 		const selectedThreadArchived = Boolean(selectedThread?.archivedAt);
+		const selectedThreadPendingSubmission =
+			isOptimisticThreadId(selectedThreadId) ||
+			isOptimisticTurnId(selectedThread?.activeTurnId);
 		const [moreActionsOpen, setMoreActionsOpen] = useState(false);
 		const submitTitle = goalMode
 			? codexThreadCommandLabels.goal
@@ -759,6 +771,9 @@ const Composer = memo(
 			}
 			if (selectedThreadArchived) {
 				return "Archived threads are view-only";
+			}
+			if (selectedThreadPendingSubmission) {
+				return "Wait for the submission to finish";
 			}
 			if (busy) {
 				return "Another action is running";
@@ -1408,23 +1423,14 @@ export const Workspace = memo(
 								className="mobile-custom-scroll mobile-transcript-scroll h-full min-h-0 overflow-x-hidden overflow-y-auto px-3 py-0 md:px-5 md:[scrollbar-gutter:stable]"
 							>
 								<ThreadContentFrame className="grid gap-[var(--transcript-gap)]">
-									<AnimatePresence initial={false}>
-										{entries.length === 0 ? (
-											<motion.div
-												key="empty-transcript"
-												className="min-w-0"
-												initial={listItemMotion.initial}
-												animate={listItemMotion.animate}
-												exit={listItemMotion.exit}
-												transition={motionPresets.item}
-											>
-												<EmptyTranscript
-													hasThread={Boolean(selectedThreadId)}
-													projectPath={project?.path ?? workdir}
-												/>
-											</motion.div>
-										) : null}
-									</AnimatePresence>
+									{entries.length === 0 ? (
+										<div className="min-w-0">
+											<EmptyTranscript
+												hasThread={Boolean(selectedThreadId)}
+												projectPath={project?.path ?? workdir}
+											/>
+										</div>
+									) : null}
 									{canLoadEarlierEntries ? (
 										<div className="flex justify-center">
 											<button
@@ -1453,10 +1459,10 @@ export const Workspace = memo(
 												key={entry.id}
 												className="min-w-0 scroll-mt-3 focus:outline-none"
 												{...transcriptItemDataAttributes(entry)}
-												initial={listItemMotion.initial}
-												animate={listItemMotion.animate}
-												exit={listItemMotion.exit}
-												transition={motionPresets.item}
+												initial={transcriptItemMotion.initial}
+												animate={transcriptItemMotion.animate}
+												exit={transcriptItemMotion.exit}
+												transition={motionPresets.fade}
 											>
 												<TranscriptEntryBlock
 													entry={entry}

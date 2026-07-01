@@ -19,6 +19,10 @@ export function createOptimisticThreadId() {
 	return `${optimisticThreadPrefix}${randomId}`;
 }
 
+export function isOptimisticThreadId(threadId: string | null | undefined) {
+	return Boolean(threadId?.startsWith(optimisticThreadPrefix));
+}
+
 function createOptimisticId(prefix: string) {
 	const randomId =
 		typeof globalThis.crypto?.randomUUID === "function"
@@ -253,6 +257,199 @@ export function removeOptimisticThreadState(
 		threadNextCursor: nextThreadCursor(threads, hasMore),
 		threadHasMore: hasMore,
 	};
+}
+
+function createFailureSystemItem(input: {
+	threadId: string;
+	turnId: string | null;
+	message: string;
+	now: string;
+}): ThreadItem {
+	return {
+		id: `${input.threadId}:submit-error`,
+		threadId: input.threadId,
+		turnId: input.turnId,
+		type: "system",
+		text: input.message,
+		data: {
+			localSubmissionError: true,
+		},
+		createdAt: input.now,
+	};
+}
+
+function localInProgressTurnId(detail: ThreadDetail | null, threadId: string) {
+	if (!detail || detail.id !== threadId) {
+		return null;
+	}
+	return (
+		detail.turns.find(
+			(turn) => turn.status === "in_progress" && isOptimisticTurnId(turn.id),
+		)?.id ?? null
+	);
+}
+
+export function failOptimisticThreadState(
+	projection: {
+		state: DashboardState;
+		detail: ThreadDetail | null;
+	},
+	input: {
+		optimisticThreadId: string;
+		message: string;
+		now?: string;
+	},
+) {
+	const now = input.now ?? new Date().toISOString();
+	const failedThread = projection.state.threads.find(
+		(thread) => thread.id === input.optimisticThreadId,
+	);
+	if (!failedThread) {
+		return projection;
+	}
+	const activeTurnId =
+		failedThread.activeTurnId ??
+		localInProgressTurnId(projection.detail, input.optimisticThreadId);
+	const thread: ControlThread = {
+		...failedThread,
+		status: "system_error",
+		activeTurnId: null,
+		lastTurnStatus: activeTurnId ? "failed" : failedThread.lastTurnStatus,
+		updatedAt: now,
+	};
+	const threads = projection.state.threads.map((candidate) =>
+		candidate.id === input.optimisticThreadId ? thread : candidate,
+	);
+	const detail =
+		projection.detail?.id === input.optimisticThreadId
+			? (() => {
+					const turns = activeTurnId
+						? projection.detail.turns.map((turn) =>
+								turn.id === activeTurnId
+									? {
+											...turn,
+											status: "failed" as const,
+											completedAt: now,
+										}
+									: turn,
+							)
+						: projection.detail.turns;
+					const hasFailureItem = projection.detail.items.some(
+						(item) => item.id === `${input.optimisticThreadId}:submit-error`,
+					);
+					const addedFailureItem = !hasFailureItem;
+					const items = hasFailureItem
+						? projection.detail.items
+						: [
+								...projection.detail.items,
+								createFailureSystemItem({
+									threadId: input.optimisticThreadId,
+									turnId: activeTurnId,
+									message: input.message,
+									now,
+								}),
+							];
+					return {
+						...projection.detail,
+						...thread,
+						turns,
+						items,
+						itemTotalCount:
+							projection.detail.itemTotalCount + (addedFailureItem ? 1 : 0),
+						itemPageSize: Math.max(
+							projection.detail.itemPageSize,
+							items.length,
+						),
+					};
+				})()
+			: projection.detail;
+	return {
+		state: {
+			...projection.state,
+			threads,
+		},
+		detail,
+	};
+}
+
+export function failOptimisticTurnDraft(
+	projection: {
+		state: DashboardState;
+		detail: ThreadDetail | null;
+	},
+	input: {
+		draft: ReturnType<typeof createOptimisticTurnDraft>;
+		previousThread: ControlThread;
+		message: string;
+		now?: string;
+	},
+) {
+	const now = input.now ?? new Date().toISOString();
+	const failedNewTurn = Boolean(input.draft.turn);
+	const thread: ControlThread = failedNewTurn
+		? {
+				...input.draft.thread,
+				status: "idle",
+				activeTurnId: null,
+				lastTurnStatus: "failed",
+				updatedAt: now,
+			}
+		: {
+				...input.draft.thread,
+				status: input.previousThread.status,
+				activeTurnId: input.previousThread.activeTurnId,
+				lastTurnStatus: input.previousThread.lastTurnStatus,
+				updatedAt: now,
+			};
+	const state = upsertThreadState(projection.state, thread);
+	const detail =
+		projection.detail?.id === thread.id
+			? (() => {
+					const turns = input.draft.turn
+						? projection.detail.turns.map((turn) =>
+								turn.id === input.draft.turnId
+									? {
+											...turn,
+											status: "failed" as const,
+											completedAt: now,
+										}
+									: turn,
+							)
+						: projection.detail.turns;
+					const failureItemId = `${input.draft.itemId}:submit-error`;
+					const hasFailureItem = projection.detail.items.some(
+						(item) => item.id === failureItemId,
+					);
+					const addedFailureItem = !hasFailureItem;
+					const items = hasFailureItem
+						? projection.detail.items
+						: [
+								...projection.detail.items,
+								{
+									...createFailureSystemItem({
+										threadId: thread.id,
+										turnId: input.draft.turnId,
+										message: input.message,
+										now,
+									}),
+									id: failureItemId,
+								},
+							];
+					return {
+						...projection.detail,
+						...thread,
+						turns,
+						items,
+						itemTotalCount:
+							projection.detail.itemTotalCount + (addedFailureItem ? 1 : 0),
+						itemPageSize: Math.max(
+							projection.detail.itemPageSize,
+							items.length,
+						),
+					};
+				})()
+			: projection.detail;
+	return { state, detail };
 }
 
 export function replaceOptimisticThreadState(

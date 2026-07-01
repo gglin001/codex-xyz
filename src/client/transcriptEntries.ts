@@ -34,6 +34,10 @@ function agentPhase(item: ThreadItem) {
 	return typeof item.data.phase === "string" ? item.data.phase : null;
 }
 
+function isLocalSubmissionError(item: ThreadItem) {
+	return item.data.localSubmissionError === true;
+}
+
 function turnKey(item: ThreadItem) {
 	return item.turnId ?? `thread:${item.threadId}`;
 }
@@ -69,6 +73,9 @@ export function isTranscriptProcessItem(
 	directAgentIds: Set<string>,
 ) {
 	if (item.type === "user" || item.type === "file") {
+		return false;
+	}
+	if (isLocalSubmissionError(item)) {
 		return false;
 	}
 

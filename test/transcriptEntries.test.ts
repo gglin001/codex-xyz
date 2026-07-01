@@ -124,4 +124,23 @@ describe("transcript entries", () => {
 			items: [{ id: "command-2" }],
 		});
 	});
+
+	it("keeps local submission errors on the main timeline", () => {
+		const entries = getTranscriptEntries([
+			item({ id: "user", type: "user", text: "Start a thread" }),
+			item({
+				id: "submit-error",
+				type: "system",
+				text: "app-server request timed out",
+				data: { localSubmissionError: true },
+			}),
+		]);
+
+		expect(entries).toHaveLength(2);
+		expect(entries[0]).toMatchObject({ kind: "item", item: { id: "user" } });
+		expect(entries[1]).toMatchObject({
+			kind: "item",
+			item: { id: "submit-error" },
+		});
+	});
 });

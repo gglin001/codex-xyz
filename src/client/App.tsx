@@ -64,13 +64,16 @@ import {
 	createOptimisticThreadDraft,
 	createOptimisticThreadId,
 	createOptimisticTurnDraft,
+	failOptimisticThreadState,
+	failOptimisticTurnDraft,
 	insertOptimisticThreadState,
+	isOptimisticThreadId,
+	isOptimisticTurnId,
 	rebaseOptimisticThreadDetail,
 	removeOptimisticThreadState,
 	replaceOptimisticThreadState,
 	resolveOptimisticTurnDraft,
 	restoreThreadState,
-	rollbackOptimisticTurnDraft,
 	shouldResolveOptimisticThread,
 } from "./optimisticThreads.js";
 import { isMacTerminalToggleShortcut } from "./terminalShortcut.js";
@@ -139,11 +142,8 @@ type DetailSubscription = {
 
 type OptimisticThreadSubmission = {
 	id: string;
-	previousThreadId: string | null;
-	prompt: string;
 	cwd: string;
 	name: string;
-	goalMode: boolean;
 	createdAt: string;
 	resolvedThreadId: string | null;
 };
@@ -838,6 +838,12 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				setSelectedThreadId(eventThread.id);
 				selectedThreadIdRef.current = eventThread.id;
 				setSelectedProjectId(eventThread.cwd);
+				if (nextDetail?.id === eventThread.id) {
+					setDetailSubscription({
+						threadId: eventThread.id,
+						after: nextDetail.latestEventId,
+					});
+				}
 			}
 			return;
 		}
@@ -1048,15 +1054,22 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		composerMode === "thread" && activeThread && !activeThread.archivedAt
 			? "thread"
 			: "new";
+	const activeThreadPendingSubmission =
+		activeThreadId === optimisticThreadRef.current?.id ||
+		activeThreadId === optimisticThreadRef.current?.resolvedThreadId ||
+		isOptimisticThreadId(activeThreadId) ||
+		isOptimisticTurnId(activeThread?.activeTurnId);
 	const trimmedWorkdir = workdir.trim();
 	const canUseGoalMode =
 		promptTarget === "new"
 			? Boolean(trimmedWorkdir)
-			: Boolean(activeThreadId) && activeThread?.status === "idle";
+			: Boolean(activeThreadId) &&
+				!activeThreadPendingSubmission &&
+				activeThread?.status === "idle";
 	const canSubmitTurnPrompt = goalMode
 		? canUseGoalMode
 		: promptTarget === "thread"
-			? Boolean(activeThreadId)
+			? Boolean(activeThreadId) && !activeThreadPendingSubmission
 			: Boolean(trimmedWorkdir);
 	const canSubmitPrompt =
 		Boolean(prompt.trim()) && !busy && canSubmitTurnPrompt;
@@ -1288,7 +1301,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		const cwd = trimmedWorkdir;
 		const submittedPrompt = currentPrompt.trim();
 		const optimisticThreadId = createOptimisticThreadId();
-		const previousThreadId = activeThreadId;
 		const creatingGoalMode = goalMode;
 		const model = activeThread?.model ?? selectedWorkbenchThread?.model ?? null;
 		const draft = createOptimisticThreadDraft({
@@ -1304,11 +1316,8 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		});
 		const submission: OptimisticThreadSubmission = {
 			id: optimisticThreadId,
-			previousThreadId,
-			prompt: submittedPrompt,
 			cwd,
 			name: draft.thread.name,
-			goalMode: creatingGoalMode,
 			createdAt: draft.thread.createdAt,
 			resolvedThreadId: null,
 		};
@@ -1316,9 +1325,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		optimisticThreadRef.current = submission;
 		beginManualSelection();
 		beginDetailLoad();
-		setBusyAction(
-			creatingGoalMode ? "Creating goal thread" : "Creating thread",
-		);
 		setError(null);
 		setNotice(null);
 		setComposerMode("thread");
@@ -1394,94 +1400,52 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				setSelectedProjectId(project?.id ?? thread.cwd);
 			}
 
-			if (selectedThreadIdRef.current === thread.id) {
-				try {
-					await loadThreadDetail(thread.id);
-				} catch (loadError) {
-					if (selectedThreadIdRef.current === thread.id) {
-						setError(
-							loadError instanceof Error
-								? loadError.message
-								: "Failed to load thread",
-						);
-					}
-				}
+			if (
+				selectedThreadIdRef.current === thread.id &&
+				nextDetail?.id === thread.id
+			) {
+				setDetailSubscription({
+					threadId: thread.id,
+					after: nextDetail.latestEventId,
+				});
 			}
 		} catch (actionError) {
+			const message =
+				actionError instanceof Error
+					? actionError.message
+					: "Failed to create thread";
 			const pending = optimisticThreadRef.current;
 			if (pending?.id === optimisticThreadId) {
 				optimisticThreadRef.current = null;
 			}
 			if (pending?.resolvedThreadId) {
-				if (selectedThreadIdRef.current === pending.resolvedThreadId) {
-					void loadThreadDetail(pending.resolvedThreadId).catch(() => {
-						if (selectedThreadIdRef.current === pending.resolvedThreadId) {
-							scheduleFallbackRefresh();
-						}
-					});
-				}
-				setError(
-					actionError instanceof Error
-						? actionError.message
-						: "Failed to create thread",
+				commitProjection(
+					failOptimisticThreadState(projectionRef.current, {
+						optimisticThreadId: pending.resolvedThreadId,
+						message,
+					}),
 				);
+				setError(message);
 				return;
 			}
-			const nextState = removeOptimisticThreadState(
-				projectionRef.current.state,
-				optimisticThreadId,
-			);
 			const optimisticSelected =
 				selectedThreadIdRef.current === optimisticThreadId;
-			const fallbackThreadId =
-				submission.previousThreadId &&
-				nextState.threads.some(
-					(thread) => thread.id === submission.previousThreadId,
-				)
-					? submission.previousThreadId
-					: (nextState.threads[0]?.id ?? null);
-			const nextDetail =
-				projectionRef.current.detail?.id === optimisticThreadId
-					? null
-					: projectionRef.current.detail;
-			commitProjection({
-				state: nextState,
-				detail: nextDetail,
-			});
-			if (optimisticSelected) {
-				setComposerMode("new");
-				setGoalMode(submission.goalMode);
-				setPrompt(submission.prompt);
-				writeStoredPromptDraft(submission.prompt);
-				setWorkdir(submission.cwd);
-				setWorkdirTouched(true);
-				setSelectedThreadId(fallbackThreadId);
-				selectedThreadIdRef.current = fallbackThreadId;
-				if (fallbackThreadId) {
-					const project = findProjectForThread(
-						buildWorkbenchProjects(nextState.threads, nextState.defaultCwd),
-						fallbackThreadId,
-					);
-					if (project) {
-						setSelectedProjectId(project.id);
-					}
-					void loadThreadDetail(fallbackThreadId).catch(() => {
-						if (selectedThreadIdRef.current === fallbackThreadId) {
-							clearDetail();
-						}
-					});
-				} else {
-					beginDetailLoad();
-					clearDetail();
-				}
-			}
-			setError(
-				actionError instanceof Error
-					? actionError.message
-					: "Failed to create thread",
+			commitProjection(
+				failOptimisticThreadState(projectionRef.current, {
+					optimisticThreadId,
+					message,
+				}),
 			);
-		} finally {
-			setBusyAction(null);
+			if (optimisticSelected) {
+				setComposerMode("thread");
+				setGoalMode(false);
+				setWorkdir(submission.cwd);
+				setWorkdirTouched(false);
+				setSelectedProjectId(submission.cwd);
+				setSelectedThreadId(optimisticThreadId);
+				selectedThreadIdRef.current = optimisticThreadId;
+			}
+			setError(message);
 		}
 	}
 
@@ -1523,7 +1487,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		setComposerMode("thread");
 		setError(null);
 		setNotice(null);
-		setBusyAction(input.goalMode ? "Starting goal mode" : "Starting turn");
 
 		try {
 			const result = input.goalMode
@@ -1546,28 +1509,25 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				);
 			}
 			writeStoredPromptDraft("");
-			if (selectedThreadIdRef.current === input.threadId) {
-				void loadThreadDetail(input.threadId).catch(() => {
-					if (selectedThreadIdRef.current === input.threadId) {
-						scheduleFallbackRefresh();
-					}
-				});
-			}
 		} catch (actionError) {
+			const message =
+				actionError instanceof Error
+					? actionError.message
+					: input.goalMode
+						? "Failed to start goal mode"
+						: "Failed to start turn";
 			const turnStillPending = optimisticTurnsRef.current.some(
 				(submission) => submission.turnId === draft.turnId,
 			);
 			removeOptimisticTurn(draft.turnId);
 			if (turnStillPending) {
 				commitProjection(
-					rollbackOptimisticTurnDraft(projectionRef.current, {
+					failOptimisticTurnDraft(projectionRef.current, {
 						draft,
 						previousThread: currentThread,
+						message,
 					}),
 				);
-				setPrompt(input.prompt);
-				writeStoredPromptDraft(input.prompt);
-				setGoalMode(input.goalMode);
 			} else if (selectedThreadIdRef.current === input.threadId) {
 				void loadThreadDetail(input.threadId).catch(() => {
 					if (selectedThreadIdRef.current === input.threadId) {
@@ -1575,15 +1535,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 					}
 				});
 			}
-			setError(
-				actionError instanceof Error
-					? actionError.message
-					: input.goalMode
-						? "Failed to start goal mode"
-						: "Failed to start turn",
-			);
-		} finally {
-			setBusyAction(null);
+			setError(message);
 		}
 	}
 
@@ -1775,6 +1727,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			}
 			const threadId = activeThreadId;
 			setPrompt("");
+			writeStoredPromptDraft("");
 			setComposerMode("thread");
 			setGoalMode(false);
 			void startTurnOptimistically({
@@ -1786,6 +1739,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		}
 
 		setPrompt("");
+		writeStoredPromptDraft("");
 
 		if (promptTarget === "thread" && activeThreadId) {
 			const threadId = activeThreadId;
