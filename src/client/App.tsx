@@ -90,6 +90,7 @@ import {
 	shouldLoadThreadSelection,
 	shouldSelectActionResult,
 } from "./threadSelection.js";
+import { useDateTimeFormatMode } from "./useDateTimeFormatMode.js";
 
 const transientAlertAutoDismissMs = 10_000;
 const archivedSearchPageSize = 200;
@@ -304,6 +305,7 @@ export type AppProps = {
 export function App({ initialState: serverInitialState }: AppProps) {
 	const appInitialState = serverInitialState ?? initialState();
 	const appInitialSelection = initialSelection(appInitialState);
+	const dateTimeFormatMode = useDateTimeFormatMode();
 	const [state, setState] = useState<DashboardState>(() => appInitialState);
 	const [selectedThreadId, setSelectedThreadId] = useState<string | null>(
 		() => appInitialSelection.selectedThreadId,
@@ -1026,8 +1028,11 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	}, [archivedThreads, shouldSearchArchivedThreads, state.threads]);
 
 	const workbenchProjects = useMemo(
-		() => buildWorkbenchProjects(searchableThreads, state.defaultCwd),
-		[searchableThreads, state.defaultCwd],
+		() =>
+			buildWorkbenchProjects(searchableThreads, state.defaultCwd, {
+				dateTimeFormatMode,
+			}),
+		[searchableThreads, state.defaultCwd, dateTimeFormatMode],
 	);
 	const selectedProject =
 		workbenchProjects.find((project) => project.id === selectedProjectId) ??
@@ -1940,6 +1945,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				onListBackgroundTerminals={listSelectedBackgroundTerminals}
 				onCleanBackgroundTerminals={cleanSelectedBackgroundTerminals}
 				onRestartCodexAppServer={restartCodexAppServerFromSettings}
+				dateTimeFormatMode={dateTimeFormatMode}
 			/>
 			<Suspense fallback={null}>
 				{terminalVisible ? (

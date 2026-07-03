@@ -1,16 +1,25 @@
 import { Star } from "lucide-react";
 import { memo } from "react";
 import { cn } from "../designSystem.js";
-import { formatFullDateTime, formatTokens, statusLabel } from "../uiFormat.js";
+import {
+	type DateTimeFormatMode,
+	formatFullDateTime,
+	formatTokens,
+	statusLabel,
+} from "../uiFormat.js";
 import { ThreadStatusIcon, threadStatusDotClass } from "./threadStatusIcon.js";
 import { ScrollableText } from "./uiPrimitives.js";
 import type { WorkbenchThread } from "./workbenchTypes.js";
 
-function threadDetailParts(thread: WorkbenchThread, projectName?: string) {
+function threadDetailParts(
+	thread: WorkbenchThread,
+	projectName?: string,
+	dateTimeFormatMode: DateTimeFormatMode = "utc",
+) {
 	return [
 		`${formatTokens(thread.tokensUsed)} tk`,
 		statusLabel(thread.status),
-		formatFullDateTime(thread.updatedAt),
+		formatFullDateTime(thread.updatedAt, dateTimeFormatMode),
 		projectName,
 	].filter(Boolean);
 }
@@ -18,10 +27,11 @@ function threadDetailParts(thread: WorkbenchThread, projectName?: string) {
 export function threadResultTitle(
 	thread: WorkbenchThread,
 	projectName?: string,
+	dateTimeFormatMode: DateTimeFormatMode = "utc",
 ) {
 	return [
 		thread.name,
-		threadDetailParts(thread, projectName).join(" / "),
+		threadDetailParts(thread, projectName, dateTimeFormatMode).join(" / "),
 		thread.preview,
 		thread.cwd,
 	]
@@ -32,6 +42,7 @@ export function threadResultTitle(
 export function threadResultSearchText(
 	thread: WorkbenchThread,
 	projectName?: string,
+	dateTimeFormatMode: DateTimeFormatMode = "utc",
 ) {
 	return [
 		thread.name,
@@ -46,7 +57,7 @@ export function threadResultSearchText(
 		thread.lastTurnStatus ?? "",
 		thread.lastTurnStatus ? statusLabel(thread.lastTurnStatus) : "",
 		thread.archivedAt ? "archive archived" : "",
-		formatFullDateTime(thread.updatedAt),
+		formatFullDateTime(thread.updatedAt, dateTimeFormatMode),
 		formatTokens(thread.tokensUsed),
 	]
 		.filter(Boolean)
@@ -89,15 +100,21 @@ export const ThreadResultRow = memo(function ThreadResultRow({
 	projectName,
 	showStatusIcon = true,
 	mobileStaticText = false,
+	dateTimeFormatMode = "utc",
 	className,
 }: {
 	thread: WorkbenchThread;
 	projectName?: string;
 	showStatusIcon?: boolean;
 	mobileStaticText?: boolean;
+	dateTimeFormatMode?: DateTimeFormatMode;
 	className?: string;
 }) {
-	const detailParts = threadDetailParts(thread, projectName);
+	const detailParts = threadDetailParts(
+		thread,
+		projectName,
+		dateTimeFormatMode,
+	);
 	return (
 		<span className={cn("flex min-w-0 flex-1 items-start gap-2", className)}>
 			{showStatusIcon ? (

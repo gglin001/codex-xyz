@@ -59,6 +59,7 @@ import {
 	type TranscriptProcessEntry,
 } from "../transcriptEntries.js";
 import {
+	type DateTimeFormatMode,
 	formatTime,
 	formatTokens,
 	itemTitle,
@@ -122,6 +123,7 @@ export type WorkspaceProps = {
 	onToggleNavigator: () => void;
 	onToggleInspector: () => void;
 	onOpenCommands?: () => void;
+	dateTimeFormatMode?: DateTimeFormatMode;
 };
 
 const useAutosizeLayoutEffect =
@@ -221,8 +223,11 @@ function processPreview(entry: TranscriptProcessEntry) {
 	return getFirstLineTextPreview(lastText.trim() || "No output yet");
 }
 
-function messageMeta(message: ChatMessage) {
-	return formatTime(message.time);
+function messageMeta(
+	message: ChatMessage,
+	dateTimeFormatMode: DateTimeFormatMode,
+) {
+	return formatTime(message.time, dateTimeFormatMode);
 }
 
 function messageCardTitle(message: ChatMessage) {
@@ -467,9 +472,11 @@ const DismissibleAlert = memo(function DismissibleAlert({
 const MessageBlock = memo(function MessageBlock({
 	message,
 	wrapContent,
+	dateTimeFormatMode,
 }: {
 	message: ChatMessage;
 	wrapContent: boolean;
+	dateTimeFormatMode: DateTimeFormatMode;
 }) {
 	const [expanded, setExpanded] = useState(true);
 	const preview = getFirstLineTextPreview(message.text || "Pending...");
@@ -479,7 +486,7 @@ const MessageBlock = memo(function MessageBlock({
 			title={messageCardTitle(message)}
 			expanded={expanded}
 			onToggle={() => setExpanded((current) => !current)}
-			meta={headerMeta(messageMeta(message))}
+			meta={headerMeta(messageMeta(message, dateTimeFormatMode))}
 			actions={<CopyTextButton value={message.copyText} />}
 			preview={
 				<div className="truncate text-[12px] leading-5 text-muted">
@@ -511,16 +518,23 @@ const MessageBlock = memo(function MessageBlock({
 const TranscriptEntryBlock = memo(function TranscriptEntryBlock({
 	entry,
 	wrapContent,
+	dateTimeFormatMode,
 }: {
 	entry: TranscriptEntry;
 	wrapContent: boolean;
+	dateTimeFormatMode: DateTimeFormatMode;
 }) {
 	return entry.kind === "process" ? (
-		<ProcessOutputBlock entry={entry} wrapContent={wrapContent} />
+		<ProcessOutputBlock
+			entry={entry}
+			wrapContent={wrapContent}
+			dateTimeFormatMode={dateTimeFormatMode}
+		/>
 	) : (
 		<MessageBlock
 			message={messageFromItem(entry.item)}
 			wrapContent={wrapContent}
+			dateTimeFormatMode={dateTimeFormatMode}
 		/>
 	);
 });
@@ -528,9 +542,11 @@ const TranscriptEntryBlock = memo(function TranscriptEntryBlock({
 const ProcessItemBlock = memo(function ProcessItemBlock({
 	message,
 	wrapContent,
+	dateTimeFormatMode,
 }: {
 	message: ChatMessage;
 	wrapContent: boolean;
+	dateTimeFormatMode: DateTimeFormatMode;
 }) {
 	const [expanded, setExpanded] = useState(false);
 	const preview = getFirstLineTextPreview(message.text || "Pending...");
@@ -540,7 +556,7 @@ const ProcessItemBlock = memo(function ProcessItemBlock({
 			title={message.name}
 			expanded={expanded}
 			onToggle={() => setExpanded((current) => !current)}
-			meta={headerMeta(messageMeta(message))}
+			meta={headerMeta(messageMeta(message, dateTimeFormatMode))}
 			actions={<CopyTextButton value={message.copyText} />}
 			preview={
 				<div className="truncate text-[11px] leading-5 text-muted">
@@ -573,9 +589,11 @@ const ProcessItemBlock = memo(function ProcessItemBlock({
 const ProcessOutputBlock = memo(function ProcessOutputBlock({
 	entry,
 	wrapContent,
+	dateTimeFormatMode,
 }: {
 	entry: TranscriptProcessEntry;
 	wrapContent: boolean;
+	dateTimeFormatMode: DateTimeFormatMode;
 }) {
 	const [expanded, setExpanded] = useState(false);
 	const messages = useMemo(
@@ -583,7 +601,10 @@ const ProcessOutputBlock = memo(function ProcessOutputBlock({
 		[entry.items, expanded],
 	);
 	const itemCountLabel = `${entry.items.length} ${entry.items.length === 1 ? "event" : "events"}`;
-	const metaLabel = `${itemCountLabel} / ${formatTime(entry.createdAt)}`;
+	const metaLabel = `${itemCountLabel} / ${formatTime(
+		entry.createdAt,
+		dateTimeFormatMode,
+	)}`;
 	const preview = useMemo(() => processPreview(entry), [entry]);
 	const copyText = useMemo(
 		() =>
@@ -620,6 +641,7 @@ const ProcessOutputBlock = memo(function ProcessOutputBlock({
 					key={message.id}
 					message={message}
 					wrapContent={wrapContent}
+					dateTimeFormatMode={dateTimeFormatMode}
 				/>
 			))}
 		</CollapsibleCard>
@@ -1157,6 +1179,7 @@ export const Workspace = memo(
 			onToggleNavigator,
 			onToggleInspector,
 			onOpenCommands,
+			dateTimeFormatMode = "utc",
 		},
 		ref,
 	) {
@@ -1467,6 +1490,7 @@ export const Workspace = memo(
 												<TranscriptEntryBlock
 													entry={entry}
 													wrapContent={wrapThreadContent}
+													dateTimeFormatMode={dateTimeFormatMode}
 												/>
 											</motion.div>
 										))}

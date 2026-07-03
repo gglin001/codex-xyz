@@ -31,21 +31,6 @@ export const viewport: Viewport = {
 	],
 };
 
-const themeBootScript = `
-(() => {
-  try {
-    const mode = window.localStorage.getItem("coz-theme-mode") === "day" ? "day" : "dark";
-    const chromeColor = mode === "day" ? "#e8e9e6" : "#161718";
-    document.documentElement.dataset.theme = mode;
-    for (const meta of document.querySelectorAll('meta[name="theme-color"]')) {
-      meta.setAttribute("content", chromeColor);
-    }
-  } catch {
-    document.documentElement.dataset.theme = "dark";
-  }
-})();
-`;
-
 export default function RootLayout({
 	children,
 }: {
@@ -54,7 +39,6 @@ export default function RootLayout({
 	return (
 		<html lang="en" data-theme="dark" suppressHydrationWarning>
 			<body data-app-shell="coz">
-				<script suppressHydrationWarning>{themeBootScript}</script>
 				{children}
 			</body>
 		</html>

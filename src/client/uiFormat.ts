@@ -19,42 +19,70 @@ const shortMonthNames = [
 	"Dec",
 ] as const;
 
-const standardTokenFormatter = new Intl.NumberFormat(undefined, {
+export type DateTimeFormatMode = "utc" | "local";
+
+const standardTokenFormatter = new Intl.NumberFormat("en-US", {
 	notation: "standard",
 });
 
-const compactTokenFormatter = new Intl.NumberFormat(undefined, {
+const compactTokenFormatter = new Intl.NumberFormat("en-US", {
 	notation: "compact",
 });
 
-export function formatTime(value: string) {
-	return formatFullDateTime(value);
+export function formatTime(
+	value: string,
+	dateTimeFormatMode: DateTimeFormatMode = "utc",
+) {
+	return formatFullDateTime(value, dateTimeFormatMode);
 }
 
-export function formatDateTime(value: string) {
-	return formatFullDateTime(value);
+export function formatDateTime(
+	value: string,
+	dateTimeFormatMode: DateTimeFormatMode = "utc",
+) {
+	return formatFullDateTime(value, dateTimeFormatMode);
 }
 
-export function formatFullDateTime(value: string) {
+export function formatFullDateTime(
+	value: string,
+	dateTimeFormatMode: DateTimeFormatMode = "utc",
+) {
 	const date = new Date(value);
 	if (Number.isNaN(date.getTime())) {
 		return value;
 	}
-	const month = shortMonthNames[date.getMonth()];
-	const year = date.getFullYear();
-	const day = date.getDate();
-	const hour = String(date.getHours()).padStart(2, "0");
-	const minute = String(date.getMinutes()).padStart(2, "0");
+	const monthIndex =
+		dateTimeFormatMode === "utc" ? date.getUTCMonth() : date.getMonth();
+	const month = shortMonthNames[monthIndex];
+	const year =
+		dateTimeFormatMode === "utc" ? date.getUTCFullYear() : date.getFullYear();
+	const day =
+		dateTimeFormatMode === "utc" ? date.getUTCDate() : date.getDate();
+	const hour = String(
+		dateTimeFormatMode === "utc" ? date.getUTCHours() : date.getHours(),
+	).padStart(2, "0");
+	const minute = String(
+		dateTimeFormatMode === "utc" ? date.getUTCMinutes() : date.getMinutes(),
+	).padStart(2, "0");
 	return `${month} ${day}, ${year} ${hour}:${minute}`;
 }
 
-export function formatDate(value: string) {
+export function formatDate(
+	value: string,
+	dateTimeFormatMode: DateTimeFormatMode = "utc",
+) {
 	const date = new Date(value);
 	if (Number.isNaN(date.getTime())) {
 		return value;
 	}
-	const month = shortMonthNames[date.getMonth()];
-	return `${month} ${date.getDate()}, ${date.getFullYear()}`;
+	const monthIndex =
+		dateTimeFormatMode === "utc" ? date.getUTCMonth() : date.getMonth();
+	const month = shortMonthNames[monthIndex];
+	const day =
+		dateTimeFormatMode === "utc" ? date.getUTCDate() : date.getDate();
+	const year =
+		dateTimeFormatMode === "utc" ? date.getUTCFullYear() : date.getFullYear();
+	return `${month} ${day}, ${year}`;
 }
 
 export function formatTokens(value: number | null | undefined) {

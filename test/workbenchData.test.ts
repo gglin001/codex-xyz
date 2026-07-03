@@ -108,6 +108,21 @@ describe("workbench project data", () => {
 		expect(findProjectForThread(projects, null)).toBeNull();
 	});
 
+	it("buckets thread dates in UTC by default", () => {
+		const projects = buildWorkbenchProjects(
+			[
+				thread({
+					id: "late-yesterday",
+					updatedAt: "2026-06-12T23:30:00.000Z",
+				}),
+			],
+			"/work/coz",
+			{ now: new Date("2026-06-13T00:30:00.000Z") },
+		);
+
+		expect(projects[0]?.threads[0]?.dateBucket).toBe("Yesterday");
+	});
+
 	it("uses a stable fallback path for an empty default cwd", () => {
 		expect(emptyWorkbenchProject("")).toMatchObject({
 			id: "No workspace",

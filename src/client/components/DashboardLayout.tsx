@@ -38,6 +38,7 @@ import {
 } from "../designSystem.js";
 import { isPromptFocusShortcut } from "../promptShortcut.js";
 import { nextThemeMode, type ThemeMode, themeModeLabels } from "../theme.js";
+import type { DateTimeFormatMode } from "../uiFormat.js";
 import { useFullscreen } from "../useFullscreen.js";
 import { useMobileLongPressSelectionGuard } from "../useMobileLongPressSelectionGuard.js";
 import { useMobileViewportGeometry } from "../useMobileViewportGeometry.js";
@@ -112,6 +113,7 @@ export type DashboardLayoutProps = {
 	onListBackgroundTerminals: () => void;
 	onCleanBackgroundTerminals: () => void;
 	onRestartCodexAppServer: () => void;
+	dateTimeFormatMode?: DateTimeFormatMode;
 };
 
 type CommandActionBase = {
@@ -762,6 +764,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 	onListBackgroundTerminals,
 	onCleanBackgroundTerminals,
 	onRestartCodexAppServer,
+	dateTimeFormatMode = "utc",
 }: DashboardLayoutProps) {
 	const [mobileSheet, setMobileSheet] = useState<MobileSheet | null>(null);
 	const [commandOpen, setCommandOpen] = useState(false);
@@ -1212,6 +1215,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 			onSelectThread={onSelectThread}
 			onCreateThread={createThreadAndFocusPrompt}
 			footer={sidebarFooter}
+			dateTimeFormatMode={dateTimeFormatMode}
 		/>
 	);
 
@@ -1303,6 +1307,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 							onToggleNavigator={toggleNavigator}
 							onToggleInspector={toggleInspector}
 							onOpenCommands={toggleCommandPalette}
+							dateTimeFormatMode={dateTimeFormatMode}
 						/>
 					</div>
 
@@ -1367,6 +1372,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 						onToggleNavigator={() => openMobileSheet("navigator")}
 						onToggleInspector={() => openMobileSheet("inspector")}
 						onOpenCommands={toggleCommandPalette}
+						dateTimeFormatMode={dateTimeFormatMode}
 					/>
 				</div>
 			) : null}
@@ -1431,6 +1437,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 										createThreadAndFocusPrompt();
 										closeMobileSheet({ restoreFocus: false });
 									}}
+									dateTimeFormatMode={dateTimeFormatMode}
 								/>
 							) : (
 								<ParamPanel

@@ -2,6 +2,7 @@ import {
 	type ControlThread,
 	threadDisplayStatus,
 } from "../../server/domain.js";
+import type { DateTimeFormatMode } from "../uiFormat.js";
 import type {
 	DateBucket,
 	ProjectAccent,
@@ -11,21 +12,69 @@ import type {
 
 const accentCycle: ProjectAccent[] = ["emerald", "violet", "sky", "slate"];
 
-function bucketForDate(value: string, now = new Date()): DateBucket {
+type WorkbenchProjectOptions = {
+	dateTimeFormatMode?: DateTimeFormatMode;
+	now?: Date;
+};
+
+function startOfDayTime(date: Date, dateTimeFormatMode: DateTimeFormatMode) {
+	if (dateTimeFormatMode === "utc") {
+		return Date.UTC(
+			date.getUTCFullYear(),
+			date.getUTCMonth(),
+			date.getUTCDate(),
+		);
+	}
+	return new Date(
+		date.getFullYear(),
+		date.getMonth(),
+		date.getDate(),
+	).getTime();
+}
+
+function startOfPreviousDayTime(
+	date: Date,
+	dateTimeFormatMode: DateTimeFormatMode,
+) {
+	if (dateTimeFormatMode === "utc") {
+		return (
+			Date.UTC(
+				date.getUTCFullYear(),
+				date.getUTCMonth(),
+				date.getUTCDate(),
+			) -
+			24 * 60 * 60 * 1000
+		);
+	}
+	const previousDay = new Date(
+		date.getFullYear(),
+		date.getMonth(),
+		date.getDate(),
+	);
+	previousDay.setDate(previousDay.getDate() - 1);
+	return previousDay.getTime();
+}
+
+function bucketForDate(
+	value: string,
+	{
+		dateTimeFormatMode = "utc",
+		now = new Date(),
+	}: WorkbenchProjectOptions = {},
+): DateBucket {
 	const date = new Date(value);
 	if (Number.isNaN(date.getTime())) {
 		return "Older";
 	}
 
-	const startOfToday = new Date(now);
-	startOfToday.setHours(0, 0, 0, 0);
-	const startOfYesterday = new Date(startOfToday);
-	startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+	const startOfToday = startOfDayTime(now, dateTimeFormatMode);
+	const startOfYesterday = startOfPreviousDayTime(now, dateTimeFormatMode);
+	const dateTime = date.getTime();
 
-	if (date >= startOfToday) {
+	if (dateTime >= startOfToday) {
 		return "Today";
 	}
-	if (date >= startOfYesterday) {
+	if (dateTime >= startOfYesterday) {
 		return "Yesterday";
 	}
 	return "Older";
@@ -64,7 +113,10 @@ function stableIndex(value: string, modulo: number) {
 	return hash;
 }
 
-function workbenchThreadFromThread(thread: ControlThread): WorkbenchThread {
+function workbenchThreadFromThread(
+	thread: ControlThread,
+	options: WorkbenchProjectOptions = {},
+): WorkbenchThread {
 	return {
 		id: thread.id,
 		threadId: thread.id,
@@ -86,7 +138,7 @@ function workbenchThreadFromThread(thread: ControlThread): WorkbenchThread {
 		archivedAt: thread.archivedAt,
 		createdAt: thread.createdAt,
 		updatedAt: thread.updatedAt,
-		dateBucket: bucketForDate(thread.updatedAt),
+		dateBucket: bucketForDate(thread.updatedAt, options),
 		thread,
 	};
 }
@@ -128,11 +180,12 @@ export function emptyWorkbenchProject(defaultCwd: string): WorkbenchProject {
 export function buildWorkbenchProjects(
 	threads: ControlThread[],
 	defaultCwd: string,
+	options: WorkbenchProjectOptions = {},
 ): WorkbenchProject[] {
 	const grouped = new Map<string, WorkbenchThread[]>();
 
 	for (const thread of threads) {
-		const workbenchThread = workbenchThreadFromThread(thread);
+		const workbenchThread = workbenchThreadFromThread(thread, options);
 		const key = workbenchThread.cwd;
 		const projectThreads = grouped.get(key);
 		if (projectThreads) {

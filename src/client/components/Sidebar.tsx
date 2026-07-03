@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { memo, useId, useMemo, useRef, useState } from "react";
 import { codexThreadCommandLabels } from "../codexCommandLabels.js";
 import { cn, layer, motionPresets, motionStates, ui } from "../designSystem.js";
+import type { DateTimeFormatMode } from "../uiFormat.js";
 import { MobileFloatingScroller } from "./MobileFloatingScroller.js";
 import { ProjectResultRow, projectResultTitle } from "./ProjectResultRow.js";
 import {
@@ -38,19 +39,24 @@ export type SidebarProps = {
 	onSelectThread: (thread: WorkbenchThread) => void;
 	onCreateThread: () => void;
 	footer?: ReactNode;
+	dateTimeFormatMode?: DateTimeFormatMode;
 };
 
 const bucketOrder: DateBucket[] = ["Today", "Yesterday", "Older"];
 
-function filterThreads(project: WorkbenchProject, query: string) {
+function filterThreads(
+	project: WorkbenchProject,
+	query: string,
+	dateTimeFormatMode: DateTimeFormatMode,
+) {
 	const queryTokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
 	if (queryTokens.length === 0) {
 		return project.threads;
 	}
 	return project.threads.filter((thread) => {
-		const fields = [threadResultSearchText(thread)].map((field) =>
-			field.toLowerCase(),
-		);
+		const fields = [
+			threadResultSearchText(thread, undefined, dateTimeFormatMode),
+		].map((field) => field.toLowerCase());
 		return queryTokens.every((token) =>
 			fields.some((field) => field.includes(token)),
 		);
@@ -84,6 +90,7 @@ export const Sidebar = memo(function Sidebar({
 	onSelectThread,
 	onCreateThread,
 	footer,
+	dateTimeFormatMode = "utc",
 }: SidebarProps) {
 	const threadListRef = useRef<HTMLDivElement | null>(null);
 	const threadListId = useId();
@@ -91,8 +98,11 @@ export const Sidebar = memo(function Sidebar({
 	const selectedProject =
 		projects.find((project) => project.id === selectedProjectId) ?? projects[0];
 	const visibleThreads = useMemo(
-		() => (selectedProject ? filterThreads(selectedProject, threadQuery) : []),
-		[selectedProject, threadQuery],
+		() =>
+			selectedProject
+				? filterThreads(selectedProject, threadQuery, dateTimeFormatMode)
+				: [],
+		[selectedProject, threadQuery, dateTimeFormatMode],
 	);
 	const threadGroups = useMemo(
 		() => groupThreads(visibleThreads),
@@ -237,10 +247,18 @@ export const Sidebar = memo(function Sidebar({
 													"group w-full items-start gap-2 px-2.5 py-1",
 												)}
 												selected={selected}
-												name={threadResultTitle(thread)}
+												name={threadResultTitle(
+													thread,
+													undefined,
+													dateTimeFormatMode,
+												)}
 												onClick={() => onSelectThread(thread)}
 											>
-												<ThreadResultRow thread={thread} mobileStaticText />
+												<ThreadResultRow
+													thread={thread}
+													mobileStaticText
+													dateTimeFormatMode={dateTimeFormatMode}
+												/>
 											</NavAction>
 										);
 									})}
