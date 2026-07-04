@@ -36,6 +36,7 @@ import {
 	yoloThreadOptions,
 	yoloTurnOptions,
 } from "./appServerProtocol.js";
+import type { LocalWebSearch } from "./localWebSearch.js";
 import type {
 	CodexAppServerRestartResult,
 	CodexRuntime,
@@ -78,6 +79,7 @@ export type AppServerRuntimeOptions = {
 	debugLogLevel?: number | null;
 	socketPath?: string | null;
 	pidPath?: string | null;
+	localWebSearch?: LocalWebSearch | null;
 };
 
 type AppServerPersistentTransportOptions = {
@@ -150,6 +152,7 @@ export class AppServerRuntime implements CodexRuntime {
 	private initialized = false;
 	private readonly debugLogger: AppServerDebugLogger | null;
 	private readonly persistent: AppServerPersistentTransportOptions;
+	private readonly localWebSearch: LocalWebSearch | null;
 
 	constructor(
 		private readonly command = process.env.COZ_CODEX_BIN ?? "codex",
@@ -170,6 +173,7 @@ export class AppServerRuntime implements CodexRuntime {
 			options.debugLogPath && debugLogLevel > 0
 				? new AppServerDebugLogger(options.debugLogPath, debugLogLevel)
 				: null;
+		this.localWebSearch = options.localWebSearch ?? null;
 	}
 
 	onEvent(handler: RuntimeEventHandler) {
@@ -177,12 +181,14 @@ export class AppServerRuntime implements CodexRuntime {
 	}
 
 	async startThread(input: StartThreadInput): Promise<RuntimeThreadSnapshot> {
+		const dynamicTools = this.localWebSearch?.dynamicTools() ?? [];
 		const result = asRecord(
 			await this.request("thread/start", {
 				cwd: input.cwd,
 				model: input.model ?? undefined,
 				serviceName: "coz",
 				threadSource: "user",
+				...(dynamicTools.length > 0 ? { dynamicTools } : {}),
 				...yoloThreadOptions,
 			}),
 		);
@@ -836,7 +842,20 @@ export class AppServerRuntime implements CodexRuntime {
 		}
 
 		if (message.method && message.id !== undefined) {
-			this.handleServerRequest(message);
+			void this.handleServerRequest(message).catch((error) => {
+				const text = error instanceof Error ? error.message : String(error);
+				this.writeDebug({
+					event: "server_request.error",
+					method: message.method,
+					text,
+				});
+				try {
+					this.send({
+						id: message.id,
+						error: { message: text },
+					});
+				} catch {}
+			});
 			return;
 		}
 
@@ -871,7 +890,7 @@ export class AppServerRuntime implements CodexRuntime {
 		this.emitRaw(message.method ?? "notification", params, threadId, turnId);
 	}
 
-	private handleServerRequest(message: JsonRpcMessage) {
+	private async handleServerRequest(message: JsonRpcMessage) {
 		const params = asRecord(message.params);
 		const threadId = extractThreadId(params);
 		const turnId = extractTurnId(params);
@@ -879,7 +898,31 @@ export class AppServerRuntime implements CodexRuntime {
 			this.acceptYoloRequest(message, params);
 			return;
 		}
+		if (message.method === "item/tool/call") {
+			const handled = await this.handleLocalDynamicToolCall(message, params);
+			if (handled) {
+				return;
+			}
+		}
 		this.emitRaw(message.method ?? "serverRequest", params, threadId, turnId);
+	}
+
+	private async handleLocalDynamicToolCall(
+		message: JsonRpcMessage,
+		params: Record<string, unknown>,
+	) {
+		if (!this.localWebSearch) {
+			return false;
+		}
+		const response = await this.localWebSearch.handleToolCall(params);
+		if (!response) {
+			return false;
+		}
+		this.send({
+			id: message.id,
+			result: response,
+		});
+		return true;
 	}
 
 	private acceptYoloRequest(

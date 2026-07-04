@@ -176,6 +176,25 @@ function formatCommandExecution(item: Record<string, unknown>) {
 	return text;
 }
 
+function dynamicToolContentText(contentItems: unknown) {
+	if (!Array.isArray(contentItems)) {
+		return "";
+	}
+	return contentItems
+		.map((contentItem) => {
+			const item = asRecord(contentItem);
+			if (item.type === "inputText") {
+				return typeof item.text === "string" ? item.text : "";
+			}
+			if (item.type === "inputImage") {
+				return `[image] ${String(item.imageUrl ?? "")}`.trim();
+			}
+			return "";
+		})
+		.filter(Boolean)
+		.join("\n");
+}
+
 export function normalizeThreadItem(value: unknown) {
 	const item = asRecord(value);
 	const id = String(item.id ?? "");
@@ -257,10 +276,13 @@ export function normalizeThreadItem(value: unknown) {
 		};
 	}
 	if (itemType === "dynamicToolCall") {
+		const label =
+			`${String(item.namespace ?? "tool")}.${String(item.tool ?? "call")} ${String(item.status ?? "")}`.trim();
+		const content = dynamicToolContentText(item.contentItems);
 		return {
 			itemId: id,
 			itemType: "system" as const,
-			text: `${String(item.namespace ?? "tool")}.${String(item.tool ?? "call")} ${String(item.status ?? "")}`.trim(),
+			text: [label, content].filter(Boolean).join("\n"),
 			data: { sourceType: itemType, raw: item },
 		};
 	}

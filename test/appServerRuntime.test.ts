@@ -7,8 +7,9 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppServerRuntime } from "../src/server/codex/appServerRuntime.js";
+import type { LocalWebSearch } from "../src/server/codex/localWebSearch.js";
 import type { RuntimeEvent } from "../src/server/codex/runtimePort.js";
 
 let tempDir: string | null = null;
@@ -45,6 +46,23 @@ function logRequest(message) {
   }) + "\\n")
 }
 
+function logToolResponse(message) {
+  if (!requestLogPath) {
+    return
+  }
+  fs.appendFileSync(requestLogPath, JSON.stringify({
+    method: "tool/response",
+    params: message.result ?? null,
+    error: message.error ?? null
+  }) + "\\n")
+}
+
+function userInputText(input) {
+  return Array.isArray(input)
+    ? input.map((item) => item?.text ?? "").filter(Boolean).join("\\n")
+    : ""
+}
+
 function writeJson(message) {
   output.write(JSON.stringify(message) + "\\n")
 }
@@ -62,6 +80,11 @@ function reject(id, message) {
 }
 
 function handle(message, state) {
+  if (message.id === "tool_request_1" && (message.result !== undefined || message.error !== undefined)) {
+    logToolResponse(message)
+    return
+  }
+
   logRequest(message)
 
   if (message.method === "initialize") {
@@ -265,6 +288,24 @@ function handle(message, state) {
         durationMs: null
       }
     })
+    if (userInputText(message.params.input).includes("trigger local web search")) {
+      writeJson({
+        id: "tool_request_1",
+        method: "item/tool/call",
+        params: {
+          threadId,
+          turnId: "${turnId}",
+          callId: "call_local_search",
+          namespace: "coz_web",
+          tool: "search",
+          arguments: {
+            query: "codex local search",
+            limit: 2
+          }
+        }
+      })
+      return
+    }
     notify("item/started", {
       threadId,
       turnId: "${turnId}",
@@ -560,6 +601,7 @@ function appServerOptions(
 	options: Partial<{
 		debugLogPath: string | null;
 		debugLogLevel: number | null;
+		localWebSearch: LocalWebSearch | null;
 	}> = {},
 ) {
 	if (!tempDir) {
@@ -569,6 +611,56 @@ function appServerOptions(
 		dataDir: join(tempDir, ".coz"),
 		...options,
 	};
+}
+
+function fakeLocalWebSearch() {
+	const handleToolCall = vi.fn(async (params: Record<string, unknown>) => {
+		if (params.namespace !== "coz_web" || params.tool !== "search") {
+			return null;
+		}
+		return {
+			contentItems: [
+				{
+					type: "inputText" as const,
+					text: JSON.stringify({
+						query: (params.arguments as Record<string, unknown>)?.query,
+						results: [
+							{
+								title: "Local result",
+								url: "https://example.test/local-result",
+							},
+						],
+					}),
+				},
+			],
+			success: true,
+		};
+	});
+	const localWebSearch: LocalWebSearch = {
+		dynamicTools: () => [
+			{
+				type: "namespace",
+				name: "coz_web",
+				description: "Local web search tools provided by coz.",
+				tools: [
+					{
+						type: "function",
+						name: "search",
+						description: "Search locally.",
+						inputSchema: {
+							type: "object",
+							properties: {
+								query: { type: "string" },
+							},
+							required: ["query"],
+						},
+					},
+				],
+			},
+		],
+		handleToolCall,
+	};
+	return { localWebSearch, handleToolCall };
 }
 
 function readDebugRecords(debugLogPath: string) {
@@ -791,6 +883,84 @@ describe("AppServerRuntime", () => {
 					type: "thread.name.updated",
 					threadId: startThreadId,
 					name: "Named start",
+				}),
+			]),
+		);
+	});
+
+	it("injects local web search dynamic tools when starting threads", async () => {
+		const command = createFakeCodexCommand();
+		const { localWebSearch } = fakeLocalWebSearch();
+		runtime = new AppServerRuntime(
+			command,
+			appServerOptions({ localWebSearch }),
+		);
+
+		await runtime.startThread({
+			cwd: process.cwd(),
+			preview: "Search-capable prompt",
+			model: "test-model",
+		});
+
+		const startRequest = readRequestLog().find(
+			(request) => request.method === "thread/start",
+		);
+		expect(startRequest?.params).toMatchObject({
+			dynamicTools: [
+				{
+					type: "namespace",
+					name: "coz_web",
+					tools: [
+						{
+							type: "function",
+							name: "search",
+						},
+					],
+				},
+			],
+		});
+	});
+
+	it("answers local web search dynamic tool requests", async () => {
+		const command = createFakeCodexCommand();
+		const { localWebSearch, handleToolCall } = fakeLocalWebSearch();
+		runtime = new AppServerRuntime(
+			command,
+			appServerOptions({ localWebSearch }),
+		);
+
+		await runtime.startTurn({
+			threadId: debugThreadId,
+			prompt: "trigger local web search",
+		});
+		await new Promise((resolve) => setTimeout(resolve, 20));
+
+		expect(handleToolCall).toHaveBeenCalledWith(
+			expect.objectContaining({
+				threadId: debugThreadId,
+				turnId,
+				callId: "call_local_search",
+				namespace: "coz_web",
+				tool: "search",
+				arguments: {
+					query: "codex local search",
+					limit: 2,
+				},
+			}),
+		);
+		expect(readRequestLog()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					method: "tool/response",
+					params: {
+						contentItems: [
+							{
+								type: "inputText",
+								text: expect.stringContaining("Local result"),
+							},
+						],
+						success: true,
+					},
 				}),
 			]),
 		);
