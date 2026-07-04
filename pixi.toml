@@ -26,9 +26,4 @@ playwright = ">=1.60.0,<2"
 
 [activation.env]
 
-# CODEX_HOME = "${PIXI_PROJECT_ROOT}/dot.home/.codex"
-
-# HOME = "${PIXI_PROJECT_ROOT}/dot.home"
-# XDG_CONFIG_HOME = "${PIXI_PROJECT_ROOT}/dot.home/.config"
-# XDG_DATA_HOME = "${PIXI_PROJECT_ROOT}/dot.home/.data"
-# XDG_CACHE_HOME = "${PIXI_PROJECT_ROOT}/dot.home/.cache"
+CODEX_HOME = "${PIXI_PROJECT_ROOT}/dot.home/.codex"
