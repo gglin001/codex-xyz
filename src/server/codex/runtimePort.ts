@@ -44,6 +44,17 @@ export type RuntimeTokenUsage = {
 	modelContextWindow: number | null;
 };
 
+export type RuntimeConfigSnapshot = {
+	model: string | null;
+	modelProvider: string | null;
+	serviceTier: string | null;
+};
+
+export type ReadRuntimeConfigInput = {
+	cwd?: string | null;
+	includeLayers?: boolean | null;
+};
+
 export type RuntimeEvent =
 	| {
 			type: "item.created";
@@ -192,6 +203,7 @@ export interface CodexRuntime {
 	readonly name: string;
 	readonly version: string | null;
 	onEvent(handler: RuntimeEventHandler): void;
+	readConfig(input?: ReadRuntimeConfigInput): Promise<RuntimeConfigSnapshot>;
 	startThread(input: StartThreadInput): Promise<RuntimeThreadSnapshot>;
 	resumeThread(input: ResumeThreadInput): Promise<RuntimeThreadSnapshot>;
 	startTurn(input: StartRuntimeTurnInput): Promise<RuntimeTurnSnapshot>;

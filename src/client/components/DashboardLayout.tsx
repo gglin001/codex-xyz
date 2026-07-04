@@ -74,6 +74,7 @@ export type DashboardLayoutProps = {
 	themeMode: ThemeMode;
 	threadQuery: string;
 	defaultCwd: string;
+	defaultModel: string | null;
 	workdir: string;
 	busy: boolean;
 	busyAction: string | null;
@@ -725,6 +726,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 	themeMode,
 	threadQuery,
 	defaultCwd,
+	defaultModel,
 	workdir,
 	busy,
 	busyAction,
@@ -1229,6 +1231,9 @@ export const DashboardLayout = memo(function DashboardLayout({
 			displayScale={displayScale}
 			onDisplayScaleChange={onDisplayScaleChange}
 			defaultCwd={defaultCwd}
+			defaultModel={defaultModel}
+			workdir={workdir}
+			promptTarget={promptTarget}
 			onWrapThreadContentChange={onWrapThreadContentChange}
 			onThemeModeChange={onThemeModeChange}
 			fullscreenSupported={fullscreenSupported}
@@ -1450,6 +1455,9 @@ export const DashboardLayout = memo(function DashboardLayout({
 									displayScale={displayScale}
 									onDisplayScaleChange={onDisplayScaleChange}
 									defaultCwd={defaultCwd}
+									defaultModel={defaultModel}
+									workdir={workdir}
+									promptTarget={promptTarget}
 									onWrapThreadContentChange={onWrapThreadContentChange}
 									onThemeModeChange={onThemeModeChange}
 									fullscreenSupported={fullscreenSupported}

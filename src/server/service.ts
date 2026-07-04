@@ -132,10 +132,12 @@ export class ControlService {
 		});
 	}
 
-	dashboard(): DashboardState {
+	async dashboard(): Promise<DashboardState> {
 		const latestEventId = this.store.getLatestEventId();
 		const totalCount = this.store.countThreads();
 		const limit = defaultThreadPageSize;
+		const defaultCwd = this.store.getDefaultCwd() ?? this.defaultCwd;
+		const defaultModel = await this.readDefaultModel(defaultCwd);
 		const pageThreads =
 			totalCount <= defaultThreadPageSize
 				? this.store.listThreads()
@@ -148,9 +150,19 @@ export class ControlService {
 			threadPageSize: limit,
 			threadNextCursor: threadHasMore ? pageCursorFromThreads(threads) : null,
 			threadHasMore,
-			defaultCwd: this.store.getDefaultCwd() ?? this.defaultCwd,
+			defaultCwd,
+			defaultModel,
 			latestEventId,
 		};
+	}
+
+	private async readDefaultModel(cwd: string) {
+		try {
+			const config = await this.runtime.readConfig({ cwd });
+			return config.model;
+		} catch {
+			return null;
+		}
 	}
 
 	async createThread(input: CreateThreadInput) {

@@ -55,6 +55,14 @@ class VolatileCodexRuntime implements CodexRuntime {
 		this.handler = handler;
 	}
 
+	async readConfig() {
+		return {
+			model: "volatile-model",
+			modelProvider: "test-provider",
+			serviceTier: null,
+		};
+	}
+
 	forgetThread(threadId: string) {
 		this.loadedThreads.delete(threadId);
 	}
@@ -283,6 +291,14 @@ class EagerEventCodexRuntime implements CodexRuntime {
 		this.handler = handler;
 	}
 
+	async readConfig() {
+		return {
+			model: "eager-model",
+			modelProvider: "test-provider",
+			serviceTier: null,
+		};
+	}
+
 	async startThread(input: StartThreadInput): Promise<RuntimeThreadSnapshot> {
 		const id = `eager_thread_${this.nextThread++}`;
 		const thread: RuntimeThreadSnapshot = {
@@ -491,6 +507,14 @@ class InterruptDriftCodexRuntime implements CodexRuntime {
 
 	onEvent(handler: RuntimeEventHandler) {
 		this.handler = handler;
+	}
+
+	async readConfig() {
+		return {
+			model: "drift-model",
+			modelProvider: "test-provider",
+			serviceTier: null,
+		};
 	}
 
 	async startThread(input: StartThreadInput): Promise<RuntimeThreadSnapshot> {
@@ -794,13 +818,16 @@ describe("ControlService", () => {
 			throw new Error("Expected created thread id");
 		}
 
-		const dashboard = service.dashboard();
+		testRuntime.defaultModel = "configured-default-model";
+		const dashboard = await service.dashboard();
 		const detail = service.getThreadDetail(threadId);
 		const fullReplay = service.replayEvents(0, { threadId });
 		const summaryReplay = service.replayEvents(0, { summaryOnly: true });
 
 		expect(dashboard.latestEventId).toBeGreaterThan(0);
 		expect(dashboard.defaultCwd).toBe(tempDir);
+		expect(dashboard.defaultModel).toBe("configured-default-model");
+		expect(testRuntime.lastReadConfigInput).toMatchObject({ cwd: tempDir });
 		expect(dashboard.threads[0]).not.toHaveProperty("items");
 		expect(detail.latestEventId).toBeGreaterThan(0);
 		expect(
@@ -1120,7 +1147,7 @@ describe("ControlService", () => {
 		});
 		expect(detail.status).toBe("not_loaded");
 		expect(service.listThreads()).toEqual([]);
-		expect(service.dashboard().threads).toEqual([]);
+		expect((await service.dashboard()).threads).toEqual([]);
 		expect(
 			summaryEvents.some((event) => event.type === "thread.archived"),
 		).toBe(true);

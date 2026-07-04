@@ -105,6 +105,7 @@ function initialState(): DashboardState {
 		threadNextCursor: null,
 		threadHasMore: false,
 		defaultCwd: "",
+		defaultModel: null,
 		latestEventId: 0,
 	};
 }
@@ -1307,7 +1308,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		const submittedPrompt = currentPrompt.trim();
 		const optimisticThreadId = createOptimisticThreadId();
 		const creatingGoalMode = goalMode;
-		const model = activeThread?.model ?? selectedWorkbenchThread?.model ?? null;
+		const model = state.defaultModel;
 		const draft = createOptimisticThreadDraft({
 			id: optimisticThreadId,
 			cwd,
@@ -1356,7 +1357,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				cwd,
 				prompt: submittedPrompt,
 				goalMode: creatingGoalMode,
-				model,
 			});
 			const thread = result.thread;
 			if (!thread) {
@@ -1910,6 +1910,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				}}
 				threadQuery={threadQuery}
 				defaultCwd={state.defaultCwd}
+				defaultModel={state.defaultModel}
 				workdir={workdir}
 				busy={busy}
 				busyAction={busyAction}

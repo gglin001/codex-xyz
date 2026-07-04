@@ -84,6 +84,7 @@ function state(overrides: Partial<DashboardState> = {}): DashboardState {
 			: null,
 		threadHasMore: false,
 		defaultCwd: "/tmp/coz",
+		defaultModel: null,
 		latestEventId: 0,
 		...overrides,
 	};

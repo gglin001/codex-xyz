@@ -79,7 +79,21 @@ function handle(message, state) {
     return
   }
 
+  if (message.method === "config/read") {
+    respond(message.id, {
+      config: {
+        model: "fake-config-model",
+        model_provider: "fake-provider",
+        service_tier: null
+      },
+      origins: {},
+      layers: null
+    })
+    return
+  }
+
   if (message.method === "thread/start") {
+    const model = message.params.model ?? "fake-config-model"
     respond(message.id, {
       thread: {
         id: "thread_${startThreadId}",
@@ -87,11 +101,11 @@ function handle(message, state) {
         forkedFromId: null,
         preview: "started without turns",
         cwd: message.params.cwd,
-        model: message.params.model,
+        model,
         status: { type: "idle" },
         updatedAt: 1700000200
       },
-      model: message.params.model
+      model
     })
     return
   }
@@ -689,6 +703,26 @@ afterEach(async () => {
 });
 
 describe("AppServerRuntime", () => {
+	it("reads the effective Codex config for a cwd", async () => {
+		const command = createFakeCodexCommand();
+		runtime = new AppServerRuntime(command, appServerOptions());
+
+		const config = await runtime.readConfig({ cwd: process.cwd() });
+		const configReadRequest = readRequestLog().find(
+			(request) => request.method === "config/read",
+		);
+
+		expect(config).toEqual({
+			model: "fake-config-model",
+			modelProvider: "fake-provider",
+			serviceTier: null,
+		});
+		expect(configReadRequest?.params).toMatchObject({
+			includeLayers: false,
+			cwd: process.cwd(),
+		});
+	});
+
 	it("reuses the persistent app-server across runtime instances", async () => {
 		const command = createFakeCodexCommand();
 		const options = appServerOptions();

@@ -406,7 +406,7 @@ async function routeApiRequest(
 	}
 
 	if (method === "GET" && url.pathname === "/api/state") {
-		return jsonResponse(service.dashboard());
+		return jsonResponse(await service.dashboard());
 	}
 
 	if (method === "GET" && url.pathname === "/api/events") {

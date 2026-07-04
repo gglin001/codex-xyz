@@ -41,9 +41,11 @@ import type {
 	CodexRuntime,
 	CompactThreadInput,
 	ForkThreadInput,
+	ReadRuntimeConfigInput,
 	ResumeThreadInput,
 	RunShellCommandInput,
 	RuntimeBackgroundTerminal,
+	RuntimeConfigSnapshot,
 	RuntimeEvent,
 	RuntimeEventHandler,
 	RuntimeThreadSnapshot,
@@ -174,6 +176,27 @@ export class AppServerRuntime implements CodexRuntime {
 
 	onEvent(handler: RuntimeEventHandler) {
 		this.eventHandler = handler;
+	}
+
+	async readConfig(
+		input: ReadRuntimeConfigInput = {},
+	): Promise<RuntimeConfigSnapshot> {
+		const result = asRecord(
+			await this.request("config/read", {
+				includeLayers: input.includeLayers ?? false,
+				cwd: input.cwd ?? undefined,
+			}),
+		);
+		const config = asRecord(result.config);
+		return {
+			model: typeof config.model === "string" ? config.model : null,
+			modelProvider:
+				typeof config.model_provider === "string"
+					? config.model_provider
+					: null,
+			serviceTier:
+				typeof config.service_tier === "string" ? config.service_tier : null,
+		};
 	}
 
 	async startThread(input: StartThreadInput): Promise<RuntimeThreadSnapshot> {
