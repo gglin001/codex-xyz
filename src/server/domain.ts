@@ -195,6 +195,7 @@ export type DashboardState = {
 	threadNextCursor: ThreadPageCursor | null;
 	threadHasMore: boolean;
 	defaultCwd: string;
+	defaultModel: string | null;
 	latestEventId: number;
 };
 

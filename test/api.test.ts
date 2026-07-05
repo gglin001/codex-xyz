@@ -253,6 +253,7 @@ describe("Next API routes", () => {
 	it("serves dashboard state and can create a local thread", async () => {
 		const state = await json<DashboardState>("/api/state");
 		expect(state.defaultCwd).toBe(tempDir);
+		expect(state.defaultModel).toBe("test-codex");
 		expect(state.latestEventId).toBe(0);
 
 		const created = await json<{ thread: { id: string; cwd: string } }>(

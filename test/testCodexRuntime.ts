@@ -34,6 +34,11 @@ export class TestCodexRuntime implements CodexRuntime {
 	readonly name = "test";
 	readonly version = "test";
 	restartCount = 0;
+	defaultModel: string | null = "test-codex";
+	lastReadConfigInput: {
+		cwd?: string | null;
+		includeLayers?: boolean | null;
+	} | null = null;
 	lastStartTurnInput: StartRuntimeTurnInput | null = null;
 	backgroundTerminals: RuntimeBackgroundTerminal[] = [];
 	backgroundTerminalsCleanCount = 0;
@@ -44,6 +49,15 @@ export class TestCodexRuntime implements CodexRuntime {
 
 	onEvent(handler: RuntimeEventHandler) {
 		this.handler = handler;
+	}
+
+	async readConfig(input = {}) {
+		this.lastReadConfigInput = input;
+		return {
+			model: this.defaultModel,
+			modelProvider: "test-provider",
+			serviceTier: null,
+		};
 	}
 
 	async startThread(input: StartThreadInput): Promise<RuntimeThreadSnapshot> {

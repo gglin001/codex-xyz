@@ -35,7 +35,7 @@ import { nextThemeMode, type ThemeMode } from "../theme.js";
 import { shortId, statusLabel } from "../uiFormat.js";
 import { MobileFloatingScroller } from "./MobileFloatingScroller.js";
 import { ControlCard, InfoTile, SurfaceAction } from "./uiPrimitives.js";
-import type { WorkbenchThread } from "./workbenchTypes.js";
+import type { ComposerMode, WorkbenchThread } from "./workbenchTypes.js";
 
 export type ParamPanelProps = {
 	className?: string;
@@ -47,6 +47,9 @@ export type ParamPanelProps = {
 	displayScale: number;
 	onDisplayScaleChange: (value: number) => void;
 	defaultCwd: string;
+	defaultModel: string | null;
+	workdir: string;
+	promptTarget: ComposerMode;
 	onWrapThreadContentChange: (value: boolean) => void;
 	onThemeModeChange: (mode: ThemeMode) => void;
 	fullscreenSupported: boolean;
@@ -278,6 +281,9 @@ export const ParamPanel = memo(function ParamPanel({
 	displayScale,
 	onDisplayScaleChange,
 	defaultCwd,
+	defaultModel,
+	workdir,
+	promptTarget,
 	onWrapThreadContentChange,
 	onThemeModeChange,
 	fullscreenSupported,
@@ -289,13 +295,23 @@ export const ParamPanel = memo(function ParamPanel({
 }: ParamPanelProps) {
 	const settingsScrollRef = useRef<HTMLDivElement | null>(null);
 	const settingsScrollId = useId();
-	const thread = selectedThread ?? threadSummary?.thread ?? null;
+	const composingNewThread = promptTarget === "new";
+	const thread = composingNewThread
+		? null
+		: (selectedThread ?? threadSummary?.thread ?? null);
+	const displayDetail = composingNewThread ? null : detail;
 	const status = thread?.status ?? "idle";
-	const model = thread?.model ?? "default Codex model";
+	const model = thread?.model ?? defaultModel ?? "default Codex model";
+	const cwd = composingNewThread
+		? workdir || defaultCwd
+		: (thread?.cwd ?? threadSummary?.cwd ?? defaultCwd);
 	const contextTokens =
-		detail?.tokensUsed ?? thread?.tokensUsed ?? threadSummary?.tokensUsed ?? 0;
-	const turnCount = detail?.turns.length ?? 0;
-	const itemCount = detail?.items.length ?? 0;
+		displayDetail?.tokensUsed ??
+		thread?.tokensUsed ??
+		threadSummary?.tokensUsed ??
+		0;
+	const turnCount = displayDetail?.turns.length ?? 0;
+	const itemCount = displayDetail?.items.length ?? 0;
 
 	return (
 		<aside
@@ -361,7 +377,7 @@ export const ParamPanel = memo(function ParamPanel({
 						<InfoTile
 							icon={<FolderGit2 size={13} />}
 							label="CWD"
-							value={thread?.cwd ?? threadSummary?.cwd ?? defaultCwd}
+							value={cwd}
 							mono
 							hideLabel
 						/>

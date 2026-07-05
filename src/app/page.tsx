@@ -3,7 +3,7 @@ import { getService } from "../server/runtime.js";
 
 export const dynamic = "force-dynamic";
 
-export default function Page() {
-	const initialState = getService().dashboard();
+export default async function Page() {
+	const initialState = await getService().dashboard();
 	return <App initialState={initialState} />;
 }
