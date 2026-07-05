@@ -308,10 +308,12 @@ function TerminalShortcutBar({
 	controlArmed,
 	disabled,
 	onKey,
+	onTerminalFocus,
 }: {
 	controlArmed: boolean;
 	disabled: boolean;
 	onKey: (key: TerminalQuickKey) => void;
+	onTerminalFocus: () => void;
 }) {
 	return (
 		<div
@@ -339,6 +341,12 @@ function TerminalShortcutBar({
 						aria-label={quickKey.ariaLabel}
 						aria-pressed={isModifier ? controlArmed : undefined}
 						disabled={disabled}
+						onPointerDown={(event) => {
+							if (event.pointerType !== "touch") {
+								event.preventDefault();
+							}
+							onTerminalFocus();
+						}}
 						onClick={() => onKey(quickKey)}
 					>
 						<TerminalQuickKeyContent quickKey={quickKey} />
@@ -762,11 +770,15 @@ export function TerminalDock({
 			});
 	}, []);
 
+	const focusTerminal = useCallback(() => {
+		terminalRef.current?.focus();
+	}, []);
+
 	const sendQuickKey = useCallback(
 		(quickKey: TerminalQuickKey) => {
+			focusTerminal();
 			if (quickKey.kind === "modifier") {
 				setControlArmed((current) => !current);
-				terminalRef.current?.focus();
 				return;
 			}
 			const data = terminalQuickKeyInput(quickKey, { control: controlArmed });
@@ -781,9 +793,8 @@ export function TerminalDock({
 			if (controlArmed) {
 				setControlArmed(false);
 			}
-			terminalRef.current?.focus();
 		},
-		[controlArmed],
+		[controlArmed, focusTerminal],
 	);
 
 	const finishDesktopInteraction = useCallback(
@@ -941,6 +952,7 @@ export function TerminalDock({
 			controlArmed={controlArmed}
 			disabled={!canInput}
 			onKey={sendQuickKey}
+			onTerminalFocus={focusTerminal}
 		/>
 	);
 
