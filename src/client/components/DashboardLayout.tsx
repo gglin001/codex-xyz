@@ -37,6 +37,7 @@ import {
 	ui,
 } from "../designSystem.js";
 import { isPromptFocusShortcut } from "../promptShortcut.js";
+import { useShellPanelShortcuts } from "../shellShortcuts.js";
 import { nextThemeMode, type ThemeMode, themeModeLabels } from "../theme.js";
 import type { DateTimeFormatMode } from "../uiFormat.js";
 import { useFullscreen } from "../useFullscreen.js";
@@ -915,6 +916,27 @@ export const DashboardLayout = memo(function DashboardLayout({
 		terminalVisible,
 	]);
 
+	const toggleNavigator = useCallback(() => {
+		if (isMobileViewport()) {
+			openMobileSheet("navigator");
+			return;
+		}
+		onNavigatorVisibleChange(!navigatorVisible);
+	}, [navigatorVisible, onNavigatorVisibleChange, openMobileSheet]);
+
+	const toggleInspector = useCallback(() => {
+		if (isMobileViewport()) {
+			openMobileSheet("inspector");
+			return;
+		}
+		onInspectorVisibleChange(!inspectorVisible);
+	}, [inspectorVisible, onInspectorVisibleChange, openMobileSheet]);
+
+	useShellPanelShortcuts({
+		onToggleNavigator: toggleNavigator,
+		onToggleInspector: toggleInspector,
+	});
+
 	useEffect(() => {
 		const handleKeyDown = (event: globalThis.KeyboardEvent) => {
 			if (event.key === "Escape") {
@@ -1030,20 +1052,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 	}, [commandOpen, mobileSheet, onTerminalVisibleChange, terminalVisible]);
 
 	const commandActions = useMemo<CommandAction[]>(() => {
-		const setNavigatorVisible = () => {
-			if (isMobileViewport()) {
-				openMobileSheet("navigator");
-				return;
-			}
-			onNavigatorVisibleChange(!navigatorVisible);
-		};
-		const setInspectorVisible = () => {
-			if (isMobileViewport()) {
-				openMobileSheet("inspector");
-				return;
-			}
-			onInspectorVisibleChange(!inspectorVisible);
-		};
 		const focusPrompt = () => {
 			closeMobileSheet({ restoreFocus: false });
 			window.requestAnimationFrame(focusVisiblePrompt);
@@ -1061,7 +1069,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 				name: "Threads",
 				detail: "Open the project and thread list",
 				kind: "navigator",
-				run: setNavigatorVisible,
+				run: toggleNavigator,
 			},
 			{
 				id: "open-terminal",
@@ -1078,7 +1086,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 					: "Toggle settings and transcript controls",
 				kind: "settingsGroup",
 				settingsGroupId: "panel",
-				run: setInspectorVisible,
+				run: toggleInspector,
 			},
 			{
 				id: "settings:toggle-theme",
@@ -1141,37 +1149,18 @@ export const DashboardLayout = memo(function DashboardLayout({
 		displayScale,
 		focusVisiblePrompt,
 		fullscreenSupported,
-		inspectorVisible,
-		navigatorVisible,
 		themeMode,
+		toggleInspector,
 		toggleFullscreen,
+		toggleNavigator,
 		wrapThreadContent,
 		onDisplayScaleChange,
-		onInspectorVisibleChange,
-		onNavigatorVisibleChange,
 		onThemeModeChange,
 		onWrapThreadContentChange,
 		closeMobileSheet,
-		openMobileSheet,
 		onRestartCodexAppServer,
 		toggleTerminal,
 	]);
-
-	const toggleNavigator = useCallback(() => {
-		if (isMobileViewport()) {
-			openMobileSheet("navigator");
-			return;
-		}
-		onNavigatorVisibleChange(!navigatorVisible);
-	}, [navigatorVisible, onNavigatorVisibleChange, openMobileSheet]);
-
-	const toggleInspector = useCallback(() => {
-		if (isMobileViewport()) {
-			openMobileSheet("inspector");
-			return;
-		}
-		onInspectorVisibleChange(!inspectorVisible);
-	}, [inspectorVisible, onInspectorVisibleChange, openMobileSheet]);
 
 	const sidebarFooter = (
 		<div className={cn("shrink-0 px-2 pb-1.5 pt-0.5", ui.panelBand)}>
