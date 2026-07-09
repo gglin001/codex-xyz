@@ -703,6 +703,7 @@ const CommandPalette = memo(function CommandPalette({
 							<MobileFloatingScroller
 								scrollRef={listRef}
 								scrollElementId={listId}
+								contentRightInset="0.375rem"
 							/>
 						</div>
 					</motion.div>

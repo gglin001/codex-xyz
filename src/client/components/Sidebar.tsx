@@ -272,6 +272,7 @@ export const Sidebar = memo(function Sidebar({
 				<MobileFloatingScroller
 					scrollRef={threadListRef}
 					scrollElementId={threadListId}
+					contentRightInset="0.5rem"
 				/>
 			</div>
 

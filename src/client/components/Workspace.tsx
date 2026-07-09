@@ -1503,6 +1503,7 @@ export const Workspace = memo(
 								<MobileFloatingScroller
 									scrollRef={transcriptScrollRef}
 									scrollElementId={transcriptScrollId}
+									contentRightInset="0.75rem"
 								/>
 							) : null}
 						</div>

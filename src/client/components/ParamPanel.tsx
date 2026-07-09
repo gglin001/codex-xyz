@@ -489,6 +489,7 @@ export const ParamPanel = memo(function ParamPanel({
 				<MobileFloatingScroller
 					scrollRef={settingsScrollRef}
 					scrollElementId={settingsScrollId}
+					contentRightInset="0.625rem"
 				/>
 			</div>
 		</aside>

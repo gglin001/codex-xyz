@@ -26,14 +26,19 @@ function scrollMetricsEqual(
 	);
 }
 
+const hitAreaHalfWidth = "1.75rem";
+const pillHalfWidth = "0.5rem";
+
 export const MobileFloatingScroller = memo(function MobileFloatingScroller({
 	scrollRef,
 	scrollElementId,
 	className,
+	contentRightInset = hitAreaHalfWidth,
 }: {
 	scrollRef: RefObject<HTMLElement | null>;
 	scrollElementId: string;
 	className?: string;
+	contentRightInset?: string;
 }) {
 	const trackRef = useRef<HTMLDivElement | null>(null);
 	const thumbRef = useRef<HTMLDivElement | null>(null);
@@ -272,7 +277,7 @@ export const MobileFloatingScroller = memo(function MobileFloatingScroller({
 		<div
 			data-scrollable={metrics.canScroll ? "true" : "false"}
 			className={cn(
-				"mobile-floating-scroller pointer-events-none absolute bottom-4 right-2.5 top-4 z-[4] w-8 transition-opacity duration-150 ease-out",
+				"mobile-floating-scroller pointer-events-none absolute bottom-4 right-0 top-4 z-[4] w-14 transition-opacity duration-150 ease-out",
 				metrics.canScroll ? "opacity-100" : "opacity-0",
 				className,
 			)}
@@ -290,15 +295,11 @@ export const MobileFloatingScroller = memo(function MobileFloatingScroller({
 					aria-valuemin={0}
 					aria-valuemax={100}
 					aria-valuenow={Math.round(metrics.progress * 100)}
-					className={cn(
-						"pointer-events-auto absolute right-1 min-h-11 w-5 cursor-grab touch-none rounded-full border border-border-strong bg-muted/58 shadow-none transition-[background-color,border-color,opacity,transform] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-muted-strong active:cursor-grabbing",
-						dragging
-							? "scale-105 bg-muted-strong/78"
-							: "hover:scale-[1.04] hover:bg-muted/72",
-					)}
+					className="group pointer-events-auto absolute min-h-12 w-14 cursor-grab touch-none focus-visible:outline-none active:cursor-grabbing"
 					style={{
 						height: `${Math.round(metrics.thumbHeight)}px`,
 						top: `${Math.round(metrics.thumbTop)}px`,
+						right: `calc(max(${contentRightInset}, ${pillHalfWidth}) - ${hitAreaHalfWidth})`,
 					}}
 					onPointerDown={handlePointerDown}
 					onPointerMove={handlePointerMove}
@@ -306,7 +307,17 @@ export const MobileFloatingScroller = memo(function MobileFloatingScroller({
 					onPointerCancel={endPointerDrag}
 					onLostPointerCapture={cancelPointerDrag}
 					onKeyDown={handleKeyDown}
-				/>
+				>
+					<span
+						aria-hidden="true"
+						className={cn(
+							"absolute left-1/2 top-1/2 h-9 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-border-strong bg-muted/72 shadow-none transition-[background-color,border-color,opacity,transform] duration-150 ease-out group-focus-visible:ring-2 group-focus-visible:ring-muted-strong",
+							dragging
+								? "scale-105 bg-muted-strong/88"
+								: "group-hover:scale-[1.04] group-hover:bg-muted/82",
+						)}
+					/>
+				</div>
 			</div>
 		</div>
 	);
