@@ -494,10 +494,11 @@ export const CollapsibleCard = memo(function CollapsibleCard({
 				{meta || actions ? (
 					<div
 						className={cn(
-							"flex shrink-0 items-center gap-1.5",
+							"flex shrink-0 items-center gap-0.5",
 							size === "compact" ? "pr-1.5" : "pr-2",
 						)}
 					>
+						{actions}
 						<button
 							type="button"
 							className={ui.compactIconButton}
@@ -514,7 +515,6 @@ export const CollapsibleCard = memo(function CollapsibleCard({
 								)}
 							/>
 						</button>
-						{actions}
 					</div>
 				) : (
 					<button
