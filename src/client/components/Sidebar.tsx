@@ -1,6 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, ChevronDown, Plus, Search } from "lucide-react";
-import type { ReactNode } from "react";
 import { memo, useId, useMemo, useRef, useState } from "react";
 import { codexThreadCommandLabels } from "../codexCommandLabels.js";
 import { cn, layer, motionPresets, motionStates, ui } from "../designSystem.js";
@@ -38,7 +37,6 @@ export type SidebarProps = {
 	onThreadQueryChange: (value: string) => void;
 	onSelectThread: (thread: WorkbenchThread) => void;
 	onCreateThread: () => void;
-	footer?: ReactNode;
 	dateTimeFormatMode?: DateTimeFormatMode;
 };
 
@@ -89,7 +87,6 @@ export const Sidebar = memo(function Sidebar({
 	onThreadQueryChange,
 	onSelectThread,
 	onCreateThread,
-	footer,
 	dateTimeFormatMode = "utc",
 }: SidebarProps) {
 	const projectListRef = useRef<HTMLDivElement | null>(null);
@@ -288,8 +285,6 @@ export const Sidebar = memo(function Sidebar({
 					size="compact"
 				/>
 			</div>
-
-			{footer}
 		</aside>
 	);
 });

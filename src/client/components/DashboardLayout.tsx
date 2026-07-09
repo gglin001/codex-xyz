@@ -47,12 +47,7 @@ import { useMobileViewportGeometry } from "../useMobileViewportGeometry.js";
 import { MobileFloatingScroller } from "./MobileFloatingScroller.js";
 import { ParamPanel } from "./ParamPanel.js";
 import { Sidebar } from "./Sidebar.js";
-import {
-	FieldShell,
-	MenuItemButton,
-	ScrollableText,
-	SurfaceAction,
-} from "./uiPrimitives.js";
+import { FieldShell, MenuItemButton, ScrollableText } from "./uiPrimitives.js";
 import { Workspace, type WorkspaceHandle } from "./Workspace.js";
 import type {
 	ComposerMode,
@@ -1165,39 +1160,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 		toggleTerminal,
 	]);
 
-	const sidebarFooter = (
-		<div className={cn("shrink-0 px-2 pb-1.5 pt-0.5", ui.panelBand)}>
-			<div className="grid grid-cols-2 gap-1.5">
-				<SurfaceAction
-					className={cn(
-						"h-9 justify-center gap-2 px-2 text-[12px] font-medium",
-						terminalVisible ? null : "text-muted-strong",
-					)}
-					title="Toggle terminal"
-					aria-label="Toggle terminal"
-					selected={terminalVisible}
-					onClick={toggleTerminal}
-				>
-					<Terminal size={14} />
-					<span className="truncate">Terminal</span>
-				</SurfaceAction>
-				<SurfaceAction
-					className={cn(
-						"h-9 justify-center gap-2 px-2 text-[12px] font-medium",
-						inspectorVisible ? null : "text-muted-strong",
-					)}
-					title={inspectorVisible ? "Hide settings" : "Open settings"}
-					aria-label={inspectorVisible ? "Hide settings" : "Open settings"}
-					selected={inspectorVisible}
-					onClick={toggleInspector}
-				>
-					<Settings size={14} />
-					<span className="truncate">Settings</span>
-				</SurfaceAction>
-			</div>
-		</div>
-	);
-
 	const sidebar = (
 		<Sidebar
 			projects={projects}
@@ -1208,7 +1170,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 			onThreadQueryChange={onThreadQueryChange}
 			onSelectThread={onSelectThread}
 			onCreateThread={createThreadAndFocusPrompt}
-			footer={sidebarFooter}
 			dateTimeFormatMode={dateTimeFormatMode}
 		/>
 	);
