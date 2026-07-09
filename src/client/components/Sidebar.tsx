@@ -92,6 +92,8 @@ export const Sidebar = memo(function Sidebar({
 	footer,
 	dateTimeFormatMode = "utc",
 }: SidebarProps) {
+	const projectListRef = useRef<HTMLDivElement | null>(null);
+	const projectListId = useId();
 	const threadListRef = useRef<HTMLDivElement | null>(null);
 	const threadListId = useId();
 	const [projectMenuOpen, setProjectMenuOpen] = useState(false);
@@ -153,25 +155,36 @@ export const Sidebar = memo(function Sidebar({
 							transition={motionPresets.quick}
 							role="menu"
 						>
-							<div className="mobile-custom-scroll max-h-[216px] touch-pan-y overflow-x-hidden overflow-y-auto">
-								{projects.map((project) => (
-									<MenuItemButton
-										key={project.id}
-										className="min-h-[62px] w-full gap-2.5 px-2.5 py-2"
-										role="menuitem"
-										selected={project.id === selectedProjectId}
-										title={projectResultTitle(project)}
-										onClick={() => {
-											onProjectChange(project.id);
-											setProjectMenuOpen(false);
-										}}
-									>
-										<ProjectResultRow project={project} />
-										{project.id === selectedProjectId ? (
-											<Check size={14} className="text-fg-strong" />
-										) : null}
-									</MenuItemButton>
-								))}
+							<div className="relative">
+								<div
+									id={projectListId}
+									ref={projectListRef}
+									className="custom-scroll-host mobile-custom-scroll max-h-[216px] touch-pan-y overflow-x-hidden overflow-y-auto"
+								>
+									{projects.map((project) => (
+										<MenuItemButton
+											key={project.id}
+											className="min-h-[62px] w-full gap-2.5 px-2.5 py-2"
+											role="menuitem"
+											selected={project.id === selectedProjectId}
+											title={projectResultTitle(project)}
+											onClick={() => {
+												onProjectChange(project.id);
+												setProjectMenuOpen(false);
+											}}
+										>
+											<ProjectResultRow project={project} />
+											{project.id === selectedProjectId ? (
+												<Check size={14} className="text-fg-strong" />
+											) : null}
+										</MenuItemButton>
+									))}
+								</div>
+								<MobileFloatingScroller
+									scrollRef={projectListRef}
+									scrollElementId={projectListId}
+									contentRightInset="0.375rem"
+								/>
 							</div>
 						</motion.div>
 					) : null}
@@ -213,7 +226,7 @@ export const Sidebar = memo(function Sidebar({
 				<div
 					id={threadListId}
 					ref={threadListRef}
-					className="mobile-custom-scroll mobile-keyboard-scroll h-full min-h-0 touch-pan-y overflow-x-hidden overflow-y-auto px-2 py-1 scroll-mask-y"
+					className="custom-scroll-host mobile-custom-scroll mobile-keyboard-scroll h-full min-h-0 touch-pan-y overflow-x-hidden overflow-y-auto px-2 py-1 scroll-mask-y"
 				>
 					<AnimatePresence mode="popLayout">
 						<motion.div
@@ -273,6 +286,7 @@ export const Sidebar = memo(function Sidebar({
 					scrollRef={threadListRef}
 					scrollElementId={threadListId}
 					contentRightInset="0.5rem"
+					size="compact"
 				/>
 			</div>
 

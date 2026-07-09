@@ -46,6 +46,7 @@ type FloatingScrollRailProps = {
 	trackRef: RefObject<HTMLDivElement | null>;
 	thumbRef: RefObject<HTMLDivElement | null>;
 	railRight: string;
+	size: FloatingScrollerSize;
 	markers: FloatingScrollMarker[];
 	metrics: MobileScrollMetrics;
 	dragging: boolean;
@@ -90,6 +91,7 @@ const FloatingScrollRail = memo(function FloatingScrollRail({
 	trackRef,
 	thumbRef,
 	railRight,
+	size,
 	markers,
 	metrics,
 	dragging,
@@ -102,6 +104,22 @@ const FloatingScrollRail = memo(function FloatingScrollRail({
 	onThumbLostPointerCapture,
 	onThumbKeyDown,
 }: FloatingScrollRailProps) {
+	const compact = size === "compact";
+	const trackClassName = compact ? "bg-muted/10" : "bg-muted/16";
+	const thumbClassName = compact
+		? cn(
+				"absolute left-1/2 top-1/2 h-7 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-border bg-muted/38 shadow-none transition-[background-color,border-color,opacity,transform] duration-150 ease-out group-focus-visible:ring-2 group-focus-visible:ring-muted-strong",
+				dragging
+					? "scale-105 bg-muted/64"
+					: "opacity-80 group-hover:scale-[1.03] group-hover:bg-muted/52 group-hover:opacity-100",
+			)
+		: cn(
+				"absolute left-1/2 top-1/2 h-9 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-border-strong bg-muted/72 shadow-none transition-[background-color,border-color,opacity,transform] duration-150 ease-out group-focus-visible:ring-2 group-focus-visible:ring-muted-strong",
+				dragging
+					? "scale-105 bg-muted-strong/88"
+					: "group-hover:scale-[1.04] group-hover:bg-muted/82",
+			);
+
 	return (
 		<div
 			ref={trackRef}
@@ -110,7 +128,10 @@ const FloatingScrollRail = memo(function FloatingScrollRail({
 		>
 			<div
 				aria-hidden="true"
-				className="absolute bottom-0 left-1/2 top-0 w-px -translate-x-1/2 rounded-full bg-muted/16"
+				className={cn(
+					"absolute bottom-0 left-1/2 top-0 w-px -translate-x-1/2 rounded-full",
+					trackClassName,
+				)}
 			/>
 			{markers.map((marker) => (
 				<button
@@ -142,7 +163,12 @@ const FloatingScrollRail = memo(function FloatingScrollRail({
 				aria-valuemin={0}
 				aria-valuemax={100}
 				aria-valuenow={Math.round(metrics.progress * 100)}
-				className="group pointer-events-auto absolute left-0 min-h-12 w-full cursor-grab touch-none focus-visible:outline-none active:cursor-grabbing"
+				className={cn(
+					"group absolute left-0 min-h-12 w-full touch-none focus-visible:outline-none",
+					metrics.canScroll
+						? "pointer-events-auto cursor-grab active:cursor-grabbing"
+						: "pointer-events-none cursor-default",
+				)}
 				style={{
 					height: `${Math.round(metrics.thumbHeight)}px`,
 					top: `${Math.round(metrics.thumbTop)}px`,
@@ -154,19 +180,13 @@ const FloatingScrollRail = memo(function FloatingScrollRail({
 				onLostPointerCapture={onThumbLostPointerCapture}
 				onKeyDown={onThumbKeyDown}
 			>
-				<span
-					aria-hidden="true"
-					className={cn(
-						"absolute left-1/2 top-1/2 h-9 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-border-strong bg-muted/72 shadow-none transition-[background-color,border-color,opacity,transform] duration-150 ease-out group-focus-visible:ring-2 group-focus-visible:ring-muted-strong",
-						dragging
-							? "scale-105 bg-muted-strong/88"
-							: "group-hover:scale-[1.04] group-hover:bg-muted/82",
-					)}
-				/>
+				<span aria-hidden="true" className={thumbClassName} />
 			</div>
 		</div>
 	);
 });
+
+type FloatingScrollerSize = "default" | "compact";
 
 export const MobileFloatingScroller = memo(function MobileFloatingScroller({
 	scrollRef,
@@ -174,13 +194,15 @@ export const MobileFloatingScroller = memo(function MobileFloatingScroller({
 	className,
 	contentRightInset = hitAreaHalfWidth,
 	anchors = [],
-	visibility = "mobile",
+	size = "default",
+	visibility = "always",
 }: {
 	scrollRef: RefObject<HTMLElement | null>;
 	scrollElementId: string;
 	className?: string;
 	contentRightInset?: string;
 	anchors?: FloatingScrollAnchor[];
+	size?: FloatingScrollerSize;
 	visibility?: "mobile" | "always";
 }) {
 	const trackRef = useRef<HTMLDivElement | null>(null);
@@ -507,6 +529,7 @@ export const MobileFloatingScroller = memo(function MobileFloatingScroller({
 				trackRef={trackRef}
 				thumbRef={thumbRef}
 				railRight={railRight}
+				size={size}
 				markers={markers}
 				metrics={metrics}
 				dragging={dragging}

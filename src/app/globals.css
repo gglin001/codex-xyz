@@ -460,10 +460,19 @@
 		);
 	}
 
+	.custom-scroll-host,
+	.mobile-custom-scroll,
 	.transcript-custom-scroll {
+		overscroll-behavior-x: auto;
+		overscroll-behavior-y: contain;
+		scrollbar-gutter: auto !important;
 		scrollbar-width: none !important;
+		-ms-overflow-style: none;
+		-webkit-overflow-scrolling: touch;
 	}
 
+	.custom-scroll-host::-webkit-scrollbar,
+	.mobile-custom-scroll::-webkit-scrollbar,
 	.transcript-custom-scroll::-webkit-scrollbar {
 		display: none !important;
 		width: 0;
@@ -531,20 +540,6 @@
 
 	:root[data-keyboard-visible] .mobile-sheet-surface .scroll-mask-y {
 		padding-bottom: calc(var(--keyboard-inset-bottom) + 0.75rem);
-	}
-
-	.mobile-custom-scroll {
-		overscroll-behavior-x: auto;
-		overscroll-behavior-y: contain;
-		scrollbar-gutter: auto !important;
-		scrollbar-width: none !important;
-		-webkit-overflow-scrolling: touch;
-	}
-
-	.mobile-custom-scroll::-webkit-scrollbar {
-		display: none !important;
-		width: 0;
-		height: 0;
 	}
 
 	.mobile-floating-scroller {

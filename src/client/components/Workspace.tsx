@@ -1471,7 +1471,7 @@ export const Workspace = memo(
 							<div
 								id={transcriptScrollId}
 								ref={transcriptScrollRef}
-								className="transcript-custom-scroll mobile-custom-scroll mobile-transcript-scroll h-full min-h-0 overflow-x-hidden overflow-y-auto px-3 py-0 md:px-5"
+								className="custom-scroll-host transcript-custom-scroll mobile-custom-scroll mobile-transcript-scroll h-full min-h-0 overflow-x-hidden overflow-y-auto px-3 py-0 md:px-5"
 							>
 								<ThreadContentFrame className="grid gap-[var(--transcript-gap)]">
 									{entries.length === 0 ? (

@@ -324,7 +324,7 @@ export const ParamPanel = memo(function ParamPanel({
 				<div
 					id={settingsScrollId}
 					ref={settingsScrollRef}
-					className="mobile-custom-scroll mobile-keyboard-scroll h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden scroll-mask-y"
+					className="custom-scroll-host mobile-custom-scroll mobile-keyboard-scroll h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden scroll-mask-y"
 				>
 					<div className="grid min-w-0 gap-1.5 px-2.5 py-2">
 						<InfoTile
