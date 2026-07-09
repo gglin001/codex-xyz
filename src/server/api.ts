@@ -160,6 +160,24 @@ function optionalThreadItemPageCursor(url: URL) {
 	};
 }
 
+function optionalThreadItemBeforeCursor(url: URL) {
+	const createdAt = url.searchParams.get("beforeCreatedAt");
+	const id = url.searchParams.get("beforeId");
+	if (
+		(createdAt === null || createdAt.trim() === "") &&
+		(id === null || id.trim() === "")
+	) {
+		return null;
+	}
+	if (!createdAt?.trim() || !id?.trim()) {
+		throw new Error("beforeCreatedAt and beforeId must be provided together");
+	}
+	return {
+		createdAt: createdAt.trim(),
+		id: id.trim(),
+	};
+}
+
 function pathParts(url: URL) {
 	return url.pathname
 		.split("/")
@@ -493,10 +511,18 @@ async function routeApiRequest(
 		}
 
 		if (method === "GET" && parts[3] === "items") {
+			const cursor = optionalThreadItemPageCursor(url);
+			const beforeCursor = optionalThreadItemBeforeCursor(url);
+			if (cursor && beforeCursor) {
+				throw new Error(
+					"cursorCreatedAt/cursorId cannot be combined with beforeCreatedAt/beforeId",
+				);
+			}
 			return jsonResponse(
 				service.listThreadItemsPage(threadId, {
 					limit: optionalQueryInteger(url, "limit", { min: 1 }),
-					cursor: optionalThreadItemPageCursor(url),
+					direction: beforeCursor ? "before" : "after",
+					cursor: beforeCursor ?? cursor,
 				}),
 			);
 		}

@@ -118,6 +118,7 @@ export function createOptimisticThreadDraft(input: {
 		items: [promptItem],
 		itemTotalCount: 1,
 		itemPageSize: 1,
+		itemPageDirection: "after",
 		itemNextCursor: null,
 		itemHasMore: false,
 		latestEventId: input.latestEventId,

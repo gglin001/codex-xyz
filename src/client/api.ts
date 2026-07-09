@@ -51,11 +51,15 @@ export function getThreadItemsPage(input: {
 	threadId: string;
 	limit: number;
 	cursor?: ThreadItemPageCursor | null;
+	beforeCursor?: ThreadItemPageCursor | null;
 }) {
 	const params = new URLSearchParams({
 		limit: String(input.limit),
 	});
-	if (input.cursor) {
+	if (input.beforeCursor) {
+		params.set("beforeCreatedAt", input.beforeCursor.createdAt);
+		params.set("beforeId", input.beforeCursor.id);
+	} else if (input.cursor) {
 		params.set("cursorCreatedAt", input.cursor.createdAt);
 		params.set("cursorId", input.cursor.id);
 	}

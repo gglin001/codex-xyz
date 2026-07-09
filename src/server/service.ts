@@ -13,6 +13,7 @@ import {
 	type StartTurnInput,
 	type ThreadDetail,
 	type ThreadItemPageCursor,
+	type ThreadItemPageDirection,
 	type ThreadItemsPage,
 	type ThreadPage,
 	type ThreadPageCursor,
@@ -481,6 +482,7 @@ export class ControlService {
 		threadId: string,
 		input: {
 			limit?: number | null;
+			direction?: ThreadItemPageDirection;
 			cursor?: ThreadItemPageCursor | null;
 		} = {},
 	): ThreadItemsPage {

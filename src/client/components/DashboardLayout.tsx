@@ -68,6 +68,7 @@ export type DashboardLayoutProps = {
 	inspectorVisible: boolean;
 	terminalVisible: boolean;
 	wrapThreadContent: boolean;
+	loadingEarlierTranscript: boolean;
 	themeMode: ThemeMode;
 	threadQuery: string;
 	defaultCwd: string;
@@ -110,6 +111,7 @@ export type DashboardLayoutProps = {
 	onArchive: () => void;
 	onListBackgroundTerminals: () => void;
 	onCleanBackgroundTerminals: () => void;
+	onLoadEarlierTranscript: () => Promise<unknown>;
 	onRestartCodexAppServer: () => void;
 	dateTimeFormatMode?: DateTimeFormatMode;
 };
@@ -721,6 +723,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 	inspectorVisible,
 	terminalVisible,
 	wrapThreadContent,
+	loadingEarlierTranscript,
 	themeMode,
 	threadQuery,
 	defaultCwd,
@@ -763,6 +766,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 	onArchive,
 	onListBackgroundTerminals,
 	onCleanBackgroundTerminals,
+	onLoadEarlierTranscript,
 	onRestartCodexAppServer,
 	dateTimeFormatMode = "utc",
 }: DashboardLayoutProps) {
@@ -1245,6 +1249,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 							canSubmitPrompt={canSubmitPrompt}
 							submittedPromptFocusTarget={submittedPromptFocusTarget}
 							wrapThreadContent={wrapThreadContent}
+							loadingEarlierTranscript={loadingEarlierTranscript}
 							displayScale={displayScale}
 							commandVisible={commandOpen}
 							navigatorVisible={navigatorVisible}
@@ -1262,6 +1267,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 							onArchive={onArchive}
 							onListBackgroundTerminals={onListBackgroundTerminals}
 							onCleanBackgroundTerminals={onCleanBackgroundTerminals}
+							onLoadEarlierTranscript={onLoadEarlierTranscript}
 							onToggleNavigator={toggleNavigator}
 							onToggleInspector={toggleInspector}
 							onOpenCommands={toggleCommandPalette}
@@ -1310,6 +1316,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 						canSubmitPrompt={canSubmitPrompt}
 						submittedPromptFocusTarget={submittedPromptFocusTarget}
 						wrapThreadContent={wrapThreadContent}
+						loadingEarlierTranscript={loadingEarlierTranscript}
 						displayScale={displayScale}
 						commandVisible={commandOpen}
 						navigatorVisible={mobileSheet === "navigator"}
@@ -1327,6 +1334,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 						onArchive={onArchive}
 						onListBackgroundTerminals={onListBackgroundTerminals}
 						onCleanBackgroundTerminals={onCleanBackgroundTerminals}
+						onLoadEarlierTranscript={onLoadEarlierTranscript}
 						onToggleNavigator={() => openMobileSheet("navigator")}
 						onToggleInspector={() => openMobileSheet("inspector")}
 						onOpenCommands={toggleCommandPalette}

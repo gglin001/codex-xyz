@@ -16,6 +16,8 @@ import type {
 	CozEvent,
 	DashboardState,
 	ThreadDetail,
+	ThreadItem,
+	ThreadItemsPage,
 	ThreadTagScore,
 	Turn,
 } from "../server/domain.js";
@@ -27,6 +29,7 @@ import {
 	forkThread,
 	getState,
 	getThread,
+	getThreadItemsPage,
 	getThreadsPage,
 	interruptTurn,
 	listBackgroundTerminals,
@@ -94,6 +97,7 @@ import { useDateTimeFormatMode } from "./useDateTimeFormatMode.js";
 
 const transientAlertAutoDismissMs = 10_000;
 const archivedSearchPageSize = 200;
+const transcriptHistoryPageSize = 200;
 const mobileProjectionFlushMs = 100;
 const streamEventNames = [...incrementalEventNames, "events.reset"] as const;
 
@@ -107,6 +111,33 @@ function initialState(): DashboardState {
 		defaultCwd: "",
 		defaultModel: null,
 		latestEventId: 0,
+	};
+}
+
+function compareThreadItems(a: ThreadItem, b: ThreadItem) {
+	if (a.createdAt === b.createdAt) {
+		return a.id.localeCompare(b.id);
+	}
+	return a.createdAt < b.createdAt ? -1 : 1;
+}
+
+function mergeThreadItems(detail: ThreadDetail, page: ThreadItemsPage) {
+	const byId = new Map<string, ThreadItem>();
+	for (const item of page.items) {
+		byId.set(item.id, item);
+	}
+	for (const item of detail.items) {
+		byId.set(item.id, item);
+	}
+	const items = [...byId.values()].sort(compareThreadItems);
+	return {
+		...detail,
+		items,
+		itemTotalCount: page.totalCount,
+		itemPageSize: items.length,
+		itemPageDirection: page.direction,
+		itemNextCursor: page.nextCursor,
+		itemHasMore: page.hasMore,
 	};
 }
 
@@ -340,6 +371,8 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	const [summaryEventsReady, setSummaryEventsReady] = useState(false);
 	const [detailSubscription, setDetailSubscription] =
 		useState<DetailSubscription | null>(null);
+	const [loadingEarlierTranscript, setLoadingEarlierTranscript] =
+		useState(false);
 	const selectedThreadIdRef = useRef<string | null>(
 		appInitialSelection.selectedThreadId,
 	);
@@ -489,6 +522,53 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			refreshIsCurrent,
 		],
 	);
+
+	const loadEarlierTranscriptItems = useCallback(async () => {
+		const currentDetail = projectionRef.current.detail;
+		if (
+			!currentDetail ||
+			selectedThreadIdRef.current !== currentDetail.id ||
+			currentDetail.itemPageDirection !== "before" ||
+			!currentDetail.itemHasMore ||
+			!currentDetail.itemNextCursor
+		) {
+			return false;
+		}
+		setLoadingEarlierTranscript(true);
+		try {
+			const page = await getThreadItemsPage({
+				threadId: currentDetail.id,
+				limit: transcriptHistoryPageSize,
+				beforeCursor: currentDetail.itemNextCursor,
+			});
+			setDetail((latestDetail) => {
+				if (
+					!latestDetail ||
+					latestDetail.id !== currentDetail.id ||
+					selectedThreadIdRef.current !== currentDetail.id
+				) {
+					return latestDetail;
+				}
+				const nextDetail = mergeThreadItems(latestDetail, page);
+				projectionRef.current = {
+					state: projectionRef.current.state,
+					detail: nextDetail,
+				};
+				return nextDetail;
+			});
+			setError(null);
+			return true;
+		} catch (loadError) {
+			setError(
+				loadError instanceof Error
+					? loadError.message
+					: "Failed to load earlier transcript items",
+			);
+			return false;
+		} finally {
+			setLoadingEarlierTranscript(false);
+		}
+	}, []);
 
 	const refresh = useCallback(
 		async (nextThreadId?: string | null, options: RefreshOptions = {}) => {
@@ -1905,6 +1985,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				inspectorVisible={inspectorVisible}
 				terminalVisible={terminalVisible}
 				wrapThreadContent={wrapThreadContent}
+				loadingEarlierTranscript={loadingEarlierTranscript}
 				themeMode={themeMode}
 				onThemeModeChange={setThemeMode}
 				displayScale={displayScale}
@@ -1951,6 +2032,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				onArchive={archiveSelectedThread}
 				onListBackgroundTerminals={listSelectedBackgroundTerminals}
 				onCleanBackgroundTerminals={cleanSelectedBackgroundTerminals}
+				onLoadEarlierTranscript={loadEarlierTranscriptItems}
 				onRestartCodexAppServer={restartCodexAppServerFromSettings}
 				dateTimeFormatMode={dateTimeFormatMode}
 			/>

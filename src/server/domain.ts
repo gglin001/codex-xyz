@@ -123,10 +123,13 @@ export type ThreadItemPageCursor = {
 	id: string;
 };
 
+export type ThreadItemPageDirection = "after" | "before";
+
 export type ThreadItemsPage = {
 	threadId: string;
 	items: ThreadItem[];
 	limit: number;
+	direction: ThreadItemPageDirection;
 	cursor: ThreadItemPageCursor | null;
 	nextCursor: ThreadItemPageCursor | null;
 	hasMore: boolean;
@@ -169,6 +172,7 @@ export type ThreadDetail = ControlThread & {
 	items: ThreadItem[];
 	itemTotalCount: number;
 	itemPageSize: number;
+	itemPageDirection: ThreadItemPageDirection;
 	itemNextCursor: ThreadItemPageCursor | null;
 	itemHasMore: boolean;
 	latestEventId: number;

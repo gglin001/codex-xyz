@@ -180,6 +180,7 @@ describe("store database version", () => {
 				"item-1",
 				"item-2",
 			]);
+			expect(firstPage.direction).toBe("after");
 			expect(firstPage.hasMore).toBe(true);
 			expect(firstPage.nextCursor).toEqual({
 				createdAt: "2026-06-13T00:00:02.000Z",
@@ -192,6 +193,65 @@ describe("store database version", () => {
 			});
 			expect(secondPage.items.map((item) => item.id)).toEqual(["item-3"]);
 			expect(secondPage.hasMore).toBe(false);
+
+			const latestPage = store.listThreadItemsPage("thread-1", {
+				limit: 2,
+				direction: "before",
+			});
+			expect(latestPage.items.map((item) => item.id)).toEqual([
+				"item-2",
+				"item-3",
+			]);
+			expect(latestPage.direction).toBe("before");
+			expect(latestPage.hasMore).toBe(true);
+			expect(latestPage.nextCursor).toEqual({
+				createdAt: "2026-06-13T00:00:02.000Z",
+				id: "item-2",
+			});
+
+			const earlierPage = store.listThreadItemsPage("thread-1", {
+				limit: 2,
+				direction: "before",
+				cursor: latestPage.nextCursor,
+			});
+			expect(earlierPage.items.map((item) => item.id)).toEqual(["item-1"]);
+			expect(earlierPage.hasMore).toBe(false);
+		} finally {
+			store.close();
+		}
+	});
+
+	it("opens thread details with a bounded latest item window", () => {
+		const store = Store.open(":memory:");
+		try {
+			store.createThread(threadFixture("thread-1"));
+			for (let index = 1; index <= 205; index += 1) {
+				const minute = Math.floor(index / 60);
+				const second = index % 60;
+				const item: ThreadItem = {
+					id: `item-${String(index).padStart(3, "0")}`,
+					threadId: "thread-1",
+					turnId: null,
+					type: "agent",
+					text: `Item ${index}`,
+					data: {},
+					createdAt: `2026-06-13T00:${String(minute).padStart(2, "0")}:${String(second).padStart(2, "0")}.000Z`,
+				};
+				store.createItem(item);
+			}
+
+			const detail = store.getThreadDetail("thread-1");
+			expect(detail?.items).toHaveLength(200);
+			expect(detail?.items[0]?.id).toBe("item-006");
+			expect(detail?.items.at(-1)?.id).toBe("item-205");
+			expect(detail?.itemTotalCount).toBe(205);
+			expect(detail?.itemPageSize).toBe(200);
+			expect(detail?.itemPageDirection).toBe("before");
+			expect(detail?.itemHasMore).toBe(true);
+			expect(detail?.itemNextCursor).toEqual({
+				createdAt: "2026-06-13T00:00:06.000Z",
+				id: "item-006",
+			});
 		} finally {
 			store.close();
 		}

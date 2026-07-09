@@ -98,6 +98,7 @@ function detail(overrides: Partial<ThreadDetail> = {}): ThreadDetail {
 		items: [item()],
 		itemTotalCount: 1,
 		itemPageSize: 1,
+		itemPageDirection: "after",
 		itemNextCursor: null,
 		itemHasMore: false,
 		latestEventId: 0,

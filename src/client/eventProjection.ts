@@ -398,9 +398,13 @@ function withThreadItem(
 			detail: {
 				...projection.detail,
 				items,
+				itemPageSize: items.length,
 			},
 		};
 	}
+	const existingItem = projection.detail.items.some(
+		(candidate) => candidate.id === item.id,
+	);
 	const items = upsertById(projection.detail.items, item, {
 		equal: shallowEqualObject,
 		searchFromEnd: true,
@@ -413,6 +417,10 @@ function withThreadItem(
 		detail: {
 			...projection.detail,
 			items,
+			itemTotalCount: existingItem
+				? projection.detail.itemTotalCount
+				: projection.detail.itemTotalCount + 1,
+			itemPageSize: items.length,
 		},
 	};
 }

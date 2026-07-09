@@ -11,6 +11,7 @@ import {
 	type ThreadDetail,
 	type ThreadItem,
 	type ThreadItemPageCursor,
+	type ThreadItemPageDirection,
 	type ThreadItemsPage,
 	type ThreadRuntimeStatus,
 	type ThreadTagScore,
@@ -24,6 +25,8 @@ export const currentDatabaseVersion = "v6";
 
 const metadataTable = "metadata";
 const versionKey = "version";
+const defaultThreadItemPageSize = 200;
+const maxThreadItemPageSize = 500;
 
 type EventReplayOptions = {
 	threadId?: string | null;
@@ -49,6 +52,7 @@ type ThreadUpdateOptions = {
 type ThreadItemListOptions = {
 	limit?: number | null;
 	cursor?: ThreadItemPageCursor | null;
+	direction?: ThreadItemPageDirection;
 };
 
 export type ArchiveThreadResult = {
@@ -134,11 +138,19 @@ function textLength(value: string) {
 	return Array.from(value).length;
 }
 
+function normalizeThreadItemPageLimit(value?: number | null) {
+	if (value === undefined || value === null) {
+		return defaultThreadItemPageSize;
+	}
+	return Math.min(maxThreadItemPageSize, Math.max(1, Math.floor(value)));
+}
+
 function pageCursorFromItems(
 	items: ThreadItem[],
 	hasMore: boolean,
+	edge: "first" | "last" = "last",
 ): ThreadItemPageCursor | null {
-	const item = hasMore ? items.at(-1) : null;
+	const item = hasMore ? (edge === "first" ? items[0] : items.at(-1)) : null;
 	return item ? { createdAt: item.createdAt, id: item.id } : null;
 }
 
@@ -640,16 +652,16 @@ export class Store {
 		if (!thread) {
 			return null;
 		}
-		const items = this.listItems(id);
-		const itemTotalCount = items.length;
+		const itemsPage = this.listThreadItemsPage(id, { direction: "before" });
 		return {
 			...thread,
 			turns: this.listTurns(id),
-			items,
-			itemTotalCount,
-			itemPageSize: itemTotalCount,
-			itemNextCursor: null,
-			itemHasMore: false,
+			items: itemsPage.items,
+			itemTotalCount: itemsPage.totalCount,
+			itemPageSize: itemsPage.items.length,
+			itemPageDirection: itemsPage.direction,
+			itemNextCursor: itemsPage.nextCursor,
+			itemHasMore: itemsPage.hasMore,
 			latestEventId,
 		};
 	}
@@ -778,23 +790,30 @@ export class Store {
 	listItems(threadId: string, options: ThreadItemListOptions = {}) {
 		const limit = options.limit ?? null;
 		const cursor = options.cursor ?? null;
+		const direction = options.direction ?? "after";
 		const conditions = ["thread_id = ?"];
 		const params: Array<string | number> = [threadId];
 		if (cursor) {
-			conditions.push("(created_at > ? OR (created_at = ? AND id > ?))");
+			conditions.push(
+				direction === "before"
+					? "(created_at < ? OR (created_at = ? AND id < ?))"
+					: "(created_at > ? OR (created_at = ? AND id > ?))",
+			);
 			params.push(cursor.createdAt, cursor.createdAt, cursor.id);
 		}
 		const where = `WHERE ${conditions.join(" AND ")}`;
+		const order =
+			direction === "before"
+				? "ORDER BY created_at DESC, id DESC"
+				: "ORDER BY created_at ASC, id ASC";
 		if (limit !== null) {
 			return this.db
-				.prepare(
-					`SELECT * FROM items ${where} ORDER BY created_at ASC, id ASC LIMIT ?`,
-				)
+				.prepare(`SELECT * FROM items ${where} ${order} LIMIT ?`)
 				.all(...params, limit)
 				.map((row) => itemFromRow(row as Row));
 		}
 		return this.db
-			.prepare(`SELECT * FROM items ${where} ORDER BY created_at ASC, id ASC`)
+			.prepare(`SELECT * FROM items ${where} ${order}`)
 			.all(...params)
 			.map((row) => itemFromRow(row as Row));
 	}
@@ -803,20 +822,29 @@ export class Store {
 		threadId: string,
 		options: ThreadItemListOptions = {},
 	): ThreadItemsPage {
-		const limit = Math.max(1, Math.floor(options.limit ?? 200));
+		const limit = normalizeThreadItemPageLimit(options.limit);
 		const cursor = options.cursor ?? null;
+		const direction = options.direction ?? "after";
 		const pageItems = this.listItems(threadId, {
 			limit: limit + 1,
 			cursor,
+			direction,
 		});
 		const hasMore = pageItems.length > limit;
-		const items = hasMore ? pageItems.slice(0, limit) : pageItems;
+		const limitedItems = hasMore ? pageItems.slice(0, limit) : pageItems;
+		const items =
+			direction === "before" ? [...limitedItems].reverse() : limitedItems;
 		return {
 			threadId,
 			items,
 			limit,
+			direction,
 			cursor,
-			nextCursor: pageCursorFromItems(items, hasMore),
+			nextCursor: pageCursorFromItems(
+				items,
+				hasMore,
+				direction === "before" ? "first" : "last",
+			),
 			hasMore,
 			totalCount: this.countItems(threadId),
 		};

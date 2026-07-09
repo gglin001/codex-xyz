@@ -105,6 +105,7 @@ export type WorkspaceProps = {
 	canUseGoalMode: boolean;
 	canSubmitPrompt: boolean;
 	wrapThreadContent: boolean;
+	loadingEarlierTranscript: boolean;
 	displayScale: number;
 	commandVisible: boolean;
 	navigatorVisible: boolean;
@@ -123,6 +124,7 @@ export type WorkspaceProps = {
 	onArchive: () => void;
 	onListBackgroundTerminals: () => void;
 	onCleanBackgroundTerminals: () => void;
+	onLoadEarlierTranscript: () => Promise<unknown>;
 	onToggleNavigator: () => void;
 	onToggleInspector: () => void;
 	onOpenCommands?: () => void;
@@ -1187,6 +1189,7 @@ export const Workspace = memo(
 			submittedPromptFocusTarget,
 			canUseGoalMode,
 			canSubmitPrompt,
+			loadingEarlierTranscript,
 			onPromptChange,
 			onPromptKeyDown,
 			onPromptSubmit,
@@ -1200,6 +1203,7 @@ export const Workspace = memo(
 			onArchive,
 			onListBackgroundTerminals,
 			onCleanBackgroundTerminals,
+			onLoadEarlierTranscript,
 			onToggleNavigator,
 			onToggleInspector,
 			onOpenCommands,
@@ -1237,6 +1241,20 @@ export const Workspace = memo(
 			[hiddenEntries],
 		);
 		const canLoadEarlierEntries = hiddenEntries.length > 0;
+		const canLoadEarlierTranscriptItems = Boolean(
+			detail?.itemPageDirection === "before" &&
+				detail.itemHasMore &&
+				detail.itemNextCursor,
+		);
+		const canShowEarlierTranscriptControl =
+			canLoadEarlierEntries || canLoadEarlierTranscriptItems;
+		const earlierTranscriptLabel = canLoadEarlierEntries
+			? `Show ${hiddenItemCount} earlier transcript ${
+					hiddenItemCount === 1 ? "item" : "items"
+				}`
+			: loadingEarlierTranscript
+				? "Loading earlier transcript..."
+				: "Load earlier transcript";
 		const promptAnchors = useMemo(
 			() => transcriptPromptAnchors(visibleEntries),
 			[visibleEntries],
@@ -1371,6 +1389,45 @@ export const Workspace = memo(
 			window.setTimeout(restorePosition, 300);
 		}, []);
 
+		const loadEarlierTranscript = useCallback(() => {
+			if (canLoadEarlierEntries) {
+				setMobileVisibleEntryCount((current) =>
+					Math.min(entries.length, current + mobileTranscriptWindowStep),
+				);
+				return;
+			}
+			if (!canLoadEarlierTranscriptItems || loadingEarlierTranscript) {
+				return;
+			}
+			const scrollElement = transcriptScrollRef.current;
+			const previousScrollHeight = scrollElement?.scrollHeight ?? null;
+			const previousScrollTop = scrollElement?.scrollTop ?? null;
+			void onLoadEarlierTranscript().finally(() => {
+				if (
+					!scrollElement ||
+					previousScrollHeight === null ||
+					previousScrollTop === null
+				) {
+					return;
+				}
+				const restorePosition = () => {
+					scrollElement.scrollTop =
+						scrollElement.scrollHeight -
+						previousScrollHeight +
+						previousScrollTop;
+				};
+				window.requestAnimationFrame(restorePosition);
+				window.setTimeout(restorePosition, 80);
+				window.setTimeout(restorePosition, 220);
+			});
+		}, [
+			canLoadEarlierEntries,
+			canLoadEarlierTranscriptItems,
+			entries.length,
+			loadingEarlierTranscript,
+			onLoadEarlierTranscript,
+		]);
+
 		useEffect(() => {
 			const target = submittedPromptFocusTarget;
 			if (
@@ -1482,25 +1539,19 @@ export const Workspace = memo(
 											/>
 										</div>
 									) : null}
-									{canLoadEarlierEntries ? (
+									{canShowEarlierTranscriptControl ? (
 										<div className="flex justify-center">
 											<button
 												type="button"
+												disabled={loadingEarlierTranscript}
 												className={cn(
-													"min-h-10 rounded-[8px] bg-control px-3.5 text-[12px] font-medium text-muted-strong active:bg-control-hover",
+													"min-h-10 gap-2 rounded-[8px] bg-control px-3.5 text-[12px] font-medium text-muted-strong active:bg-control-hover disabled:cursor-wait disabled:opacity-60",
 													ui.row,
 												)}
-												onClick={() =>
-													setMobileVisibleEntryCount((current) =>
-														Math.min(
-															entries.length,
-															current + mobileTranscriptWindowStep,
-														),
-													)
-												}
+												onClick={loadEarlierTranscript}
 											>
-												Show {hiddenItemCount} earlier transcript{" "}
-												{hiddenItemCount === 1 ? "item" : "items"}
+												<Plus size={14} aria-hidden="true" />
+												<span>{earlierTranscriptLabel}</span>
 											</button>
 										</div>
 									) : null}

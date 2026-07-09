@@ -311,7 +311,7 @@ export const ParamPanel = memo(function ParamPanel({
 		threadSummary?.tokensUsed ??
 		0;
 	const turnCount = displayDetail?.turns.length ?? 0;
-	const itemCount = displayDetail?.items.length ?? 0;
+	const itemCount = displayDetail?.itemTotalCount ?? 0;
 
 	return (
 		<aside
