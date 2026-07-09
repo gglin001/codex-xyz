@@ -526,21 +526,23 @@
 		contain: inline-size;
 	}
 
-	.mobile-stable-settings-sheet {
+	.mobile-contained-settings-sheet {
 		height: calc(100svh - var(--mobile-sheet-top));
 		inline-size: 100%;
 		max-height: calc(100svh - var(--mobile-sheet-top));
 		max-inline-size: 100%;
 		min-inline-size: 0;
 		overflow-x: clip;
-		overscroll-behavior-y: none;
+		overscroll-behavior-x: none;
+		overscroll-behavior-y: contain;
 		contain: inline-size;
-		touch-action: pan-x;
+		touch-action: pan-x pan-y;
 	}
 
-	.mobile-stable-settings-sheet .mobile-keyboard-scroll {
-		overscroll-behavior-y: none;
-		touch-action: pan-x;
+	.mobile-contained-settings-sheet .mobile-keyboard-scroll {
+		overscroll-behavior-x: none;
+		overscroll-behavior-y: contain;
+		touch-action: pan-x pan-y;
 	}
 
 	:root[data-keyboard-visible] .mobile-keyboard-scroll {

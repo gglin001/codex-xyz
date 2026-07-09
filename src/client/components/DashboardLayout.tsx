@@ -796,9 +796,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 
 	useMobileViewportGeometry();
 	useMobileLongPressSelectionGuard();
-	useMobileTouchScrollBoundary(mobileSheetPanelRef, mobileSheet !== null, {
-		strictVertical: mobileSheet === "inspector",
-	});
+	useMobileTouchScrollBoundary(mobileSheetPanelRef, mobileSheet !== null);
 
 	const focusVisiblePrompt = useCallback(() => {
 		const useDesktopWorkspace =
@@ -1395,7 +1393,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 							className={cn(
 								layer.mobileSheet,
 								mobileSheet === "inspector"
-									? "mobile-stable-settings-sheet"
+									? "mobile-contained-settings-sheet"
 									: null,
 								ui.backdropPanel,
 							)}

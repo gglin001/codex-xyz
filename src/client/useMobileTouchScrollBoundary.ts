@@ -3,14 +3,15 @@ import { useEffect, useRef } from "react";
 import { maxScrollTop } from "./mobileScrollPhysics.js";
 
 const mobileViewportQuery = "(max-width: 767px)";
-const verticalIntentThresholdPx = 2;
+const gestureIntentThresholdPx = 2;
 const scrollBoundaryTolerancePx = 1;
 
 type TouchStart = {
 	id: number;
 	x: number;
 	y: number;
-	scrollElement: HTMLElement | null;
+	horizontalScrollElement: HTMLElement | null;
+	verticalScrollElement: HTMLElement | null;
 };
 
 export type MobileTouchScrollMetrics = {
@@ -19,24 +20,56 @@ export type MobileTouchScrollMetrics = {
 	clientHeight: number;
 } | null;
 
+export type MobileTouchHorizontalScrollMetrics = {
+	scrollLeft: number;
+	scrollWidth: number;
+	clientWidth: number;
+} | null;
+
 export function shouldPreventMobileScrollChain({
 	dx,
 	dy,
+	horizontalScrollMetrics,
 	scrollMetrics,
-	strictVertical = false,
 }: {
 	dx: number;
 	dy: number;
+	horizontalScrollMetrics?: MobileTouchHorizontalScrollMetrics;
 	scrollMetrics: MobileTouchScrollMetrics;
-	strictVertical?: boolean;
 }) {
 	const absX = Math.abs(dx);
 	const absY = Math.abs(dy);
-	if (absY <= verticalIntentThresholdPx || absY <= absX) {
-		return false;
+	if (absX > gestureIntentThresholdPx && absX > absY) {
+		if (horizontalScrollMetrics === undefined) {
+			return false;
+		}
+		if (!horizontalScrollMetrics) {
+			return true;
+		}
+
+		const scrollableLeft = maxScrollTop(
+			horizontalScrollMetrics.scrollWidth,
+			horizontalScrollMetrics.clientWidth,
+		);
+		if (scrollableLeft <= scrollBoundaryTolerancePx) {
+			return true;
+		}
+
+		const scrollLeft = Math.min(
+			scrollableLeft,
+			Math.max(0, horizontalScrollMetrics.scrollLeft),
+		);
+		const atLeft = scrollLeft <= scrollBoundaryTolerancePx;
+		const atRight = scrollLeft >= scrollableLeft - scrollBoundaryTolerancePx;
+
+		if (dx > 0) {
+			return atLeft;
+		}
+		return atRight;
 	}
-	if (strictVertical) {
-		return true;
+
+	if (absY <= gestureIntentThresholdPx || absY <= absX) {
+		return false;
 	}
 	if (!scrollMetrics) {
 		return true;
@@ -63,17 +96,21 @@ export function shouldPreventMobileScrollChain({
 	return atBottom;
 }
 
-function isVerticalScrollContainer(element: HTMLElement) {
+function isScrollContainer(element: HTMLElement, axis: "x" | "y") {
 	const style = window.getComputedStyle(element);
-	if (!["auto", "scroll", "overlay"].includes(style.overflowY)) {
+	const overflow = axis === "x" ? style.overflowX : style.overflowY;
+	if (!["auto", "scroll", "overlay"].includes(overflow)) {
 		return false;
 	}
-	return maxScrollTop(element.scrollHeight, element.clientHeight) > 0;
+	const scrollSize = axis === "x" ? element.scrollWidth : element.scrollHeight;
+	const clientSize = axis === "x" ? element.clientWidth : element.clientHeight;
+	return maxScrollTop(scrollSize, clientSize) > 0;
 }
 
-function closestVerticalScrollContainer(
+function closestScrollContainer(
 	target: EventTarget | null,
 	root: HTMLElement,
+	axis: "x" | "y",
 ) {
 	if (!(target instanceof Element)) {
 		return null;
@@ -81,7 +118,7 @@ function closestVerticalScrollContainer(
 
 	let element: Element | null = target;
 	while (element && element instanceof HTMLElement) {
-		if (isVerticalScrollContainer(element)) {
+		if (isScrollContainer(element, axis)) {
 			return element;
 		}
 		if (element === root) {
@@ -107,13 +144,24 @@ function metricsFor(element: HTMLElement | null): MobileTouchScrollMetrics {
 	};
 }
 
+function horizontalMetricsFor(
+	element: HTMLElement | null,
+): MobileTouchHorizontalScrollMetrics {
+	if (!element?.isConnected) {
+		return null;
+	}
+	return {
+		scrollLeft: element.scrollLeft,
+		scrollWidth: element.scrollWidth,
+		clientWidth: element.clientWidth,
+	};
+}
+
 export function useMobileTouchScrollBoundary(
 	rootRef: RefObject<HTMLElement | null>,
 	enabled: boolean,
-	options: { strictVertical?: boolean } = {},
 ) {
 	const startRef = useRef<TouchStart | null>(null);
-	const strictVertical = options.strictVertical ?? false;
 
 	useEffect(() => {
 		if (!enabled || typeof window.matchMedia !== "function") {
@@ -140,7 +188,12 @@ export function useMobileTouchScrollBoundary(
 				id: touch.identifier,
 				x: touch.clientX,
 				y: touch.clientY,
-				scrollElement: closestVerticalScrollContainer(event.target, root),
+				horizontalScrollElement: closestScrollContainer(
+					event.target,
+					root,
+					"x",
+				),
+				verticalScrollElement: closestScrollContainer(event.target, root, "y"),
 			};
 		};
 
@@ -159,8 +212,10 @@ export function useMobileTouchScrollBoundary(
 				shouldPreventMobileScrollChain({
 					dx: touch.clientX - start.x,
 					dy: touch.clientY - start.y,
-					scrollMetrics: metricsFor(start.scrollElement),
-					strictVertical,
+					horizontalScrollMetrics: horizontalMetricsFor(
+						start.horizontalScrollElement,
+					),
+					scrollMetrics: metricsFor(start.verticalScrollElement),
 				}) &&
 				event.cancelable
 			) {
@@ -189,5 +244,5 @@ export function useMobileTouchScrollBoundary(
 			root.removeEventListener("touchend", onTouchEnd, { capture: true });
 			root.removeEventListener("touchcancel", onTouchEnd, { capture: true });
 		};
-	}, [enabled, rootRef, strictVertical]);
+	}, [enabled, rootRef]);
 }
