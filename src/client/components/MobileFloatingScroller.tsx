@@ -12,6 +12,8 @@ import {
 	mobileScrollInitialMetrics,
 	resolveMobileKeyboardScrollTop,
 	resolveMobileScrollMetrics,
+	resolveScrollAnchorMetric,
+	scrollAnchorMarkerSize,
 } from "../mobileScrollPhysics.js";
 
 function scrollMetricsEqual(
@@ -29,16 +31,157 @@ function scrollMetricsEqual(
 const hitAreaHalfWidth = "1.75rem";
 const pillHalfWidth = "0.5rem";
 
+export type FloatingScrollAnchor = {
+	id: string;
+	itemId: string;
+	label: string;
+};
+
+type FloatingScrollMarker = FloatingScrollAnchor & {
+	top: number;
+	scrollTop: number;
+};
+
+type FloatingScrollRailProps = {
+	trackRef: RefObject<HTMLDivElement | null>;
+	thumbRef: RefObject<HTMLDivElement | null>;
+	railRight: string;
+	markers: FloatingScrollMarker[];
+	metrics: MobileScrollMetrics;
+	dragging: boolean;
+	scrollElementId: string;
+	onMarkerClick: (marker: FloatingScrollMarker) => void;
+	onThumbPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
+	onThumbPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void;
+	onThumbPointerUp: (event: ReactPointerEvent<HTMLDivElement>) => void;
+	onThumbPointerCancel: (event: ReactPointerEvent<HTMLDivElement>) => void;
+	onThumbLostPointerCapture: () => void;
+	onThumbKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
+};
+
+function markersEqual(
+	current: FloatingScrollMarker[],
+	next: FloatingScrollMarker[],
+) {
+	if (current.length !== next.length) {
+		return false;
+	}
+	return current.every((marker, index) => {
+		const nextMarker = next[index];
+		return (
+			marker.id === nextMarker.id &&
+			marker.itemId === nextMarker.itemId &&
+			marker.label === nextMarker.label &&
+			Math.abs(marker.top - nextMarker.top) < 0.5 &&
+			Math.abs(marker.scrollTop - nextMarker.scrollTop) < 0.5
+		);
+	});
+}
+
+function transcriptItemSelector(itemId: string) {
+	const escaped =
+		typeof CSS !== "undefined" && typeof CSS.escape === "function"
+			? CSS.escape(itemId)
+			: itemId.replace(/["\\]/g, "\\$&");
+	return `[data-transcript-item-id="${escaped}"]`;
+}
+
+const FloatingScrollRail = memo(function FloatingScrollRail({
+	trackRef,
+	thumbRef,
+	railRight,
+	markers,
+	metrics,
+	dragging,
+	scrollElementId,
+	onMarkerClick,
+	onThumbPointerDown,
+	onThumbPointerMove,
+	onThumbPointerUp,
+	onThumbPointerCancel,
+	onThumbLostPointerCapture,
+	onThumbKeyDown,
+}: FloatingScrollRailProps) {
+	return (
+		<div
+			ref={trackRef}
+			className="pointer-events-none absolute bottom-0 top-0 w-14"
+			style={{ right: railRight }}
+		>
+			<div
+				aria-hidden="true"
+				className="absolute bottom-0 left-1/2 top-0 w-px -translate-x-1/2 rounded-full bg-muted/16"
+			/>
+			{markers.map((marker) => (
+				<button
+					key={marker.id}
+					type="button"
+					className="group/marker pointer-events-auto absolute left-0 h-7 w-full -translate-y-1/2 cursor-pointer rounded-full touch-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-muted-strong"
+					style={{ top: `${Math.round(marker.top)}px` }}
+					aria-label={marker.label}
+					title={marker.label}
+					onClick={(event) => {
+						event.preventDefault();
+						event.stopPropagation();
+						onMarkerClick(marker);
+					}}
+				>
+					<span
+						aria-hidden="true"
+						className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-app-bg/80 bg-muted/42 transition-[background-color,transform] duration-150 ease-out group-hover/marker:scale-125 group-hover/marker:bg-muted-strong/72"
+					/>
+				</button>
+			))}
+			<div
+				ref={thumbRef}
+				role="scrollbar"
+				tabIndex={metrics.canScroll ? 0 : -1}
+				aria-label="Scroll content"
+				aria-controls={scrollElementId}
+				aria-orientation="vertical"
+				aria-valuemin={0}
+				aria-valuemax={100}
+				aria-valuenow={Math.round(metrics.progress * 100)}
+				className="group pointer-events-auto absolute left-0 min-h-12 w-full cursor-grab touch-none focus-visible:outline-none active:cursor-grabbing"
+				style={{
+					height: `${Math.round(metrics.thumbHeight)}px`,
+					top: `${Math.round(metrics.thumbTop)}px`,
+				}}
+				onPointerDown={onThumbPointerDown}
+				onPointerMove={onThumbPointerMove}
+				onPointerUp={onThumbPointerUp}
+				onPointerCancel={onThumbPointerCancel}
+				onLostPointerCapture={onThumbLostPointerCapture}
+				onKeyDown={onThumbKeyDown}
+			>
+				<span
+					aria-hidden="true"
+					className={cn(
+						"absolute left-1/2 top-1/2 h-9 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-border-strong bg-muted/72 shadow-none transition-[background-color,border-color,opacity,transform] duration-150 ease-out group-focus-visible:ring-2 group-focus-visible:ring-muted-strong",
+						dragging
+							? "scale-105 bg-muted-strong/88"
+							: "group-hover:scale-[1.04] group-hover:bg-muted/82",
+					)}
+				/>
+			</div>
+		</div>
+	);
+});
+
 export const MobileFloatingScroller = memo(function MobileFloatingScroller({
 	scrollRef,
 	scrollElementId,
 	className,
 	contentRightInset = hitAreaHalfWidth,
+	anchors = [],
+	visibility = "mobile",
 }: {
 	scrollRef: RefObject<HTMLElement | null>;
 	scrollElementId: string;
 	className?: string;
 	contentRightInset?: string;
+	anchors?: FloatingScrollAnchor[];
+	visibility?: "mobile" | "always";
 }) {
 	const trackRef = useRef<HTMLDivElement | null>(null);
 	const thumbRef = useRef<HTMLDivElement | null>(null);
@@ -49,18 +192,27 @@ export const MobileFloatingScroller = memo(function MobileFloatingScroller({
 	const [metrics, setMetrics] = useState<MobileScrollMetrics>(
 		mobileScrollInitialMetrics,
 	);
+	const [markers, setMarkers] = useState<FloatingScrollMarker[]>([]);
 	const [dragging, setDragging] = useState(false);
-	const [isMobileViewport, setIsMobileViewport] = useState(false);
+	const [isVisibleViewport, setIsVisibleViewport] = useState(
+		visibility === "always",
+	);
+	const railRight = `calc(max(${contentRightInset}, ${pillHalfWidth}) - ${hitAreaHalfWidth})`;
 
 	useEffect(() => {
+		if (visibility === "always") {
+			setIsVisibleViewport(true);
+			return;
+		}
+
 		const mediaQuery = window.matchMedia("(max-width: 767px)");
-		const updateViewport = () => setIsMobileViewport(mediaQuery.matches);
+		const updateViewport = () => setIsVisibleViewport(mediaQuery.matches);
 		updateViewport();
 		mediaQuery.addEventListener("change", updateViewport);
 		return () => {
 			mediaQuery.removeEventListener("change", updateViewport);
 		};
-	}, []);
+	}, [visibility]);
 
 	const updateMetrics = useCallback(() => {
 		const scrollElement = scrollRef.current;
@@ -71,6 +223,7 @@ export const MobileFloatingScroller = memo(function MobileFloatingScroller({
 					? current
 					: mobileScrollInitialMetrics,
 			);
+			setMarkers((current) => (current.length === 0 ? current : []));
 			return;
 		}
 
@@ -81,10 +234,46 @@ export const MobileFloatingScroller = memo(function MobileFloatingScroller({
 			trackHeight: trackElement.clientHeight,
 		});
 
+		const nextMarkers =
+			nextMetrics.canScroll && anchors.length > 0
+				? anchors.flatMap((anchor) => {
+						const targetElement = scrollElement.querySelector<HTMLElement>(
+							transcriptItemSelector(anchor.itemId),
+						);
+						if (!targetElement) {
+							return [];
+						}
+
+						const scrollRect = scrollElement.getBoundingClientRect();
+						const targetRect = targetElement.getBoundingClientRect();
+						const markerMetric = resolveScrollAnchorMetric({
+							anchorTop:
+								scrollElement.scrollTop + targetRect.top - scrollRect.top,
+							scrollHeight: scrollElement.scrollHeight,
+							clientHeight: scrollElement.clientHeight,
+							trackHeight: trackElement.clientHeight,
+							thumbHeight: nextMetrics.thumbHeight,
+							markerSize: scrollAnchorMarkerSize,
+						});
+						return markerMetric
+							? [
+									{
+										...anchor,
+										top: markerMetric.top,
+										scrollTop: markerMetric.scrollTop,
+									},
+								]
+							: [];
+					})
+				: [];
+
 		setMetrics((current) =>
 			scrollMetricsEqual(current, nextMetrics) ? current : nextMetrics,
 		);
-	}, [scrollRef]);
+		setMarkers((current) =>
+			markersEqual(current, nextMarkers) ? current : nextMarkers,
+		);
+	}, [anchors, scrollRef]);
 
 	useEffect(() => {
 		const scrollElement = scrollRef.current;
@@ -142,14 +331,14 @@ export const MobileFloatingScroller = memo(function MobileFloatingScroller({
 	}, [scrollRef, updateMetrics]);
 
 	useEffect(() => {
-		if (!isMobileViewport) {
+		if (!isVisibleViewport) {
 			return;
 		}
 		const frame = window.requestAnimationFrame(updateMetrics);
 		return () => {
 			window.cancelAnimationFrame(frame);
 		};
-	}, [isMobileViewport, updateMetrics]);
+	}, [isVisibleViewport, updateMetrics]);
 
 	const scrollToPointer = useCallback(
 		(clientY: number, pointerOffsetY: number) => {
@@ -273,6 +462,36 @@ export const MobileFloatingScroller = memo(function MobileFloatingScroller({
 		[metrics.canScroll, scrollRef, updateMetrics],
 	);
 
+	const scrollToMarker = useCallback(
+		(marker: FloatingScrollMarker) => {
+			const scrollElement = scrollRef.current;
+			if (!scrollElement) {
+				return;
+			}
+
+			let nextScrollTop = marker.scrollTop;
+			const targetElement = scrollElement.querySelector<HTMLElement>(
+				transcriptItemSelector(marker.itemId),
+			);
+			if (targetElement) {
+				const scrollRect = scrollElement.getBoundingClientRect();
+				const targetRect = targetElement.getBoundingClientRect();
+				nextScrollTop = clamp(
+					scrollElement.scrollTop + targetRect.top - scrollRect.top,
+					0,
+					maxScrollTop(scrollElement.scrollHeight, scrollElement.clientHeight),
+				);
+				targetElement.focus({ preventScroll: true });
+			}
+			scrollElement.scrollTo({
+				top: nextScrollTop,
+				behavior: "smooth",
+			});
+			updateMetrics();
+		},
+		[scrollRef, updateMetrics],
+	);
+
 	return (
 		<div
 			data-scrollable={metrics.canScroll ? "true" : "false"}
@@ -282,43 +501,24 @@ export const MobileFloatingScroller = memo(function MobileFloatingScroller({
 				className,
 			)}
 			aria-hidden={metrics.canScroll ? undefined : true}
-			style={{ display: isMobileViewport ? "block" : "none" }}
+			style={{ display: isVisibleViewport ? "block" : "none" }}
 		>
-			<div ref={trackRef} className="relative h-full w-full">
-				<div
-					ref={thumbRef}
-					role="scrollbar"
-					tabIndex={metrics.canScroll ? 0 : -1}
-					aria-label="Scroll content"
-					aria-controls={scrollElementId}
-					aria-orientation="vertical"
-					aria-valuemin={0}
-					aria-valuemax={100}
-					aria-valuenow={Math.round(metrics.progress * 100)}
-					className="group pointer-events-auto absolute min-h-12 w-14 cursor-grab touch-none focus-visible:outline-none active:cursor-grabbing"
-					style={{
-						height: `${Math.round(metrics.thumbHeight)}px`,
-						top: `${Math.round(metrics.thumbTop)}px`,
-						right: `calc(max(${contentRightInset}, ${pillHalfWidth}) - ${hitAreaHalfWidth})`,
-					}}
-					onPointerDown={handlePointerDown}
-					onPointerMove={handlePointerMove}
-					onPointerUp={endPointerDrag}
-					onPointerCancel={endPointerDrag}
-					onLostPointerCapture={cancelPointerDrag}
-					onKeyDown={handleKeyDown}
-				>
-					<span
-						aria-hidden="true"
-						className={cn(
-							"absolute left-1/2 top-1/2 h-9 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-border-strong bg-muted/72 shadow-none transition-[background-color,border-color,opacity,transform] duration-150 ease-out group-focus-visible:ring-2 group-focus-visible:ring-muted-strong",
-							dragging
-								? "scale-105 bg-muted-strong/88"
-								: "group-hover:scale-[1.04] group-hover:bg-muted/82",
-						)}
-					/>
-				</div>
-			</div>
+			<FloatingScrollRail
+				trackRef={trackRef}
+				thumbRef={thumbRef}
+				railRight={railRight}
+				markers={markers}
+				metrics={metrics}
+				dragging={dragging}
+				scrollElementId={scrollElementId}
+				onMarkerClick={scrollToMarker}
+				onThumbPointerDown={handlePointerDown}
+				onThumbPointerMove={handlePointerMove}
+				onThumbPointerUp={endPointerDrag}
+				onThumbPointerCancel={endPointerDrag}
+				onThumbLostPointerCapture={cancelPointerDrag}
+				onThumbKeyDown={handleKeyDown}
+			/>
 		</div>
 	);
 });

@@ -65,7 +65,10 @@ import {
 	itemTitle,
 	statusLabel,
 } from "../uiFormat.js";
-import { MobileFloatingScroller } from "./MobileFloatingScroller.js";
+import {
+	type FloatingScrollAnchor,
+	MobileFloatingScroller,
+} from "./MobileFloatingScroller.js";
 import {
 	CollapsibleCard,
 	ComposerIconButton,
@@ -216,6 +219,27 @@ function transcriptItemDataAttributes(entry: TranscriptEntry) {
 				tabIndex: -1,
 			}
 		: {};
+}
+
+function transcriptPromptAnchors(
+	entries: TranscriptEntry[],
+): FloatingScrollAnchor[] {
+	let promptIndex = 0;
+	return entries.flatMap((entry) => {
+		if (entry.kind !== "item" || entry.item.type !== "user") {
+			return [];
+		}
+
+		promptIndex += 1;
+		const preview = getFirstLineTextPreview(entry.item.text.trim() || "Prompt");
+		return [
+			{
+				id: `prompt:${entry.item.id}`,
+				itemId: entry.item.id,
+				label: `Jump to prompt ${promptIndex}: ${preview}`,
+			},
+		];
+	});
 }
 
 function processPreview(entry: TranscriptProcessEntry) {
@@ -1213,6 +1237,10 @@ export const Workspace = memo(
 			[hiddenEntries],
 		);
 		const canLoadEarlierEntries = hiddenEntries.length > 0;
+		const promptAnchors = useMemo(
+			() => transcriptPromptAnchors(visibleEntries),
+			[visibleEntries],
+		);
 		const name =
 			selectedThread?.name ?? threadSummary?.name ?? "New Codex thread";
 		const tokens = detail?.tokensUsed ?? threadSummary?.tokensUsed ?? 0;
@@ -1439,11 +1467,11 @@ export const Workspace = memo(
 						animate={{ width: "100%" }}
 						transition={motionPresets.panel}
 					>
-						<div className="relative min-h-0 flex-1">
+						<div className="relative min-h-0 flex-1 [--transcript-navigator-right-inset:0.75rem] md:[--transcript-navigator-right-inset:1.25rem]">
 							<div
 								id={transcriptScrollId}
 								ref={transcriptScrollRef}
-								className="mobile-custom-scroll mobile-transcript-scroll h-full min-h-0 overflow-x-hidden overflow-y-auto px-3 py-0 md:px-5 md:[scrollbar-gutter:stable]"
+								className="transcript-custom-scroll mobile-custom-scroll mobile-transcript-scroll h-full min-h-0 overflow-x-hidden overflow-y-auto px-3 py-0 md:px-5"
 							>
 								<ThreadContentFrame className="grid gap-[var(--transcript-gap)]">
 									{entries.length === 0 ? (
@@ -1499,13 +1527,13 @@ export const Workspace = memo(
 							</div>
 							<div className="chrome-edge-fade chrome-edge-fade-app chrome-edge-fade-top" />
 							<div className="chrome-edge-fade chrome-edge-fade-app chrome-edge-fade-bottom chrome-edge-fade-tall" />
-							{isMobilePresentation ? (
-								<MobileFloatingScroller
-									scrollRef={transcriptScrollRef}
-									scrollElementId={transcriptScrollId}
-									contentRightInset="0.75rem"
-								/>
-							) : null}
+							<MobileFloatingScroller
+								scrollRef={transcriptScrollRef}
+								scrollElementId={transcriptScrollId}
+								contentRightInset="var(--transcript-navigator-right-inset)"
+								anchors={promptAnchors}
+								visibility="always"
+							/>
 						</div>
 
 						<div

@@ -20,9 +20,25 @@ export type MobileScrollKeyInput = {
 	scrollTop: number;
 };
 
+export type ScrollAnchorMetricInput = {
+	anchorTop: number;
+	scrollHeight: number;
+	clientHeight: number;
+	trackHeight: number;
+	thumbHeight?: number;
+	markerSize?: number;
+};
+
+export type ScrollAnchorMetric = {
+	top: number;
+	scrollTop: number;
+	progress: number;
+};
+
 export const mobileScrollThumbHeight = 48;
 export const mobileScrollMinScrollableDistance = 16;
 export const mobileScrollKeyboardPageRatio = 0.82;
+export const scrollAnchorMarkerSize = 8;
 
 export const mobileScrollInitialMetrics: MobileScrollMetrics = {
 	canScroll: false,
@@ -71,6 +87,44 @@ export function resolveMobileScrollMetrics({
 		canScroll: true,
 		thumbHeight,
 		thumbTop: progress * maxThumbTop,
+		progress,
+	};
+}
+
+export function resolveScrollAnchorMetric({
+	anchorTop,
+	scrollHeight,
+	clientHeight,
+	trackHeight,
+	thumbHeight = mobileScrollThumbHeight,
+	markerSize = scrollAnchorMarkerSize,
+}: ScrollAnchorMetricInput): ScrollAnchorMetric | null {
+	if (
+		!Number.isFinite(anchorTop) ||
+		!Number.isFinite(scrollHeight) ||
+		!Number.isFinite(clientHeight) ||
+		!Number.isFinite(trackHeight) ||
+		scrollHeight <= 0 ||
+		trackHeight <= 0 ||
+		trackHeight <= thumbHeight
+	) {
+		return null;
+	}
+
+	const scrollableTop = maxScrollTop(scrollHeight, clientHeight);
+	if (scrollableTop <= 0) {
+		return null;
+	}
+
+	const markerHalfSize = Math.max(0, markerSize / 2);
+	const clampedAnchorTop = clamp(anchorTop, 0, scrollHeight);
+	const scrollTop = clamp(clampedAnchorTop, 0, scrollableTop);
+	const progress = scrollTop / scrollableTop;
+	const visualTop = thumbHeight / 2 + progress * (trackHeight - thumbHeight);
+
+	return {
+		top: clamp(visualTop, markerHalfSize, trackHeight - markerHalfSize),
+		scrollTop,
 		progress,
 	};
 }
