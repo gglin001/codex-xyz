@@ -266,7 +266,10 @@ describe("Next API routes", () => {
 				}),
 			},
 		);
-		expect(created.thread.id).toMatch(/^[0-9a-f-]{36}$/);
+		expect(created.thread.id).toBe("runtime_thread_1");
+		expect(testRuntime.getThreadSnapshot(created.thread.id)?.id).toBe(
+			created.thread.id,
+		);
 		expect(created.thread.cwd).toBe(tempDir);
 
 		await waitFor(async () => {

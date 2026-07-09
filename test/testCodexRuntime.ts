@@ -46,6 +46,7 @@ export class TestCodexRuntime implements CodexRuntime {
 	private readonly threads = new Map<string, TestThread>();
 	private readonly running = new Map<string, RunningTurn>();
 	private closed = false;
+	private nextThread = 1;
 
 	onEvent(handler: RuntimeEventHandler) {
 		this.handler = handler;
@@ -62,7 +63,7 @@ export class TestCodexRuntime implements CodexRuntime {
 
 	async startThread(input: StartThreadInput): Promise<RuntimeThreadSnapshot> {
 		this.closed = false;
-		const id = randomUUID();
+		const id = `runtime_thread_${this.nextThread++}`;
 		const thread: TestThread = {
 			id,
 			sessionId: id,
@@ -186,7 +187,7 @@ export class TestCodexRuntime implements CodexRuntime {
 
 	async forkThread(input: ForkThreadInput): Promise<RuntimeThreadSnapshot> {
 		const source = this.requireThread(input.sourceThreadId);
-		const id = randomUUID();
+		const id = `runtime_thread_${this.nextThread++}`;
 		const thread: TestThread = {
 			id,
 			sessionId: source.sessionId,

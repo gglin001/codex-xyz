@@ -356,24 +356,20 @@ export const ParamPanel = memo(function ParamPanel({
 								layout="inline"
 							/>
 						</div>
-						<div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-1.5">
-							<InfoTile
-								icon={<Hash size={13} />}
-								label="ID"
-								value={thread ? shortId(thread.id) : "None"}
-								mono
-								layout="inline"
-							/>
-							<InfoTile
-								icon={<Activity size={13} />}
-								label="Turn"
-								value={
-									thread?.activeTurnId ? shortId(thread.activeTurnId) : "None"
-								}
-								mono
-								layout="inline"
-							/>
-						</div>
+						<InfoTile
+							icon={<Hash size={13} />}
+							label="ID"
+							value={thread?.id ?? "None"}
+							mono
+							layout="inline"
+						/>
+						<InfoTile
+							icon={<Activity size={13} />}
+							label="Turn"
+							value={thread?.activeTurnId ?? "None"}
+							mono
+							layout="inline"
+						/>
 						<InfoTile
 							icon={<FolderGit2 size={13} />}
 							label="CWD"

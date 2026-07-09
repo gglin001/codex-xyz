@@ -289,12 +289,10 @@ export function normalizeThreadItem(value: unknown) {
 }
 
 export function normalizeThreadId(value: unknown) {
-	const id = String(value);
-	const uuid =
-		"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
-	const prefixed = id.match(new RegExp(`^thread_(${uuid})$`));
-	const urn = id.match(new RegExp(`^urn:uuid:(${uuid})$`, "i"));
-	return (prefixed?.[1] ?? urn?.[1] ?? id).toLowerCase();
+	if (typeof value !== "string" || value.trim().length === 0) {
+		throw new Error(`Invalid app-server thread id: ${JSON.stringify(value)}`);
+	}
+	return String(value);
 }
 
 export function normalizeThreadRuntimeStatus(

@@ -13,13 +13,13 @@ import type { RuntimeEvent } from "../src/server/codex/runtimePort.js";
 
 let tempDir: string | null = null;
 let runtime: AppServerRuntime | null = null;
-const sourceThreadId = "00000000-0000-4000-8000-000000000001";
-const debugThreadId = "00000000-0000-4000-8000-000000000002";
-const forkThreadId = "00000000-0000-4000-8000-000000000003";
+const sourceThreadId = "thread_00000000-0000-4000-8000-000000000001";
+const debugThreadId = "thread_00000000-0000-4000-8000-000000000002";
+const forkThreadId = "thread_00000000-0000-4000-8000-000000000003";
 const turnId = "turn_00000000-0000-4000-8000-000000000004";
 const goalTurnId = "turn_goal_00000000-0000-4000-8000-000000000005";
 const compactTurnId = "turn_compact_00000000-0000-4000-8000-000000000006";
-const startThreadId = "00000000-0000-4000-8000-000000000007";
+const startThreadId = "thread_00000000-0000-4000-8000-000000000007";
 
 function createFakeCodexCommand() {
 	tempDir = mkdtempSync(join(tmpdir(), "coz-app-server-"));
@@ -96,7 +96,7 @@ function handle(message, state) {
     const model = message.params.model ?? "fake-config-model"
     respond(message.id, {
       thread: {
-        id: "thread_${startThreadId}",
+        id: "${startThreadId}",
         sessionId: "${startThreadId}",
         forkedFromId: null,
         preview: "started without turns",
@@ -115,13 +115,9 @@ function handle(message, state) {
       reject(message.id, "thread/resume.excludeTurns requires experimentalApi capability")
       return
     }
-    if (!/^[0-9a-f-]{36}$/i.test(message.params?.threadId ?? "")) {
-      reject(message.id, "invalid session id")
-      return
-    }
     respond(message.id, {
       thread: {
-        id: "thread_" + message.params.threadId,
+        id: message.params.threadId,
         sessionId: message.params.threadId,
         forkedFromId: null,
         preview: "resumed without turns",
@@ -136,15 +132,11 @@ function handle(message, state) {
   }
 
   if (message.method === "thread/fork") {
-    if (!/^[0-9a-f-]{36}$/i.test(message.params?.threadId ?? "")) {
-      reject(message.id, "invalid session id")
-      return
-    }
     respond(message.id, {
       thread: {
-        id: "thread_00000000-0000-4000-8000-000000000003",
+        id: "${forkThreadId}",
         sessionId: message.params.threadId,
-        forkedFromId: "thread_" + message.params.threadId,
+        forkedFromId: message.params.threadId,
         preview: "forked without turns",
         cwd: message.params.cwd,
         model: message.params.model,
@@ -157,10 +149,6 @@ function handle(message, state) {
   }
 
   if (message.method === "thread/archive") {
-    if (!/^[0-9a-f-]{36}$/i.test(message.params?.threadId ?? "")) {
-      reject(message.id, "invalid session id")
-      return
-    }
     respond(message.id, {})
     notify("thread/archived", {
       threadId: message.params.threadId
@@ -950,7 +938,7 @@ describe("AppServerRuntime", () => {
 		);
 	});
 
-	it("normalizes app-server thread ids before callers reuse them", async () => {
+	it("preserves app-server thread ids before callers reuse them", async () => {
 		const command = createFakeCodexCommand();
 		runtime = new AppServerRuntime(command, appServerOptions());
 
@@ -1034,7 +1022,7 @@ describe("AppServerRuntime", () => {
 					message: expect.objectContaining({
 						result: expect.objectContaining({
 							thread: expect.objectContaining({
-								id: `thread_${debugThreadId}`,
+								id: debugThreadId,
 							}),
 						}),
 					}),
