@@ -42,6 +42,7 @@ import { nextThemeMode, type ThemeMode, themeModeLabels } from "../theme.js";
 import type { DateTimeFormatMode } from "../uiFormat.js";
 import { useFullscreen } from "../useFullscreen.js";
 import { useMobileLongPressSelectionGuard } from "../useMobileLongPressSelectionGuard.js";
+import { useMobileTouchScrollBoundary } from "../useMobileTouchScrollBoundary.js";
 import { useMobileViewportGeometry } from "../useMobileViewportGeometry.js";
 import { MobileFloatingScroller } from "./MobileFloatingScroller.js";
 import { ParamPanel } from "./ParamPanel.js";
@@ -795,6 +796,9 @@ export const DashboardLayout = memo(function DashboardLayout({
 
 	useMobileViewportGeometry();
 	useMobileLongPressSelectionGuard();
+	useMobileTouchScrollBoundary(mobileSheetPanelRef, mobileSheet !== null, {
+		strictVertical: mobileSheet === "inspector",
+	});
 
 	const focusVisiblePrompt = useCallback(() => {
 		const useDesktopWorkspace =
