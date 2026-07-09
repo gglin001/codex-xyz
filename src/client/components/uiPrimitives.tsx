@@ -6,7 +6,7 @@ import type {
 	MouseEvent,
 	ReactNode,
 } from "react";
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
 import {
 	cn,
 	displayScale,
@@ -77,7 +77,9 @@ export function ComposerIconButton({
 			type="button"
 			className={cn(
 				ui.composerIconButton,
-				pressed ? ui.selectedStrong : null,
+				pressed
+					? "bg-control text-fg-strong"
+					: "bg-transparent text-muted-strong",
 				className,
 			)}
 			aria-pressed={pressed}
@@ -171,15 +173,56 @@ export function MenuItemButton({
 	className,
 	children,
 	selected,
+	disabled,
+	onBlur,
+	onPointerCancel,
+	onPointerDown,
+	onPointerLeave,
+	onPointerUp,
 	...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
 	selected?: boolean;
 }) {
+	const [pressed, setPressed] = useState(false);
+	const transientPressed = pressed && !disabled && !selected;
+	const clearPressed = () => setPressed(false);
+
 	return (
 		<button
 			type="button"
-			className={cn(ui.menuItem, selected ? ui.selected : "text-fg", className)}
+			className={cn(
+				ui.menuItem,
+				selected
+					? ui.selected
+					: transientPressed
+						? "bg-control-hover text-fg-strong"
+						: "text-fg",
+				className,
+			)}
 			aria-pressed={selected ?? undefined}
+			disabled={disabled}
+			onBlur={(event) => {
+				clearPressed();
+				onBlur?.(event);
+			}}
+			onPointerCancel={(event) => {
+				clearPressed();
+				onPointerCancel?.(event);
+			}}
+			onPointerDown={(event) => {
+				if (!disabled) {
+					setPressed(true);
+				}
+				onPointerDown?.(event);
+			}}
+			onPointerLeave={(event) => {
+				clearPressed();
+				onPointerLeave?.(event);
+			}}
+			onPointerUp={(event) => {
+				clearPressed();
+				onPointerUp?.(event);
+			}}
 			{...props}
 		>
 			{children}

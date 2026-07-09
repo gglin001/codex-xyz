@@ -721,7 +721,7 @@ const ComposerMenuItem = memo(function ComposerMenuItem({
 			}
 			onClick={() => onSelect(action)}
 		>
-			<span className="truncate leading-5 text-fg">{action.label}</span>
+			<span className="truncate leading-5 text-current">{action.label}</span>
 		</MenuItemButton>
 	);
 });
