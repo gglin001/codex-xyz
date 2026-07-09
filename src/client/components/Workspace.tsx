@@ -65,10 +65,8 @@ import {
 	itemTitle,
 	statusLabel,
 } from "../uiFormat.js";
-import {
-	type FloatingScrollAnchor,
-	MobileFloatingScroller,
-} from "./MobileFloatingScroller.js";
+import type { FloatingScrollAnchor } from "./MobileFloatingScroller.js";
+import { ScrollArea } from "./ScrollArea.js";
 import {
 	CollapsibleCard,
 	ComposerIconButton,
@@ -1524,68 +1522,64 @@ export const Workspace = memo(
 						animate={{ width: "100%" }}
 						transition={motionPresets.panel}
 					>
-						<div className="relative min-h-0 flex-1 [--transcript-navigator-right-inset:0.75rem] md:[--transcript-navigator-right-inset:1.25rem]">
-							<div
-								id={transcriptScrollId}
-								ref={transcriptScrollRef}
-								className="custom-scroll-host transcript-custom-scroll mobile-custom-scroll mobile-transcript-scroll h-full min-h-0 overflow-x-hidden overflow-y-auto px-3 py-0 md:px-5"
-							>
-								<ThreadContentFrame className="grid gap-[var(--transcript-gap)]">
-									{entries.length === 0 ? (
-										<div className="min-w-0">
-											<EmptyTranscript
-												hasThread={Boolean(selectedThreadId)}
-												projectPath={project?.path ?? workdir}
+						<ScrollArea
+							id={transcriptScrollId}
+							scrollRef={transcriptScrollRef}
+							outerClassName="flex-1 [--transcript-navigator-right-inset:0.75rem] md:[--transcript-navigator-right-inset:1.25rem]"
+							className="transcript-custom-scroll mobile-transcript-scroll px-3 py-0 md:px-5"
+							edgeFades={{ tone: "app", top: true, bottom: "tall" }}
+							floatingScroller={{
+								anchors: promptAnchors,
+								contentRightInset: "var(--transcript-navigator-right-inset)",
+								visibility: "always",
+							}}
+						>
+							<ThreadContentFrame className="grid gap-[var(--transcript-gap)]">
+								{entries.length === 0 ? (
+									<div className="min-w-0">
+										<EmptyTranscript
+											hasThread={Boolean(selectedThreadId)}
+											projectPath={project?.path ?? workdir}
+										/>
+									</div>
+								) : null}
+								{canShowEarlierTranscriptControl ? (
+									<div className="flex justify-center">
+										<button
+											type="button"
+											disabled={loadingEarlierTranscript}
+											className={cn(
+												"min-h-10 gap-2 rounded-[8px] bg-control px-3.5 text-[12px] font-medium text-muted-strong active:bg-control-hover disabled:cursor-wait disabled:opacity-60",
+												ui.row,
+											)}
+											onClick={loadEarlierTranscript}
+										>
+											<Plus size={14} aria-hidden="true" />
+											<span>{earlierTranscriptLabel}</span>
+										</button>
+									</div>
+								) : null}
+								<AnimatePresence initial={false}>
+									{visibleEntries.map((entry) => (
+										<motion.div
+											key={entry.id}
+											className="min-w-0 scroll-mt-3 focus:outline-none"
+											{...transcriptItemDataAttributes(entry)}
+											initial={transcriptItemMotion.initial}
+											animate={transcriptItemMotion.animate}
+											exit={transcriptItemMotion.exit}
+											transition={motionPresets.fade}
+										>
+											<TranscriptEntryBlock
+												entry={entry}
+												wrapContent={wrapThreadContent}
+												dateTimeFormatMode={dateTimeFormatMode}
 											/>
-										</div>
-									) : null}
-									{canShowEarlierTranscriptControl ? (
-										<div className="flex justify-center">
-											<button
-												type="button"
-												disabled={loadingEarlierTranscript}
-												className={cn(
-													"min-h-10 gap-2 rounded-[8px] bg-control px-3.5 text-[12px] font-medium text-muted-strong active:bg-control-hover disabled:cursor-wait disabled:opacity-60",
-													ui.row,
-												)}
-												onClick={loadEarlierTranscript}
-											>
-												<Plus size={14} aria-hidden="true" />
-												<span>{earlierTranscriptLabel}</span>
-											</button>
-										</div>
-									) : null}
-									<AnimatePresence initial={false}>
-										{visibleEntries.map((entry) => (
-											<motion.div
-												key={entry.id}
-												className="min-w-0 scroll-mt-3 focus:outline-none"
-												{...transcriptItemDataAttributes(entry)}
-												initial={transcriptItemMotion.initial}
-												animate={transcriptItemMotion.animate}
-												exit={transcriptItemMotion.exit}
-												transition={motionPresets.fade}
-											>
-												<TranscriptEntryBlock
-													entry={entry}
-													wrapContent={wrapThreadContent}
-													dateTimeFormatMode={dateTimeFormatMode}
-												/>
-											</motion.div>
-										))}
-									</AnimatePresence>
-								</ThreadContentFrame>
-							</div>
-							<div className="chrome-edge-fade chrome-edge-fade-app chrome-edge-fade-top" />
-							<div className="chrome-edge-fade chrome-edge-fade-app chrome-edge-fade-bottom chrome-edge-fade-tall" />
-							<MobileFloatingScroller
-								scrollRef={transcriptScrollRef}
-								scrollElementId={transcriptScrollId}
-								contentRightInset="var(--transcript-navigator-right-inset)"
-								anchors={promptAnchors}
-								visibility="always"
-							/>
-						</div>
+										</motion.div>
+									))}
+								</AnimatePresence>
+							</ThreadContentFrame>
+						</ScrollArea>
 
 						<div
 							ref={composerShellRef}

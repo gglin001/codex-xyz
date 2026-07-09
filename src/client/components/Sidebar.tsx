@@ -1,11 +1,11 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, ChevronDown, Plus, Search } from "lucide-react";
-import { memo, useId, useMemo, useRef, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { codexThreadCommandLabels } from "../codexCommandLabels.js";
 import { cn, layer, motionPresets, motionStates, ui } from "../designSystem.js";
 import type { DateTimeFormatMode } from "../uiFormat.js";
-import { MobileFloatingScroller } from "./MobileFloatingScroller.js";
 import { ProjectResultRow, projectResultTitle } from "./ProjectResultRow.js";
+import { ScrollArea } from "./ScrollArea.js";
 import {
 	ThreadResultRow,
 	threadResultSearchText,
@@ -89,10 +89,6 @@ export const Sidebar = memo(function Sidebar({
 	onCreateThread,
 	dateTimeFormatMode = "utc",
 }: SidebarProps) {
-	const projectListRef = useRef<HTMLDivElement | null>(null);
-	const projectListId = useId();
-	const threadListRef = useRef<HTMLDivElement | null>(null);
-	const threadListId = useId();
 	const [projectMenuOpen, setProjectMenuOpen] = useState(false);
 	const selectedProject =
 		projects.find((project) => project.id === selectedProjectId) ?? projects[0];
@@ -152,37 +148,30 @@ export const Sidebar = memo(function Sidebar({
 							transition={motionPresets.quick}
 							role="menu"
 						>
-							<div className="relative">
-								<div
-									id={projectListId}
-									ref={projectListRef}
-									className="custom-scroll-host mobile-custom-scroll max-h-[216px] touch-pan-y overflow-x-hidden overflow-y-auto"
-								>
-									{projects.map((project) => (
-										<MenuItemButton
-											key={project.id}
-											className="min-h-[62px] w-full gap-2.5 px-2.5 py-2"
-											role="menuitem"
-											selected={project.id === selectedProjectId}
-											title={projectResultTitle(project)}
-											onClick={() => {
-												onProjectChange(project.id);
-												setProjectMenuOpen(false);
-											}}
-										>
-											<ProjectResultRow project={project} />
-											{project.id === selectedProjectId ? (
-												<Check size={14} className="text-fg-strong" />
-											) : null}
-										</MenuItemButton>
-									))}
-								</div>
-								<MobileFloatingScroller
-									scrollRef={projectListRef}
-									scrollElementId={projectListId}
-									contentRightInset="0.375rem"
-								/>
-							</div>
+							<ScrollArea
+								outerClassName="relative"
+								className="max-h-[216px] touch-pan-y"
+								floatingScroller={{ contentRightInset: "0.375rem" }}
+							>
+								{projects.map((project) => (
+									<MenuItemButton
+										key={project.id}
+										className="min-h-[62px] w-full gap-2.5 px-2.5 py-2"
+										role="menuitem"
+										selected={project.id === selectedProjectId}
+										title={projectResultTitle(project)}
+										onClick={() => {
+											onProjectChange(project.id);
+											setProjectMenuOpen(false);
+										}}
+									>
+										<ProjectResultRow project={project} />
+										{project.id === selectedProjectId ? (
+											<Check size={14} className="text-fg-strong" />
+										) : null}
+									</MenuItemButton>
+								))}
+							</ScrollArea>
 						</motion.div>
 					) : null}
 				</AnimatePresence>
@@ -219,72 +208,66 @@ export const Sidebar = memo(function Sidebar({
 				</ControlButton>
 			</div>
 
-			<div className="relative min-h-0 flex-1">
-				<div
-					id={threadListId}
-					ref={threadListRef}
-					className="custom-scroll-host mobile-custom-scroll mobile-keyboard-scroll h-full min-h-0 overflow-x-hidden overflow-y-auto px-2 py-1 scroll-mask-y"
-				>
-					<AnimatePresence mode="popLayout">
-						<motion.div
-							key={selectedProject?.id ?? "empty"}
-							initial={motionStates.listItem.initial}
-							animate={motionStates.listItem.animate}
-							exit={motionStates.listItem.exit}
-							transition={motionPresets.item}
-							className="grid gap-1.5"
-						>
-							{threadGroups.length === 0 ? (
-								<ControlCard className="px-3 py-7 text-center text-[12px] text-muted">
-									{threadQuery.trim()
-										? "No matching threads"
-										: "No Codex threads yet"}
-								</ControlCard>
-							) : null}
-							{threadGroups.map((group) => (
-								<section key={group.bucket} className="grid gap-0.5">
-									<div className="px-2 pb-0.5 text-[11px] font-medium text-muted">
-										{group.bucket}
-									</div>
-									{group.threads.map((thread) => {
-										const selected =
-											selectedThreadKey === thread.id ||
-											selectedThreadKey === thread.threadId;
-										return (
-											<NavAction
-												key={thread.id}
-												className={cn(
-													"group w-full items-start gap-2 px-2.5 py-1",
-												)}
-												selected={selected}
-												name={threadResultTitle(
-													thread,
-													undefined,
-													dateTimeFormatMode,
-												)}
-												onClick={() => onSelectThread(thread)}
-											>
-												<ThreadResultRow
-													thread={thread}
-													dateTimeFormatMode={dateTimeFormatMode}
-												/>
-											</NavAction>
-										);
-									})}
-								</section>
-							))}
-						</motion.div>
-					</AnimatePresence>
-				</div>
-				<div className="chrome-edge-fade chrome-edge-fade-short chrome-edge-fade-panel chrome-edge-fade-top" />
-				<div className="chrome-edge-fade chrome-edge-fade-short chrome-edge-fade-panel chrome-edge-fade-bottom" />
-				<MobileFloatingScroller
-					scrollRef={threadListRef}
-					scrollElementId={threadListId}
-					contentRightInset="0.5rem"
-					size="compact"
-				/>
-			</div>
+			<ScrollArea
+				outerClassName="flex-1"
+				className="mobile-keyboard-scroll px-2 py-1 scroll-mask-y"
+				edgeFades={{ tone: "panel", top: "short", bottom: "short" }}
+				floatingScroller={{
+					contentRightInset: "0.5rem",
+					size: "compact",
+				}}
+			>
+				<AnimatePresence mode="popLayout">
+					<motion.div
+						key={selectedProject?.id ?? "empty"}
+						initial={motionStates.listItem.initial}
+						animate={motionStates.listItem.animate}
+						exit={motionStates.listItem.exit}
+						transition={motionPresets.item}
+						className="grid gap-1.5"
+					>
+						{threadGroups.length === 0 ? (
+							<ControlCard className="px-3 py-7 text-center text-[12px] text-muted">
+								{threadQuery.trim()
+									? "No matching threads"
+									: "No Codex threads yet"}
+							</ControlCard>
+						) : null}
+						{threadGroups.map((group) => (
+							<section key={group.bucket} className="grid gap-0.5">
+								<div className="px-2 pb-0.5 text-[11px] font-medium text-muted">
+									{group.bucket}
+								</div>
+								{group.threads.map((thread) => {
+									const selected =
+										selectedThreadKey === thread.id ||
+										selectedThreadKey === thread.threadId;
+									return (
+										<NavAction
+											key={thread.id}
+											className={cn(
+												"group w-full items-start gap-2 px-2.5 py-1",
+											)}
+											selected={selected}
+											name={threadResultTitle(
+												thread,
+												undefined,
+												dateTimeFormatMode,
+											)}
+											onClick={() => onSelectThread(thread)}
+										>
+											<ThreadResultRow
+												thread={thread}
+												dateTimeFormatMode={dateTimeFormatMode}
+											/>
+										</NavAction>
+									);
+								})}
+							</section>
+						))}
+					</motion.div>
+				</AnimatePresence>
+			</ScrollArea>
 		</aside>
 	);
 });
