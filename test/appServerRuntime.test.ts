@@ -672,11 +672,7 @@ async function waitForProcessExit(pid: number) {
 	}
 }
 
-async function stopFakePersistentAppServer() {
-	const pid = readAppServerPid();
-	if (pid === null) {
-		return;
-	}
+async function stopPid(pid: number) {
 	try {
 		process.kill(pid, "SIGTERM");
 	} catch {
@@ -689,6 +685,14 @@ async function stopFakePersistentAppServer() {
 	try {
 		process.kill(pid, "SIGKILL");
 	} catch {}
+}
+
+async function stopFakePersistentAppServer() {
+	const pid = readAppServerPid();
+	if (pid === null) {
+		return;
+	}
+	await stopPid(pid);
 }
 
 afterEach(async () => {
@@ -779,6 +783,122 @@ describe("AppServerRuntime", () => {
 			socketPath: appServerSocketPath(),
 		});
 		expect(thread.id).toBe(debugThreadId);
+	});
+
+	it("serializes concurrent app-server restarts", async () => {
+		const command = createFakeCodexCommand();
+		runtime = new AppServerRuntime(command, appServerOptions());
+
+		await runtime.resumeThread({
+			threadId: sourceThreadId,
+			cwd: process.cwd(),
+			model: "test-model",
+		});
+
+		const results = await Promise.all([
+			runtime.restartAppServer(),
+			runtime.restartAppServer(),
+			runtime.restartAppServer(),
+			runtime.restartAppServer(),
+		]);
+		const finalPid = readAppServerPid();
+		const thread = await runtime.resumeThread({
+			threadId: debugThreadId,
+			cwd: process.cwd(),
+			model: "test-model",
+		});
+
+		expect(finalPid).toEqual(expect.any(Number));
+		expect(results.at(-1)?.pid).toBe(finalPid);
+		if (finalPid === null) {
+			throw new Error("Expected final app-server pid");
+		}
+		for (const result of results.slice(0, -1)) {
+			if (result.pid === null) {
+				throw new Error("Expected restarted app-server pid");
+			}
+			expect(result.pid).not.toBe(finalPid);
+			expect(processExists(result.pid)).toBe(false);
+		}
+		expect(processExists(finalPid)).toBe(true);
+		expect(thread.id).toBe(debugThreadId);
+	});
+
+	it("recovers restart when the app-server pid file is stale", async () => {
+		const command = createFakeCodexCommand();
+		runtime = new AppServerRuntime(command, appServerOptions());
+
+		await runtime.resumeThread({
+			threadId: sourceThreadId,
+			cwd: process.cwd(),
+			model: "test-model",
+		});
+		const oldPid = readAppServerPid();
+		let stalePid = 999_999;
+		while (processExists(stalePid)) {
+			stalePid -= 1;
+		}
+		writeFileSync(appServerPidPath(), String(stalePid), "utf8");
+
+		try {
+			const result = await runtime.restartAppServer();
+			const finalPid = readAppServerPid();
+			const thread = await runtime.resumeThread({
+				threadId: debugThreadId,
+				cwd: process.cwd(),
+				model: "test-model",
+			});
+
+			expect(oldPid).toEqual(expect.any(Number));
+			expect(result.pid).toBe(finalPid);
+			expect(finalPid).not.toBe(oldPid);
+			if (finalPid === null) {
+				throw new Error("Expected final app-server pid");
+			}
+			expect(processExists(finalPid)).toBe(true);
+			expect(thread.id).toBe(debugThreadId);
+		} finally {
+			if (oldPid !== null) {
+				await stopPid(oldPid);
+			}
+		}
+	});
+
+	it("stops the persisted app-server process when the socket probe fails", async () => {
+		const command = createFakeCodexCommand();
+		runtime = new AppServerRuntime(command, appServerOptions());
+
+		await runtime.resumeThread({
+			threadId: sourceThreadId,
+			cwd: process.cwd(),
+			model: "test-model",
+		});
+		const oldPid = readAppServerPid();
+		rmSync(appServerSocketPath(), { force: true });
+
+		try {
+			const result = await runtime.restartAppServer();
+			const finalPid = readAppServerPid();
+			const thread = await runtime.resumeThread({
+				threadId: debugThreadId,
+				cwd: process.cwd(),
+				model: "test-model",
+			});
+
+			expect(oldPid).toEqual(expect.any(Number));
+			expect(result.pid).toBe(finalPid);
+			expect(finalPid).not.toBe(oldPid);
+			if (oldPid === null || finalPid === null) {
+				throw new Error("Expected app-server pids");
+			}
+			expect(processExists(oldPid)).toBe(false);
+			expect(processExists(finalPid)).toBe(true);
+			expect(thread.id).toBe(debugThreadId);
+		} finally {
+			if (oldPid !== null) {
+				await stopPid(oldPid);
+			}
+		}
 	});
 
 	it("opts into experimental fields before resuming without turns", async () => {

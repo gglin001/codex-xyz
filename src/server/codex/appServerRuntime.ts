@@ -152,6 +152,7 @@ export class AppServerRuntime implements CodexRuntime {
 	private initialized = false;
 	private readonly debugLogger: AppServerDebugLogger | null;
 	private readonly persistent: AppServerPersistentTransportOptions;
+	private lifecycleLock = Promise.resolve();
 
 	constructor(
 		private readonly command = process.env.COZ_CODEX_BIN ?? "codex",
@@ -474,19 +475,37 @@ export class AppServerRuntime implements CodexRuntime {
 	}
 
 	async restartAppServer(): Promise<CodexAppServerRestartResult> {
-		await this.disconnectConnection("app-server runtime restarting");
-		await this.stopPersistentAppServer();
-		const listener = await this.ensurePersistentAppServer();
-		await this.ensureStarted();
-		return {
-			status: "restarted",
-			pid: listener.pid,
-			socketPath: listener.socketPath,
-		};
+		return this.withLifecycleLock(async () => {
+			await this.disconnectConnection("app-server runtime restarting");
+			await this.stopPersistentAppServer();
+			const listener = await this.ensurePersistentAppServer();
+			await this.ensureStartedUnlocked();
+			return {
+				status: "restarted",
+				pid: listener.pid,
+				socketPath: listener.socketPath,
+			};
+		});
 	}
 
 	async close() {
-		await this.disconnectConnection("app-server runtime closed");
+		await this.withLifecycleLock(() =>
+			this.disconnectConnection("app-server runtime closed"),
+		);
+	}
+
+	private async withLifecycleLock<T>(operation: () => Promise<T>): Promise<T> {
+		const previous = this.lifecycleLock;
+		let release = () => {};
+		this.lifecycleLock = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		await previous;
+		try {
+			return await operation();
+		} finally {
+			release();
+		}
 	}
 
 	private async disconnectConnection(reason: string) {
@@ -600,6 +619,10 @@ export class AppServerRuntime implements CodexRuntime {
 	}
 
 	private async ensureStarted() {
+		await this.withLifecycleLock(() => this.ensureStartedUnlocked());
+	}
+
+	private async ensureStartedUnlocked() {
 		if (this.initialized && this.connection?.readyState === WebSocket.OPEN) {
 			return;
 		}
@@ -724,30 +747,43 @@ export class AppServerRuntime implements CodexRuntime {
 		const socketWasAccepting = await appServerAcceptsConnections(
 			this.persistent.socketPath,
 		);
-		if (!socketWasAccepting) {
+		const pid = this.readPersistentAppServerPid();
+		if (pid === null || !processExists(pid)) {
+			if (socketWasAccepting) {
+				this.writeDebug({
+					event: "process.stop.stalePid",
+					pid,
+					socketPath: this.persistent.socketPath,
+				});
+			}
 			this.removeStalePersistentFiles();
 			return;
 		}
 
-		const pid = this.readPersistentAppServerPid();
-		if (pid === null) {
-			throw new Error(
-				`Cannot restart app-server on ${this.persistent.socketPath}: missing pid file`,
-			);
-		}
-
 		try {
-			process.kill(pid, "SIGTERM");
+			signalAppServerProcess(pid, "SIGTERM");
 		} catch (error) {
 			if (!isMissingProcessError(error)) {
 				throw error;
 			}
 		}
-		await waitForProcessExit(pid, appServerExitTimeoutMs);
-		await waitForSocketClose(
-			this.persistent.socketPath,
-			appServerExitTimeoutMs,
-		);
+		try {
+			await waitForProcessExit(pid, appServerExitTimeoutMs);
+			await waitForSocketClose(
+				this.persistent.socketPath,
+				appServerExitTimeoutMs,
+			);
+		} catch (error) {
+			try {
+				signalAppServerProcess(pid, "SIGKILL");
+			} catch {}
+			this.writeDebug({
+				event: "process.stop.forceReplace",
+				pid,
+				socketPath: this.persistent.socketPath,
+				text: error instanceof Error ? error.message : String(error),
+			});
+		}
 		this.removeStalePersistentFiles();
 	}
 
@@ -1090,7 +1126,7 @@ async function waitForProcessExit(pid: number, timeoutMs: number) {
 		await delay(appServerPollIntervalMs);
 	}
 	try {
-		process.kill(pid, "SIGKILL");
+		signalAppServerProcess(pid, "SIGKILL");
 	} catch (error) {
 		if (!isMissingProcessError(error)) {
 			throw error;
@@ -1105,6 +1141,22 @@ async function waitForProcessExit(pid: number, timeoutMs: number) {
 		await delay(appServerPollIntervalMs);
 	}
 	throw new Error(`app-server process ${pid} did not exit`);
+}
+
+function signalAppServerProcess(pid: number, signal: NodeJS.Signals) {
+	if (process.platform === "win32") {
+		process.kill(pid, signal);
+		return;
+	}
+
+	try {
+		process.kill(-pid, signal);
+	} catch (error) {
+		if (!isMissingProcessError(error)) {
+			throw error;
+		}
+		process.kill(pid, signal);
+	}
 }
 
 function processExists(pid: number) {

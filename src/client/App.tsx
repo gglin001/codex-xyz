@@ -322,6 +322,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	const [submittedPromptFocusTarget, setSubmittedPromptFocusTarget] =
 		useState<SubmittedPromptFocusTarget | null>(null);
 	const [busyAction, setBusyAction] = useState<string | null>(null);
+	const busyActionRef = useRef<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [notice, setNotice] = useState<string | null>(null);
 	const [terminalVisible, setTerminalVisible] = useState(false);
@@ -1271,7 +1272,11 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		action: () => Promise<unknown>,
 		options: RunActionOptions = {},
 	) {
+		if (busyActionRef.current) {
+			return;
+		}
 		const actionSelectionSeq = manualSelectionSeqRef.current;
+		busyActionRef.current = label;
 		setBusyAction(label);
 		setError(null);
 		setNotice(null);
@@ -1299,6 +1304,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				actionError instanceof Error ? actionError.message : "Action failed",
 			);
 		} finally {
+			busyActionRef.current = null;
 			setBusyAction(null);
 		}
 	}
