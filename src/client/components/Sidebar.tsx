@@ -226,7 +226,7 @@ export const Sidebar = memo(function Sidebar({
 				<div
 					id={threadListId}
 					ref={threadListRef}
-					className="custom-scroll-host mobile-custom-scroll mobile-keyboard-scroll h-full min-h-0 touch-pan-y overflow-x-hidden overflow-y-auto px-2 py-1 scroll-mask-y"
+					className="custom-scroll-host mobile-custom-scroll mobile-keyboard-scroll h-full min-h-0 overflow-x-hidden overflow-y-auto px-2 py-1 scroll-mask-y"
 				>
 					<AnimatePresence mode="popLayout">
 						<motion.div
@@ -269,7 +269,6 @@ export const Sidebar = memo(function Sidebar({
 											>
 												<ThreadResultRow
 													thread={thread}
-													mobileStaticText
 													dateTimeFormatMode={dateTimeFormatMode}
 												/>
 											</NavAction>
