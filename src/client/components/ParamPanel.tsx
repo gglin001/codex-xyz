@@ -364,13 +364,6 @@ export const ParamPanel = memo(function ParamPanel({
 							layout="inline"
 						/>
 						<InfoTile
-							icon={<Activity size={13} />}
-							label="Turn"
-							value={thread?.activeTurnId ?? "None"}
-							mono
-							layout="inline"
-						/>
-						<InfoTile
 							icon={<FolderGit2 size={13} />}
 							label="CWD"
 							value={cwd}
