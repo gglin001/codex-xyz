@@ -161,7 +161,7 @@ export const ui = {
 	compactIconState: `shrink-0 items-center justify-center ${radius.control} bg-transparent text-muted ${interactiveTransition} hover:bg-control hover:text-fg-strong ${focusRing} ${disabledState} ${pressState}`,
 	composerIconButton: `inline-flex h-8 min-w-8 items-center justify-center ${radius.control} ${interactiveTransition} hover:bg-control hover:text-fg-strong disabled:cursor-not-allowed disabled:opacity-35 ${focusRing} ${pressState}`,
 	composerShell: `grid min-h-0 gap-0.5 md:gap-1 ${radius.panel} bg-field/72 px-3 py-1 shadow-none ${interactiveTransition} hover:bg-field/86 ${composerStableFocus} md:py-1.5`,
-	submitButton: `inline-flex h-7 w-7 shrink-0 items-center justify-center ${radius.control} bg-control p-0 text-[13px] font-semibold text-fg-strong ${interactiveTransition} hover:bg-control-hover disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-muted`,
+	submitButton: `inline-flex h-8 w-8 shrink-0 items-center justify-center ${radius.control} bg-control p-0 text-[13px] font-semibold text-fg-strong ${interactiveTransition} hover:bg-control-hover disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-muted`,
 	buttonControl: `inline-flex items-center justify-center ${controlBase}`,
 	surfaceButton: `flex min-w-0 items-center text-left ${radius.control} bg-surface-subtle/52 text-fg ${staggeredTransition} hover:bg-control hover:text-fg-strong ${focusRing} ${disabledState} ${pressState}`,
 	navButton: `flex min-w-0 items-center text-left ${radius.nav} text-fg ${staggeredTransition} hover:bg-control hover:text-fg-strong ${focusRing} ${disabledState}`,

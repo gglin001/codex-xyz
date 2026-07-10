@@ -1151,7 +1151,7 @@ const Composer = memo(
 								title={submitTitle}
 								aria-label={submitTitle}
 							>
-								{goalMode ? <Goal size={13} /> : <Send size={13} />}
+								{goalMode ? <Goal size={14} /> : <Send size={14} />}
 							</button>
 						</div>
 					</div>
