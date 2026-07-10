@@ -14,9 +14,9 @@ import {
 } from "lucide-react";
 import type {
 	CSSProperties,
+	HTMLAttributes,
 	KeyboardEvent,
 	MouseEvent,
-	ReactNode,
 	SubmitEvent,
 } from "react";
 import {
@@ -103,6 +103,7 @@ export type WorkspaceProps = {
 	canUseGoalMode: boolean;
 	canSubmitPrompt: boolean;
 	wrapThreadContent: boolean;
+	transcriptExpansionState: TranscriptExpansionState;
 	loadingEarlierTranscript: boolean;
 	displayScale: number;
 	commandVisible: boolean;
@@ -115,6 +116,7 @@ export type WorkspaceProps = {
 	onModeChange: (mode: ComposerMode) => void;
 	onWorkdirChange: (value: string) => void;
 	onGoalModeChange: (value: boolean) => void;
+	onTranscriptEntryExpandedChange: (entryId: string, expanded: boolean) => void;
 	onInterrupt: () => void;
 	onResume: () => void;
 	onFork: () => void;
@@ -156,6 +158,8 @@ type ChatMessage = {
 	time: string;
 };
 
+export type TranscriptExpansionState = Record<string, boolean>;
+
 const overlayMotion = motionStates.overlay;
 const localMenuMotion = motionStates.localMenu;
 const revealMotion = motionStates.reveal;
@@ -176,12 +180,12 @@ const mobileTranscriptWindowStep = 80;
 function ThreadContentFrame({
 	children,
 	className,
-}: {
-	children: ReactNode;
-	className?: string;
-}) {
+	...props
+}: HTMLAttributes<HTMLDivElement>) {
 	return (
-		<div className={cn(threadContentFrameClass, className)}>{children}</div>
+		<div className={cn(threadContentFrameClass, className)} {...props}>
+			{children}
+		</div>
 	);
 }
 
@@ -357,6 +361,7 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 	const mobile = mode === "mobile";
 	return (
 		<header
+			data-print-session-header
 			data-mobile-workspace-header={mobile ? "" : undefined}
 			className={cn(
 				"relative flex shrink-0 items-center justify-between",
@@ -372,6 +377,7 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 				aria-label={navigatorVisible ? "Hide threads" : "Open threads"}
 				pressed={navigatorVisible}
 				onClick={onToggleNavigator}
+				data-print-exclude
 			>
 				<Menu size={15} />
 			</LargeIconButton>
@@ -404,6 +410,7 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 						aria-label="Toggle commands"
 						pressed={commandVisible}
 						onClick={onOpenCommands}
+						data-print-exclude
 					>
 						<Search size={15} />
 					</LargeIconButton>
@@ -414,6 +421,7 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 					aria-label={inspectorVisible ? "Hide settings" : "Open settings"}
 					pressed={inspectorVisible}
 					onClick={onToggleInspector}
+					data-print-exclude
 				>
 					<Settings size={15} />
 				</LargeIconButton>
@@ -497,20 +505,23 @@ const DismissibleAlert = memo(function DismissibleAlert({
 const MessageBlock = memo(function MessageBlock({
 	message,
 	wrapContent,
+	expanded,
+	onExpandedChange,
 	dateTimeFormatMode,
 }: {
 	message: ChatMessage;
 	wrapContent: boolean;
+	expanded: boolean;
+	onExpandedChange: (expanded: boolean) => void;
 	dateTimeFormatMode: DateTimeFormatMode;
 }) {
-	const [expanded, setExpanded] = useState(true);
 	const preview = getFirstLineTextPreview(message.text || "Pending...");
 
 	return (
 		<CollapsibleCard
 			title={messageCardTitle(message)}
 			expanded={expanded}
-			onToggle={() => setExpanded((current) => !current)}
+			onToggle={() => onExpandedChange(!expanded)}
 			meta={headerMeta(messageMeta(message, dateTimeFormatMode))}
 			actions={<CopyTextButton value={message.copyText} />}
 			preview={
@@ -543,22 +554,38 @@ const MessageBlock = memo(function MessageBlock({
 const TranscriptEntryBlock = memo(function TranscriptEntryBlock({
 	entry,
 	wrapContent,
+	expanded,
+	transcriptExpansionState,
+	onTranscriptEntryExpandedChange,
 	dateTimeFormatMode,
 }: {
 	entry: TranscriptEntry;
 	wrapContent: boolean;
+	expanded: boolean;
+	transcriptExpansionState: TranscriptExpansionState;
+	onTranscriptEntryExpandedChange: (entryId: string, expanded: boolean) => void;
 	dateTimeFormatMode: DateTimeFormatMode;
 }) {
 	return entry.kind === "process" ? (
 		<ProcessOutputBlock
 			entry={entry}
 			wrapContent={wrapContent}
+			expanded={expanded}
+			transcriptExpansionState={transcriptExpansionState}
+			onTranscriptEntryExpandedChange={onTranscriptEntryExpandedChange}
+			onExpandedChange={(nextExpanded) =>
+				onTranscriptEntryExpandedChange(entry.id, nextExpanded)
+			}
 			dateTimeFormatMode={dateTimeFormatMode}
 		/>
 	) : (
 		<MessageBlock
 			message={messageFromItem(entry.item)}
 			wrapContent={wrapContent}
+			expanded={expanded}
+			onExpandedChange={(nextExpanded) =>
+				onTranscriptEntryExpandedChange(entry.id, nextExpanded)
+			}
 			dateTimeFormatMode={dateTimeFormatMode}
 		/>
 	);
@@ -567,20 +594,23 @@ const TranscriptEntryBlock = memo(function TranscriptEntryBlock({
 const ProcessItemBlock = memo(function ProcessItemBlock({
 	message,
 	wrapContent,
+	expanded,
+	onExpandedChange,
 	dateTimeFormatMode,
 }: {
 	message: ChatMessage;
 	wrapContent: boolean;
+	expanded: boolean;
+	onExpandedChange: (expanded: boolean) => void;
 	dateTimeFormatMode: DateTimeFormatMode;
 }) {
-	const [expanded, setExpanded] = useState(false);
 	const preview = getFirstLineTextPreview(message.text || "Pending...");
 
 	return (
 		<CollapsibleCard
 			title={message.name}
 			expanded={expanded}
-			onToggle={() => setExpanded((current) => !current)}
+			onToggle={() => onExpandedChange(!expanded)}
 			meta={headerMeta(messageMeta(message, dateTimeFormatMode))}
 			actions={<CopyTextButton value={message.copyText} />}
 			preview={
@@ -614,13 +644,20 @@ const ProcessItemBlock = memo(function ProcessItemBlock({
 const ProcessOutputBlock = memo(function ProcessOutputBlock({
 	entry,
 	wrapContent,
+	expanded,
+	transcriptExpansionState,
+	onTranscriptEntryExpandedChange,
+	onExpandedChange,
 	dateTimeFormatMode,
 }: {
 	entry: TranscriptProcessEntry;
 	wrapContent: boolean;
+	expanded: boolean;
+	transcriptExpansionState: TranscriptExpansionState;
+	onTranscriptEntryExpandedChange: (entryId: string, expanded: boolean) => void;
+	onExpandedChange: (expanded: boolean) => void;
 	dateTimeFormatMode: DateTimeFormatMode;
 }) {
-	const [expanded, setExpanded] = useState(false);
 	const messages = useMemo(
 		() => (expanded ? entry.items.map(messageFromItem) : []),
 		[entry.items, expanded],
@@ -646,7 +683,7 @@ const ProcessOutputBlock = memo(function ProcessOutputBlock({
 		<CollapsibleCard
 			title="Thoughts"
 			expanded={expanded}
-			onToggle={() => setExpanded((current) => !current)}
+			onToggle={() => onExpandedChange(!expanded)}
 			meta={headerMeta(metaLabel)}
 			actions={<CopyTextButton value={copyText || preview} />}
 			size="prominent"
@@ -661,14 +698,22 @@ const ProcessOutputBlock = memo(function ProcessOutputBlock({
 			surface="plain"
 			className="bg-transparent"
 		>
-			{messages.map((message) => (
-				<ProcessItemBlock
-					key={message.id}
-					message={message}
-					wrapContent={wrapContent}
-					dateTimeFormatMode={dateTimeFormatMode}
-				/>
-			))}
+			{messages.map((message) => {
+				const expansionKey = `process-item:${message.id}`;
+				const itemExpanded = transcriptExpansionState[expansionKey] ?? false;
+				return (
+					<ProcessItemBlock
+						key={message.id}
+						message={message}
+						wrapContent={wrapContent}
+						expanded={itemExpanded}
+						onExpandedChange={(nextExpanded) =>
+							onTranscriptEntryExpandedChange(expansionKey, nextExpanded)
+						}
+						dateTimeFormatMode={dateTimeFormatMode}
+					/>
+				);
+			})}
 		</CollapsibleCard>
 	);
 });
@@ -1181,6 +1226,7 @@ export const Workspace = memo(
 			promptTarget,
 			goalMode,
 			wrapThreadContent,
+			transcriptExpansionState,
 			displayScale,
 			commandVisible,
 			navigatorVisible,
@@ -1195,6 +1241,7 @@ export const Workspace = memo(
 			onModeChange,
 			onWorkdirChange,
 			onGoalModeChange,
+			onTranscriptEntryExpandedChange,
 			onInterrupt,
 			onResume,
 			onFork,
@@ -1485,6 +1532,7 @@ export const Workspace = memo(
 				ref={rootRef}
 				className={cn("flex h-full min-h-0 min-w-0 flex-col bg-app-bg text-fg")}
 				style={contentScaleStyle}
+				data-print-session
 			>
 				{isMobilePresentation ? (
 					<WorkspaceHeader
@@ -1517,16 +1565,18 @@ export const Workspace = memo(
 					/>
 				) : null}
 
-				<div className="flex min-h-0 flex-1">
+				<div className="flex min-h-0 flex-1" data-print-session-body>
 					<motion.div
 						className="flex min-h-0 min-w-0 flex-1 flex-col"
 						animate={{ width: "100%" }}
 						transition={motionPresets.panel}
+						data-print-session-main
 					>
 						<ScrollArea
 							id={transcriptScrollId}
 							scrollRef={transcriptScrollRef}
 							outerClassName="flex-1 [--transcript-navigator-right-inset:0.75rem] md:[--transcript-navigator-right-inset:1.25rem]"
+							outerProps={{ "data-print-session-scroll": true }}
 							className="transcript-custom-scroll mobile-transcript-scroll px-3 py-0 md:px-5"
 							edgeFades={{ tone: "app", top: true, bottom: "tall" }}
 							floatingScroller={{
@@ -1535,7 +1585,10 @@ export const Workspace = memo(
 								visibility: "always",
 							}}
 						>
-							<ThreadContentFrame className="grid gap-[var(--transcript-gap)]">
+							<ThreadContentFrame
+								className="grid gap-[var(--transcript-gap)]"
+								data-print-session-content
+							>
 								{entries.length === 0 ? (
 									<div className="min-w-0">
 										<EmptyTranscript
@@ -1566,6 +1619,7 @@ export const Workspace = memo(
 											key={entry.id}
 											className="min-w-0 scroll-mt-3 focus:outline-none"
 											{...transcriptItemDataAttributes(entry)}
+											data-print-session-entry
 											initial={transcriptItemMotion.initial}
 											animate={transcriptItemMotion.animate}
 											exit={transcriptItemMotion.exit}
@@ -1574,6 +1628,14 @@ export const Workspace = memo(
 											<TranscriptEntryBlock
 												entry={entry}
 												wrapContent={wrapThreadContent}
+												expanded={
+													transcriptExpansionState[entry.id] ??
+													entry.kind === "item"
+												}
+												transcriptExpansionState={transcriptExpansionState}
+												onTranscriptEntryExpandedChange={
+													onTranscriptEntryExpandedChange
+												}
 												dateTimeFormatMode={dateTimeFormatMode}
 											/>
 										</motion.div>
@@ -1588,6 +1650,7 @@ export const Workspace = memo(
 								"mobile-composer-bar relative shrink-0 overflow-visible pb-[var(--workspace-composer-bottom-gap)] pl-3 pr-[calc(0.75rem+var(--transcript-scrollbar-width,0px))] md:pl-5 md:pr-[calc(1.25rem+var(--transcript-scrollbar-width,0px))]",
 								layer.composerZ,
 							)}
+							data-print-exclude
 						>
 							<ThreadContentFrame>
 								<Composer

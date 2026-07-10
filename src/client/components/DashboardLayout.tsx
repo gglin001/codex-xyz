@@ -49,6 +49,7 @@ import { ScrollArea } from "./ScrollArea.js";
 import { Sidebar } from "./Sidebar.js";
 import { FieldShell, MenuItemButton, ScrollableText } from "./uiPrimitives.js";
 import {
+	type TranscriptExpansionState,
 	Workspace,
 	type WorkspaceHandle,
 	type WorkspaceProps,
@@ -779,6 +780,8 @@ export const DashboardLayout = memo(function DashboardLayout({
 	const [mobileSheet, setMobileSheet] = useState<MobileSheet | null>(null);
 	const [commandOpen, setCommandOpen] = useState(false);
 	const [commandAutoFocusInput, setCommandAutoFocusInput] = useState(true);
+	const [transcriptExpansionState, setTranscriptExpansionState] =
+		useState<TranscriptExpansionState>({});
 	const desktopWorkspaceRef = useRef<WorkspaceHandle | null>(null);
 	const mobileWorkspaceRef = useRef<WorkspaceHandle | null>(null);
 	const commandReturnFocusRef = useRef<HTMLElement | null>(null);
@@ -802,6 +805,18 @@ export const DashboardLayout = memo(function DashboardLayout({
 	useMobileViewportGeometry();
 	useMobileLongPressSelectionGuard();
 	useMobileTouchScrollBoundary(mobileSheetPanelRef, mobileSheet !== null);
+
+	const handleTranscriptEntryExpandedChange = useCallback(
+		(entryId: string, expanded: boolean) => {
+			setTranscriptExpansionState((current) => {
+				if (current[entryId] === expanded) {
+					return current;
+				}
+				return { ...current, [entryId]: expanded };
+			});
+		},
+		[],
+	);
 
 	const focusVisiblePrompt = useCallback(() => {
 		const useDesktopWorkspace =
@@ -1287,6 +1302,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 		canSubmitPrompt,
 		submittedPromptFocusTarget,
 		wrapThreadContent,
+		transcriptExpansionState,
 		loadingEarlierTranscript,
 		displayScale,
 		commandVisible: commandOpen,
@@ -1296,6 +1312,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 		onModeChange,
 		onWorkdirChange,
 		onGoalModeChange,
+		onTranscriptEntryExpandedChange: handleTranscriptEntryExpandedChange,
 		onInterrupt,
 		onResume,
 		onFork,
@@ -1321,14 +1338,19 @@ export const DashboardLayout = memo(function DashboardLayout({
 				"h-[var(--app-visual-height)] min-h-0 w-full overflow-hidden md:h-dvh",
 				ui.appShell,
 			)}
+			data-print-root
 		>
 			{renderDesktopShell ? (
-				<div className="hidden h-full min-h-0 md:flex">
+				<div
+					className="hidden h-full min-h-0 md:flex"
+					data-print-desktop-layout
+				>
 					<AnimatePresence initial={false}>
 						{shellSurfaces.navigator.desktopVisible ? (
 							<motion.div
 								key="desktop-sidebar"
 								className="h-full min-h-0 shrink-0 overflow-hidden"
+								data-print-exclude
 								initial={{ width: 0, opacity: 0 }}
 								animate={{ width: 316, opacity: 1 }}
 								exit={{ width: 0, opacity: 0 }}
@@ -1339,7 +1361,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 						) : null}
 					</AnimatePresence>
 
-					<div className="min-h-0 min-w-0 flex-1">
+					<div className="min-h-0 min-w-0 flex-1" data-print-workspace-shell>
 						<Workspace
 							ref={desktopWorkspaceRef}
 							presentationMode="desktop"
@@ -1356,6 +1378,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 							<motion.div
 								key="desktop-inspector"
 								className="h-full min-h-0 shrink-0 overflow-hidden"
+								data-print-exclude
 								initial={{ width: 0, opacity: 0 }}
 								animate={{ width: 316, opacity: 1 }}
 								exit={{ width: 0, opacity: 0 }}
@@ -1369,7 +1392,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 			) : null}
 
 			{renderMobileShell ? (
-				<div className="h-full min-h-0 md:hidden">
+				<div className="h-full min-h-0 md:hidden" data-print-mobile-layout>
 					<Workspace
 						ref={mobileWorkspaceRef}
 						presentationMode="mobile"
@@ -1390,6 +1413,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 							layer.overlayZ,
 							ui.overlay,
 						)}
+						data-print-exclude
 						initial={overlayMotion.initial}
 						animate={overlayMotion.animate}
 						exit={overlayMotion.exit}
@@ -1429,12 +1453,14 @@ export const DashboardLayout = memo(function DashboardLayout({
 				) : null}
 			</AnimatePresence>
 
-			<CommandPalette
-				open={commandOpen}
-				actions={commandActions}
-				autoFocusInput={commandAutoFocusInput}
-				onClose={closeCommandPalette}
-			/>
+			<div data-print-exclude>
+				<CommandPalette
+					open={commandOpen}
+					actions={commandActions}
+					autoFocusInput={commandAutoFocusInput}
+					onClose={closeCommandPalette}
+				/>
+			</div>
 		</main>
 	);
 });

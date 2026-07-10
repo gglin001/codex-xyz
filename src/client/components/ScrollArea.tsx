@@ -1,4 +1,4 @@
-import type { ReactNode, RefObject } from "react";
+import type { HTMLAttributes, ReactNode, RefObject } from "react";
 import { memo, useId, useRef } from "react";
 import { cn } from "../designSystem.js";
 import {
@@ -27,6 +27,10 @@ type FloatingScrollerConfig =
 			visibility?: "mobile" | "always";
 	  };
 
+type DataAttributes = {
+	[key: `data-${string}`]: boolean | number | string | undefined;
+};
+
 export type ScrollAreaProps = {
 	children: ReactNode;
 	className?: string;
@@ -34,6 +38,8 @@ export type ScrollAreaProps = {
 	floatingScroller?: FloatingScrollerConfig;
 	id?: string;
 	outerClassName?: string;
+	outerProps?: Omit<HTMLAttributes<HTMLDivElement>, "children" | "className"> &
+		DataAttributes;
 	scrollRef?: RefObject<HTMLDivElement | null>;
 };
 
@@ -83,6 +89,7 @@ export const ScrollArea = memo(function ScrollArea({
 	floatingScroller = false,
 	id,
 	outerClassName,
+	outerProps,
 	scrollRef,
 }: ScrollAreaProps) {
 	const generatedId = useId();
@@ -94,7 +101,7 @@ export const ScrollArea = memo(function ScrollArea({
 	const bottomFade = edgeFades ? resolvedFade(edgeFades.bottom) : null;
 
 	return (
-		<div className={cn("relative min-h-0", outerClassName)}>
+		<div className={cn("relative min-h-0", outerClassName)} {...outerProps}>
 			<div
 				id={scrollElementId}
 				ref={activeScrollRef}

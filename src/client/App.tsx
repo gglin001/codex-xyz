@@ -2038,11 +2038,13 @@ export function App({ initialState: serverInitialState }: AppProps) {
 			/>
 			<Suspense fallback={null}>
 				{terminalVisible ? (
-					<TerminalDock
-						themeMode={themeMode}
-						visible={terminalVisible}
-						onClose={() => setTerminalVisible(false)}
-					/>
+					<div data-print-exclude>
+						<TerminalDock
+							themeMode={themeMode}
+							visible={terminalVisible}
+							onClose={() => setTerminalVisible(false)}
+						/>
+					</div>
 				) : null}
 			</Suspense>
 		</MotionConfig>
