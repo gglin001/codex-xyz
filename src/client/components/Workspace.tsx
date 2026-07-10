@@ -377,6 +377,7 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 			</LargeIconButton>
 			<div className="grid min-w-0 flex-1 gap-0.5">
 				<ScrollableText
+					wheelScrollable={!mobile}
 					className={cn(
 						"font-semibold leading-5 text-fg-strong",
 						mobile ? "text-[14px]" : "text-[15px]",
@@ -1144,13 +1145,13 @@ const Composer = memo(
 							</div>
 							<button
 								type="submit"
-								className={cn(ui.submitButton, "h-8 min-w-8 px-0")}
+								className={ui.submitButton}
 								disabled={!canSubmitPrompt}
 								suppressHydrationWarning
 								title={submitTitle}
 								aria-label={submitTitle}
 							>
-								{goalMode ? <Goal size={14} /> : <Send size={14} />}
+								{goalMode ? <Goal size={13} /> : <Send size={13} />}
 							</button>
 						</div>
 					</div>

@@ -6,7 +6,7 @@ import type {
 	MouseEvent,
 	ReactNode,
 } from "react";
-import { memo, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
 	cn,
 	displayScale,
@@ -290,11 +290,54 @@ export function ScrollableText({
 	children,
 	title,
 	mobileStatic = false,
+	wheelScrollable = false,
 	...props
-}: HTMLAttributes<HTMLSpanElement> & { mobileStatic?: boolean }) {
+}: HTMLAttributes<HTMLSpanElement> & {
+	mobileStatic?: boolean;
+	wheelScrollable?: boolean;
+}) {
 	const fallbackTitle = typeof children === "string" ? children : undefined;
+	const textRef = useRef<HTMLSpanElement | null>(null);
+
+	useEffect(() => {
+		const element = textRef.current;
+		if (!wheelScrollable || !element) {
+			return;
+		}
+
+		const handleWheel = (event: WheelEvent) => {
+			const maximumScrollLeft = element.scrollWidth - element.clientWidth;
+			if (maximumScrollLeft <= 0) {
+				return;
+			}
+
+			const scrollDelta =
+				Math.abs(event.deltaX) > Math.abs(event.deltaY)
+					? event.deltaX
+					: event.deltaY;
+			if (scrollDelta === 0) {
+				return;
+			}
+
+			const nextScrollLeft = Math.min(
+				maximumScrollLeft,
+				Math.max(0, element.scrollLeft + scrollDelta),
+			);
+			if (nextScrollLeft === element.scrollLeft) {
+				return;
+			}
+
+			element.scrollLeft = nextScrollLeft;
+			event.preventDefault();
+		};
+
+		element.addEventListener("wheel", handleWheel, { passive: false });
+		return () => element.removeEventListener("wheel", handleWheel);
+	}, [wheelScrollable]);
+
 	return (
 		<span
+			ref={textRef}
 			className={cn(
 				"scrollable-truncate block min-w-0 max-w-full",
 				mobileStatic ? "mobile-static-scroll" : null,
