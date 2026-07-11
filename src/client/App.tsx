@@ -40,6 +40,7 @@ import {
 	startGoal,
 	startTurn,
 	syncThreadHistory,
+	unarchiveThread,
 } from "./api.js";
 import { DashboardLayout } from "./components/DashboardLayout.js";
 import {
@@ -78,7 +79,6 @@ import {
 	removeOptimisticThreadState,
 	replaceOptimisticThreadState,
 	resolveOptimisticTurnDraft,
-	restoreThreadState,
 	shouldResolveOptimisticThread,
 } from "./optimisticThreads.js";
 import { isMacTerminalToggleShortcut } from "./terminalShortcut.js";
@@ -89,6 +89,11 @@ import {
 	type ThemeMode,
 	writeStoredThemeMode,
 } from "./theme.js";
+import {
+	isThreadActive,
+	isThreadArchived,
+	isThreadRuntimeActionable,
+} from "./threadLifecycle.js";
 import {
 	choosePreferredThreadId,
 	queryMatchesArchivedThreads,
@@ -188,12 +193,6 @@ type OptimisticTurnSubmission = {
 	threadId: string;
 	previousThread: ControlThread;
 	draft: ReturnType<typeof createOptimisticTurnDraft>;
-};
-
-type OptimisticArchiveSubmission = {
-	threadId: string;
-	thread: ControlThread;
-	detail: ThreadDetail | null;
 };
 
 type ResetEvent = {
@@ -351,6 +350,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	const [workdirTouched, setWorkdirTouched] = useState(false);
 	const [threadQuery, setThreadQuery] = useState("");
 	const [archivedThreads, setArchivedThreads] = useState<ControlThread[]>([]);
+	const [archivedRefreshKey, setArchivedRefreshKey] = useState(0);
 	const [historySearchThreads, setHistorySearchThreads] = useState<
 		ControlThread[]
 	>([]);
@@ -400,7 +400,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	);
 	const optimisticThreadRef = useRef<OptimisticThreadSubmission | null>(null);
 	const optimisticTurnsRef = useRef<OptimisticTurnSubmission[]>([]);
-	const optimisticArchiveRef = useRef<OptimisticArchiveSubmission | null>(null);
 	const submittedPromptFocusSequenceRef = useRef(0);
 	const projectionRef = useRef<ClientProjection>({
 		state: appInitialState,
@@ -974,6 +973,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	}
 
 	function handleResetEvent(event: ResetEvent) {
+		setArchivedRefreshKey((current) => current + 1);
 		if (event.threadId && selectedThreadIdRef.current === event.threadId) {
 			void loadThreadDetail(event.threadId).catch(() => {
 				scheduleFallbackRefresh();
@@ -1023,6 +1023,15 @@ export function App({ initialState: serverInitialState }: AppProps) {
 					summaryEventIdRef.current,
 					event,
 				);
+				if (
+					event.type === "thread.lifecycle.updated" ||
+					event.type === "thread.archived" ||
+					event.type === "thread.unarchived" ||
+					event.type === "thread.deleted" ||
+					event.type === "threads.synced"
+				) {
+					setArchivedRefreshKey((current) => current + 1);
+				}
 				queueProjectionEvent(event);
 			} catch {
 				scheduleFallbackRefresh();
@@ -1105,6 +1114,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	}, [threadQuery]);
 
 	useEffect(() => {
+		void archivedRefreshKey;
 		archivedSearchSeqRef.current += 1;
 		const searchSeq = archivedSearchSeqRef.current;
 		if (!shouldSearchArchivedThreads) {
@@ -1130,11 +1140,11 @@ export function App({ initialState: serverInitialState }: AppProps) {
 						: "Failed to load archived threads",
 				);
 			});
-	}, [shouldSearchArchivedThreads]);
+	}, [archivedRefreshKey, shouldSearchArchivedThreads]);
 
 	const searchableThreads = useMemo(() => {
 		if (!shouldSearchArchivedThreads) {
-			return state.threads;
+			return state.threads.filter(isThreadActive);
 		}
 		const byId = new Map<string, ControlThread>();
 		for (const thread of state.threads) {
@@ -1146,7 +1156,9 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		for (const thread of historySearchThreads) {
 			byId.set(thread.id, thread);
 		}
-		return [...byId.values()];
+		return [...byId.values()].filter(
+			(thread) => isThreadActive(thread) || isThreadArchived(thread),
+		);
 	}, [
 		archivedThreads,
 		historySearchThreads,
@@ -1183,7 +1195,9 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	);
 	const activeDetail = detail?.id === activeThreadId ? detail : null;
 	const promptTarget =
-		composerMode === "thread" && activeThread && !activeThread.archivedAt
+		composerMode === "thread" &&
+		activeThread &&
+		isThreadRuntimeActionable(activeThread)
 			? "thread"
 			: "new";
 	const activeThreadPendingSubmission =
@@ -1683,15 +1697,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		if (!thread) {
 			return;
 		}
-		const archivedDetail =
-			projectionRef.current.detail?.id === threadId
-				? projectionRef.current.detail
-				: null;
-		optimisticArchiveRef.current = {
-			threadId,
-			thread,
-			detail: archivedDetail,
-		};
 		setBusyAction("Archiving thread");
 		setError(null);
 		setNotice(null);
@@ -1734,7 +1739,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 
 		try {
 			const archived = await archiveThread(threadId);
-			optimisticArchiveRef.current = null;
 			if (queryMatchesArchivedThreads(threadQuery)) {
 				setArchivedThreads((current) => {
 					const next = current.filter(
@@ -1744,51 +1748,50 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				});
 			}
 			setComposerMode("thread");
-			setNotice("Thread archived");
+			if (archived.lastOperationError) {
+				setError(archived.lastOperationError);
+			} else {
+				setNotice("Thread archived");
+			}
 			void refresh(undefined, { loadDetail: true });
 		} catch (actionError) {
-			const pending = optimisticArchiveRef.current;
-			optimisticArchiveRef.current = null;
-			if (pending?.threadId === threadId) {
-				const shouldRestoreSelection =
-					archivedThreadWasSelected &&
-					selectedThreadIdRef.current === fallbackThreadId;
-				const restoredState = restoreThreadState(
-					projectionRef.current.state,
-					pending.thread,
-				);
-				commitProjection({
-					state: restoredState,
-					detail: shouldRestoreSelection
-						? pending.detail
-						: projectionRef.current.detail,
-				});
-				if (shouldRestoreSelection) {
-					setSelectedThreadId(threadId);
-					selectedThreadIdRef.current = threadId;
-					const project = findProjectForThread(
-						buildWorkbenchProjects(
-							restoredState.threads,
-							restoredState.defaultCwd,
-						),
-						threadId,
-					);
-					if (project) {
-						setSelectedProjectId(project.id);
-					}
-				}
-				if (shouldRestoreSelection && pending.detail) {
-					setDetailSubscription({
-						threadId,
-						after: pending.detail.latestEventId,
-					});
-				}
-			}
 			setError(
 				actionError instanceof Error
 					? actionError.message
 					: "Failed to archive thread",
 			);
+			void refresh(undefined, { loadDetail: true });
+		} finally {
+			setBusyAction(null);
+		}
+	}
+
+	async function unarchiveSelectedThread() {
+		if (!activeThreadId) {
+			return;
+		}
+		const threadId = activeThreadId;
+		setBusyAction("Unarchiving thread");
+		setError(null);
+		setNotice(null);
+		try {
+			const unarchived = await unarchiveThread(threadId);
+			setArchivedThreads((current) =>
+				current.filter((candidate) => candidate.id !== threadId),
+			);
+			if (unarchived.lastOperationError) {
+				setError(unarchived.lastOperationError);
+			} else {
+				setNotice("Thread unarchived");
+			}
+			await refresh(unarchived.id, { loadDetail: true });
+		} catch (actionError) {
+			setError(
+				actionError instanceof Error
+					? actionError.message
+					: "Failed to unarchive thread",
+			);
+			await refresh(threadId, { loadDetail: true }).catch(() => undefined);
 		} finally {
 			setBusyAction(null);
 		}
@@ -2098,6 +2101,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				onFork={forkSelectedThread}
 				onCompact={compactSelectedThread}
 				onArchive={archiveSelectedThread}
+				onUnarchive={() => void unarchiveSelectedThread()}
 				onListBackgroundTerminals={listSelectedBackgroundTerminals}
 				onCleanBackgroundTerminals={cleanSelectedBackgroundTerminals}
 				onLoadEarlierTranscript={loadEarlierTranscriptItems}

@@ -641,6 +641,18 @@ export function projectAppServerNotification(
 			threadId,
 		};
 	}
+	if (method === "thread/unarchived" && threadId) {
+		return {
+			type: "thread.unarchived",
+			threadId,
+		};
+	}
+	if (method === "thread/deleted" && threadId) {
+		return {
+			type: "thread.deleted",
+			threadId,
+		};
+	}
 	return null;
 }
 

@@ -591,6 +591,9 @@ async function routeApiRequest(
 		if (method === "POST" && parts[3] === "archive") {
 			return jsonResponse(await service.archiveThread(threadId));
 		}
+		if (method === "POST" && parts[3] === "unarchive") {
+			return jsonResponse(await service.unarchiveThread(threadId));
+		}
 
 		if (method === "PUT" && parts[3] === "tag") {
 			const body = await readJson(request);

@@ -49,8 +49,12 @@ class VolatileCodexRuntime implements CodexRuntime {
 	private readonly archivedThreads = new Map<string, RuntimeThreadSnapshot>();
 	private readonly missingGoalThreads = new Set<string>();
 	private readonly timers = new Set<NodeJS.Timeout>();
+	private readonly failedArchives = new Set<string>();
+	private readonly transientArchives = new Set<string>();
+	failArchivedList = false;
 	private nextThread = 1;
 	private nextTurn = 1;
+	listThreadCalls = 0;
 
 	onEvent(handler: RuntimeEventHandler) {
 		this.handler = handler;
@@ -65,6 +69,10 @@ class VolatileCodexRuntime implements CodexRuntime {
 	}
 
 	async listThreads(input: { archived?: boolean | null } = {}) {
+		this.listThreadCalls += 1;
+		if (input.archived && this.failArchivedList) {
+			throw new Error("archived list unavailable");
+		}
 		return {
 			threads: [
 				...(input.archived
@@ -187,7 +195,13 @@ class VolatileCodexRuntime implements CodexRuntime {
 	}
 
 	async archiveThread(threadId: string) {
-		const thread = this.requireThread(threadId);
+		if (this.transientArchives.has(threadId)) {
+			throw new Error("app-server websocket is not connected");
+		}
+		if (this.failedArchives.has(threadId)) {
+			throw new Error("archive rejected");
+		}
+		const thread = this.requirePersistedThread(threadId);
 		this.loadedThreads.delete(threadId);
 		this.persistedThreads.delete(threadId);
 		this.archivedThreads.set(threadId, thread);
@@ -197,11 +211,31 @@ class VolatileCodexRuntime implements CodexRuntime {
 		});
 	}
 
+	failArchive(threadId: string) {
+		this.failedArchives.add(threadId);
+	}
+
+	failArchiveTransiently(threadId: string) {
+		this.transientArchives.add(threadId);
+	}
+
+	async unarchiveThread(threadId: string) {
+		const thread = this.archivedThreads.get(threadId);
+		if (!thread) throw new RuntimeThreadNotFoundError(threadId);
+		this.archivedThreads.delete(threadId);
+		this.persistedThreads.set(threadId, thread);
+		this.handler({ type: "thread.unarchived", threadId });
+	}
+
 	archiveSilently(threadId: string) {
 		const thread = this.requirePersistedThread(threadId);
 		this.loadedThreads.delete(threadId);
 		this.persistedThreads.delete(threadId);
 		this.archivedThreads.set(threadId, thread);
+	}
+
+	returnThreadOnBothLifecycleSides(threadId: string) {
+		this.archivedThreads.set(threadId, this.requirePersistedThread(threadId));
 	}
 
 	async setThreadName(input: { threadId: string; name: string }) {
@@ -465,6 +499,10 @@ class EagerEventCodexRuntime implements CodexRuntime {
 		});
 	}
 
+	async unarchiveThread(threadId: string) {
+		throw new RuntimeThreadNotFoundError(threadId);
+	}
+
 	async setThreadName(input: { threadId: string; name: string }) {
 		const thread = this.requireThread(input.threadId);
 		const name = input.name.trim();
@@ -698,6 +736,10 @@ class InterruptDriftCodexRuntime implements CodexRuntime {
 		});
 	}
 
+	async unarchiveThread(threadId: string) {
+		throw new RuntimeThreadNotFoundError(threadId);
+	}
+
 	async setThreadName(input: { name: string }) {
 		if (this.thread) {
 			this.thread = {
@@ -902,6 +944,7 @@ describe("ControlService", () => {
 		}
 
 		testRuntime.defaultModel = "configured-default-model";
+		await service.start();
 		const dashboard = await service.dashboard();
 		const detail = service.getThreadDetail(threadId);
 		const fullReplay = service.replayEvents(0, { threadId });
@@ -1236,7 +1279,7 @@ describe("ControlService", () => {
 		).toBe(true);
 	});
 
-	it("reconciles app-server archive state before listing dashboard threads", async () => {
+	it("keeps dashboard DB-only and reconciles external archive on sync", async () => {
 		await service.close();
 		const runtime = new VolatileCodexRuntime();
 		service = new ControlService(
@@ -1264,6 +1307,12 @@ describe("ControlService", () => {
 			threadId,
 		);
 
+		const staleDashboard = await service.dashboard();
+		expect(staleDashboard.threads.map((thread) => thread.id)).toContain(
+			threadId,
+		);
+
+		await service.syncThreads();
 		const dashboard = await service.dashboard();
 
 		expect(dashboard.threads).toEqual([]);
@@ -1328,6 +1377,192 @@ describe("ControlService", () => {
 				status: "not_loaded",
 				archivedAt: archived.archivedAt,
 			},
+		]);
+	});
+
+	it("persists archive failures without returning the thread to active lists", async () => {
+		await service.close();
+		const runtime = new VolatileCodexRuntime();
+		service = new ControlService(
+			Store.open(join(tempDir, "failed-archive.sqlite")),
+			runtime,
+		);
+		service.seedLocalState({ cwd: tempDir, runtimeName: runtime.name });
+		const result = await service.createThread({
+			cwd: tempDir,
+			prompt: "Persist the failed archive intent",
+		});
+		await waitForEvents();
+		const threadId = result.thread?.id;
+		if (!threadId) throw new Error("Expected created thread id");
+		runtime.failArchive(threadId);
+
+		const thread = await service.archiveThread(threadId);
+
+		expect(thread).toMatchObject({
+			id: threadId,
+			lifecycleState: "archive_failed",
+			desiredArchived: true,
+			lastOperationError: "archive rejected",
+		});
+		expect(service.listThreads()).toEqual([]);
+		expect(service.store.listThreadOperations(threadId)).toMatchObject([
+			{ kind: "archive", status: "failed", attempts: 1 },
+		]);
+	});
+
+	it("keeps transient archive failures pending for recovery", async () => {
+		await service.close();
+		const runtime = new VolatileCodexRuntime();
+		service = new ControlService(
+			Store.open(join(tempDir, "pending-transient-archive.sqlite")),
+			runtime,
+		);
+		service.seedLocalState({ cwd: tempDir, runtimeName: runtime.name });
+		const result = await service.createThread({
+			cwd: tempDir,
+			prompt: "Retry this archive after reconnect",
+		});
+		await waitForEvents();
+		const threadId = result.thread?.id;
+		if (!threadId) throw new Error("Expected created thread id");
+		runtime.failArchiveTransiently(threadId);
+
+		const thread = await service.archiveThread(threadId);
+
+		expect(thread).toMatchObject({
+			lifecycleState: "archive_pending",
+			desiredArchived: true,
+			lastOperationError: null,
+		});
+		expect(service.store.listPendingThreadOperations()).toMatchObject([
+			{ kind: "archive", status: "running", attempts: 1 },
+		]);
+	});
+
+	it("unarchives through Codex and restores the canonical active thread", async () => {
+		const result = await service.createThread({
+			cwd: tempDir,
+			prompt: "Archive then restore this thread",
+		});
+		await waitForEvents();
+		const threadId = result.thread?.id;
+		if (!threadId) throw new Error("Expected created thread id");
+		await service.archiveThread(threadId);
+
+		const restored = await service.unarchiveThread(threadId);
+
+		expect(restored).toMatchObject({
+			id: threadId,
+			lifecycleState: "active",
+			desiredArchived: false,
+			remoteArchived: false,
+			archivedAt: null,
+		});
+		expect(service.listThreads().map((thread) => thread.id)).toContain(
+			threadId,
+		);
+	});
+
+	it("does not apply a partial active and archived snapshot", async () => {
+		await service.close();
+		const runtime = new VolatileCodexRuntime();
+		service = new ControlService(
+			Store.open(join(tempDir, "partial-sync.sqlite")),
+			runtime,
+		);
+		service.seedLocalState({ cwd: tempDir, runtimeName: runtime.name });
+		const result = await service.createThread({
+			cwd: tempDir,
+			prompt: "Do not partially reconcile this thread",
+		});
+		await waitForEvents();
+		const threadId = result.thread?.id;
+		if (!threadId) throw new Error("Expected created thread id");
+		runtime.archiveSilently(threadId);
+		runtime.failArchivedList = true;
+
+		await expect(service.syncThreads()).rejects.toThrow(
+			"archived list unavailable",
+		);
+
+		expect(service.store.getThread(threadId)).toMatchObject({
+			lifecycleState: "active",
+			archivedAt: null,
+		});
+	});
+
+	it("rejects snapshots that contain a thread on both lifecycle sides", async () => {
+		await service.close();
+		const runtime = new VolatileCodexRuntime();
+		service = new ControlService(
+			Store.open(join(tempDir, "overlapping-sync.sqlite")),
+			runtime,
+		);
+		service.seedLocalState({ cwd: tempDir, runtimeName: runtime.name });
+		const result = await service.createThread({
+			cwd: tempDir,
+			prompt: "Reject an inconsistent snapshot",
+		});
+		await waitForEvents();
+		const threadId = result.thread?.id;
+		if (!threadId) throw new Error("Expected created thread id");
+		runtime.returnThreadOnBothLifecycleSides(threadId);
+
+		await expect(service.syncThreads()).rejects.toThrow(
+			/in both active and archived snapshots/,
+		);
+		expect(service.store.getThread(threadId)).toMatchObject({
+			lifecycleState: "active",
+			archivedAt: null,
+		});
+	});
+
+	it("shares one active and archived snapshot across concurrent sync calls", async () => {
+		await service.close();
+		const runtime = new VolatileCodexRuntime();
+		service = new ControlService(
+			Store.open(join(tempDir, "single-flight-sync.sqlite")),
+			runtime,
+		);
+		service.seedLocalState({ cwd: tempDir, runtimeName: runtime.name });
+
+		const first = service.syncThreads();
+		const second = service.syncThreads();
+		await Promise.all([first, second]);
+
+		expect(runtime.listThreadCalls).toBe(2);
+		expect(
+			service
+				.replayEvents(0, { summaryOnly: true })
+				.filter((event) => event.type === "threads.synced"),
+		).toHaveLength(0);
+	});
+
+	it("recovers a durable pending archive during service startup", async () => {
+		await service.close();
+		const runtime = new VolatileCodexRuntime();
+		service = new ControlService(
+			Store.open(join(tempDir, "pending-operation.sqlite")),
+			runtime,
+		);
+		service.seedLocalState({ cwd: tempDir, runtimeName: runtime.name });
+		const result = await service.createThread({
+			cwd: tempDir,
+			prompt: "Recover this pending archive",
+		});
+		await waitForEvents();
+		const threadId = result.thread?.id;
+		if (!threadId) throw new Error("Expected created thread id");
+		service.store.beginThreadOperation(threadId, "archive");
+
+		await service.start();
+		expect(service.store.getThread(threadId)).toMatchObject({
+			lifecycleState: "archived",
+			remoteArchived: true,
+		});
+		expect(service.store.listThreadOperations(threadId)).toMatchObject([
+			{ kind: "archive", status: "succeeded", attempts: 1 },
 		]);
 	});
 

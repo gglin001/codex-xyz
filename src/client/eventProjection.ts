@@ -17,6 +17,7 @@ import {
 	isOptimisticTurnId,
 	rebaseOptimisticTurnDetail,
 } from "./optimisticThreads.js";
+import { isThreadActive } from "./threadLifecycle.js";
 
 export type ClientProjection = {
 	state: DashboardState;
@@ -43,6 +44,9 @@ export const incrementalEventNames = [
 	"thread.runtime_lost",
 	"thread.forked",
 	"thread.archived",
+	"thread.unarchived",
+	"thread.deleted",
+	"thread.lifecycle.updated",
 	"thread.name.updated",
 	"thread.goal.updated",
 	"thread.goal.cleared",
@@ -67,6 +71,9 @@ const refreshThreadEventNames = new Set([
 	"thread.started",
 	"thread.forked",
 	"thread.archived",
+	"thread.unarchived",
+	"thread.deleted",
+	"thread.lifecycle.updated",
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -579,6 +586,52 @@ export function applyEventProjection(
 	}
 
 	if (event.type === "thread.archived") {
+		if (!event.threadId) {
+			return result(projection, projection, false, event);
+		}
+		const thread = payloadValue<ControlThread>(event, "thread");
+		const next =
+			thread?.lifecycleState && isThreadActive(thread)
+				? withThread(projection, thread, { countInsert: true })
+				: withoutThread(projection, event.threadId);
+		return result(projection, next, true, event);
+	}
+
+	if (event.type === "thread.lifecycle.updated") {
+		if (!event.threadId) {
+			return result(projection, projection, false, event);
+		}
+		const thread = payloadValue<ControlThread>(event, "thread");
+		if (!thread) {
+			return {
+				...result(projection, projection, true, event),
+				needsRefresh: true,
+			};
+		}
+		const next = isThreadActive(thread)
+			? withThread(projection, thread, { countInsert: true })
+			: withoutThread(projection, event.threadId);
+		return result(projection, next, true, event);
+	}
+
+	if (event.type === "thread.unarchived") {
+		if (!event.threadId) {
+			return result(projection, projection, false, event);
+		}
+		const thread = payloadValue<ControlThread>(event, "thread");
+		if (!thread) {
+			return {
+				...result(projection, projection, true, event),
+				needsRefresh: true,
+			};
+		}
+		const next = isThreadActive(thread)
+			? withThread(projection, thread, { countInsert: true })
+			: withoutThread(projection, event.threadId);
+		return result(projection, next, true, event);
+	}
+
+	if (event.type === "thread.deleted") {
 		if (!event.threadId) {
 			return result(projection, projection, false, event);
 		}

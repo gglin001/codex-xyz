@@ -209,7 +209,20 @@ export class ThreadProjection {
 			}
 
 			if (event.type === "thread.archived") {
-				this.archiveThread(event.threadId);
+				this.confirmThreadLifecycle(event.threadId, "archive");
+				return;
+			}
+
+			if (event.type === "thread.unarchived") {
+				this.confirmThreadLifecycle(event.threadId, "unarchive");
+				return;
+			}
+
+			if (event.type === "thread.deleted") {
+				const thread = this.store.markThreadDeleted(event.threadId);
+				if (thread) {
+					this.publish("thread.deleted", event.threadId, null, { thread });
+				}
 				return;
 			}
 
@@ -307,6 +320,17 @@ export class ThreadProjection {
 				goalTokenBudget: input.goalTokenBudget ?? null,
 				tokensUsed: input.tokensUsed,
 				tagScore: null,
+				lifecycleState: "active",
+				desiredArchived: false,
+				remoteArchived: false,
+				remoteObservedAt: now,
+				remoteUpdatedAt: input.runtimeThread.updatedAt ?? null,
+				localUpdatedAt: now,
+				runtimeSeenAt: now,
+				runtimeEpoch: 0,
+				syncGeneration: 0,
+				stateRevision: 0,
+				lastOperationError: null,
 				archivedAt: null,
 				createdAt: now,
 				updatedAt: now,
@@ -340,28 +364,22 @@ export class ThreadProjection {
 		});
 	}
 
-	archiveThread(threadId: string) {
+	confirmThreadLifecycle(threadId: string, kind: "archive" | "unarchive") {
 		return this.runInTransaction(() => {
-			if (!this.store.getThread(threadId)) {
-				return null;
-			}
-			const activeTurnStatus = this.interruptInProgressActiveTurn(threadId);
-			const result = this.store.archiveThread(threadId);
-			if (!result.changed) {
-				return result.thread;
-			}
-			const thread =
-				activeTurnStatus && result.thread.lastTurnStatus !== activeTurnStatus
-					? (this.store.updateThread(
-							threadId,
-							{ lastTurnStatus: activeTurnStatus },
-							{ preserveUpdatedAt: true },
-						) ?? result.thread)
-					: result.thread;
-			this.publish("thread.archived", threadId, null, {
-				thread,
-				archivedAt: result.archivedAt,
-			});
+			const existing = this.store.getThread(threadId);
+			if (!existing) return null;
+			const archived = kind === "archive";
+			const alreadyConfirmed =
+				existing.remoteArchived === archived &&
+				existing.lifecycleState === (archived ? "archived" : "active");
+			const thread = this.store.confirmThreadOperation(threadId, kind);
+			if (alreadyConfirmed) return thread;
+			this.publish(
+				kind === "archive" ? "thread.archived" : "thread.unarchived",
+				threadId,
+				null,
+				{ thread },
+			);
 			return thread;
 		});
 	}

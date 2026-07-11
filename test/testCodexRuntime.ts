@@ -44,6 +44,7 @@ export class TestCodexRuntime implements CodexRuntime {
 	backgroundTerminalsCleanCount = 0;
 	private handler: RuntimeEventHandler = () => {};
 	private readonly threads = new Map<string, TestThread>();
+	private readonly archivedThreads = new Map<string, TestThread>();
 	private readonly running = new Map<string, RunningTurn>();
 	private closed = false;
 	private nextThread = 1;
@@ -86,7 +87,9 @@ export class TestCodexRuntime implements CodexRuntime {
 
 	async listThreads(input: { archived?: boolean | null } = {}) {
 		return {
-			threads: input.archived ? [] : [...this.threads.values()],
+			threads: [
+				...(input.archived ? this.archivedThreads : this.threads).values(),
+			],
 			nextCursor: null,
 		};
 	}
@@ -234,12 +237,21 @@ export class TestCodexRuntime implements CodexRuntime {
 	}
 
 	async archiveThread(threadId: string) {
-		this.requireThread(threadId);
+		const thread = this.requireThread(threadId);
 		this.threads.delete(threadId);
+		this.archivedThreads.set(threadId, thread);
 		this.emit({
 			type: "thread.archived",
 			threadId,
 		});
+	}
+
+	async unarchiveThread(threadId: string) {
+		const thread = this.archivedThreads.get(threadId);
+		if (!thread) throw new RuntimeThreadNotFoundError(threadId);
+		this.archivedThreads.delete(threadId);
+		this.threads.set(threadId, thread);
+		this.emit({ type: "thread.unarchived", threadId });
 	}
 
 	async setThreadName(input: { threadId: string; name: string }) {

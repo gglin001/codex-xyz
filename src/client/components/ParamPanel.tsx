@@ -32,6 +32,7 @@ import {
 	ui,
 } from "../designSystem.js";
 import { nextThemeMode, type ThemeMode } from "../theme.js";
+import { threadLifecycleLabel } from "../threadLifecycle.js";
 import { shortId, statusLabel } from "../uiFormat.js";
 import { ScrollArea } from "./ScrollArea.js";
 import { ControlCard, InfoTile, SurfaceAction } from "./uiPrimitives.js";
@@ -293,7 +294,8 @@ export const ParamPanel = memo(function ParamPanel({
 	restartCodexAppServerDisabled,
 	onRestartCodexAppServer,
 }: ParamPanelProps) {
-	const composingNewThread = promptTarget === "new";
+	const composingNewThread =
+		promptTarget === "new" && !selectedThread && !threadSummary;
 	const thread = composingNewThread
 		? null
 		: (selectedThread ?? threadSummary?.thread ?? null);
@@ -348,9 +350,7 @@ export const ParamPanel = memo(function ParamPanel({
 						<InfoTile
 							icon={<Archive size={13} />}
 							label="Mode"
-							value={
-								thread?.archivedAt ? "Archived" : thread ? "Active" : "None"
-							}
+							value={thread ? threadLifecycleLabel(thread) : "None"}
 							layout="inline"
 						/>
 					</div>

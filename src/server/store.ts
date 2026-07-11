@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -13,6 +14,10 @@ import {
 	type ThreadItemPageCursor,
 	type ThreadItemPageDirection,
 	type ThreadItemsPage,
+	type ThreadLifecycleState,
+	type ThreadOperation,
+	type ThreadOperationKind,
+	type ThreadOperationStatus,
 	type ThreadRuntimeStatus,
 	type ThreadTagScore,
 	type Turn,
@@ -21,10 +26,13 @@ import {
 
 type Row = Record<string, unknown>;
 
-export const currentDatabaseVersion = "v8";
+export const currentDatabaseVersion = "v9";
 
 const metadataTable = "metadata";
 const versionKey = "version";
+const lifecycleRevisionKey = "thread_lifecycle_revision";
+const syncGenerationKey = "thread_sync_generation";
+const runtimeEpochKey = "thread_runtime_epoch";
 const defaultThreadItemPageSize = 200;
 const maxThreadItemPageSize = 500;
 
@@ -42,6 +50,7 @@ type ThreadListOptions = {
 		id: string;
 	} | null;
 	archived?: boolean | null;
+	includeAll?: boolean;
 };
 
 type ThreadUpdateOptions = {
@@ -53,12 +62,6 @@ type ThreadItemListOptions = {
 	limit?: number | null;
 	cursor?: ThreadItemPageCursor | null;
 	direction?: ThreadItemPageDirection;
-};
-
-export type ArchiveThreadResult = {
-	thread: ControlThread;
-	archivedAt: string;
-	changed: boolean;
 };
 
 function readJson<T>(value: unknown, fallback: T): T {
@@ -122,6 +125,43 @@ function storedThreadTagScore(value: unknown): ThreadTagScore | null {
 	throw new Error(`Invalid thread tag score "${String(value)}"`);
 }
 
+function storedBoolean(value: unknown) {
+	if (value === null || value === undefined) return null;
+	if (value === 0) return false;
+	if (value === 1) return true;
+	throw new Error(`Invalid stored boolean "${String(value)}"`);
+}
+
+function storedThreadLifecycleState(value: unknown): ThreadLifecycleState {
+	const state = scalarString(value);
+	if (
+		state === "active" ||
+		state === "archive_pending" ||
+		state === "archived" ||
+		state === "unarchive_pending" ||
+		state === "archive_failed" ||
+		state === "unarchive_failed" ||
+		state === "missing" ||
+		state === "deleted"
+	) {
+		return state;
+	}
+	throw new Error(`Invalid thread lifecycle state "${state}"`);
+}
+
+function storedThreadOperationStatus(value: unknown): ThreadOperationStatus {
+	const status = scalarString(value);
+	if (
+		status === "pending" ||
+		status === "running" ||
+		status === "succeeded" ||
+		status === "failed"
+	) {
+		return status;
+	}
+	throw new Error(`Invalid thread operation status "${status}"`);
+}
+
 function eventSummaryValue(type: string) {
 	return isSummaryEventType(type) ? 1 : 0;
 }
@@ -174,10 +214,43 @@ function threadFromRow(row: Row): ControlThread {
 			typeof row.goal_token_budget === "number" ? row.goal_token_budget : null,
 		tokensUsed: scalarNumber(row.tokens_used),
 		tagScore: storedThreadTagScore(row.tag_score),
+		lifecycleState: storedThreadLifecycleState(row.lifecycle_state),
+		desiredArchived: storedBoolean(row.desired_archived),
+		remoteArchived: storedBoolean(row.remote_archived),
+		remoteObservedAt: nullableString(row.remote_observed_at),
+		remoteUpdatedAt: nullableString(row.remote_updated_at),
+		localUpdatedAt: scalarString(row.local_updated_at),
+		runtimeSeenAt: nullableString(row.runtime_seen_at),
+		runtimeEpoch: scalarNumber(row.runtime_epoch),
+		syncGeneration: scalarNumber(row.sync_generation),
+		stateRevision: scalarNumber(row.state_revision),
+		lastOperationError: nullableString(row.last_operation_error),
 		archivedAt: nullableString(row.archived_at),
 		createdAt: scalarString(row.created_at),
 		updatedAt: scalarString(row.updated_at),
 	};
+}
+
+function operationFromRow(row: Row): ThreadOperation {
+	return {
+		id: scalarString(row.id),
+		threadId: scalarString(row.thread_id),
+		kind: scalarString(row.kind) as ThreadOperationKind,
+		status: storedThreadOperationStatus(row.status),
+		attempts: scalarNumber(row.attempts),
+		lastError: nullableString(row.last_error),
+		createdAt: scalarString(row.created_at),
+		updatedAt: scalarString(row.updated_at),
+	};
+}
+
+function hasUnresolvedLifecycleIntent(thread: ControlThread) {
+	return (
+		thread.lifecycleState === "archive_pending" ||
+		thread.lifecycleState === "unarchive_pending" ||
+		thread.lifecycleState === "archive_failed" ||
+		thread.lifecycleState === "unarchive_failed"
+	);
 }
 
 function turnFromRow(row: Row): Turn {
@@ -329,7 +402,29 @@ export class Store {
         goal_token_budget INTEGER,
         tokens_used INTEGER NOT NULL DEFAULT 0,
         tag_score INTEGER CHECK (tag_score IS NULL OR tag_score IN (1, 2, 3)),
+        lifecycle_state TEXT NOT NULL DEFAULT 'active' CHECK (lifecycle_state IN ('active', 'archive_pending', 'archived', 'unarchive_pending', 'archive_failed', 'unarchive_failed', 'missing', 'deleted')),
+        desired_archived INTEGER CHECK (desired_archived IS NULL OR desired_archived IN (0, 1)),
+        remote_archived INTEGER CHECK (remote_archived IS NULL OR remote_archived IN (0, 1)),
+        remote_observed_at TEXT,
+        remote_updated_at TEXT,
+        local_updated_at TEXT NOT NULL,
+        runtime_seen_at TEXT,
+        runtime_epoch INTEGER NOT NULL DEFAULT 0,
+        sync_generation INTEGER NOT NULL DEFAULT 0,
+        state_revision INTEGER NOT NULL DEFAULT 0,
+        last_operation_error TEXT,
         archived_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE thread_operations (
+        id TEXT PRIMARY KEY,
+        thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL CHECK (kind IN ('archive', 'unarchive')),
+        status TEXT NOT NULL CHECK (status IN ('pending', 'running', 'succeeded', 'failed')),
+        attempts INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
@@ -372,6 +467,8 @@ export class Store {
       CREATE INDEX IF NOT EXISTS idx_threads_session_id ON threads(session_id);
       CREATE INDEX IF NOT EXISTS idx_threads_status_updated_id ON threads(status, updated_at DESC, id DESC);
       CREATE INDEX IF NOT EXISTS idx_threads_forked_from_id ON threads(forked_from_id) WHERE forked_from_id IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_thread_operations_status_created ON thread_operations(status, created_at, id);
+      CREATE INDEX IF NOT EXISTS idx_thread_operations_thread_created ON thread_operations(thread_id, created_at DESC, id DESC);
       CREATE INDEX IF NOT EXISTS idx_turns_thread_started_id ON turns(thread_id, started_at, id);
       CREATE INDEX IF NOT EXISTS idx_items_thread_created_id ON items(thread_id, created_at, id);
       CREATE INDEX IF NOT EXISTS idx_events_thread_id ON events(thread_id, id);
@@ -398,9 +495,13 @@ export class Store {
 	}
 
 	private writeDatabaseVersion() {
-		this.db
-			.prepare(`INSERT INTO ${metadataTable} (key, value) VALUES (?, ?)`)
-			.run(versionKey, currentDatabaseVersion);
+		const statement = this.db.prepare(
+			`INSERT INTO ${metadataTable} (key, value) VALUES (?, ?)`,
+		);
+		statement.run(versionKey, currentDatabaseVersion);
+		statement.run(lifecycleRevisionKey, "0");
+		statement.run(syncGenerationKey, "0");
+		statement.run(runtimeEpochKey, "0");
 	}
 
 	private tableExists(table: string) {
@@ -419,6 +520,60 @@ export class Store {
 			)
 			.get() as Row | undefined;
 		return row ? scalarNumber(row.count) > 0 : false;
+	}
+
+	private readIntegerMetadata(key: string) {
+		const row = this.db
+			.prepare(`SELECT value FROM ${metadataTable} WHERE key = ?`)
+			.get(key) as Row | undefined;
+		const value = row ? Number(row.value) : Number.NaN;
+		if (!Number.isSafeInteger(value) || value < 0) {
+			throw new Error(`Invalid integer metadata "${key}"`);
+		}
+		return value;
+	}
+
+	private incrementIntegerMetadata(key: string) {
+		const value = this.readIntegerMetadata(key) + 1;
+		this.db
+			.prepare(`UPDATE ${metadataTable} SET value = ? WHERE key = ?`)
+			.run(String(value), key);
+		return value;
+	}
+
+	getThreadLifecycleRevision() {
+		return this.readIntegerMetadata(lifecycleRevisionKey);
+	}
+
+	getThreadSyncGeneration() {
+		return this.readIntegerMetadata(syncGenerationKey);
+	}
+
+	beginThreadSync() {
+		return this.transaction(() => ({
+			generation: this.incrementIntegerMetadata(syncGenerationKey),
+			baseRevision: this.readIntegerMetadata(lifecycleRevisionKey),
+		}));
+	}
+
+	beginRemoteSync() {
+		return this.beginThreadSync();
+	}
+
+	beginRuntimeEpoch() {
+		return this.transaction(() => {
+			const runtimeEpoch = this.incrementIntegerMetadata(runtimeEpochKey);
+			this.db
+				.prepare(
+					"UPDATE threads SET status = 'not_loaded', active_turn_id = NULL, runtime_seen_at = NULL, runtime_epoch = ?",
+				)
+				.run(runtimeEpoch);
+			return runtimeEpoch;
+		});
+	}
+
+	getThreadRuntimeEpoch() {
+		return this.readIntegerMetadata(runtimeEpochKey);
 	}
 
 	upsertHost(input: {
@@ -460,15 +615,19 @@ export class Store {
 	}
 
 	createThread(thread: ControlThread) {
+		const stateRevision = this.incrementIntegerMetadata(lifecycleRevisionKey);
 		this.db
 			.prepare(
 				`
           INSERT INTO threads (
             id, session_id, forked_from_id, name, preview, cwd, model,
             status, active_turn_id, last_turn_status, goal_objective, goal_status, goal_token_budget,
-            tokens_used, tag_score, archived_at, created_at, updated_at
+            tokens_used, tag_score, lifecycle_state, desired_archived, remote_archived,
+            remote_observed_at, remote_updated_at, local_updated_at, runtime_seen_at,
+            runtime_epoch, sync_generation, state_revision, last_operation_error,
+            archived_at, created_at, updated_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
 			)
 			.run(
@@ -487,6 +646,17 @@ export class Store {
 				thread.goalTokenBudget,
 				thread.tokensUsed,
 				thread.tagScore,
+				thread.lifecycleState,
+				thread.desiredArchived === null ? null : Number(thread.desiredArchived),
+				thread.remoteArchived === null ? null : Number(thread.remoteArchived),
+				thread.remoteObservedAt,
+				thread.remoteUpdatedAt,
+				thread.localUpdatedAt,
+				thread.runtimeSeenAt,
+				thread.runtimeEpoch,
+				thread.syncGeneration,
+				stateRevision,
+				thread.lastOperationError,
 				thread.archivedAt,
 				thread.createdAt,
 				thread.updatedAt,
@@ -494,16 +664,39 @@ export class Store {
 		return this.getThread(thread.id);
 	}
 
-	upsertDiscoveredThread(thread: ControlThread) {
+	upsertDiscoveredThread(
+		thread: ControlThread,
+		context?: {
+			generation: number;
+			baseRevision: number;
+			runtimeEpoch: number;
+		},
+	) {
+		const existing = this.getThread(thread.id);
+		if (
+			existing &&
+			context &&
+			(existing.stateRevision > context.baseRevision ||
+				existing.syncGeneration > context.generation ||
+				this.getThreadRuntimeEpoch() !== context.runtimeEpoch)
+		) {
+			return existing;
+		}
+		const stateRevision =
+			existing?.stateRevision ??
+			this.incrementIntegerMetadata(lifecycleRevisionKey);
 		this.db
 			.prepare(
 				`
           INSERT INTO threads (
             id, session_id, forked_from_id, name, preview, cwd, model,
             status, active_turn_id, last_turn_status, goal_objective, goal_status, goal_token_budget,
-            tokens_used, tag_score, archived_at, created_at, updated_at
+            tokens_used, tag_score, lifecycle_state, desired_archived, remote_archived,
+            remote_observed_at, remote_updated_at, local_updated_at, runtime_seen_at,
+            runtime_epoch, sync_generation, state_revision, last_operation_error,
+            archived_at, created_at, updated_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
             session_id = excluded.session_id,
             forked_from_id = excluded.forked_from_id,
@@ -513,7 +706,6 @@ export class Store {
             model = COALESCE(excluded.model, threads.model),
             status = excluded.status,
             active_turn_id = excluded.active_turn_id,
-            archived_at = excluded.archived_at,
             updated_at = excluded.updated_at
         `,
 			)
@@ -533,6 +725,17 @@ export class Store {
 				thread.goalTokenBudget,
 				thread.tokensUsed,
 				thread.tagScore,
+				thread.lifecycleState,
+				thread.desiredArchived === null ? null : Number(thread.desiredArchived),
+				thread.remoteArchived === null ? null : Number(thread.remoteArchived),
+				thread.remoteObservedAt,
+				thread.remoteUpdatedAt,
+				thread.localUpdatedAt,
+				thread.runtimeSeenAt,
+				thread.runtimeEpoch,
+				thread.syncGeneration,
+				stateRevision,
+				thread.lastOperationError,
 				thread.archivedAt,
 				thread.createdAt,
 				thread.updatedAt,
@@ -614,50 +817,415 @@ export class Store {
 		return row ? threadFromRow(row as Row) : null;
 	}
 
-	archiveThread(id: string, archivedAt = nowIso()): ArchiveThreadResult {
-		const existing = this.getThread(id);
-		if (!existing) {
-			throw new Error(`Thread ${id} does not exist`);
-		}
-		const row = this.db
-			.prepare("SELECT archived_at FROM threads WHERE id = ?")
-			.get(id) as Row | undefined;
-		const existingArchivedAt = nullableString(row?.archived_at);
-		if (existingArchivedAt) {
-			return {
-				thread: existing,
-				archivedAt: existingArchivedAt,
-				changed: false,
+	beginThreadOperation(threadId: string, kind: ThreadOperationKind) {
+		return this.transaction(() => {
+			const thread = this.getThread(threadId);
+			if (!thread) throw new Error(`Thread ${threadId} does not exist`);
+			const existing = this.db
+				.prepare(
+					"SELECT * FROM thread_operations WHERE thread_id = ? AND kind = ? AND status IN ('pending', 'running') ORDER BY created_at DESC, id DESC LIMIT 1",
+				)
+				.get(threadId, kind) as Row | undefined;
+			if (existing) return operationFromRow(existing);
+
+			const timestamp = nowIso();
+			const archived = kind === "archive";
+			const revision = this.incrementIntegerMetadata(lifecycleRevisionKey);
+			this.db
+				.prepare(
+					"UPDATE thread_operations SET status = 'failed', last_error = ?, updated_at = ? WHERE thread_id = ? AND status IN ('pending', 'running')",
+				)
+				.run("Superseded by a newer lifecycle operation", timestamp, threadId);
+			const operation: ThreadOperation = {
+				id: randomUUID(),
+				threadId,
+				kind,
+				status: "pending",
+				attempts: 0,
+				lastError: null,
+				createdAt: timestamp,
+				updatedAt: timestamp,
 			};
-		}
-		this.db
+			this.db
+				.prepare(
+					"INSERT INTO thread_operations (id, thread_id, kind, status, attempts, last_error, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+				)
+				.run(
+					operation.id,
+					threadId,
+					kind,
+					operation.status,
+					operation.attempts,
+					operation.lastError,
+					timestamp,
+					timestamp,
+				);
+			this.db
+				.prepare(
+					`UPDATE threads SET desired_archived = ?, lifecycle_state = ?, archived_at = ?, local_updated_at = ?, state_revision = ?, last_operation_error = NULL WHERE id = ?`,
+				)
+				.run(
+					Number(archived),
+					archived ? "archive_pending" : "unarchive_pending",
+					archived ? (thread.archivedAt ?? timestamp) : null,
+					timestamp,
+					revision,
+					threadId,
+				);
+			return operation;
+		});
+	}
+
+	markThreadOperationRunning(id: string) {
+		return this.transaction(() => {
+			const row = this.db
+				.prepare("SELECT * FROM thread_operations WHERE id = ?")
+				.get(id) as Row | undefined;
+			if (!row) throw new Error(`Thread operation ${id} does not exist`);
+			const operation = operationFromRow(row);
+			if (operation.status !== "pending" && operation.status !== "running") {
+				return operation;
+			}
+			this.db
+				.prepare(
+					"UPDATE thread_operations SET status = 'running', attempts = attempts + 1, updated_at = ? WHERE id = ?",
+				)
+				.run(nowIso(), id);
+			return this.getThreadOperation(id);
+		});
+	}
+
+	confirmThreadOperation(
+		threadId: string,
+		kind: ThreadOperationKind,
+		observedAt = nowIso(),
+	) {
+		return this.transaction(() => {
+			const thread = this.getThread(threadId);
+			if (!thread) throw new Error(`Thread ${threadId} does not exist`);
+			const archived = kind === "archive";
+			const preserveIntent =
+				hasUnresolvedLifecycleIntent(thread) &&
+				thread.desiredArchived !== null &&
+				thread.desiredArchived !== archived;
+			const alreadyConfirmed =
+				thread.remoteArchived === archived &&
+				(preserveIntent ||
+					(thread.lifecycleState === (archived ? "archived" : "active") &&
+						thread.desiredArchived === archived));
+			this.db
+				.prepare(
+					`UPDATE thread_operations
+             SET status = 'succeeded', last_error = NULL, updated_at = ?
+             WHERE id = (
+               SELECT id FROM thread_operations
+               WHERE thread_id = ? AND kind = ?
+               ORDER BY created_at DESC, id DESC LIMIT 1
+             )`,
+				)
+				.run(observedAt, threadId, kind);
+			if (!alreadyConfirmed) {
+				const revision = this.incrementIntegerMetadata(lifecycleRevisionKey);
+				this.db
+					.prepare(
+						`UPDATE threads SET
+              desired_archived = CASE WHEN ? THEN desired_archived ELSE ? END,
+              remote_archived = ?,
+              lifecycle_state = CASE WHEN ? THEN lifecycle_state ELSE ? END,
+              remote_observed_at = ?, remote_updated_at = ?, local_updated_at = ?,
+              state_revision = ?,
+              last_operation_error = CASE WHEN ? THEN last_operation_error ELSE NULL END,
+              archived_at = CASE WHEN ? THEN archived_at ELSE ? END,
+              status = CASE WHEN ? THEN 'not_loaded' ELSE status END,
+              active_turn_id = CASE WHEN ? THEN NULL ELSE active_turn_id END
+            WHERE id = ?`,
+					)
+					.run(
+						Number(preserveIntent),
+						Number(archived),
+						Number(archived),
+						Number(preserveIntent),
+						archived ? "archived" : "active",
+						observedAt,
+						observedAt,
+						observedAt,
+						revision,
+						Number(preserveIntent),
+						Number(preserveIntent),
+						archived ? (thread.archivedAt ?? observedAt) : null,
+						Number(archived),
+						Number(archived),
+						threadId,
+					);
+			}
+			return this.getThread(threadId);
+		});
+	}
+
+	failThreadOperation(
+		threadId: string,
+		kind: ThreadOperationKind,
+		error: string,
+	) {
+		return this.transaction(() => {
+			const thread = this.getThread(threadId);
+			if (!thread) throw new Error(`Thread ${threadId} does not exist`);
+			const activeOperation = this.db
+				.prepare(
+					"SELECT id FROM thread_operations WHERE thread_id = ? AND kind = ? AND status IN ('pending', 'running') ORDER BY created_at DESC, id DESC LIMIT 1",
+				)
+				.get(threadId, kind);
+			if (!activeOperation) return thread;
+			const timestamp = nowIso();
+			const lifecycleState =
+				kind === "archive" ? "archive_failed" : "unarchive_failed";
+			if (
+				thread.lifecycleState === lifecycleState &&
+				thread.lastOperationError === error
+			) {
+				return thread;
+			}
+			this.db
+				.prepare(
+					"UPDATE thread_operations SET status = 'failed', last_error = ?, updated_at = ? WHERE thread_id = ? AND kind = ? AND status IN ('pending', 'running')",
+				)
+				.run(error, timestamp, threadId, kind);
+			const revision = this.incrementIntegerMetadata(lifecycleRevisionKey);
+			this.db
+				.prepare(
+					"UPDATE threads SET lifecycle_state = ?, local_updated_at = ?, state_revision = ?, last_operation_error = ?, archived_at = ? WHERE id = ?",
+				)
+				.run(
+					lifecycleState,
+					timestamp,
+					revision,
+					error,
+					kind === "archive" ? (thread.archivedAt ?? timestamp) : null,
+					threadId,
+				);
+			return this.getThread(threadId);
+		});
+	}
+
+	getThreadOperation(id: string) {
+		const row = this.db
+			.prepare("SELECT * FROM thread_operations WHERE id = ?")
+			.get(id) as Row | undefined;
+		return row ? operationFromRow(row) : null;
+	}
+
+	listThreadOperations(threadId?: string) {
+		const rows = threadId
+			? this.db
+					.prepare(
+						"SELECT * FROM thread_operations WHERE thread_id = ? ORDER BY created_at ASC, id ASC",
+					)
+					.all(threadId)
+			: this.db
+					.prepare(
+						"SELECT * FROM thread_operations ORDER BY created_at ASC, id ASC",
+					)
+					.all();
+		return rows.map((row) => operationFromRow(row as Row));
+	}
+
+	listPendingThreadOperations() {
+		return this.db
 			.prepare(
-				`
-          UPDATE threads SET
-            status = ?,
-            active_turn_id = ?,
-            archived_at = ?,
-            updated_at = ?
-          WHERE id = ?
-        `,
+				"SELECT * FROM thread_operations WHERE status IN ('pending', 'running') ORDER BY created_at ASC, id ASC",
 			)
-			.run("not_loaded", null, archivedAt, archivedAt, id);
-		const thread = this.getThread(id);
-		if (!thread) {
-			throw new Error(`Thread ${id} does not exist`);
-		}
-		return {
-			thread,
-			archivedAt,
-			changed: true,
-		};
+			.all()
+			.map((row) => operationFromRow(row as Row));
+	}
+
+	applyThreadRemoteState(
+		threadId: string,
+		input: {
+			archived: boolean;
+			observedAt?: string;
+			remoteUpdatedAt?: string | null;
+			generation: number;
+			baseRevision: number;
+			runtimeSeenAt?: string | null;
+			runtimeEpoch?: number;
+		},
+	) {
+		return this.transaction(() => {
+			const thread = this.getThread(threadId);
+			if (!thread) return { changed: false, thread: null };
+			if (
+				input.runtimeEpoch !== undefined &&
+				input.runtimeEpoch !== this.getThreadRuntimeEpoch()
+			) {
+				return { changed: false, thread };
+			}
+			if (thread.lifecycleState === "deleted") {
+				return { changed: false, thread };
+			}
+			if (thread.stateRevision > input.baseRevision) {
+				return { changed: false, thread };
+			}
+			if (thread.syncGeneration > input.generation) {
+				return { changed: false, thread };
+			}
+			const observedAt = input.observedAt ?? nowIso();
+			const operation = this.db
+				.prepare(
+					"SELECT * FROM thread_operations WHERE thread_id = ? ORDER BY created_at DESC, id DESC LIMIT 1",
+				)
+				.get(threadId) as Row | undefined;
+			const latestOperation = operation ? operationFromRow(operation) : null;
+			const operationMatches =
+				latestOperation !== null &&
+				latestOperation.status !== "succeeded" &&
+				(input.archived
+					? latestOperation.kind === "archive"
+					: latestOperation.kind === "unarchive");
+			const preserveIntent =
+				(latestOperation !== null &&
+					latestOperation.status !== "succeeded" &&
+					!operationMatches) ||
+				(hasUnresolvedLifecycleIntent(thread) &&
+					thread.desiredArchived !== null &&
+					thread.desiredArchived !== input.archived);
+			if (operationMatches) {
+				this.db
+					.prepare(
+						"UPDATE thread_operations SET status = 'succeeded', last_error = NULL, updated_at = ? WHERE id = ?",
+					)
+					.run(observedAt, latestOperation.id);
+			}
+			const desiredArchived = preserveIntent
+				? thread.desiredArchived
+				: input.archived;
+			const lifecycleState = preserveIntent
+				? thread.lifecycleState
+				: input.archived
+					? "archived"
+					: "active";
+			const archivedAt = preserveIntent
+				? thread.archivedAt
+				: input.archived
+					? (thread.archivedAt ?? observedAt)
+					: null;
+			const lastOperationError = preserveIntent
+				? thread.lastOperationError
+				: null;
+			const status =
+				input.archived && !preserveIntent ? "not_loaded" : thread.status;
+			const activeTurnId =
+				input.archived && !preserveIntent ? null : thread.activeTurnId;
+			const changed =
+				operationMatches ||
+				thread.remoteArchived !== input.archived ||
+				thread.desiredArchived !== desiredArchived ||
+				thread.lifecycleState !== lifecycleState ||
+				thread.archivedAt !== archivedAt ||
+				thread.lastOperationError !== lastOperationError ||
+				thread.status !== status ||
+				thread.activeTurnId !== activeTurnId;
+			const revision = changed
+				? this.incrementIntegerMetadata(lifecycleRevisionKey)
+				: thread.stateRevision;
+			this.db
+				.prepare(
+					`UPDATE threads SET
+              remote_archived = ?, remote_observed_at = ?, remote_updated_at = ?,
+              runtime_seen_at = COALESCE(?, runtime_seen_at), runtime_epoch = COALESCE(?, runtime_epoch),
+              sync_generation = ?, state_revision = ?,
+              desired_archived = ?, lifecycle_state = ?, archived_at = ?,
+              last_operation_error = ?, status = ?, active_turn_id = ?
+            WHERE id = ?`,
+				)
+				.run(
+					Number(input.archived),
+					observedAt,
+					input.remoteUpdatedAt ?? null,
+					input.runtimeSeenAt ?? null,
+					input.runtimeEpoch ?? null,
+					input.generation,
+					revision,
+					desiredArchived === null ? null : Number(desiredArchived),
+					lifecycleState,
+					archivedAt,
+					lastOperationError,
+					status,
+					activeTurnId,
+					threadId,
+				);
+			return { changed, thread: this.getThread(threadId) };
+		});
+	}
+
+	markThreadMissing(
+		threadId: string,
+		generation: number,
+		baseRevision: number,
+	) {
+		return this.transaction(() => {
+			const thread = this.getThread(threadId);
+			if (
+				!thread ||
+				thread.stateRevision > baseRevision ||
+				thread.syncGeneration > generation
+			) {
+				return thread;
+			}
+			if (
+				thread.lifecycleState === "missing" ||
+				thread.lifecycleState === "deleted"
+			) {
+				return thread;
+			}
+			const pending = this.db
+				.prepare(
+					"SELECT 1 FROM thread_operations WHERE thread_id = ? AND status IN ('pending', 'running') LIMIT 1",
+				)
+				.get(threadId);
+			if (pending) return thread;
+			const timestamp = nowIso();
+			const revision = this.incrementIntegerMetadata(lifecycleRevisionKey);
+			this.db
+				.prepare(
+					"UPDATE threads SET lifecycle_state = 'missing', remote_observed_at = ?, sync_generation = ?, state_revision = ?, status = 'not_loaded', active_turn_id = NULL WHERE id = ?",
+				)
+				.run(timestamp, generation, revision, threadId);
+			return this.getThread(threadId);
+		});
+	}
+
+	markThreadDeleted(threadId: string, observedAt = nowIso()) {
+		return this.transaction(() => {
+			const thread = this.getThread(threadId);
+			if (!thread) return null;
+			if (thread.lifecycleState === "deleted") return thread;
+			const revision = this.incrementIntegerMetadata(lifecycleRevisionKey);
+			this.db
+				.prepare(
+					"UPDATE thread_operations SET status = 'failed', last_error = ?, updated_at = ? WHERE thread_id = ? AND status IN ('pending', 'running')",
+				)
+				.run("Thread was deleted", observedAt, threadId);
+			this.db
+				.prepare(
+					"UPDATE threads SET lifecycle_state = 'deleted', remote_observed_at = ?, remote_updated_at = ?, local_updated_at = ?, state_revision = ?, last_operation_error = NULL, archived_at = ?, status = 'not_loaded', active_turn_id = NULL WHERE id = ?",
+				)
+				.run(
+					observedAt,
+					observedAt,
+					observedAt,
+					revision,
+					thread.archivedAt ?? observedAt,
+					threadId,
+				);
+			return this.getThread(threadId);
+		});
 	}
 
 	countThreads(options: Pick<ThreadListOptions, "archived"> = {}) {
 		const archived = options.archived ?? false;
 		const row = this.db
 			.prepare(
-				`SELECT COUNT(*) AS count FROM threads WHERE archived_at IS ${
+				`SELECT COUNT(*) AS count FROM threads WHERE lifecycle_state NOT IN ('missing', 'deleted') AND archived_at IS ${
 					archived ? "NOT NULL" : "NULL"
 				}`,
 			)
@@ -669,13 +1237,18 @@ export class Store {
 		const limit = options.limit ?? null;
 		const cursor = options.cursor ?? null;
 		const archived = options.archived ?? false;
-		const conditions = [`archived_at IS ${archived ? "NOT NULL" : "NULL"}`];
+		const conditions = options.includeAll
+			? []
+			: [
+					"lifecycle_state NOT IN ('missing', 'deleted')",
+					`archived_at IS ${archived ? "NOT NULL" : "NULL"}`,
+				];
 		const params: Array<string | number> = [];
 		if (cursor) {
 			conditions.push("(updated_at < ? OR (updated_at = ? AND id < ?))");
 			params.push(cursor.updatedAt, cursor.updatedAt, cursor.id);
 		}
-		const where = `WHERE ${conditions.join(" AND ")}`;
+		const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 		if (limit !== null) {
 			return this.db
 				.prepare(

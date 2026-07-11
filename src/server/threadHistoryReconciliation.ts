@@ -28,9 +28,12 @@ function discoveredThread(
 	store: Store,
 	runtimeThread: RuntimeThreadSnapshot,
 	archived: boolean,
+	context?: { generation: number; runtimeEpoch: number },
 ): ControlThread {
 	const existing = store.getThread(runtimeThread.id);
-	const updatedAt = runtimeThread.updatedAt ?? existing?.updatedAt ?? nowIso();
+	const observedAt = nowIso();
+	const updatedAt =
+		runtimeThread.updatedAt ?? existing?.updatedAt ?? observedAt;
 	return {
 		id: runtimeThread.id,
 		sessionId: runtimeThread.sessionId,
@@ -60,6 +63,19 @@ function discoveredThread(
 		goalTokenBudget: existing?.goalTokenBudget ?? null,
 		tokensUsed: existing?.tokensUsed ?? 0,
 		tagScore: existing?.tagScore ?? null,
+		lifecycleState:
+			existing?.lifecycleState ?? (archived ? "archived" : "active"),
+		desiredArchived: existing?.desiredArchived ?? archived,
+		remoteArchived: existing?.remoteArchived ?? archived,
+		remoteObservedAt: existing?.remoteObservedAt ?? observedAt,
+		remoteUpdatedAt:
+			runtimeThread.updatedAt ?? existing?.remoteUpdatedAt ?? null,
+		localUpdatedAt: existing?.localUpdatedAt ?? observedAt,
+		runtimeSeenAt: observedAt,
+		runtimeEpoch: context?.runtimeEpoch ?? existing?.runtimeEpoch ?? 0,
+		syncGeneration: context?.generation ?? existing?.syncGeneration ?? 0,
+		stateRevision: existing?.stateRevision ?? 0,
+		lastOperationError: existing?.lastOperationError ?? null,
 		archivedAt: archived ? (existing?.archivedAt ?? updatedAt) : null,
 		createdAt: existing?.createdAt ?? updatedAt,
 		updatedAt,
@@ -86,6 +102,102 @@ export function reconcileRuntimeThreads(
 		}
 		return discovered.map((thread) => store.getThread(thread.id) ?? thread);
 	});
+}
+
+export function reconcileRuntimeThreadSnapshot(
+	store: Store,
+	input: {
+		active: RuntimeThreadSnapshot[];
+		archived: RuntimeThreadSnapshot[];
+		generation: number;
+		baseRevision: number;
+		runtimeEpoch: number;
+	},
+) {
+	const activeIds = new Set(input.active.map((thread) => thread.id));
+	const overlappingThread = input.archived.find((thread) =>
+		activeIds.has(thread.id),
+	);
+	if (overlappingThread) {
+		throw new Error(
+			`Codex returned thread ${overlappingThread.id} in both active and archived snapshots`,
+		);
+	}
+	const before = new Map(
+		store
+			.listThreads({ includeAll: true })
+			.map((thread) => [thread.id, threadSnapshotValue(thread)]),
+	);
+	const observedIds = new Set([
+		...input.active.map((thread) => thread.id),
+		...input.archived.map((thread) => thread.id),
+	]);
+	return store.transaction(() => {
+		if (store.getThreadRuntimeEpoch() !== input.runtimeEpoch) {
+			throw new Error(
+				"Codex thread snapshot belongs to an older runtime epoch",
+			);
+		}
+		for (const [archived, runtimeThreads] of [
+			[false, input.active],
+			[true, input.archived],
+		] as const) {
+			for (const runtimeThread of runtimeThreads) {
+				const discovered = discoveredThread(store, runtimeThread, archived, {
+					generation: input.generation,
+					runtimeEpoch: input.runtimeEpoch,
+				});
+				store.upsertDiscoveredThread(discovered, {
+					generation: input.generation,
+					baseRevision: input.baseRevision,
+					runtimeEpoch: input.runtimeEpoch,
+				});
+				store.applyThreadRemoteState(runtimeThread.id, {
+					archived,
+					remoteUpdatedAt: runtimeThread.updatedAt,
+					generation: input.generation,
+					baseRevision: input.baseRevision,
+					runtimeSeenAt: discovered.runtimeSeenAt,
+					runtimeEpoch: input.runtimeEpoch,
+				});
+			}
+		}
+		for (const thread of store.listThreads({ includeAll: true })) {
+			if (!observedIds.has(thread.id)) {
+				store.markThreadMissing(
+					thread.id,
+					input.generation,
+					input.baseRevision,
+				);
+			}
+		}
+		const after = new Map(
+			store
+				.listThreads({ includeAll: true })
+				.map((thread) => [thread.id, threadSnapshotValue(thread)]),
+		);
+		return {
+			active: input.active.map((thread) => store.getThread(thread.id)),
+			archived: input.archived.map((thread) => store.getThread(thread.id)),
+			changed:
+				before.size !== after.size ||
+				[...after].some(([id, value]) => before.get(id) !== value),
+		};
+	});
+}
+
+function threadSnapshotValue(thread: ControlThread) {
+	const {
+		remoteObservedAt: _remoteObservedAt,
+		remoteUpdatedAt: _remoteUpdatedAt,
+		localUpdatedAt: _localUpdatedAt,
+		runtimeSeenAt: _runtimeSeenAt,
+		runtimeEpoch: _runtimeEpoch,
+		syncGeneration: _syncGeneration,
+		stateRevision: _stateRevision,
+		...visible
+	} = thread;
+	return JSON.stringify(visible);
 }
 
 export function reconcileRuntimeThreadHistory(

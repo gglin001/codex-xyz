@@ -116,6 +116,7 @@ export type DashboardLayoutProps = {
 	onFork: () => void;
 	onCompact: () => void;
 	onArchive: () => void;
+	onUnarchive: () => void;
 	onListBackgroundTerminals: () => void;
 	onCleanBackgroundTerminals: () => void;
 	onLoadEarlierTranscript: () => Promise<unknown>;
@@ -775,6 +776,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 	onFork,
 	onCompact,
 	onArchive,
+	onUnarchive,
 	onListBackgroundTerminals,
 	onCleanBackgroundTerminals,
 	onLoadEarlierTranscript,
@@ -1326,6 +1328,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 		onFork,
 		onCompact,
 		onArchive,
+		onUnarchive,
 		onListBackgroundTerminals,
 		onCleanBackgroundTerminals,
 		onLoadEarlierTranscript,

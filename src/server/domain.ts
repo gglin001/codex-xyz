@@ -5,6 +5,21 @@ export type ThreadRuntimeStatus =
 	| "system_error";
 export type TurnStatus = "in_progress" | "completed" | "interrupted" | "failed";
 export type ThreadTagScore = 1 | 2 | 3;
+export type ThreadLifecycleState =
+	| "active"
+	| "archive_pending"
+	| "archived"
+	| "unarchive_pending"
+	| "archive_failed"
+	| "unarchive_failed"
+	| "missing"
+	| "deleted";
+export type ThreadOperationKind = "archive" | "unarchive";
+export type ThreadOperationStatus =
+	| "pending"
+	| "running"
+	| "succeeded"
+	| "failed";
 export type ThreadDisplayStatus =
 	| ThreadRuntimeStatus
 	| "archived"
@@ -46,7 +61,29 @@ export type ControlThread = {
 	goalTokenBudget: number | null;
 	tokensUsed: number;
 	tagScore: ThreadTagScore | null;
+	lifecycleState: ThreadLifecycleState;
+	desiredArchived: boolean | null;
+	remoteArchived: boolean | null;
+	remoteObservedAt: string | null;
+	remoteUpdatedAt: string | null;
+	localUpdatedAt: string;
+	runtimeSeenAt: string | null;
+	runtimeEpoch: number;
+	syncGeneration: number;
+	stateRevision: number;
+	lastOperationError: string | null;
 	archivedAt: string | null;
+	createdAt: string;
+	updatedAt: string;
+};
+
+export type ThreadOperation = {
+	id: string;
+	threadId: string;
+	kind: ThreadOperationKind;
+	status: ThreadOperationStatus;
+	attempts: number;
+	lastError: string | null;
 	createdAt: string;
 	updatedAt: string;
 };
@@ -156,6 +193,10 @@ export const summaryEventTypes = [
 	"thread.runtime_lost",
 	"thread.forked",
 	"thread.archived",
+	"thread.unarchived",
+	"thread.deleted",
+	"thread.lifecycle.updated",
+	"threads.synced",
 	"thread.name.updated",
 	"thread.goal.updated",
 	"thread.goal.cleared",

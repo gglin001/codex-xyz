@@ -194,13 +194,24 @@ function threadFixture(index: number): ControlThread {
 		goalTokenBudget: null,
 		tokensUsed: 0,
 		tagScore: null,
+		lifecycleState: "active",
+		desiredArchived: false,
+		remoteArchived: false,
+		remoteObservedAt: timestamp,
+		remoteUpdatedAt: timestamp,
+		localUpdatedAt: timestamp,
+		runtimeSeenAt: timestamp,
+		runtimeEpoch: 0,
+		syncGeneration: 0,
+		stateRevision: 0,
+		lastOperationError: null,
 		archivedAt: null,
 		createdAt: timestamp,
 		updatedAt: timestamp,
 	};
 }
 
-beforeEach(() => {
+beforeEach(async () => {
 	tempDir = mkdtempSync(join(tmpdir(), "coz-api-"));
 	terminalPtys = [];
 	const ptyFactory: PtyFactory = (_file, _args, options) => {
@@ -225,6 +236,7 @@ beforeEach(() => {
 		runtimeName: "test",
 		cliVersion: "test",
 	});
+	await service.ready();
 });
 
 afterEach(async () => {
@@ -719,6 +731,15 @@ describe("Next API routes", () => {
 				archivedAt: archived.archivedAt,
 			},
 		]);
+		const unarchived = await json<ControlThread>(
+			`/api/threads/${created.thread.id}/unarchive`,
+			{ method: "POST", body: JSON.stringify({}) },
+		);
+		expect(unarchived).toMatchObject({
+			id: created.thread.id,
+			lifecycleState: "active",
+			archivedAt: null,
+		});
 	});
 
 	it("streams terminal output over SSE and controls input over POST routes", async () => {

@@ -54,6 +54,11 @@ import {
 } from "../optimisticThreads.js";
 import { getFirstLineTextPreview } from "../textPreview.js";
 import {
+	canArchiveThread,
+	canUnarchiveThread,
+	isThreadRuntimeActionable,
+} from "../threadLifecycle.js";
+import {
 	getTranscriptEntries,
 	type TranscriptEntry,
 	type TranscriptProcessEntry,
@@ -122,6 +127,7 @@ export type WorkspaceProps = {
 	onFork: () => void;
 	onCompact: () => void;
 	onArchive: () => void;
+	onUnarchive: () => void;
 	onListBackgroundTerminals: () => void;
 	onCleanBackgroundTerminals: () => void;
 	onLoadEarlierTranscript: () => Promise<unknown>;
@@ -799,6 +805,7 @@ type ComposerProps = Pick<
 	| "onFork"
 	| "onCompact"
 	| "onArchive"
+	| "onUnarchive"
 	| "onListBackgroundTerminals"
 	| "onCleanBackgroundTerminals"
 > & {
@@ -834,6 +841,7 @@ const Composer = memo(
 			onFork,
 			onCompact,
 			onArchive,
+			onUnarchive,
 			onListBackgroundTerminals,
 			onCleanBackgroundTerminals,
 			onPromptFocusIntent,
@@ -842,7 +850,9 @@ const Composer = memo(
 		ref,
 	) {
 		const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-		const selectedThreadArchived = Boolean(selectedThread?.archivedAt);
+		const selectedThreadViewOnly = Boolean(
+			selectedThread && !isThreadRuntimeActionable(selectedThread),
+		);
 		const selectedThreadPendingSubmission =
 			isOptimisticThreadId(selectedThreadId) ||
 			isOptimisticTurnId(selectedThread?.activeTurnId);
@@ -861,8 +871,8 @@ const Composer = memo(
 			if (!selectedThreadId) {
 				return "Select a thread first";
 			}
-			if (selectedThreadArchived) {
-				return "Archived threads are view-only";
+			if (selectedThreadViewOnly) {
+				return "This thread lifecycle state is view-only";
 			}
 			if (selectedThreadPendingSubmission) {
 				return "Wait for the submission to finish";
@@ -886,8 +896,8 @@ const Composer = memo(
 			if (!selectedThreadId) {
 				return "Select a running thread first";
 			}
-			if (selectedThreadArchived) {
-				return "Archived threads are view-only";
+			if (selectedThreadViewOnly) {
+				return "This thread lifecycle state is view-only";
 			}
 			if (busy) {
 				return "Another action is running";
@@ -907,14 +917,56 @@ const Composer = memo(
 			}
 			return null;
 		};
+		const archiveDisabledReason = () => {
+			if (!selectedThreadId || !selectedThread) {
+				return "Select a thread first";
+			}
+			if (!canArchiveThread(selectedThread)) {
+				return selectedThread.lifecycleState.endsWith("_pending")
+					? "Wait for the lifecycle operation to finish"
+					: "This thread cannot be archived";
+			}
+			if (busy) {
+				return "Another action is running";
+			}
+			if (selectedThread.status === "active") {
+				return "Wait for the active turn to finish";
+			}
+			return null;
+		};
+		const unarchiveDisabledReason = () => {
+			if (!selectedThreadId || !selectedThread) {
+				return "Select an archived thread first";
+			}
+			if (!canUnarchiveThread(selectedThread)) {
+				return selectedThread.lifecycleState.endsWith("_pending")
+					? "Wait for the lifecycle operation to finish"
+					: "This thread cannot be unarchived";
+			}
+			return busy ? "Another action is running" : null;
+		};
 		const composerMenuActions: ComposerMenuAction[] = [
-			{
-				id: "archive",
-				label: codexThreadCommandLabels.archive,
-				detail: "Move this thread out of the active list",
-				disabledReason: idleThreadActionDisabledReason(),
-				run: onArchive,
-			},
+			!selectedThread || canArchiveThread(selectedThread)
+				? {
+						id: "archive",
+						label:
+							selectedThread?.lifecycleState === "archive_failed"
+								? "Retry archive"
+								: codexThreadCommandLabels.archive,
+						detail: "Move this thread out of the active list",
+						disabledReason: archiveDisabledReason(),
+						run: onArchive,
+					}
+				: {
+						id: "unarchive",
+						label:
+							selectedThread.lifecycleState === "unarchive_failed"
+								? "Retry unarchive"
+								: codexThreadCommandLabels.unarchive,
+						detail: "Restore this thread to the active list",
+						disabledReason: unarchiveDisabledReason(),
+						run: onUnarchive,
+					},
 			{
 				id: "compact",
 				label: codexThreadCommandLabels.compact,
@@ -1013,7 +1065,10 @@ const Composer = memo(
 		return (
 			<div>
 				<AnimatePresence initial={false}>
-					{busyAction || notice || error ? (
+					{busyAction ||
+					notice ||
+					error ||
+					selectedThread?.lastOperationError ? (
 						<motion.div
 							key="composer-alerts"
 							className="mb-3 grid gap-2 overflow-hidden text-[12px]"
@@ -1045,6 +1100,12 @@ const Composer = memo(
 									dismissLabel="Dismiss error"
 									role="alert"
 								/>
+							) : null}
+							{selectedThread?.lastOperationError &&
+							selectedThread.lastOperationError !== error ? (
+								<div className={cn(ui.alert, tone.error.alert)} role="alert">
+									{selectedThread.lastOperationError}. Retry from More actions.
+								</div>
 							) : null}
 						</motion.div>
 					) : null}
@@ -1247,6 +1308,7 @@ export const Workspace = memo(
 			onFork,
 			onCompact,
 			onArchive,
+			onUnarchive,
 			onListBackgroundTerminals,
 			onCleanBackgroundTerminals,
 			onLoadEarlierTranscript,
@@ -1680,6 +1742,7 @@ export const Workspace = memo(
 									onFork={onFork}
 									onCompact={onCompact}
 									onArchive={onArchive}
+									onUnarchive={onUnarchive}
 									onListBackgroundTerminals={onListBackgroundTerminals}
 									onCleanBackgroundTerminals={onCleanBackgroundTerminals}
 									onPromptFocusIntent={captureMobileTranscriptPosition}

@@ -62,6 +62,17 @@ function threadFixture(id: string): ControlThread {
 		goalTokenBudget: null,
 		tokensUsed: 0,
 		tagScore: null,
+		lifecycleState: "active",
+		desiredArchived: null,
+		remoteArchived: null,
+		remoteObservedAt: null,
+		remoteUpdatedAt: null,
+		localUpdatedAt: "2026-06-13T00:00:00.000Z",
+		runtimeSeenAt: null,
+		runtimeEpoch: 0,
+		syncGeneration: 0,
+		stateRevision: 0,
+		lastOperationError: null,
 		archivedAt: null,
 		createdAt: "2026-06-13T00:00:00.000Z",
 		updatedAt: "2026-06-13T00:00:00.000Z",
@@ -79,6 +90,33 @@ describe("store database version", () => {
 				.get("version") as { value?: unknown } | undefined;
 			db.close();
 			expect(row?.value).toBe(currentDatabaseVersion);
+		} finally {
+			store.close();
+		}
+	});
+
+	it("persists monotonic sync generations and runtime epochs", () => {
+		const store = Store.open(":memory:");
+		try {
+			store.createThread({
+				...threadFixture("thread-active"),
+				status: "active",
+				activeTurnId: "turn-1",
+				runtimeSeenAt: "2026-06-13T00:01:00.000Z",
+			});
+			expect(store.beginThreadSync()).toEqual({
+				generation: 1,
+				baseRevision: 1,
+			});
+			expect(store.beginThreadSync().generation).toBe(2);
+			expect(store.beginRuntimeEpoch()).toBe(1);
+			expect(store.getThread("thread-active")).toMatchObject({
+				status: "not_loaded",
+				activeTurnId: null,
+				runtimeSeenAt: null,
+				runtimeEpoch: 1,
+			});
+			expect(store.beginRuntimeEpoch()).toBe(2);
 		} finally {
 			store.close();
 		}
@@ -116,7 +154,12 @@ describe("store database version", () => {
 		try {
 			store.createThread(threadFixture("thread-active"));
 			store.createThread(threadFixture("thread-archived"));
-			store.archiveThread("thread-archived", "2026-06-13T00:10:00.000Z");
+			store.beginThreadOperation("thread-archived", "archive");
+			store.confirmThreadOperation(
+				"thread-archived",
+				"archive",
+				"2026-06-13T00:10:00.000Z",
+			);
 
 			expect(store.countThreads()).toBe(1);
 			expect(store.listThreads().map((thread) => thread.id)).toEqual([
@@ -127,7 +170,262 @@ describe("store database version", () => {
 			expect(archivedThreads.map((thread) => thread.id)).toEqual([
 				"thread-archived",
 			]);
-			expect(archivedThreads[0]?.archivedAt).toBe("2026-06-13T00:10:00.000Z");
+			expect(archivedThreads[0]?.archivedAt).toEqual(expect.any(String));
+		} finally {
+			store.close();
+		}
+	});
+
+	it("persists lifecycle operations and effective archive visibility", () => {
+		const store = Store.open(":memory:");
+		try {
+			store.createThread(threadFixture("thread-1"));
+			const archive = store.beginThreadOperation("thread-1", "archive");
+			expect(store.getThread("thread-1")).toMatchObject({
+				lifecycleState: "archive_pending",
+				desiredArchived: true,
+			});
+			expect(store.getThread("thread-1")?.archivedAt).not.toBeNull();
+			expect(store.listPendingThreadOperations()).toEqual([archive]);
+
+			expect(store.markThreadOperationRunning(archive.id)).toMatchObject({
+				status: "running",
+				attempts: 1,
+			});
+			store.failThreadOperation("thread-1", "archive", "offline");
+			expect(store.getThread("thread-1")).toMatchObject({
+				lifecycleState: "archive_failed",
+				lastOperationError: "offline",
+			});
+			expect(store.getThread("thread-1")?.archivedAt).not.toBeNull();
+
+			const retry = store.beginThreadOperation("thread-1", "archive");
+			expect(retry.id).not.toBe(archive.id);
+			store.confirmThreadOperation(
+				"thread-1",
+				"archive",
+				"2026-06-13T00:10:00.000Z",
+			);
+			expect(store.getThread("thread-1")).toMatchObject({
+				lifecycleState: "archived",
+				desiredArchived: true,
+				remoteArchived: true,
+				lastOperationError: null,
+			});
+			expect(store.listPendingThreadOperations()).toEqual([]);
+
+			store.beginThreadOperation("thread-1", "unarchive");
+			expect(store.getThread("thread-1")).toMatchObject({
+				lifecycleState: "unarchive_pending",
+				desiredArchived: false,
+				archivedAt: null,
+			});
+			store.failThreadOperation("thread-1", "unarchive", "offline");
+			expect(store.getThread("thread-1")).toMatchObject({
+				lifecycleState: "unarchive_failed",
+				archivedAt: null,
+			});
+		} finally {
+			store.close();
+		}
+	});
+
+	it("rejects stale remote snapshots after a local lifecycle intent", () => {
+		const store = Store.open(":memory:");
+		try {
+			store.createThread(threadFixture("thread-1"));
+			const sync = store.beginThreadSync();
+			store.beginThreadOperation("thread-1", "archive");
+
+			const stale = store.applyThreadRemoteState("thread-1", {
+				archived: false,
+				observedAt: "2026-06-13T00:05:00.000Z",
+				generation: sync.generation,
+				baseRevision: sync.baseRevision,
+			});
+			expect(stale.changed).toBe(false);
+			expect(stale.thread).toMatchObject({
+				lifecycleState: "archive_pending",
+				desiredArchived: true,
+			});
+
+			const nextSync = store.beginThreadSync();
+			const confirmed = store.applyThreadRemoteState("thread-1", {
+				archived: true,
+				observedAt: "2026-06-13T00:10:00.000Z",
+				generation: nextSync.generation,
+				baseRevision: nextSync.baseRevision,
+			});
+			expect(confirmed.thread).toMatchObject({
+				lifecycleState: "archived",
+				remoteArchived: true,
+			});
+			expect(store.listPendingThreadOperations()).toEqual([]);
+		} finally {
+			store.close();
+		}
+	});
+
+	it("does not let stale discovery overwrite newer runtime state", () => {
+		const store = Store.open(":memory:");
+		try {
+			const current = {
+				...threadFixture("thread-1"),
+				status: "active" as const,
+				activeTurnId: "turn-new",
+			};
+			store.createThread(current);
+			const sync = store.beginThreadSync();
+			store.beginThreadOperation("thread-1", "archive");
+
+			store.upsertDiscoveredThread(
+				{ ...current, status: "idle", activeTurnId: null },
+				{
+					generation: sync.generation,
+					baseRevision: sync.baseRevision,
+					runtimeEpoch: 0,
+				},
+			);
+
+			expect(store.getThread("thread-1")).toMatchObject({
+				status: "active",
+				activeTurnId: "turn-new",
+				lifecycleState: "archive_pending",
+			});
+		} finally {
+			store.close();
+		}
+	});
+
+	it("rejects observations from an older runtime epoch", () => {
+		const store = Store.open(":memory:");
+		try {
+			store.createThread(threadFixture("thread-1"));
+			const sync = store.beginThreadSync();
+			store.beginRuntimeEpoch();
+
+			const result = store.applyThreadRemoteState("thread-1", {
+				archived: true,
+				generation: sync.generation,
+				baseRevision: sync.baseRevision,
+				runtimeEpoch: 0,
+			});
+
+			expect(result.changed).toBe(false);
+			expect(store.getThread("thread-1")).toMatchObject({
+				lifecycleState: "active",
+				remoteArchived: null,
+				runtimeEpoch: 1,
+			});
+		} finally {
+			store.close();
+		}
+	});
+
+	it("does not mark a thread created during an older snapshot as missing", () => {
+		const store = Store.open(":memory:");
+		try {
+			const sync = store.beginThreadSync();
+			store.createThread(threadFixture("thread-created-during-sync"));
+
+			store.markThreadMissing(
+				"thread-created-during-sync",
+				sync.generation,
+				sync.baseRevision,
+			);
+
+			expect(store.getThread("thread-created-during-sync")).toMatchObject({
+				lifecycleState: "active",
+			});
+		} finally {
+			store.close();
+		}
+	});
+
+	it("reconciles a late remote confirmation after an operation failure", () => {
+		const store = Store.open(":memory:");
+		try {
+			store.createThread(threadFixture("thread-1"));
+			const operation = store.beginThreadOperation("thread-1", "archive");
+			store.markThreadOperationRunning(operation.id);
+			store.failThreadOperation("thread-1", "archive", "response timed out");
+			const sync = store.beginThreadSync();
+
+			store.applyThreadRemoteState("thread-1", {
+				archived: true,
+				observedAt: "2026-06-13T00:10:00.000Z",
+				generation: sync.generation,
+				baseRevision: sync.baseRevision,
+			});
+
+			expect(store.getThread("thread-1")).toMatchObject({
+				lifecycleState: "archived",
+				remoteArchived: true,
+				lastOperationError: null,
+			});
+			expect(store.getThreadOperation(operation.id)).toMatchObject({
+				status: "succeeded",
+				lastError: null,
+			});
+		} finally {
+			store.close();
+		}
+	});
+
+	it("does not let stale operation completion overwrite newer intent", () => {
+		const store = Store.open(":memory:");
+		try {
+			store.createThread(threadFixture("thread-1"));
+			store.beginThreadOperation("thread-1", "archive");
+			const unarchive = store.beginThreadOperation("thread-1", "unarchive");
+
+			store.confirmThreadOperation(
+				"thread-1",
+				"archive",
+				"2026-06-13T00:05:00.000Z",
+			);
+			expect(store.getThread("thread-1")).toMatchObject({
+				lifecycleState: "unarchive_pending",
+				desiredArchived: false,
+				remoteArchived: true,
+				archivedAt: null,
+			});
+			store.failThreadOperation("thread-1", "archive", "stale failure");
+			expect(store.getThread("thread-1")?.lifecycleState).toBe(
+				"unarchive_pending",
+			);
+			expect(store.listPendingThreadOperations()).toEqual([unarchive]);
+		} finally {
+			store.close();
+		}
+	});
+
+	it("keeps transcript rows when a thread becomes missing or deleted", () => {
+		const store = Store.open(":memory:");
+		try {
+			store.createThread(threadFixture("thread-1"));
+			store.createItem({
+				id: "item-1",
+				threadId: "thread-1",
+				turnId: null,
+				type: "agent",
+				text: "kept",
+				data: {},
+				createdAt: "2026-06-13T00:00:01.000Z",
+			});
+			const sync = store.beginThreadSync();
+			store.markThreadMissing("thread-1", sync.generation, sync.baseRevision);
+			expect(store.getThread("thread-1")?.lifecycleState).toBe("missing");
+			expect(store.listThreads()).toEqual([]);
+			const operation = store.beginThreadOperation("thread-1", "archive");
+			store.markThreadDeleted("thread-1", "2026-06-13T00:10:00.000Z");
+			expect(store.getThread("thread-1")?.lifecycleState).toBe("deleted");
+			expect(store.getThreadOperation(operation.id)).toMatchObject({
+				status: "failed",
+				lastError: "Thread was deleted",
+			});
+			expect(store.listThreads({ archived: true })).toEqual([]);
+			expect(store.getItem("item-1")?.text).toBe("kept");
 		} finally {
 			store.close();
 		}

@@ -123,6 +123,14 @@ export type RuntimeEvent =
 			threadId: string;
 	  }
 	| {
+			type: "thread.unarchived";
+			threadId: string;
+	  }
+	| {
+			type: "thread.deleted";
+			threadId: string;
+	  }
+	| {
 			type: "raw";
 			threadId?: string | null;
 			turnId?: string | null;
@@ -276,6 +284,7 @@ export interface CodexRuntime {
 	interruptTurn(input: { threadId: string; turnId: string }): Promise<void>;
 	forkThread(input: ForkThreadInput): Promise<RuntimeThreadSnapshot>;
 	archiveThread(threadId: string): Promise<void>;
+	unarchiveThread(threadId: string): Promise<void>;
 	setThreadName(input: { threadId: string; name: string }): Promise<void>;
 	setGoal(input: {
 		threadId: string;

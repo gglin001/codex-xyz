@@ -200,6 +200,13 @@ export function archiveThread(threadId: string) {
 	});
 }
 
+export function unarchiveThread(threadId: string) {
+	return request<ControlThread>(`/api/threads/${threadId}/unarchive`, {
+		method: "POST",
+		body: JSON.stringify({}),
+	});
+}
+
 export function setThreadTagScore(
 	threadId: string,
 	tagScore: ThreadTagScore | null,

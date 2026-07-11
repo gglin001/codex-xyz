@@ -447,6 +447,10 @@ export class AppServerRuntime implements CodexRuntime {
 		await this.request("thread/archive", { threadId });
 	}
 
+	async unarchiveThread(threadId: string) {
+		await this.request("thread/unarchive", { threadId });
+	}
+
 	async setThreadName(input: { threadId: string; name: string }) {
 		await this.request("thread/name/set", {
 			threadId: input.threadId,

@@ -4,6 +4,7 @@ export const codexThreadCommandLabels = {
 	fork: "/fork",
 	compact: "/compact",
 	archive: "/archive",
+	unarchive: "/unarchive",
 	resume: "/resume",
 	interrupt: "/esc",
 	ps: "/ps",

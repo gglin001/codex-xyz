@@ -8,6 +8,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { projectAppServerNotification } from "../src/server/codex/appServerProtocol.js";
 import { AppServerRuntime } from "../src/server/codex/appServerRuntime.js";
 import type { RuntimeEvent } from "../src/server/codex/runtimePort.js";
 
@@ -226,6 +227,14 @@ function handle(message, state) {
   if (message.method === "thread/archive") {
     respond(message.id, {})
     notify("thread/archived", {
+      threadId: message.params.threadId
+    })
+    return
+  }
+
+  if (message.method === "thread/unarchive") {
+    respond(message.id, {})
+    notify("thread/unarchived", {
       threadId: message.params.threadId
     })
     return
@@ -1110,6 +1119,34 @@ describe("AppServerRuntime", () => {
 				threadId: sourceThreadId,
 			},
 		]);
+	});
+
+	it("unarchives threads through app-server and projects lifecycle notifications", async () => {
+		const command = createFakeCodexCommand();
+		runtime = new AppServerRuntime(command, appServerOptions());
+		const events: RuntimeEvent[] = [];
+		runtime.onEvent((event) => events.push(event));
+
+		await runtime.unarchiveThread(sourceThreadId);
+		await new Promise((resolve) => setTimeout(resolve, 20));
+
+		expect(events).toEqual([
+			{
+				type: "thread.unarchived",
+				threadId: sourceThreadId,
+			},
+		]);
+	});
+
+	it("projects deleted thread notifications", () => {
+		expect(
+			projectAppServerNotification("thread/deleted", {
+				threadId: sourceThreadId,
+			}),
+		).toEqual({
+			type: "thread.deleted",
+			threadId: sourceThreadId,
+		});
 	});
 
 	it("writes app-server protocol debug records as JSON lines", async () => {
