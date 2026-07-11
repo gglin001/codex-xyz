@@ -1215,7 +1215,7 @@ const Composer = memo(
 												/>
 												<motion.div
 													className={cn(
-														"absolute bottom-full left-0 mb-2 max-h-[min(28rem,calc(100vh-6rem))] w-56 max-w-[calc(100vw-2rem)] overflow-y-auto p-1",
+														"absolute bottom-full left-0 mb-2 max-h-[min(28rem,calc(100vh-6rem))] w-32 max-w-[calc(100vw-2rem)] overflow-y-auto p-1",
 														layer.localMenuZ,
 														ui.popover,
 													)}
