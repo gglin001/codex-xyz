@@ -1,8 +1,11 @@
 import type {
 	GoalStatus,
 	GoalStatusUpdate,
+	ItemType,
 	ThreadRuntimeStatus,
 	TurnStatus,
+	UserInputInteractionAnswers,
+	UserInputInteractionQuestion,
 } from "../domain.js";
 
 export type RuntimeThreadSnapshot = {
@@ -122,6 +125,20 @@ export type RuntimeEvent =
 			threadId: string;
 	  }
 	| {
+			type: "interaction.requested";
+			interactionId: string;
+			threadId: string;
+			turnId: string;
+			questions: UserInputInteractionQuestion[];
+			autoResolutionMs: number | null;
+	  }
+	| {
+			type: "interaction.expired";
+			interactionId: string;
+			threadId: string;
+			turnId: string;
+	  }
+	| {
 			type: "raw";
 			threadId?: string | null;
 			turnId?: string | null;
@@ -166,6 +183,58 @@ export type ResumeThreadInput = {
 	model?: string | null;
 };
 
+export type RuntimeThreadListInput = {
+	cursor?: string | null;
+	limit?: number | null;
+	archived?: boolean | null;
+	cwd?: string | string[] | null;
+};
+
+export type RuntimeThreadPage = {
+	threads: RuntimeThreadSnapshot[];
+	nextCursor: string | null;
+};
+
+export type RuntimeThreadSearchInput = {
+	query: string;
+	cursor?: string | null;
+	limit?: number | null;
+	archived?: boolean | null;
+};
+
+export type RuntimeThreadSearchResult = {
+	thread: RuntimeThreadSnapshot;
+	snippet: string;
+};
+
+export type RuntimeThreadSearchPage = {
+	results: RuntimeThreadSearchResult[];
+	nextCursor: string | null;
+};
+
+export type RuntimeHistoryItemSnapshot = {
+	id: string;
+	type: ItemType;
+	text: string;
+	data: Record<string, unknown>;
+	createdAt: string;
+};
+
+export type RuntimeHistoryTurnSnapshot = {
+	id: string;
+	status: TurnStatus;
+	prompt: string;
+	startedAt: string;
+	completedAt: string | null;
+	durationMs: number | null;
+	items: RuntimeHistoryItemSnapshot[];
+};
+
+export type RuntimeThreadHistorySnapshot = {
+	turns: RuntimeHistoryTurnSnapshot[];
+	nextCursor: string | null;
+};
+
 export type ForkThreadInput = {
 	sourceThreadId: string;
 	cwd: string;
@@ -205,6 +274,12 @@ export interface CodexRuntime {
 	onEvent(handler: RuntimeEventHandler): void;
 	readConfig(input?: ReadRuntimeConfigInput): Promise<RuntimeConfigSnapshot>;
 	startThread(input: StartThreadInput): Promise<RuntimeThreadSnapshot>;
+	listThreads(input?: RuntimeThreadListInput): Promise<RuntimeThreadPage>;
+	searchThreads(
+		input: RuntimeThreadSearchInput,
+	): Promise<RuntimeThreadSearchPage>;
+	readThread(threadId: string): Promise<RuntimeThreadSnapshot>;
+	readThreadHistory(threadId: string): Promise<RuntimeThreadHistorySnapshot>;
 	resumeThread(input: ResumeThreadInput): Promise<RuntimeThreadSnapshot>;
 	startTurn(input: StartRuntimeTurnInput): Promise<RuntimeTurnSnapshot>;
 	runShellCommand(input: RunShellCommandInput): Promise<RuntimeTurnSnapshot>;
@@ -243,6 +318,10 @@ export interface CodexRuntime {
 		nextCursor: string | null;
 	}>;
 	cleanBackgroundTerminals(threadId: string): Promise<void>;
+	answerUserInput(input: {
+		interactionId: string;
+		answers: UserInputInteractionAnswers;
+	}): Promise<void>;
 	restartAppServer(): Promise<CodexAppServerRestartResult>;
 	close(): Promise<void>;
 }

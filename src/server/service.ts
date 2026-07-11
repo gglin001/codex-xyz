@@ -19,6 +19,7 @@ import {
 	type ThreadPageCursor,
 	type ThreadTagScore,
 	threadNameFromPrompt,
+	type UserInputInteractionAnswers,
 } from "./domain.js";
 import { EventBus } from "./eventBus.js";
 import {
@@ -28,6 +29,10 @@ import {
 } from "./runtimeThread.js";
 import type { Store } from "./store.js";
 import { TerminalController } from "./terminal.js";
+import {
+	reconcileRuntimeThreadHistory,
+	reconcileRuntimeThreads,
+} from "./threadHistoryReconciliation.js";
 import { ThreadProjection } from "./threadProjection.js";
 
 function isNoActiveTurnError(error: unknown) {
@@ -93,6 +98,7 @@ function pageCursorFromThreads(
 }
 
 export class ControlService {
+	private readonly hydratedHistoryThreads = new Set<string>();
 	private defaultCwd = process.cwd();
 	private readonly runtimeThreads: RuntimeThreadCoordinator;
 	private readonly projection: ThreadProjection;
@@ -134,6 +140,9 @@ export class ControlService {
 	}
 
 	async dashboard(): Promise<DashboardState> {
+		try {
+			await this.syncThreadHistory({ limit: defaultThreadPageSize + 1 });
+		} catch {}
 		const latestEventId = this.store.getLatestEventId();
 		const totalCount = this.store.countThreads();
 		const limit = defaultThreadPageSize;
@@ -155,6 +164,67 @@ export class ControlService {
 			defaultModel,
 			latestEventId,
 		};
+	}
+
+	async syncThreadHistory(
+		input: {
+			limit?: number | null;
+			cursor?: string | null;
+			archived?: boolean | null;
+		} = {},
+	) {
+		const page = await this.runtime.listThreads(input);
+		const threads = reconcileRuntimeThreads(this.store, page.threads, {
+			archived: input.archived,
+		});
+		return { threads, nextCursor: page.nextCursor };
+	}
+
+	async searchThreadHistory(input: {
+		query: string;
+		limit?: number | null;
+		cursor?: string | null;
+		archived?: boolean | null;
+	}) {
+		const page = await this.runtime.searchThreads(input);
+		const threads = reconcileRuntimeThreads(
+			this.store,
+			page.results.map((result) => result.thread),
+			{ archived: input.archived },
+		);
+		const byId = new Map(threads.map((thread) => [thread.id, thread]));
+		return {
+			results: page.results.map((result) => ({
+				thread: byId.get(result.thread.id) ?? result.thread,
+				snippet: result.snippet,
+			})),
+			nextCursor: page.nextCursor,
+		};
+	}
+
+	async discoverThread(threadId: string) {
+		const runtimeThread = await this.runtime.readThread(threadId);
+		return reconcileRuntimeThreads(this.store, [runtimeThread])[0];
+	}
+
+	async getHydratedThreadDetail(threadId: string): Promise<ThreadDetail> {
+		let thread = this.store.getThread(threadId);
+		if (!thread) {
+			thread = (await this.discoverThread(threadId)) ?? null;
+		}
+		if (!thread) {
+			throw new Error(`Thread ${threadId} does not exist`);
+		}
+		if (!this.hydratedHistoryThreads.has(threadId)) {
+			try {
+				const history = await this.runtime.readThreadHistory(threadId);
+				reconcileRuntimeThreadHistory(this.store, threadId, history);
+				this.hydratedHistoryThreads.add(threadId);
+			} catch (error) {
+				if (this.store.listTurns(threadId).length === 0) throw error;
+			}
+		}
+		return this.getThreadDetail(threadId);
 	}
 
 	private async readDefaultModel(cwd: string) {
@@ -476,6 +546,57 @@ export class ControlService {
 			throw new Error(`Thread ${threadId} does not exist`);
 		}
 		return detail;
+	}
+
+	async answerUserInput(input: {
+		threadId: string;
+		interactionId: string;
+		answers: UserInputInteractionAnswers;
+	}) {
+		this.requireThread(input.threadId);
+		const interaction = this.store.getInteraction(input.interactionId);
+		if (!interaction || interaction.threadId !== input.threadId) {
+			throw new Error(`Interaction ${input.interactionId} does not exist`);
+		}
+		if (interaction.status !== "pending") {
+			throw new Error(`Interaction ${input.interactionId} is not pending`);
+		}
+		const questionIds = new Set(
+			interaction.questions.map((question) => question.id),
+		);
+		for (const question of interaction.questions) {
+			const answers = input.answers[question.id];
+			if (!answers || answers.length === 0) {
+				throw new Error(`Missing answer for question ${question.id}`);
+			}
+			const optionLabels = new Set(
+				(question.options ?? []).map((option) => option.label),
+			);
+			if (
+				question.options &&
+				!question.isOther &&
+				answers.some((answer) => !optionLabels.has(answer))
+			) {
+				throw new Error(`Invalid answer for question ${question.id}`);
+			}
+		}
+		for (const questionId of Object.keys(input.answers)) {
+			if (!questionIds.has(questionId)) {
+				throw new Error(`Unknown question ${questionId}`);
+			}
+		}
+		await this.runtime.answerUserInput({
+			interactionId: input.interactionId,
+			answers: input.answers,
+		});
+		const answered = this.projection.resolveInteraction(
+			input.interactionId,
+			"answered",
+		);
+		if (!answered) {
+			throw new Error(`Interaction ${input.interactionId} is not pending`);
+		}
+		return answered;
 	}
 
 	listThreadItemsPage(

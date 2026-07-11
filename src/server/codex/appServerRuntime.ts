@@ -14,6 +14,10 @@ import {
 import { createConnection } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import WebSocket from "ws";
+import type {
+	UserInputInteractionAnswers,
+	UserInputInteractionQuestion,
+} from "../domain.js";
 import {
 	type AppServerDebugLogLevel,
 	appServerInitializeParams,
@@ -28,6 +32,7 @@ import {
 	normalizeGoal,
 	normalizeThread,
 	normalizeThreadId,
+	normalizeThreadItem,
 	normalizeTurn,
 	projectAppServerNotification,
 	projectTurnStartedNotification,
@@ -48,6 +53,11 @@ import type {
 	RuntimeConfigSnapshot,
 	RuntimeEvent,
 	RuntimeEventHandler,
+	RuntimeThreadHistorySnapshot,
+	RuntimeThreadListInput,
+	RuntimeThreadPage,
+	RuntimeThreadSearchInput,
+	RuntimeThreadSearchPage,
 	RuntimeThreadSnapshot,
 	RuntimeTurnSnapshot,
 	StartRuntimeTurnInput,
@@ -72,6 +82,19 @@ type PendingTurnStart = {
 type PendingTurnStartHandle = {
 	promise: Promise<RuntimeTurnSnapshot>;
 	cancel: (error: Error) => void;
+};
+
+function runtimeTimestamp(value: unknown) {
+	const timestamp = typeof value === "number" ? value : 0;
+	return new Date(
+		timestamp > 10_000_000_000 ? timestamp : timestamp * 1000,
+	).toISOString();
+}
+
+type PendingUserInputInteraction = {
+	requestId: number | string;
+	threadId: string;
+	turnId: string;
 };
 
 export type AppServerRuntimeOptions = {
@@ -104,6 +127,40 @@ const appServerPollIntervalMs = 50;
 const appServerExitTimeoutMs = 2_000;
 const appServerWebSocketPath = "/rpc";
 const appServerMaxWebSocketPayloadBytes = 128 << 20;
+
+function normalizeUserInputQuestions(
+	value: unknown,
+): UserInputInteractionQuestion[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	return value.flatMap((entry) => {
+		const question = asRecord(entry);
+		const id = typeof question.id === "string" ? question.id : "";
+		if (!id) {
+			return [];
+		}
+		const options = Array.isArray(question.options)
+			? question.options.map((entry) => {
+					const option = asRecord(entry);
+					return {
+						label: String(option.label ?? ""),
+						description: String(option.description ?? ""),
+					};
+				})
+			: null;
+		return [
+			{
+				id,
+				header: String(question.header ?? ""),
+				question: String(question.question ?? ""),
+				isOther: question.isOther === true,
+				isSecret: question.isSecret === true,
+				options,
+			},
+		];
+	});
+}
 
 class AppServerDebugLogger {
 	private disabled = false;
@@ -148,6 +205,10 @@ export class AppServerRuntime implements CodexRuntime {
 	private nextId = 1;
 	private readonly pending = new Map<number | string, PendingRequest>();
 	private readonly pendingTurnStarts = new Map<string, PendingTurnStart[]>();
+	private readonly pendingUserInputInteractions = new Map<
+		string,
+		PendingUserInputInteraction
+	>();
 	private eventHandler: RuntimeEventHandler = () => {};
 	private initialized = false;
 	private readonly debugLogger: AppServerDebugLogger | null;
@@ -212,6 +273,111 @@ export class AppServerRuntime implements CodexRuntime {
 		);
 		const thread = normalizeThread(result.thread, result.model);
 		return this.applyInitialThreadName(thread, input.name);
+	}
+
+	async listThreads(
+		input: RuntimeThreadListInput = {},
+	): Promise<RuntimeThreadPage> {
+		const result = asRecord(
+			await this.request("thread/list", {
+				cursor: input.cursor ?? null,
+				limit: input.limit ?? null,
+				sortKey: "updated_at",
+				sortDirection: "desc",
+				archived: input.archived ?? false,
+				cwd: input.cwd ?? null,
+			}),
+		);
+		return {
+			threads: Array.isArray(result.data)
+				? result.data.map((thread) => normalizeThread(thread))
+				: [],
+			nextCursor:
+				typeof result.nextCursor === "string" ? result.nextCursor : null,
+		};
+	}
+
+	async searchThreads(
+		input: RuntimeThreadSearchInput,
+	): Promise<RuntimeThreadSearchPage> {
+		const result = asRecord(
+			await this.request("thread/search", {
+				searchTerm: input.query,
+				cursor: input.cursor ?? null,
+				limit: input.limit ?? null,
+				sortKey: "updated_at",
+				sortDirection: "desc",
+				archived: input.archived ?? false,
+			}),
+		);
+		return {
+			results: Array.isArray(result.data)
+				? result.data.map((value) => {
+						const entry = asRecord(value);
+						return {
+							thread: normalizeThread(entry.thread),
+							snippet: typeof entry.snippet === "string" ? entry.snippet : "",
+						};
+					})
+				: [],
+			nextCursor:
+				typeof result.nextCursor === "string" ? result.nextCursor : null,
+		};
+	}
+
+	async readThread(threadId: string): Promise<RuntimeThreadSnapshot> {
+		const result = asRecord(
+			await this.request("thread/read", { threadId, includeTurns: false }),
+		);
+		return normalizeThread(result.thread);
+	}
+
+	async readThreadHistory(
+		threadId: string,
+	): Promise<RuntimeThreadHistorySnapshot> {
+		const result = asRecord(
+			await this.request("thread/turns/list", {
+				threadId,
+				limit: 50,
+				sortDirection: "desc",
+				itemsView: "full",
+			}),
+		);
+		const turns = Array.isArray(result.data) ? result.data : [];
+		return {
+			turns: turns.map((value) => {
+				const turn = asRecord(value);
+				const rawItems = Array.isArray(turn.items) ? turn.items : [];
+				const turnStartedAt = runtimeTimestamp(turn.startedAt);
+				const items = rawItems.map((item, index) => {
+					const normalized = normalizeThreadItem(item);
+					return {
+						id: normalized.itemId,
+						type: normalized.itemType,
+						text: normalized.text,
+						data: normalized.data,
+						createdAt: new Date(
+							Date.parse(turnStartedAt) + index,
+						).toISOString(),
+					};
+				});
+				return {
+					id: String(turn.id),
+					status: normalizeTurn(turn).status,
+					prompt: items.find((item) => item.type === "user")?.text ?? "",
+					startedAt: turnStartedAt,
+					completedAt:
+						typeof turn.completedAt === "number"
+							? runtimeTimestamp(turn.completedAt)
+							: null,
+					durationMs:
+						typeof turn.durationMs === "number" ? turn.durationMs : null,
+					items,
+				};
+			}),
+			nextCursor:
+				typeof result.nextCursor === "string" ? result.nextCursor : null,
+		};
 	}
 
 	async resumeThread(input: ResumeThreadInput): Promise<RuntimeThreadSnapshot> {
@@ -474,6 +640,33 @@ export class AppServerRuntime implements CodexRuntime {
 		await this.request("thread/backgroundTerminals/clean", { threadId });
 	}
 
+	async answerUserInput(input: {
+		interactionId: string;
+		answers: UserInputInteractionAnswers;
+	}) {
+		const pending = this.pendingUserInputInteractions.get(input.interactionId);
+		if (!pending) {
+			throw new Error(
+				`User input interaction is no longer pending: ${input.interactionId}`,
+			);
+		}
+		this.send(
+			{
+				id: pending.requestId,
+				result: {
+					answers: Object.fromEntries(
+						Object.entries(input.answers).map(([questionId, answers]) => [
+							questionId,
+							{ answers },
+						]),
+					),
+				},
+			},
+			{ id: pending.requestId, result: "[redacted user input response]" },
+		);
+		this.pendingUserInputInteractions.delete(input.interactionId);
+	}
+
 	async restartAppServer(): Promise<CodexAppServerRestartResult> {
 		return this.withLifecycleLock(async () => {
 			await this.disconnectConnection("app-server runtime restarting");
@@ -522,6 +715,7 @@ export class AppServerRuntime implements CodexRuntime {
 			}
 		}
 		this.pendingTurnStarts.clear();
+		this.expirePendingUserInputInteractions();
 		const connection = this.connection;
 		this.connection = null;
 		this.initialized = false;
@@ -848,6 +1042,7 @@ export class AppServerRuntime implements CodexRuntime {
 			}
 		}
 		this.pendingTurnStarts.clear();
+		this.expirePendingUserInputInteractions();
 		this.connection = null;
 		this.initialized = false;
 	}
@@ -934,6 +1129,39 @@ export class AppServerRuntime implements CodexRuntime {
 		const params = asRecord(message.params);
 		const threadId = extractThreadId(params);
 		const turnId = extractTurnId(params);
+		if (message.method === "item/tool/requestUserInput" && threadId && turnId) {
+			const interactionId = String(params.itemId ?? "");
+			if (!interactionId) {
+				this.emitRaw(message.method, params, threadId, turnId);
+				return;
+			}
+			const previous = this.pendingUserInputInteractions.get(interactionId);
+			if (previous) {
+				this.eventHandler({
+					type: "interaction.expired",
+					interactionId,
+					threadId: previous.threadId,
+					turnId: previous.turnId,
+				});
+			}
+			this.pendingUserInputInteractions.set(interactionId, {
+				requestId: message.id as number | string,
+				threadId,
+				turnId,
+			});
+			this.eventHandler({
+				type: "interaction.requested",
+				interactionId,
+				threadId,
+				turnId,
+				questions: normalizeUserInputQuestions(params.questions),
+				autoResolutionMs:
+					typeof params.autoResolutionMs === "number"
+						? params.autoResolutionMs
+						: null,
+			});
+			return;
+		}
 		if (isYoloApprovalRequest(message.method)) {
 			this.acceptYoloRequest(message, params);
 			return;
@@ -966,11 +1194,26 @@ export class AppServerRuntime implements CodexRuntime {
 		} satisfies RuntimeEvent);
 	}
 
+	private expirePendingUserInputInteractions() {
+		for (const [interactionId, pending] of this.pendingUserInputInteractions) {
+			this.eventHandler({
+				type: "interaction.expired",
+				interactionId,
+				threadId: pending.threadId,
+				turnId: pending.turnId,
+			});
+		}
+		this.pendingUserInputInteractions.clear();
+	}
+
 	private writeDebug(record: Record<string, unknown>) {
 		this.debugLogger?.write(record);
 	}
 
-	private send(message: JsonRpcMessage) {
+	private send(
+		message: JsonRpcMessage,
+		debugMessage: JsonRpcMessage = message,
+	) {
 		const connection = this.connection;
 		if (!connection || connection.readyState !== WebSocket.OPEN) {
 			throw new Error("app-server websocket is not connected");
@@ -979,7 +1222,7 @@ export class AppServerRuntime implements CodexRuntime {
 			event: "message",
 			direction: "out",
 			parsed: true,
-			message,
+			message: debugMessage,
 		});
 		connection.send(JSON.stringify(message), (error) => {
 			if (!error) {

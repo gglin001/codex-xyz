@@ -63,6 +63,30 @@ class VolatileCodexRuntime implements CodexRuntime {
 		};
 	}
 
+	async listThreads() {
+		return { threads: [...this.persistedThreads.values()], nextCursor: null };
+	}
+
+	async searchThreads(input: { query: string }) {
+		const query = input.query.toLowerCase();
+		return {
+			results: [...this.persistedThreads.values()]
+				.filter((thread) => thread.preview.toLowerCase().includes(query))
+				.map((thread) => ({ thread, snippet: thread.preview })),
+			nextCursor: null,
+		};
+	}
+
+	async readThread(threadId: string) {
+		const thread = this.persistedThreads.get(threadId);
+		if (!thread) throw new RuntimeThreadNotFoundError(threadId);
+		return thread;
+	}
+
+	async readThreadHistory() {
+		return { turns: [], nextCursor: null };
+	}
+
 	forgetThread(threadId: string) {
 		this.loadedThreads.delete(threadId);
 	}
@@ -241,6 +265,8 @@ class VolatileCodexRuntime implements CodexRuntime {
 
 	async cleanBackgroundTerminals() {}
 
+	async answerUserInput() {}
+
 	async restartAppServer() {
 		return {
 			status: "restarted" as const,
@@ -297,6 +323,24 @@ class EagerEventCodexRuntime implements CodexRuntime {
 			modelProvider: "test-provider",
 			serviceTier: null,
 		};
+	}
+
+	async listThreads() {
+		return { threads: [...this.threads.values()], nextCursor: null };
+	}
+
+	async searchThreads() {
+		return { results: [], nextCursor: null };
+	}
+
+	async readThread(threadId: string) {
+		const thread = this.threads.get(threadId);
+		if (!thread) throw new RuntimeThreadNotFoundError(threadId);
+		return thread;
+	}
+
+	async readThreadHistory() {
+		return { turns: [], nextCursor: null };
 	}
 
 	async startThread(input: StartThreadInput): Promise<RuntimeThreadSnapshot> {
@@ -474,6 +518,8 @@ class EagerEventCodexRuntime implements CodexRuntime {
 
 	async cleanBackgroundTerminals() {}
 
+	async answerUserInput() {}
+
 	async restartAppServer() {
 		return {
 			status: "restarted" as const,
@@ -515,6 +561,25 @@ class InterruptDriftCodexRuntime implements CodexRuntime {
 			modelProvider: "test-provider",
 			serviceTier: null,
 		};
+	}
+
+	async listThreads() {
+		return { threads: this.thread ? [this.thread] : [], nextCursor: null };
+	}
+
+	async searchThreads() {
+		return { results: [], nextCursor: null };
+	}
+
+	async readThread(threadId: string) {
+		if (!this.thread || this.thread.id !== threadId) {
+			throw new RuntimeThreadNotFoundError(threadId);
+		}
+		return this.thread;
+	}
+
+	async readThreadHistory() {
+		return { turns: [], nextCursor: null };
 	}
 
 	async startThread(input: StartThreadInput): Promise<RuntimeThreadSnapshot> {
@@ -673,6 +738,8 @@ class InterruptDriftCodexRuntime implements CodexRuntime {
 	}
 
 	async cleanBackgroundTerminals() {}
+
+	async answerUserInput() {}
 
 	async restartAppServer() {
 		return {
@@ -1275,5 +1342,53 @@ describe("ControlService", () => {
 			service.setGoal({ threadId, objective: "Goal after runtime drift" }),
 		).rejects.toThrow(/thread not found/);
 		expect(service.getThreadDetail(threadId).status).toBe("not_loaded");
+	});
+
+	it("persists and answers request_user_input interactions", async () => {
+		const result = await service.createThread({
+			cwd: tempDir,
+			prompt: "Need environment input",
+		});
+		const threadId = result.thread?.id;
+		const turnId = result.turn?.id;
+		if (!threadId || !turnId) {
+			throw new Error("Expected created thread and turn");
+		}
+
+		testRuntime.requestUserInput({
+			interactionId: "interaction-1",
+			threadId,
+			turnId,
+		});
+		expect(service.getThreadDetail(threadId).interactions).toEqual([
+			expect.objectContaining({
+				id: "interaction-1",
+				status: "pending",
+				autoResolutionMs: 60_000,
+			}),
+		]);
+
+		const answered = await service.answerUserInput({
+			threadId,
+			interactionId: "interaction-1",
+			answers: { environment: ["Local"] },
+		});
+
+		expect(answered.status).toBe("answered");
+		expect(testRuntime.lastUserInputAnswer).toEqual({
+			interactionId: "interaction-1",
+			answers: { environment: ["Local"] },
+		});
+		expect(service.getThreadDetail(threadId).interactions[0]).toMatchObject({
+			status: "answered",
+			resolvedAt: expect.any(String),
+		});
+		await expect(
+			service.answerUserInput({
+				threadId,
+				interactionId: "interaction-1",
+				answers: { environment: ["Local"] },
+			}),
+		).rejects.toThrow("not pending");
 	});
 });

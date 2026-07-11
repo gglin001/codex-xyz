@@ -42,6 +42,10 @@ export class TestCodexRuntime implements CodexRuntime {
 	lastStartTurnInput: StartRuntimeTurnInput | null = null;
 	backgroundTerminals: RuntimeBackgroundTerminal[] = [];
 	backgroundTerminalsCleanCount = 0;
+	lastUserInputAnswer: {
+		interactionId: string;
+		answers: Record<string, string[]>;
+	} | null = null;
 	private handler: RuntimeEventHandler = () => {};
 	private readonly threads = new Map<string, TestThread>();
 	private readonly running = new Map<string, RunningTurn>();
@@ -82,6 +86,32 @@ export class TestCodexRuntime implements CodexRuntime {
 
 	async resumeThread(input: ResumeThreadInput): Promise<RuntimeThreadSnapshot> {
 		return this.requireThread(input.threadId);
+	}
+
+	async listThreads() {
+		return { threads: [...this.threads.values()], nextCursor: null };
+	}
+
+	async searchThreads(input: { query: string }) {
+		const query = input.query.toLowerCase();
+		return {
+			results: [...this.threads.values()]
+				.filter((thread) =>
+					`${thread.name ?? ""} ${thread.preview}`
+						.toLowerCase()
+						.includes(query),
+				)
+				.map((thread) => ({ thread, snippet: thread.preview })),
+			nextCursor: null,
+		};
+	}
+
+	async readThread(threadId: string) {
+		return this.requireThread(threadId);
+	}
+
+	async readThreadHistory() {
+		return { turns: [], nextCursor: null };
 	}
 
 	async startTurn(input: StartRuntimeTurnInput): Promise<RuntimeTurnSnapshot> {
@@ -307,6 +337,35 @@ export class TestCodexRuntime implements CodexRuntime {
 	async cleanBackgroundTerminals() {
 		this.backgroundTerminalsCleanCount += 1;
 		this.backgroundTerminals = [];
+	}
+
+	async answerUserInput(input: {
+		interactionId: string;
+		answers: Record<string, string[]>;
+	}) {
+		this.lastUserInputAnswer = input;
+	}
+
+	requestUserInput(input: {
+		interactionId: string;
+		threadId: string;
+		turnId: string;
+	}) {
+		this.emit({
+			type: "interaction.requested",
+			...input,
+			questions: [
+				{
+					id: "environment",
+					header: "Environment",
+					question: "Where should this run?",
+					isOther: false,
+					isSecret: false,
+					options: [{ label: "Local", description: "Run locally" }],
+				},
+			],
+			autoResolutionMs: 60_000,
+		});
 	}
 
 	async restartAppServer() {

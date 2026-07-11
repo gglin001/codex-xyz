@@ -12,6 +12,7 @@ import type {
 	ThreadPageCursor,
 	ThreadTagScore,
 	Turn,
+	UserInputInteractionAnswers,
 } from "../server/domain.js";
 
 export function apiUrl(path: string) {
@@ -45,6 +46,20 @@ export function getState() {
 
 export function getThread(threadId: string) {
 	return request<ThreadDetail>(`/api/threads/${threadId}`);
+}
+
+export function answerUserInput(
+	threadId: string,
+	interactionId: string,
+	answers: UserInputInteractionAnswers,
+) {
+	return request<void>(
+		`/api/threads/${encodeURIComponent(threadId)}/interactions/${encodeURIComponent(interactionId)}/answer`,
+		{
+			method: "POST",
+			body: JSON.stringify({ answers }),
+		},
+	);
 }
 
 export function getThreadItemsPage(input: {
@@ -84,6 +99,40 @@ export function getThreadsPage(input: {
 		params.set("archived", input.archived ? "true" : "false");
 	}
 	return request<ThreadPage>(`/api/threads?${params.toString()}`);
+}
+
+export function syncThreadHistory(
+	input: {
+		limit?: number | null;
+		cursor?: string | null;
+		archived?: boolean | null;
+	} = {},
+) {
+	return request<{ threads: ControlThread[]; nextCursor: string | null }>(
+		"/api/threads/sync",
+		{
+			method: "POST",
+			body: JSON.stringify(input),
+		},
+	);
+}
+
+export function searchThreadHistory(input: {
+	query: string;
+	limit?: number | null;
+	cursor?: string | null;
+	archived?: boolean | null;
+}) {
+	const params = new URLSearchParams({ q: input.query });
+	if (input.limit) params.set("limit", String(input.limit));
+	if (input.cursor) params.set("cursor", input.cursor);
+	if (input.archived !== undefined && input.archived !== null) {
+		params.set("archived", input.archived ? "true" : "false");
+	}
+	return request<{
+		results: Array<{ thread: ControlThread; snippet: string }>;
+		nextCursor: string | null;
+	}>(`/api/threads/search?${params.toString()}`);
 }
 
 export function createThread(input: {

@@ -20,8 +20,10 @@ import type {
 	ThreadItemsPage,
 	ThreadTagScore,
 	Turn,
+	UserInputInteractionAnswers,
 } from "../server/domain.js";
 import {
+	answerUserInput,
 	archiveThread,
 	cleanBackgroundTerminals,
 	compactThread,
@@ -35,9 +37,11 @@ import {
 	listBackgroundTerminals,
 	restartCodexAppServer,
 	resumeThread,
+	searchThreadHistory,
 	setThreadTagScore,
 	startGoal,
 	startTurn,
+	syncThreadHistory,
 } from "./api.js";
 import { DashboardLayout } from "./components/DashboardLayout.js";
 import {
@@ -349,6 +353,10 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	const [workdirTouched, setWorkdirTouched] = useState(false);
 	const [threadQuery, setThreadQuery] = useState("");
 	const [archivedThreads, setArchivedThreads] = useState<ControlThread[]>([]);
+	const [historySearchThreads, setHistorySearchThreads] = useState<
+		ControlThread[]
+	>([]);
+	const [refreshingHistory, setRefreshingHistory] = useState(false);
 	const [composerMode, setComposerMode] = useState<ComposerMode>("thread");
 	const [submittedPromptFocusTarget, setSubmittedPromptFocusTarget] =
 		useState<SubmittedPromptFocusTarget | null>(null);
@@ -373,12 +381,17 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		useState<DetailSubscription | null>(null);
 	const [loadingEarlierTranscript, setLoadingEarlierTranscript] =
 		useState(false);
+	const [submittingInteractionId, setSubmittingInteractionId] = useState<
+		string | null
+	>(null);
+	const [interactionError, setInteractionError] = useState<string | null>(null);
 	const selectedThreadIdRef = useRef<string | null>(
 		appInitialSelection.selectedThreadId,
 	);
 	const manualSelectionSeqRef = useRef(0);
 	const refreshSeqRef = useRef(0);
 	const archivedSearchSeqRef = useRef(0);
+	const historySearchSeqRef = useRef(0);
 	const detailLoadSeqRef = useRef(0);
 	const summaryEventIdRef = useRef(0);
 	const detailEventIdRef = useRef(0);
@@ -570,6 +583,38 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		}
 	}, []);
 
+	const answerSelectedInteraction = useCallback(
+		async (interactionId: string, answers: UserInputInteractionAnswers) => {
+			const threadId = selectedThreadIdRef.current;
+			if (!threadId || submittingInteractionId) {
+				return false;
+			}
+			setSubmittingInteractionId(interactionId);
+			setInteractionError(null);
+			try {
+				await answerUserInput(threadId, interactionId, answers);
+				if (selectedThreadIdRef.current === threadId) {
+					await loadThreadDetail(threadId);
+				}
+				return true;
+			} catch (answerError) {
+				if (selectedThreadIdRef.current === threadId) {
+					setInteractionError(
+						answerError instanceof Error
+							? answerError.message
+							: "Failed to send response",
+					);
+				}
+				return false;
+			} finally {
+				setSubmittingInteractionId((current) =>
+					current === interactionId ? null : current,
+				);
+			}
+		},
+		[loadThreadDetail, submittingInteractionId],
+	);
+
 	const refresh = useCallback(
 		async (nextThreadId?: string | null, options: RefreshOptions = {}) => {
 			const refreshSeq = beginRefresh();
@@ -642,6 +687,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	const selectThread = useCallback(
 		async (threadId: string) => {
 			beginManualSelection();
+			setInteractionError(null);
 			const shouldLoadDetail = shouldLoadThreadSelection(threadId, {
 				currentThreadId: selectedThreadIdRef.current,
 				currentDetailThreadId: projectionRef.current.detail?.id ?? null,
@@ -1068,6 +1114,36 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	const shouldSearchArchivedThreads = queryMatchesArchivedThreads(threadQuery);
 
 	useEffect(() => {
+		historySearchSeqRef.current += 1;
+		const searchSeq = historySearchSeqRef.current;
+		const query = threadQuery.trim();
+		if (!query) {
+			setHistorySearchThreads([]);
+			return;
+		}
+		const timer = window.setTimeout(() => {
+			void searchThreadHistory({ query, limit: 100 })
+				.then((page) => {
+					if (historySearchSeqRef.current === searchSeq) {
+						setHistorySearchThreads(
+							page.results.map((result) => result.thread),
+						);
+					}
+				})
+				.catch((loadError: unknown) => {
+					if (historySearchSeqRef.current === searchSeq) {
+						setError(
+							loadError instanceof Error
+								? loadError.message
+								: "Failed to search Codex history",
+						);
+					}
+				});
+		}, 250);
+		return () => window.clearTimeout(timer);
+	}, [threadQuery]);
+
+	useEffect(() => {
 		archivedSearchSeqRef.current += 1;
 		const searchSeq = archivedSearchSeqRef.current;
 		if (!shouldSearchArchivedThreads) {
@@ -1106,8 +1182,16 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		for (const thread of archivedThreads) {
 			byId.set(thread.id, thread);
 		}
+		for (const thread of historySearchThreads) {
+			byId.set(thread.id, thread);
+		}
 		return [...byId.values()];
-	}, [archivedThreads, shouldSearchArchivedThreads, state.threads]);
+	}, [
+		archivedThreads,
+		historySearchThreads,
+		shouldSearchArchivedThreads,
+		state.threads,
+	]);
 
 	const workbenchProjects = useMemo(
 		() =>
@@ -1971,6 +2055,27 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		);
 	}
 
+	async function refreshThreadHistory() {
+		if (refreshingHistory) {
+			return;
+		}
+		setRefreshingHistory(true);
+		try {
+			await syncThreadHistory({ limit: 200 });
+			await refresh(selectedThreadIdRef.current, { loadDetail: false });
+			setNotice("Codex history refreshed");
+			setError(null);
+		} catch (refreshError) {
+			setError(
+				refreshError instanceof Error
+					? refreshError.message
+					: "Failed to refresh Codex history",
+			);
+		} finally {
+			setRefreshingHistory(false);
+		}
+	}
+
 	return (
 		<MotionConfig reducedMotion="user">
 			<DashboardLayout
@@ -2018,6 +2123,8 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				onSelectThread={selectWorkbenchThread}
 				onCreateThread={createWorkbenchThread}
 				onThreadQueryChange={setThreadQuery}
+				onRefreshThreads={() => void refreshThreadHistory()}
+				refreshingThreads={refreshingHistory}
 				onTerminalVisibleChange={setTerminalVisible}
 				onPromptChange={updatePrompt}
 				onPromptKeyDown={handlePromptKeyDown}
@@ -2033,6 +2140,9 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				onListBackgroundTerminals={listSelectedBackgroundTerminals}
 				onCleanBackgroundTerminals={cleanSelectedBackgroundTerminals}
 				onLoadEarlierTranscript={loadEarlierTranscriptItems}
+				submittingInteractionId={submittingInteractionId}
+				interactionError={interactionError}
+				onAnswerInteraction={answerSelectedInteraction}
 				onRestartCodexAppServer={restartCodexAppServerFromSettings}
 				dateTimeFormatMode={dateTimeFormatMode}
 			/>

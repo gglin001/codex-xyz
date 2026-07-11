@@ -40,8 +40,10 @@ function logRequest(message) {
     return
   }
   fs.appendFileSync(requestLogPath, JSON.stringify({
+    id: message.id ?? null,
     method: message.method,
-    params: message.params ?? null
+    params: message.params ?? null,
+    result: message.result ?? null
   }) + "\\n")
 }
 
@@ -106,6 +108,79 @@ function handle(message, state) {
         updatedAt: 1700000200
       },
       model
+    })
+    return
+  }
+
+  if (message.method === "thread/list") {
+    respond(message.id, {
+      data: [{
+        id: "${sourceThreadId}",
+        sessionId: "${sourceThreadId}",
+        forkedFromId: null,
+        name: "Historical thread",
+        preview: "history preview",
+        cwd: "/history",
+        status: { type: "notLoaded" },
+        updatedAt: 1700000300
+      }],
+      nextCursor: "history-next"
+    })
+    return
+  }
+
+  if (message.method === "thread/search") {
+    respond(message.id, {
+      data: [{
+        thread: {
+          id: "${sourceThreadId}",
+          sessionId: "${sourceThreadId}",
+          forkedFromId: null,
+          name: "Historical thread",
+          preview: "history preview",
+          cwd: "/history",
+          status: { type: "notLoaded" },
+          updatedAt: 1700000300
+        },
+        snippet: "matching history"
+      }],
+      nextCursor: null
+    })
+    return
+  }
+
+  if (message.method === "thread/read") {
+    respond(message.id, {
+      thread: {
+        id: message.params.threadId,
+        sessionId: message.params.threadId,
+        forkedFromId: null,
+        name: "Historical thread",
+        preview: "history preview",
+        cwd: "/history",
+        status: { type: "notLoaded" },
+        updatedAt: 1700000300
+      }
+    })
+    return
+  }
+
+  if (message.method === "thread/turns/list") {
+    respond(message.id, {
+      data: [{
+        id: "${turnId}",
+        status: "completed",
+        startedAt: 1700000300,
+        completedAt: 1700000301,
+        durationMs: 1000,
+        itemsView: "full",
+        items: [
+          { type: "userMessage", id: "history-user", clientId: null, content: [{ type: "text", text: "history prompt", text_elements: [] }] },
+          { type: "agentMessage", id: "history-agent", text: "history answer", phase: null, memoryCitation: null }
+        ],
+        error: null
+      }],
+      nextCursor: "turns-next"
     })
     return
   }
@@ -267,6 +342,26 @@ function handle(message, state) {
         durationMs: null
       }
     })
+    if (message.params.input?.[0]?.text === "Request user input") {
+      writeJson({
+        id: 9001,
+        method: "item/tool/requestUserInput",
+        params: {
+          threadId,
+          turnId: "${turnId}",
+          itemId: "interaction_1",
+          questions: [{
+            id: "environment",
+            header: "Environment",
+            question: "Where should this run?",
+            isOther: true,
+            isSecret: false,
+            options: [{ label: "Local", description: "Run locally" }]
+          }],
+          autoResolutionMs: 60000
+        }
+      })
+    }
     notify("item/started", {
       threadId,
       turnId: "${turnId}",
@@ -695,6 +790,64 @@ afterEach(async () => {
 });
 
 describe("AppServerRuntime", () => {
+	it("lists, searches, and reads app-server history without turns", async () => {
+		const command = createFakeCodexCommand();
+		runtime = new AppServerRuntime(command, appServerOptions());
+
+		const listed = await runtime.listThreads({ limit: 25 });
+		const searched = await runtime.searchThreads({ query: "history" });
+		const read = await runtime.readThread(sourceThreadId);
+		const history = await runtime.readThreadHistory(sourceThreadId);
+
+		expect(listed).toMatchObject({
+			threads: [{ id: sourceThreadId, status: "not_loaded" }],
+			nextCursor: "history-next",
+		});
+		expect(searched.results[0]).toMatchObject({
+			thread: { id: sourceThreadId },
+			snippet: "matching history",
+		});
+		expect(read.id).toBe(sourceThreadId);
+		expect(history).toMatchObject({
+			turns: [
+				{
+					id: turnId,
+					status: "completed",
+					prompt: "history prompt",
+					items: [
+						{ id: "history-user", type: "user" },
+						{ id: "history-agent", type: "agent" },
+					],
+				},
+			],
+			nextCursor: "turns-next",
+		});
+		expect(readRequestLog()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					method: "thread/list",
+					params: expect.objectContaining({
+						sortKey: "updated_at",
+						sortDirection: "desc",
+					}),
+				}),
+				expect.objectContaining({
+					method: "thread/read",
+					params: { threadId: sourceThreadId, includeTurns: false },
+				}),
+				expect.objectContaining({
+					method: "thread/turns/list",
+					params: {
+						threadId: sourceThreadId,
+						limit: 50,
+						sortDirection: "desc",
+						itemsView: "full",
+					},
+				}),
+			]),
+		);
+	});
+
 	it("reads the effective Codex config for a cwd", async () => {
 		const command = createFakeCodexCommand();
 		runtime = new AppServerRuntime(command, appServerOptions());
@@ -977,6 +1130,89 @@ describe("AppServerRuntime", () => {
 				threadId: sourceThreadId,
 			},
 		]);
+	});
+
+	it("projects and answers request_user_input server requests", async () => {
+		const command = createFakeCodexCommand();
+		runtime = new AppServerRuntime(command, appServerOptions());
+		const events: RuntimeEvent[] = [];
+		runtime.onEvent((event) => events.push(event));
+
+		await runtime.startTurn({
+			threadId: debugThreadId,
+			prompt: "Request user input",
+		});
+		await new Promise((resolve) => setTimeout(resolve, 20));
+
+		expect(events).toEqual(
+			expect.arrayContaining([
+				{
+					type: "interaction.requested",
+					interactionId: "interaction_1",
+					threadId: debugThreadId,
+					turnId,
+					questions: [
+						{
+							id: "environment",
+							header: "Environment",
+							question: "Where should this run?",
+							isOther: true,
+							isSecret: false,
+							options: [{ label: "Local", description: "Run locally" }],
+						},
+					],
+					autoResolutionMs: 60_000,
+				},
+			]),
+		);
+
+		await runtime.answerUserInput({
+			interactionId: "interaction_1",
+			answers: { environment: ["Local"] },
+		});
+		await new Promise((resolve) => setTimeout(resolve, 20));
+
+		expect(readRequestLog()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: 9001,
+					result: {
+						answers: { environment: { answers: ["Local"] } },
+					},
+				}),
+			]),
+		);
+		await expect(
+			runtime.answerUserInput({
+				interactionId: "interaction_1",
+				answers: { environment: ["Local"] },
+			}),
+		).rejects.toThrow("no longer pending");
+	});
+
+	it("expires pending user input when the runtime disconnects", async () => {
+		const command = createFakeCodexCommand();
+		runtime = new AppServerRuntime(command, appServerOptions());
+		const events: RuntimeEvent[] = [];
+		runtime.onEvent((event) => events.push(event));
+
+		await runtime.startTurn({
+			threadId: debugThreadId,
+			prompt: "Request user input",
+		});
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		await runtime.close();
+
+		expect(events).toEqual(
+			expect.arrayContaining([
+				{
+					type: "interaction.expired",
+					interactionId: "interaction_1",
+					threadId: debugThreadId,
+					turnId,
+				},
+			]),
+		);
 	});
 
 	it("writes app-server protocol debug records as JSON lines", async () => {

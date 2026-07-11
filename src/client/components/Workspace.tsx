@@ -67,6 +67,7 @@ import {
 } from "../uiFormat.js";
 import type { FloatingScrollAnchor } from "./MobileFloatingScroller.js";
 import { ScrollArea } from "./ScrollArea.js";
+import { ThreadInteractionSurface } from "./ThreadInteractionSurface.js";
 import {
 	CollapsibleCard,
 	ComposerIconButton,
@@ -125,6 +126,12 @@ export type WorkspaceProps = {
 	onListBackgroundTerminals: () => void;
 	onCleanBackgroundTerminals: () => void;
 	onLoadEarlierTranscript: () => Promise<unknown>;
+	submittingInteractionId: string | null;
+	interactionError: string | null;
+	onAnswerInteraction: (
+		interactionId: string,
+		answers: import("../../server/domain.js").UserInputInteractionAnswers,
+	) => Promise<unknown>;
 	onToggleNavigator: () => void;
 	onToggleInspector: () => void;
 	onOpenCommands?: () => void;
@@ -1250,6 +1257,9 @@ export const Workspace = memo(
 			onListBackgroundTerminals,
 			onCleanBackgroundTerminals,
 			onLoadEarlierTranscript,
+			submittingInteractionId,
+			interactionError,
+			onAnswerInteraction,
 			onToggleNavigator,
 			onToggleInspector,
 			onOpenCommands,
@@ -1643,6 +1653,17 @@ export const Workspace = memo(
 								</AnimatePresence>
 							</ThreadContentFrame>
 						</ScrollArea>
+
+						<ThreadInteractionSurface
+							interactions={
+								detail && "interactions" in detail
+									? (detail.interactions as import("../../server/domain.js").UserInputInteraction[])
+									: []
+							}
+							submittingInteractionId={submittingInteractionId}
+							error={interactionError}
+							onAnswer={onAnswerInteraction}
+						/>
 
 						<div
 							ref={composerShellRef}

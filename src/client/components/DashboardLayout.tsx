@@ -102,6 +102,8 @@ export type DashboardLayoutProps = {
 	onSelectThread: (threadSummary: WorkbenchThread) => void;
 	onCreateThread: () => void;
 	onThreadQueryChange: (value: string) => void;
+	onRefreshThreads: () => void;
+	refreshingThreads: boolean;
 	onTerminalVisibleChange: (visible: boolean) => void;
 	onPromptChange: (value: string) => void;
 	onPromptKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
@@ -117,6 +119,9 @@ export type DashboardLayoutProps = {
 	onListBackgroundTerminals: () => void;
 	onCleanBackgroundTerminals: () => void;
 	onLoadEarlierTranscript: () => Promise<unknown>;
+	submittingInteractionId: string | null;
+	interactionError: string | null;
+	onAnswerInteraction: WorkspaceProps["onAnswerInteraction"];
 	onRestartCodexAppServer: () => void;
 	dateTimeFormatMode?: DateTimeFormatMode;
 };
@@ -759,6 +764,8 @@ export const DashboardLayout = memo(function DashboardLayout({
 	onSelectThread,
 	onCreateThread,
 	onThreadQueryChange,
+	onRefreshThreads,
+	refreshingThreads,
 	onTerminalVisibleChange,
 	onPromptChange,
 	onPromptKeyDown,
@@ -774,6 +781,9 @@ export const DashboardLayout = memo(function DashboardLayout({
 	onListBackgroundTerminals,
 	onCleanBackgroundTerminals,
 	onLoadEarlierTranscript,
+	submittingInteractionId,
+	interactionError,
+	onAnswerInteraction,
 	onRestartCodexAppServer,
 	dateTimeFormatMode = "utc",
 }: DashboardLayoutProps) {
@@ -1200,6 +1210,8 @@ export const DashboardLayout = memo(function DashboardLayout({
 						threadQuery={threadQuery}
 						onProjectChange={onProjectChange}
 						onThreadQueryChange={onThreadQueryChange}
+						onRefreshThreads={onRefreshThreads}
+						refreshingThreads={refreshingThreads}
 						onSelectThread={(nextThread) => {
 							onSelectThread(nextThread);
 							if (viewport === "mobile") {
@@ -1266,6 +1278,8 @@ export const DashboardLayout = memo(function DashboardLayout({
 			onSelectThread,
 			onThemeModeChange,
 			onThreadQueryChange,
+			onRefreshThreads,
+			refreshingThreads,
 			onThreadTagScoreChange,
 			onWrapThreadContentChange,
 			projects,
@@ -1321,6 +1335,9 @@ export const DashboardLayout = memo(function DashboardLayout({
 		onListBackgroundTerminals,
 		onCleanBackgroundTerminals,
 		onLoadEarlierTranscript,
+		submittingInteractionId,
+		interactionError,
+		onAnswerInteraction,
 		onOpenCommands: toggleCommandPalette,
 		dateTimeFormatMode,
 	} satisfies Omit<

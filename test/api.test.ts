@@ -233,6 +233,35 @@ afterEach(async () => {
 });
 
 describe("Next API routes", () => {
+	it("answers pending request_user_input interactions", async () => {
+		const created = await json<{
+			thread: ControlThread;
+			turn: { id: string };
+		}>("/api/threads", {
+			method: "POST",
+			body: JSON.stringify({ cwd: tempDir, prompt: "Need input" }),
+		});
+		testRuntime.requestUserInput({
+			interactionId: "interaction-api",
+			threadId: created.thread.id,
+			turnId: created.turn.id,
+		});
+
+		const interaction = await json<{ status: string }>(
+			`/api/threads/${created.thread.id}/interactions/interaction-api/answer`,
+			{
+				method: "POST",
+				body: JSON.stringify({ answers: { environment: ["Local"] } }),
+			},
+		);
+
+		expect(interaction.status).toBe("answered");
+		expect(testRuntime.lastUserInputAnswer).toEqual({
+			interactionId: "interaction-api",
+			answers: { environment: ["Local"] },
+		});
+	});
+
 	it("restarts the Codex app-server through the runtime route", async () => {
 		const result = await json<CodexAppServerRestartResponse>(
 			"/api/runtime/app-server/restart",

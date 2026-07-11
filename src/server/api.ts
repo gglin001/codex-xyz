@@ -4,6 +4,7 @@ import {
 	isSummaryEventType,
 	type TerminalEvent,
 	type ThreadTagScore,
+	type UserInputInteractionAnswers,
 } from "./domain.js";
 import type { ControlService } from "./service.js";
 
@@ -71,6 +72,34 @@ function requireThreadTagScore(
 		return value;
 	}
 	throw new Error("tagScore must be 1, 2, 3, or null");
+}
+
+function requireUserInputAnswers(
+	body: Record<string, unknown>,
+): UserInputInteractionAnswers {
+	const value = body.answers;
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		throw new Error("answers must be an object");
+	}
+	return Object.fromEntries(
+		Object.entries(value).map(([questionId, rawAnswers]) => {
+			if (
+				!Array.isArray(rawAnswers) ||
+				rawAnswers.length === 0 ||
+				rawAnswers.some(
+					(answer) => typeof answer !== "string" || answer.trim().length === 0,
+				)
+			) {
+				throw new Error(
+					`answers.${questionId} must be a non-empty string array`,
+				);
+			}
+			return [
+				questionId,
+				rawAnswers.map((answer) => (answer as string).trim()),
+			];
+		}),
+	);
 }
 
 function optionalString(body: Record<string, unknown>, key: string) {
@@ -490,6 +519,32 @@ async function routeApiRequest(
 		);
 	}
 
+	if (method === "POST" && route === "api/threads/sync") {
+		const body = await readJson(request);
+		return jsonResponse(
+			await service.syncThreadHistory({
+				limit: optionalPositiveInteger(body, "limit"),
+				cursor: optionalString(body, "cursor"),
+				archived: optionalBoolean(body, "archived"),
+			}),
+		);
+	}
+
+	if (method === "GET" && route === "api/threads/search") {
+		const query = url.searchParams.get("q")?.trim();
+		if (!query) {
+			throw new Error("q is required");
+		}
+		return jsonResponse(
+			await service.searchThreadHistory({
+				query,
+				limit: optionalQueryInteger(url, "limit", { min: 1 }),
+				cursor: url.searchParams.get("cursor"),
+				archived: optionalQueryBoolean(url, "archived"),
+			}),
+		);
+	}
+
 	if (method === "POST" && route === "api/threads") {
 		const body = await readJson(request);
 		return jsonResponse(
@@ -507,7 +562,7 @@ async function routeApiRequest(
 	if (parts[0] === "api" && parts[1] === "threads" && parts[2]) {
 		const threadId = parts[2];
 		if (method === "GET" && parts.length === 3) {
-			return jsonResponse(service.getThreadDetail(threadId));
+			return jsonResponse(await service.getHydratedThreadDetail(threadId));
 		}
 
 		if (method === "GET" && parts[3] === "items") {
@@ -539,6 +594,22 @@ async function routeApiRequest(
 				model: optionalString(body, "model"),
 			});
 			return jsonResponse(turn, 201);
+		}
+
+		if (
+			method === "POST" &&
+			parts[3] === "interactions" &&
+			parts[4] &&
+			parts[5] === "answer"
+		) {
+			const body = await readJson(request);
+			return jsonResponse(
+				await service.answerUserInput({
+					threadId,
+					interactionId: parts[4],
+					answers: requireUserInputAnswers(body),
+				}),
+			);
 		}
 
 		if (method === "POST" && parts[3] === "resume") {

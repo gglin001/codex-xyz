@@ -211,6 +211,9 @@ describe("database migrations", () => {
 		execFileSync(process.execPath, ["scripts/upgrade-v5-to-v6.mjs", filePath], {
 			stdio: "pipe",
 		});
+		execFileSync(process.execPath, ["scripts/upgrade-v6-to-v7.mjs", filePath], {
+			stdio: "pipe",
+		});
 
 		const db = new DatabaseSync(filePath);
 		try {
@@ -243,12 +246,18 @@ describe("database migrations", () => {
 			const host = db
 				.prepare("SELECT runtime FROM hosts WHERE id = ?")
 				.get("local") as { runtime?: unknown } | undefined;
+			const interactionsTable = db
+				.prepare(
+					"SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'interactions'",
+				)
+				.get() as { name?: unknown } | undefined;
 
 			expect(version?.value).toBe(currentDatabaseVersion);
 			expect(legacyMetadata).toBeUndefined();
 			expect(thread?.name).toBe("Thread 1");
 			expect(thread?.tag_score).toBeNull();
 			expect(host?.runtime).toBe("test");
+			expect(interactionsTable?.name).toBe("interactions");
 			expect(events.map((event) => event.type)).toEqual([
 				"thread.started",
 				"thread.name.updated",

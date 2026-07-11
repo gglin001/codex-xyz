@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, ChevronDown, Plus, Search } from "lucide-react";
+import { Check, ChevronDown, Plus, RefreshCw, Search } from "lucide-react";
 import { memo, useMemo, useState } from "react";
 import { codexThreadCommandLabels } from "../codexCommandLabels.js";
 import { cn, layer, motionPresets, motionStates, ui } from "../designSystem.js";
@@ -35,6 +35,8 @@ export type SidebarProps = {
 	threadQuery: string;
 	onProjectChange: (projectId: string) => void;
 	onThreadQueryChange: (value: string) => void;
+	onRefreshThreads: () => void;
+	refreshingThreads: boolean;
 	onSelectThread: (thread: WorkbenchThread) => void;
 	onCreateThread: () => void;
 	dateTimeFormatMode?: DateTimeFormatMode;
@@ -85,6 +87,8 @@ export const Sidebar = memo(function Sidebar({
 	threadQuery,
 	onProjectChange,
 	onThreadQueryChange,
+	onRefreshThreads,
+	refreshingThreads,
 	onSelectThread,
 	onCreateThread,
 	dateTimeFormatMode = "utc",
@@ -92,13 +96,14 @@ export const Sidebar = memo(function Sidebar({
 	const [projectMenuOpen, setProjectMenuOpen] = useState(false);
 	const selectedProject =
 		projects.find((project) => project.id === selectedProjectId) ?? projects[0];
-	const visibleThreads = useMemo(
-		() =>
-			selectedProject
-				? filterThreads(selectedProject, threadQuery, dateTimeFormatMode)
-				: [],
-		[selectedProject, threadQuery, dateTimeFormatMode],
-	);
+	const visibleThreads = useMemo(() => {
+		if (!threadQuery.trim()) {
+			return selectedProject?.threads ?? [];
+		}
+		return projects.flatMap((project) =>
+			filterThreads(project, threadQuery, dateTimeFormatMode),
+		);
+	}, [projects, selectedProject, threadQuery, dateTimeFormatMode]);
 	const threadGroups = useMemo(
 		() => groupThreads(visibleThreads),
 		[visibleThreads],
@@ -198,6 +203,18 @@ export const Sidebar = memo(function Sidebar({
 						/>
 					</FieldShell>
 				</div>
+				<ControlButton
+					className="h-8 w-8 shrink-0 bg-transparent"
+					onClick={onRefreshThreads}
+					disabled={refreshingThreads}
+					name="Refresh Codex history"
+					aria-label="Refresh Codex history"
+				>
+					<RefreshCw
+						size={15}
+						className={refreshingThreads ? "animate-spin" : undefined}
+					/>
+				</ControlButton>
 				<ControlButton
 					className="h-8 w-8 shrink-0 bg-transparent"
 					onClick={onCreateThread}
