@@ -1175,6 +1175,38 @@ describe("ControlService", () => {
 		expect(cleared?.goalStatus).toBe("cleared");
 	});
 
+	it("starts a goal on a persisted thread that is not currently loaded", async () => {
+		const result = await service.createThread({
+			cwd: tempDir,
+			prompt: "Create a persisted thread before starting its goal",
+		});
+		await waitForEvents();
+
+		const threadId = result.thread?.id;
+		if (!threadId) {
+			throw new Error("Expected created thread id");
+		}
+		service.store.updateThread(threadId, {
+			status: "not_loaded",
+			activeTurnId: null,
+		});
+
+		const started = await service.startGoal({
+			threadId,
+			objective: "Continue the persisted thread as a goal",
+		});
+
+		expect(started.goal).toMatchObject({
+			objective: "Continue the persisted thread as a goal",
+			status: "in_progress",
+		});
+		expect(started.turn).toMatchObject({
+			threadId,
+			prompt: "",
+			status: "in_progress",
+		});
+	});
+
 	it("forks an app-server thread and continues work on the fork", async () => {
 		const result = await service.createThread({
 			cwd: tempDir,

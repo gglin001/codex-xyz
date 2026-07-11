@@ -41,6 +41,10 @@ import { threadDisplayStatus } from "../../server/domain.js";
 import { copyToClipboard } from "../clipboard.js";
 import { codexThreadCommandLabels } from "../codexCommandLabels.js";
 import {
+	getComposerThreadActionState,
+	showsUnarchiveAction,
+} from "../composerThreadActions.js";
+import {
 	cn,
 	layer,
 	motionPresets,
@@ -53,11 +57,6 @@ import {
 	isOptimisticTurnId,
 } from "../optimisticThreads.js";
 import { getFirstLineTextPreview } from "../textPreview.js";
-import {
-	canArchiveThread,
-	canUnarchiveThread,
-	isThreadRuntimeActionable,
-} from "../threadLifecycle.js";
 import {
 	getTranscriptEntries,
 	type TranscriptEntry,
@@ -128,6 +127,10 @@ export type WorkspaceProps = {
 	onCompact: () => void;
 	onArchive: () => void;
 	onUnarchive: () => void;
+	onPauseGoal: () => void;
+	onResumeGoal: () => void;
+	onCompleteGoal: () => void;
+	onClearGoal: () => void;
 	onListBackgroundTerminals: () => void;
 	onCleanBackgroundTerminals: () => void;
 	onLoadEarlierTranscript: () => Promise<unknown>;
@@ -806,6 +809,10 @@ type ComposerProps = Pick<
 	| "onCompact"
 	| "onArchive"
 	| "onUnarchive"
+	| "onPauseGoal"
+	| "onResumeGoal"
+	| "onCompleteGoal"
+	| "onClearGoal"
 	| "onListBackgroundTerminals"
 	| "onCleanBackgroundTerminals"
 > & {
@@ -842,6 +849,10 @@ const Composer = memo(
 			onCompact,
 			onArchive,
 			onUnarchive,
+			onPauseGoal,
+			onResumeGoal,
+			onCompleteGoal,
+			onClearGoal,
 			onListBackgroundTerminals,
 			onCleanBackgroundTerminals,
 			onPromptFocusIntent,
@@ -850,9 +861,6 @@ const Composer = memo(
 		ref,
 	) {
 		const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-		const selectedThreadViewOnly = Boolean(
-			selectedThread && !isThreadRuntimeActionable(selectedThread),
-		);
 		const selectedThreadPendingSubmission =
 			isOptimisticThreadId(selectedThreadId) ||
 			isOptimisticTurnId(selectedThread?.activeTurnId);
@@ -867,86 +875,20 @@ const Composer = memo(
 			: promptTarget === "thread"
 				? "/prompt"
 				: "/new";
-		const threadActionDisabledReason = () => {
-			if (!selectedThreadId) {
-				return "Select a thread first";
-			}
-			if (selectedThreadViewOnly) {
-				return "This thread lifecycle state is view-only";
-			}
-			if (selectedThreadPendingSubmission) {
-				return "Wait for the submission to finish";
-			}
-			if (busy) {
-				return "Another action is running";
-			}
-			return null;
-		};
-		const idleThreadActionDisabledReason = () => {
-			const baseReason = threadActionDisabledReason();
-			if (baseReason) {
-				return baseReason;
-			}
-			if (selectedThread?.status === "active") {
-				return "Wait for the active turn to finish";
-			}
-			return null;
-		};
-		const interruptDisabledReason = () => {
-			if (!selectedThreadId) {
-				return "Select a running thread first";
-			}
-			if (selectedThreadViewOnly) {
-				return "This thread lifecycle state is view-only";
-			}
-			if (busy) {
-				return "Another action is running";
-			}
-			if (selectedThread?.status !== "active") {
-				return "No active turn is running";
-			}
-			return null;
-		};
-		const resumeDisabledReason = () => {
-			const baseReason = threadActionDisabledReason();
-			if (baseReason) {
-				return baseReason;
-			}
-			if (selectedThread?.status === "active") {
-				return "Thread is already running";
-			}
-			return null;
-		};
-		const archiveDisabledReason = () => {
-			if (!selectedThreadId || !selectedThread) {
-				return "Select a thread first";
-			}
-			if (!canArchiveThread(selectedThread)) {
-				return selectedThread.lifecycleState.endsWith("_pending")
-					? "Wait for the lifecycle operation to finish"
-					: "This thread cannot be archived";
-			}
-			if (busy) {
-				return "Another action is running";
-			}
-			if (selectedThread.status === "active") {
-				return "Wait for the active turn to finish";
-			}
-			return null;
-		};
-		const unarchiveDisabledReason = () => {
-			if (!selectedThreadId || !selectedThread) {
-				return "Select an archived thread first";
-			}
-			if (!canUnarchiveThread(selectedThread)) {
-				return selectedThread.lifecycleState.endsWith("_pending")
-					? "Wait for the lifecycle operation to finish"
-					: "This thread cannot be unarchived";
-			}
-			return busy ? "Another action is running" : null;
-		};
+		const actionState = getComposerThreadActionState({
+			thread: selectedThread,
+			threadId: selectedThreadId,
+			pendingSubmission: selectedThreadPendingSubmission,
+			busy,
+		});
+		const goalModeDisabledReason =
+			promptTarget === "new"
+				? canUseGoalMode
+					? null
+					: "Choose a working directory first"
+				: actionState.goal;
 		const composerMenuActions: ComposerMenuAction[] = [
-			!selectedThread || canArchiveThread(selectedThread)
+			!showsUnarchiveAction(selectedThread)
 				? {
 						id: "archive",
 						label:
@@ -954,60 +896,105 @@ const Composer = memo(
 								? "Retry archive"
 								: codexThreadCommandLabels.archive,
 						detail: "Move this thread out of the active list",
-						disabledReason: archiveDisabledReason(),
+						disabledReason: actionState.archive,
 						run: onArchive,
 					}
 				: {
 						id: "unarchive",
 						label:
-							selectedThread.lifecycleState === "unarchive_failed"
+							selectedThread?.lifecycleState === "unarchive_failed"
 								? "Retry unarchive"
 								: codexThreadCommandLabels.unarchive,
 						detail: "Restore this thread to the active list",
-						disabledReason: unarchiveDisabledReason(),
+						disabledReason: actionState.unarchive,
 						run: onUnarchive,
 					},
 			{
 				id: "compact",
 				label: codexThreadCommandLabels.compact,
 				detail: "Summarize the transcript for more context",
-				disabledReason: idleThreadActionDisabledReason(),
+				disabledReason: actionState.compact,
 				run: onCompact,
 			},
 			{
 				id: "interrupt",
 				label: codexThreadCommandLabels.interrupt,
 				detail: "Stop the currently running turn",
-				disabledReason: interruptDisabledReason(),
+				disabledReason: actionState.interrupt,
 				run: onInterrupt,
 			},
 			{
 				id: "fork",
 				label: codexThreadCommandLabels.fork,
 				detail: "Continue from this thread in a new branch",
-				disabledReason: threadActionDisabledReason(),
+				disabledReason: actionState.fork,
 				run: onFork,
 			},
 			{
 				id: "ps",
 				label: codexThreadCommandLabels.ps,
 				detail: "List app-server background terminals",
-				disabledReason: threadActionDisabledReason(),
+				disabledReason: actionState.backgroundTerminals,
 				run: onListBackgroundTerminals,
 			},
 			{
 				id: "stop",
 				label: codexThreadCommandLabels.stop,
 				detail: "Stop app-server background terminals",
-				disabledReason: threadActionDisabledReason(),
+				disabledReason: actionState.backgroundTerminals,
 				run: onCleanBackgroundTerminals,
 			},
 			{
 				id: "resume",
 				label: codexThreadCommandLabels.resume,
 				detail: "Resume this saved thread",
-				disabledReason: resumeDisabledReason(),
+				disabledReason: actionState.resume,
 				run: onResume,
+			},
+			...(selectedThread?.goalObjective &&
+			selectedThread.goalStatus !== "cleared"
+				? [
+						selectedThread.goalStatus === "in_progress"
+							? {
+									id: "goal-pause",
+									label: "Pause /goal",
+									detail: "Pause automatic goal continuation",
+									disabledReason: actionState.goalStatus,
+									run: onPauseGoal,
+								}
+							: {
+									id: "goal-resume",
+									label: "Resume /goal",
+									detail: "Continue the current goal",
+									disabledReason: actionState.goalStatus,
+									run: onResumeGoal,
+								},
+						{
+							id: "goal-complete",
+							label: "Complete /goal",
+							detail: "Mark the current goal complete",
+							disabledReason: actionState.goalStatus,
+							run: onCompleteGoal,
+						},
+						{
+							id: "goal-clear",
+							label: "Clear /goal",
+							detail: "Remove the current goal from this thread",
+							disabledReason: actionState.clearGoal,
+							run: onClearGoal,
+						},
+					]
+				: []),
+			{
+				id: "copy-thread-id",
+				label: "Copy thread ID",
+				detail: "Copy the full Codex thread identifier",
+				disabledReason: selectedThreadId ? null : "Select a thread first",
+				run: () => {
+					if (selectedThreadId) {
+						void copyToClipboard(selectedThreadId);
+					}
+				},
 			},
 		];
 		const selectComposerMenuAction = (action: ComposerMenuAction) => {
@@ -1189,10 +1176,12 @@ const Composer = memo(
 									<Plus size={14} />
 								</ComposerIconButton>
 								<ComposerIconButton
-									title={codexThreadCommandLabels.goal}
+									title={
+										goalModeDisabledReason ?? codexThreadCommandLabels.goal
+									}
 									aria-label={codexThreadCommandLabels.goal}
 									pressed={goalMode}
-									disabled={!canUseGoalMode || busy}
+									disabled={Boolean(goalModeDisabledReason) || busy}
 									onClick={() => onGoalModeChange(!goalMode)}
 								>
 									<Goal size={14} />
@@ -1226,7 +1215,7 @@ const Composer = memo(
 												/>
 												<motion.div
 													className={cn(
-														"absolute bottom-full left-0 mb-2 w-36 max-w-[calc(100vw-2rem)] p-1",
+														"absolute bottom-full left-0 mb-2 max-h-[min(28rem,calc(100vh-6rem))] w-56 max-w-[calc(100vw-2rem)] overflow-y-auto p-1",
 														layer.localMenuZ,
 														ui.popover,
 													)}
@@ -1309,6 +1298,10 @@ export const Workspace = memo(
 			onCompact,
 			onArchive,
 			onUnarchive,
+			onPauseGoal,
+			onResumeGoal,
+			onCompleteGoal,
+			onClearGoal,
 			onListBackgroundTerminals,
 			onCleanBackgroundTerminals,
 			onLoadEarlierTranscript,
@@ -1743,6 +1736,10 @@ export const Workspace = memo(
 									onCompact={onCompact}
 									onArchive={onArchive}
 									onUnarchive={onUnarchive}
+									onPauseGoal={onPauseGoal}
+									onResumeGoal={onResumeGoal}
+									onCompleteGoal={onCompleteGoal}
+									onClearGoal={onClearGoal}
 									onListBackgroundTerminals={onListBackgroundTerminals}
 									onCleanBackgroundTerminals={onCleanBackgroundTerminals}
 									onPromptFocusIntent={captureMobileTranscriptPosition}

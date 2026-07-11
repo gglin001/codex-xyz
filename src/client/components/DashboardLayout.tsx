@@ -117,6 +117,10 @@ export type DashboardLayoutProps = {
 	onCompact: () => void;
 	onArchive: () => void;
 	onUnarchive: () => void;
+	onPauseGoal: () => void;
+	onResumeGoal: () => void;
+	onCompleteGoal: () => void;
+	onClearGoal: () => void;
 	onListBackgroundTerminals: () => void;
 	onCleanBackgroundTerminals: () => void;
 	onLoadEarlierTranscript: () => Promise<unknown>;
@@ -777,6 +781,10 @@ export const DashboardLayout = memo(function DashboardLayout({
 	onCompact,
 	onArchive,
 	onUnarchive,
+	onPauseGoal,
+	onResumeGoal,
+	onCompleteGoal,
+	onClearGoal,
 	onListBackgroundTerminals,
 	onCleanBackgroundTerminals,
 	onLoadEarlierTranscript,
@@ -1329,6 +1337,10 @@ export const DashboardLayout = memo(function DashboardLayout({
 		onCompact,
 		onArchive,
 		onUnarchive,
+		onPauseGoal,
+		onResumeGoal,
+		onCompleteGoal,
+		onClearGoal,
 		onListBackgroundTerminals,
 		onCleanBackgroundTerminals,
 		onLoadEarlierTranscript,

@@ -513,7 +513,7 @@ export class ControlService {
 
 	async startGoal(input: SetGoalInput) {
 		const source = this.requireThread(input.threadId);
-		if (source.activeTurnId || source.status !== "idle") {
+		if (source.activeTurnId || source.status === "active") {
 			throw new Error("Goal mode requires an idle thread");
 		}
 		const { goal, turn: runtimeTurn } = await this.withRuntimeThread(

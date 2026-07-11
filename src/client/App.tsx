@@ -24,6 +24,7 @@ import type {
 import {
 	archiveThread,
 	cleanBackgroundTerminals,
+	clearGoal,
 	compactThread,
 	createThread,
 	forkThread,
@@ -36,6 +37,7 @@ import {
 	restartCodexAppServer,
 	resumeThread,
 	searchThreadHistory,
+	setGoalStatus,
 	setThreadTagScore,
 	startGoal,
 	startTurn,
@@ -1188,12 +1190,13 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		return selectedProject?.threads[0] ?? null;
 	}, [selectedProject, selectedThreadId]);
 	const activeThreadId = selectedWorkbenchThread?.threadId ?? null;
-	const activeThread = useMemo(
+	const activeThreadSummary = useMemo(
 		() =>
 			searchableThreads.find((thread) => thread.id === activeThreadId) ?? null,
 		[activeThreadId, searchableThreads],
 	);
 	const activeDetail = detail?.id === activeThreadId ? detail : null;
+	const activeThread = activeDetail ?? activeThreadSummary;
 	const promptTarget =
 		composerMode === "thread" &&
 		activeThread &&
@@ -1206,12 +1209,14 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		isOptimisticThreadId(activeThreadId) ||
 		isOptimisticTurnId(activeThread?.activeTurnId);
 	const trimmedWorkdir = workdir.trim();
+	const activeThreadHasTurn =
+		activeThread?.status === "active" || Boolean(activeThread?.activeTurnId);
 	const canUseGoalMode =
 		promptTarget === "new"
 			? Boolean(trimmedWorkdir)
 			: Boolean(activeThreadId) &&
 				!activeThreadPendingSubmission &&
-				activeThread?.status === "idle";
+				!activeThreadHasTurn;
 	const canSubmitTurnPrompt = goalMode
 		? canUseGoalMode
 		: promptTarget === "thread"
@@ -1972,6 +1977,39 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		);
 	}
 
+	function updateSelectedGoalStatus(status: "active" | "paused" | "complete") {
+		if (!activeThreadId) {
+			return;
+		}
+		const threadId = activeThreadId;
+		const labels = {
+			active: ["Resuming goal", "Goal resumed"],
+			paused: ["Pausing goal", "Goal paused"],
+			complete: ["Completing goal", "Goal completed"],
+		} as const;
+		void runAction(
+			labels[status][0],
+			async () => {
+				await setGoalStatus(threadId, status);
+			},
+			{ successMessage: labels[status][1] },
+		);
+	}
+
+	function clearSelectedGoal() {
+		if (!activeThreadId) {
+			return;
+		}
+		const threadId = activeThreadId;
+		void runAction(
+			"Clearing goal",
+			async () => {
+				await clearGoal(threadId);
+			},
+			{ successMessage: "Goal cleared" },
+		);
+	}
+
 	function archiveSelectedThread() {
 		if (!activeThreadId) {
 			return;
@@ -2102,6 +2140,10 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				onCompact={compactSelectedThread}
 				onArchive={archiveSelectedThread}
 				onUnarchive={() => void unarchiveSelectedThread()}
+				onPauseGoal={() => updateSelectedGoalStatus("paused")}
+				onResumeGoal={() => updateSelectedGoalStatus("active")}
+				onCompleteGoal={() => updateSelectedGoalStatus("complete")}
+				onClearGoal={clearSelectedGoal}
 				onListBackgroundTerminals={listSelectedBackgroundTerminals}
 				onCleanBackgroundTerminals={cleanSelectedBackgroundTerminals}
 				onLoadEarlierTranscript={loadEarlierTranscriptItems}
