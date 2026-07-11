@@ -72,6 +72,7 @@ import {
 import type { FloatingScrollAnchor } from "./MobileFloatingScroller.js";
 import { ScrollArea } from "./ScrollArea.js";
 import { StatusIndicator } from "./statusIndicator.js";
+import { TranscriptText } from "./TranscriptText.js";
 import {
 	CollapsibleCard,
 	ComposerIconButton,
@@ -529,16 +530,11 @@ const MessageBlock = memo(function MessageBlock({
 			previewPaddingClassName={transcriptCardPreviewPaddingClass}
 		>
 			{message.text ? (
-				<div
-					className={cn(
-						"text-[length:var(--transcript-font-size)] leading-[var(--transcript-line-height)] text-fg-strong",
-						wrapContent
-							? "whitespace-pre-wrap break-words"
-							: "overflow-x-auto whitespace-pre",
-					)}
-				>
-					{message.text}
-				</div>
+				<TranscriptText
+					text={message.text}
+					wrapContent={wrapContent}
+					className="text-[length:var(--transcript-font-size)] leading-[var(--transcript-line-height)] text-fg-strong"
+				/>
 			) : null}
 		</CollapsibleCard>
 	);
@@ -619,16 +615,11 @@ const ProcessItemBlock = memo(function ProcessItemBlock({
 			previewPaddingClassName="px-0 pb-2"
 		>
 			{message.text ? (
-				<div
-					className={cn(
-						"text-[length:var(--process-font-size)] leading-[var(--process-line-height)] text-fg",
-						wrapContent
-							? "whitespace-pre-wrap break-words"
-							: "overflow-x-auto whitespace-pre",
-					)}
-				>
-					{message.text}
-				</div>
+				<TranscriptText
+					text={message.text}
+					wrapContent={wrapContent}
+					className="text-[length:var(--process-font-size)] leading-[var(--process-line-height)] text-fg"
+				/>
 			) : null}
 		</CollapsibleCard>
 	);

@@ -400,6 +400,20 @@
 		height: 0;
 	}
 
+	.thread-code-scroll {
+		margin-block: 2px 6px;
+		overscroll-behavior-x: contain;
+		padding-bottom: 3px;
+		scrollbar-width: thin !important;
+		touch-action: pan-x pan-y;
+		-webkit-overflow-scrolling: touch;
+	}
+
+	.thread-code-scroll::-webkit-scrollbar {
+		display: block;
+		height: 6px;
+	}
+
 	@media (max-width: 767px) {
 		.scrollable-truncate.mobile-static-scroll,
 		.scrollable-row.mobile-static-scroll {
@@ -755,6 +769,7 @@
 		line-clamp: unset !important;
 	}
 
+	article .thread-code-scroll,
 	article [class*="overflow-x-auto"],
 	article [class*="whitespace-pre"] {
 		overflow: visible !important;
