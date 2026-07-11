@@ -60,6 +60,46 @@ afterEach(() => {
 });
 
 describe("ThreadProjection", () => {
+	it("ignores token usage for an unloaded subagent thread", () => {
+		projection.applyRuntimeEvent({
+			type: "thread.token_usage",
+			threadId: "thread-child",
+			turnId: null,
+			usage: {
+				totalTokens: 42,
+				inputTokens: 20,
+				cachedInputTokens: 4,
+				outputTokens: 18,
+				reasoningOutputTokens: 2,
+				modelContextWindow: 128_000,
+			},
+		});
+
+		expect(store.getThread("thread-child")).toBeNull();
+		expect(events).toEqual([]);
+	});
+
+	it("updates token usage for a loaded thread", () => {
+		createThread();
+
+		projection.applyRuntimeEvent({
+			type: "thread.token_usage",
+			threadId: "thread-1",
+			turnId: null,
+			usage: {
+				totalTokens: 42,
+				inputTokens: 20,
+				cachedInputTokens: 4,
+				outputTokens: 18,
+				reasoningOutputTokens: 2,
+				modelContextWindow: 128_000,
+			},
+		});
+
+		expect(store.getThread("thread-1")?.tokensUsed).toBe(42);
+		expect(events.map((event) => event.type)).toEqual(["thread.token_usage"]);
+	});
+
 	it("synthesizes a missing turn and item for early delta events", () => {
 		createThread();
 

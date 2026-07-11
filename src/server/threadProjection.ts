@@ -198,6 +198,9 @@ export class ThreadProjection {
 			}
 
 			if (event.type === "thread.token_usage") {
+				if (!this.store.getThread(event.threadId)) {
+					return;
+				}
 				const thread = this.store.updateThread(event.threadId, {
 					tokensUsed: event.usage.totalTokens,
 				});
