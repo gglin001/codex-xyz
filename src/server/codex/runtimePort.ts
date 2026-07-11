@@ -1,6 +1,7 @@
 import type {
 	GoalStatus,
 	GoalStatusUpdate,
+	ItemType,
 	ThreadRuntimeStatus,
 	TurnStatus,
 } from "../domain.js";
@@ -122,6 +123,14 @@ export type RuntimeEvent =
 			threadId: string;
 	  }
 	| {
+			type: "thread.unarchived";
+			threadId: string;
+	  }
+	| {
+			type: "thread.deleted";
+			threadId: string;
+	  }
+	| {
 			type: "raw";
 			threadId?: string | null;
 			turnId?: string | null;
@@ -166,6 +175,58 @@ export type ResumeThreadInput = {
 	model?: string | null;
 };
 
+export type RuntimeThreadListInput = {
+	cursor?: string | null;
+	limit?: number | null;
+	archived?: boolean | null;
+	cwd?: string | string[] | null;
+};
+
+export type RuntimeThreadPage = {
+	threads: RuntimeThreadSnapshot[];
+	nextCursor: string | null;
+};
+
+export type RuntimeThreadSearchInput = {
+	query: string;
+	cursor?: string | null;
+	limit?: number | null;
+	archived?: boolean | null;
+};
+
+export type RuntimeThreadSearchResult = {
+	thread: RuntimeThreadSnapshot;
+	snippet: string;
+};
+
+export type RuntimeThreadSearchPage = {
+	results: RuntimeThreadSearchResult[];
+	nextCursor: string | null;
+};
+
+export type RuntimeHistoryItemSnapshot = {
+	id: string;
+	type: ItemType;
+	text: string;
+	data: Record<string, unknown>;
+	createdAt: string;
+};
+
+export type RuntimeHistoryTurnSnapshot = {
+	id: string;
+	status: TurnStatus;
+	prompt: string;
+	startedAt: string;
+	completedAt: string | null;
+	durationMs: number | null;
+	items: RuntimeHistoryItemSnapshot[];
+};
+
+export type RuntimeThreadHistorySnapshot = {
+	turns: RuntimeHistoryTurnSnapshot[];
+	nextCursor: string | null;
+};
+
 export type ForkThreadInput = {
 	sourceThreadId: string;
 	cwd: string;
@@ -205,6 +266,12 @@ export interface CodexRuntime {
 	onEvent(handler: RuntimeEventHandler): void;
 	readConfig(input?: ReadRuntimeConfigInput): Promise<RuntimeConfigSnapshot>;
 	startThread(input: StartThreadInput): Promise<RuntimeThreadSnapshot>;
+	listThreads(input?: RuntimeThreadListInput): Promise<RuntimeThreadPage>;
+	searchThreads(
+		input: RuntimeThreadSearchInput,
+	): Promise<RuntimeThreadSearchPage>;
+	readThread(threadId: string): Promise<RuntimeThreadSnapshot>;
+	readThreadHistory(threadId: string): Promise<RuntimeThreadHistorySnapshot>;
 	resumeThread(input: ResumeThreadInput): Promise<RuntimeThreadSnapshot>;
 	startTurn(input: StartRuntimeTurnInput): Promise<RuntimeTurnSnapshot>;
 	runShellCommand(input: RunShellCommandInput): Promise<RuntimeTurnSnapshot>;
@@ -217,6 +284,7 @@ export interface CodexRuntime {
 	interruptTurn(input: { threadId: string; turnId: string }): Promise<void>;
 	forkThread(input: ForkThreadInput): Promise<RuntimeThreadSnapshot>;
 	archiveThread(threadId: string): Promise<void>;
+	unarchiveThread(threadId: string): Promise<void>;
 	setThreadName(input: { threadId: string; name: string }): Promise<void>;
 	setGoal(input: {
 		threadId: string;

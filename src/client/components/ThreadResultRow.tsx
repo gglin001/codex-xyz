@@ -2,12 +2,15 @@ import { Star } from "lucide-react";
 import { memo } from "react";
 import { cn } from "../designSystem.js";
 import {
+	statusPresentation,
+	threadStatusTooltip,
+} from "../statusPresentation.js";
+import {
 	type DateTimeFormatMode,
 	formatFullDateTime,
 	formatTokens,
-	statusLabel,
 } from "../uiFormat.js";
-import { ThreadStatusIcon, threadStatusDotClass } from "./threadStatusIcon.js";
+import { StatusIcon } from "./statusIndicator.js";
 import { ScrollableText } from "./uiPrimitives.js";
 import type { WorkbenchThread } from "./workbenchTypes.js";
 
@@ -18,7 +21,7 @@ function threadDetailParts(
 ) {
 	return [
 		`${formatTokens(thread.tokensUsed)} tk`,
-		statusLabel(thread.status),
+		statusPresentation(thread.status).label,
 		formatFullDateTime(thread.updatedAt, dateTimeFormatMode),
 		projectName,
 	].filter(Boolean);
@@ -51,11 +54,13 @@ export function threadResultSearchText(
 		projectName ?? "",
 		thread.model ?? "",
 		thread.status,
-		statusLabel(thread.status),
+		statusPresentation(thread.status).label,
 		thread.runtimeStatus,
-		statusLabel(thread.runtimeStatus),
+		statusPresentation(thread.runtimeStatus).label,
 		thread.lastTurnStatus ?? "",
-		thread.lastTurnStatus ? statusLabel(thread.lastTurnStatus) : "",
+		thread.lastTurnStatus
+			? statusPresentation(thread.lastTurnStatus).label
+			: "",
 		thread.archivedAt ? "archive archived" : "",
 		formatFullDateTime(thread.updatedAt, dateTimeFormatMode),
 		formatTokens(thread.tokensUsed),
@@ -115,15 +120,18 @@ export const ThreadResultRow = memo(function ThreadResultRow({
 		projectName,
 		dateTimeFormatMode,
 	);
+	const statusTitle = threadStatusTooltip(thread.status, thread.lastTurnStatus);
 	return (
 		<span className={cn("flex min-w-0 flex-1 items-start gap-2", className)}>
 			{showStatusIcon ? (
 				<span className="flex h-14 w-4 shrink-0 flex-col items-center gap-0.5">
 					<span
 						className="mt-1 flex h-4 w-4 shrink-0 items-center justify-center"
-						aria-hidden="true"
+						title={statusTitle}
+						aria-label={statusTitle}
+						role="img"
 					>
-						<ThreadStatusIcon status={thread.status} />
+						<StatusIcon status={thread.status} />
 					</span>
 					<ThreadTagScoreStack score={thread.tagScore} />
 				</span>
@@ -136,12 +144,6 @@ export const ThreadResultRow = memo(function ThreadResultRow({
 					>
 						{thread.name}
 					</ScrollableText>
-					<span
-						className={cn(
-							"h-1.5 w-1.5 shrink-0 rounded-full",
-							threadStatusDotClass[thread.status],
-						)}
-					/>
 				</span>
 				<span
 					className={cn(

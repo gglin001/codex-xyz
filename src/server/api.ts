@@ -160,6 +160,24 @@ function optionalThreadItemPageCursor(url: URL) {
 	};
 }
 
+function optionalThreadItemBeforeCursor(url: URL) {
+	const createdAt = url.searchParams.get("beforeCreatedAt");
+	const id = url.searchParams.get("beforeId");
+	if (
+		(createdAt === null || createdAt.trim() === "") &&
+		(id === null || id.trim() === "")
+	) {
+		return null;
+	}
+	if (!createdAt?.trim() || !id?.trim()) {
+		throw new Error("beforeCreatedAt and beforeId must be provided together");
+	}
+	return {
+		createdAt: createdAt.trim(),
+		id: id.trim(),
+	};
+}
+
 function pathParts(url: URL) {
 	return url.pathname
 		.split("/")
@@ -472,6 +490,32 @@ async function routeApiRequest(
 		);
 	}
 
+	if (method === "POST" && route === "api/threads/sync") {
+		const body = await readJson(request);
+		return jsonResponse(
+			await service.syncThreadHistory({
+				limit: optionalPositiveInteger(body, "limit"),
+				cursor: optionalString(body, "cursor"),
+				archived: optionalBoolean(body, "archived"),
+			}),
+		);
+	}
+
+	if (method === "GET" && route === "api/threads/search") {
+		const query = url.searchParams.get("q")?.trim();
+		if (!query) {
+			throw new Error("q is required");
+		}
+		return jsonResponse(
+			await service.searchThreadHistory({
+				query,
+				limit: optionalQueryInteger(url, "limit", { min: 1 }),
+				cursor: url.searchParams.get("cursor"),
+				archived: optionalQueryBoolean(url, "archived"),
+			}),
+		);
+	}
+
 	if (method === "POST" && route === "api/threads") {
 		const body = await readJson(request);
 		return jsonResponse(
@@ -489,14 +533,22 @@ async function routeApiRequest(
 	if (parts[0] === "api" && parts[1] === "threads" && parts[2]) {
 		const threadId = parts[2];
 		if (method === "GET" && parts.length === 3) {
-			return jsonResponse(service.getThreadDetail(threadId));
+			return jsonResponse(await service.getHydratedThreadDetail(threadId));
 		}
 
 		if (method === "GET" && parts[3] === "items") {
+			const cursor = optionalThreadItemPageCursor(url);
+			const beforeCursor = optionalThreadItemBeforeCursor(url);
+			if (cursor && beforeCursor) {
+				throw new Error(
+					"cursorCreatedAt/cursorId cannot be combined with beforeCreatedAt/beforeId",
+				);
+			}
 			return jsonResponse(
 				service.listThreadItemsPage(threadId, {
 					limit: optionalQueryInteger(url, "limit", { min: 1 }),
-					cursor: optionalThreadItemPageCursor(url),
+					direction: beforeCursor ? "before" : "after",
+					cursor: beforeCursor ?? cursor,
 				}),
 			);
 		}
@@ -538,6 +590,9 @@ async function routeApiRequest(
 
 		if (method === "POST" && parts[3] === "archive") {
 			return jsonResponse(await service.archiveThread(threadId));
+		}
+		if (method === "POST" && parts[3] === "unarchive") {
+			return jsonResponse(await service.unarchiveThread(threadId));
 		}
 
 		if (method === "PUT" && parts[3] === "tag") {

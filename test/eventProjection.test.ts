@@ -37,6 +37,17 @@ function thread(overrides: Partial<ControlThread> = {}): ControlThread {
 		goalTokenBudget: null,
 		tokensUsed: 0,
 		tagScore: null,
+		lifecycleState: "active",
+		desiredArchived: false,
+		remoteArchived: false,
+		remoteObservedAt: createdAt,
+		remoteUpdatedAt: createdAt,
+		localUpdatedAt: createdAt,
+		runtimeSeenAt: createdAt,
+		runtimeEpoch: 1,
+		syncGeneration: 1,
+		stateRevision: 1,
+		lastOperationError: null,
 		archivedAt: null,
 		createdAt,
 		updatedAt: createdAt,
@@ -98,6 +109,7 @@ function detail(overrides: Partial<ThreadDetail> = {}): ThreadDetail {
 		items: [item()],
 		itemTotalCount: 1,
 		itemPageSize: 1,
+		itemPageDirection: "after",
 		itemNextCursor: null,
 		itemHasMore: false,
 		latestEventId: 0,
@@ -447,7 +459,16 @@ describe("client event projection", () => {
 			projection(),
 			event(
 				"thread.archived",
-				{ thread: thread({ status: "not_loaded", activeTurnId: null }) },
+				{
+					thread: thread({
+						status: "not_loaded",
+						activeTurnId: null,
+						lifecycleState: "archived",
+						desiredArchived: true,
+						remoteArchived: true,
+						archivedAt: "2026-06-13T00:10:00.000Z",
+					}),
+				},
 				{ turnId: null },
 			),
 		);
@@ -458,6 +479,86 @@ describe("client event projection", () => {
 		expect(result.state.threads).toEqual([]);
 		expect(result.state.threadTotalCount).toBe(0);
 		expect(result.state.threadNextCursor).toBeNull();
+		expect(result.detail).toBeNull();
+	});
+
+	it("restores unarchived threads to the default thread projection", () => {
+		const current = projection();
+		const withoutArchived = {
+			...current,
+			state: state({ threads: [], threadTotalCount: 0 }),
+			detail: null,
+		};
+		const unarchived = thread({
+			status: "not_loaded",
+			activeTurnId: null,
+			lastTurnStatus: "completed",
+			lifecycleState: "active",
+			archivedAt: null,
+		});
+		const result = applyEventProjection(
+			withoutArchived,
+			event(
+				"thread.unarchived",
+				{ thread: unarchived },
+				{ threadId: unarchived.id, turnId: null },
+			),
+		);
+
+		expect(result.changed).toBe(true);
+		expect(result.handled).toBe(true);
+		expect(result.needsRefresh).toBe(true);
+		expect(result.state.threads).toEqual([unarchived]);
+		expect(result.state.threadTotalCount).toBe(1);
+	});
+
+	it("removes archive pending and failed lifecycle states", () => {
+		for (const lifecycleState of [
+			"archive_pending",
+			"archive_failed",
+		] as const) {
+			const lifecycleThread = thread({
+				lifecycleState,
+				desiredArchived: true,
+				lastOperationError:
+					lifecycleState === "archive_failed" ? "runtime unavailable" : null,
+			});
+			const result = applyEventProjection(
+				projection(),
+				event(
+					"thread.lifecycle.updated",
+					{ thread: lifecycleThread },
+					{ turnId: null },
+				),
+			);
+
+			expect(result.handled).toBe(true);
+			expect(result.state.threads).toEqual([]);
+		}
+	});
+
+	it("refreshes when an unarchive event has no canonical thread", () => {
+		const current = projection();
+		const result = applyEventProjection(
+			current,
+			event("thread.unarchived", {}, { turnId: null }),
+		);
+
+		expect(result.changed).toBe(false);
+		expect(result.handled).toBe(true);
+		expect(result.needsRefresh).toBe(true);
+	});
+
+	it("removes deleted threads and their selected detail", () => {
+		const result = applyEventProjection(
+			projection(),
+			event("thread.deleted", {}, { turnId: null }),
+		);
+
+		expect(result.changed).toBe(true);
+		expect(result.handled).toBe(true);
+		expect(result.needsRefresh).toBe(true);
+		expect(result.state.threads).toEqual([]);
 		expect(result.detail).toBeNull();
 	});
 

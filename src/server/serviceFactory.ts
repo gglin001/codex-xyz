@@ -27,5 +27,6 @@ export function createServiceFromEnv() {
 		runtimeName: runtime.name,
 		cliVersion: null,
 	});
+	void service.start().catch(() => {});
 	return service;
 }

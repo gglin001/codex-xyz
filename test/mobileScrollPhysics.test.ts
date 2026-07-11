@@ -3,6 +3,7 @@ import {
 	maxScrollTop,
 	resolveMobileKeyboardScrollTop,
 	resolveMobileScrollMetrics,
+	resolveScrollAnchorMetric,
 } from "../src/client/mobileScrollPhysics.js";
 
 describe("mobile scroll physics", () => {
@@ -62,6 +63,36 @@ describe("mobile scroll physics", () => {
 				trackHeight: 400,
 			}).canScroll,
 		).toBe(false);
+	});
+
+	it("projects prompt anchors from transcript content to the rail", () => {
+		expect(
+			resolveScrollAnchorMetric({
+				anchorTop: 750,
+				scrollHeight: 2000,
+				clientHeight: 500,
+				trackHeight: 400,
+			}),
+		).toEqual({
+			top: 200,
+			scrollTop: 750,
+			progress: 0.5,
+		});
+	});
+
+	it("keeps prompt anchor navigation inside reachable scroll bounds", () => {
+		expect(
+			resolveScrollAnchorMetric({
+				anchorTop: 1900,
+				scrollHeight: 2000,
+				clientHeight: 500,
+				trackHeight: 400,
+			}),
+		).toEqual({
+			top: 376,
+			scrollTop: 1500,
+			progress: 1,
+		});
 	});
 
 	it("scales keyboard arrow movement with the viewport height", () => {

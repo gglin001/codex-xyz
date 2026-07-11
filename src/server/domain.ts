@@ -5,12 +5,22 @@ export type ThreadRuntimeStatus =
 	| "system_error";
 export type TurnStatus = "in_progress" | "completed" | "interrupted" | "failed";
 export type ThreadTagScore = 1 | 2 | 3;
-export type ThreadDisplayStatus =
-	| ThreadRuntimeStatus
+export type ThreadLifecycleState =
+	| "active"
+	| "archive_pending"
 	| "archived"
-	| "turn_completed"
-	| "turn_interrupted"
-	| "turn_failed";
+	| "unarchive_pending"
+	| "archive_failed"
+	| "unarchive_failed"
+	| "missing"
+	| "deleted";
+export type ThreadOperationKind = "archive" | "unarchive";
+export type ThreadOperationStatus =
+	| "pending"
+	| "running"
+	| "succeeded"
+	| "failed";
+export type ThreadDisplayStatus = ThreadRuntimeStatus | "archived";
 
 export type GoalStatus =
 	| "in_progress"
@@ -46,7 +56,29 @@ export type ControlThread = {
 	goalTokenBudget: number | null;
 	tokensUsed: number;
 	tagScore: ThreadTagScore | null;
+	lifecycleState: ThreadLifecycleState;
+	desiredArchived: boolean | null;
+	remoteArchived: boolean | null;
+	remoteObservedAt: string | null;
+	remoteUpdatedAt: string | null;
+	localUpdatedAt: string;
+	runtimeSeenAt: string | null;
+	runtimeEpoch: number;
+	syncGeneration: number;
+	stateRevision: number;
+	lastOperationError: string | null;
 	archivedAt: string | null;
+	createdAt: string;
+	updatedAt: string;
+};
+
+export type ThreadOperation = {
+	id: string;
+	threadId: string;
+	kind: ThreadOperationKind;
+	status: ThreadOperationStatus;
+	attempts: number;
+	lastError: string | null;
 	createdAt: string;
 	updatedAt: string;
 };
@@ -78,24 +110,12 @@ export function threadRuntimeStatusFromTurnStatus(
 }
 
 export function threadDisplayStatus(
-	thread: Pick<ControlThread, "status" | "lastTurnStatus" | "archivedAt">,
+	thread: Pick<ControlThread, "status" | "archivedAt">,
 ): ThreadDisplayStatus {
 	if (thread.archivedAt) {
 		return "archived";
 	}
-	if (thread.status !== "idle") {
-		return thread.status;
-	}
-	if (thread.lastTurnStatus === "completed") {
-		return "turn_completed";
-	}
-	if (thread.lastTurnStatus === "interrupted") {
-		return "turn_interrupted";
-	}
-	if (thread.lastTurnStatus === "failed") {
-		return "turn_failed";
-	}
-	return "idle";
+	return thread.status;
 }
 
 export type Turn = {
@@ -123,10 +143,13 @@ export type ThreadItemPageCursor = {
 	id: string;
 };
 
+export type ThreadItemPageDirection = "after" | "before";
+
 export type ThreadItemsPage = {
 	threadId: string;
 	items: ThreadItem[];
 	limit: number;
+	direction: ThreadItemPageDirection;
 	cursor: ThreadItemPageCursor | null;
 	nextCursor: ThreadItemPageCursor | null;
 	hasMore: boolean;
@@ -153,6 +176,10 @@ export const summaryEventTypes = [
 	"thread.runtime_lost",
 	"thread.forked",
 	"thread.archived",
+	"thread.unarchived",
+	"thread.deleted",
+	"thread.lifecycle.updated",
+	"threads.synced",
 	"thread.name.updated",
 	"thread.goal.updated",
 	"thread.goal.cleared",
@@ -169,6 +196,7 @@ export type ThreadDetail = ControlThread & {
 	items: ThreadItem[];
 	itemTotalCount: number;
 	itemPageSize: number;
+	itemPageDirection: ThreadItemPageDirection;
 	itemNextCursor: ThreadItemPageCursor | null;
 	itemHasMore: boolean;
 	latestEventId: number;

@@ -198,7 +198,7 @@ function createV3Database(filePath: string) {
 }
 
 describe("database migrations", () => {
-	it("upgrades v3 databases through v6", () => {
+	it("upgrades v3 databases through v9", () => {
 		const filePath = join(tempDir, "coz.sqlite");
 		createV3Database(filePath);
 
@@ -209,6 +209,20 @@ describe("database migrations", () => {
 			stdio: "pipe",
 		});
 		execFileSync(process.execPath, ["scripts/upgrade-v5-to-v6.mjs", filePath], {
+			stdio: "pipe",
+		});
+		execFileSync(process.execPath, ["scripts/upgrade-v6-to-v7.mjs", filePath], {
+			stdio: "pipe",
+		});
+		execFileSync(process.execPath, ["scripts/upgrade-v7-to-v8.mjs", filePath], {
+			stdio: "pipe",
+		});
+		const v8Database = new DatabaseSync(filePath);
+		v8Database
+			.prepare("UPDATE threads SET archived_at = ? WHERE id = ?")
+			.run("2026-06-13T00:02:00.000Z", "thread-1");
+		v8Database.close();
+		execFileSync(process.execPath, ["scripts/upgrade-v8-to-v9.mjs", filePath], {
 			stdio: "pipe",
 		});
 
@@ -238,17 +252,47 @@ describe("database migrations", () => {
 				| { text: string; text_length: number; updated_at: string }
 				| undefined;
 			const thread = db
-				.prepare("SELECT name, tag_score FROM threads WHERE id = ?")
-				.get("thread-1") as { name?: unknown; tag_score?: unknown } | undefined;
+				.prepare(
+					"SELECT name, tag_score, lifecycle_state, desired_archived, remote_archived, local_updated_at FROM threads WHERE id = ?",
+				)
+				.get("thread-1") as
+				| {
+						name?: unknown;
+						tag_score?: unknown;
+						lifecycle_state?: unknown;
+						desired_archived?: unknown;
+						remote_archived?: unknown;
+						local_updated_at?: unknown;
+				  }
+				| undefined;
 			const host = db
 				.prepare("SELECT runtime FROM hosts WHERE id = ?")
 				.get("local") as { runtime?: unknown } | undefined;
+			const interactionsTable = db
+				.prepare(
+					"SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'interactions'",
+				)
+				.get() as { name?: unknown } | undefined;
 
 			expect(version?.value).toBe(currentDatabaseVersion);
 			expect(legacyMetadata).toBeUndefined();
 			expect(thread?.name).toBe("Thread 1");
 			expect(thread?.tag_score).toBeNull();
+			expect(thread).toMatchObject({
+				lifecycle_state: "archived",
+				desired_archived: 1,
+				remote_archived: null,
+				local_updated_at: "2026-06-13T00:00:01.000Z",
+			});
+			expect(
+				db
+					.prepare(
+						"SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'thread_operations'",
+					)
+					.get(),
+			).toBeTruthy();
 			expect(host?.runtime).toBe("test");
+			expect(interactionsTable).toBeUndefined();
 			expect(events.map((event) => event.type)).toEqual([
 				"thread.started",
 				"thread.name.updated",

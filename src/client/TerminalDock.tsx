@@ -3,7 +3,18 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal as XTerm } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { AnimatePresence, motion } from "framer-motion";
-import { Play, RotateCw, Square, X } from "lucide-react";
+import {
+	ArrowDown,
+	ArrowLeft,
+	ArrowRight,
+	ArrowUp,
+	CornerDownLeft,
+	Delete,
+	Play,
+	RotateCw,
+	Square,
+	X,
+} from "lucide-react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { TerminalEvent, TerminalSnapshot } from "../server/domain.js";
@@ -23,6 +34,11 @@ import {
 	ui,
 } from "./designSystem.js";
 import { openEventStream, parseSseJsonEvent } from "./eventStream.js";
+import {
+	type TerminalQuickKey,
+	terminalQuickKeyInput,
+	terminalQuickKeys,
+} from "./terminalShortcut.js";
 import { type ThemeMode, terminalTheme } from "./theme.js";
 
 type TerminalDockProps = {
@@ -254,6 +270,93 @@ function TerminalActions({
 	);
 }
 
+function TerminalQuickKeyContent({ quickKey }: { quickKey: TerminalQuickKey }) {
+	if (quickKey.kind === "input") {
+		if (quickKey.id === "arrow-up") {
+			return <ArrowUp size={14} aria-hidden="true" />;
+		}
+		if (quickKey.id === "arrow-down") {
+			return <ArrowDown size={14} aria-hidden="true" />;
+		}
+		if (quickKey.id === "arrow-left") {
+			return <ArrowLeft size={14} aria-hidden="true" />;
+		}
+		if (quickKey.id === "arrow-right") {
+			return <ArrowRight size={14} aria-hidden="true" />;
+		}
+		if (quickKey.id === "enter") {
+			return (
+				<>
+					<span>{quickKey.label}</span>
+					<CornerDownLeft size={13} aria-hidden="true" />
+				</>
+			);
+		}
+		if (quickKey.id === "backspace") {
+			return (
+				<>
+					<span>{quickKey.label}</span>
+					<Delete size={13} aria-hidden="true" />
+				</>
+			);
+		}
+	}
+	return <span>{quickKey.label}</span>;
+}
+
+function TerminalShortcutBar({
+	controlArmed,
+	disabled,
+	onKey,
+	onTerminalFocus,
+}: {
+	controlArmed: boolean;
+	disabled: boolean;
+	onKey: (key: TerminalQuickKey) => void;
+	onTerminalFocus: () => void;
+}) {
+	return (
+		<div
+			className={cn(
+				"scrollable-row flex h-10 shrink-0 items-center gap-1 border-t border-border-soft px-2 py-1",
+				ui.panelBandStrong,
+			)}
+			role="toolbar"
+			aria-label="Terminal shortcut keys"
+		>
+			{terminalQuickKeys.map((quickKey) => {
+				const isModifier = quickKey.kind === "modifier";
+				const isArrow =
+					quickKey.kind === "input" && quickKey.id.startsWith("arrow-");
+				return (
+					<button
+						key={quickKey.id}
+						type="button"
+						className={cn(
+							"inline-flex h-8 min-w-10 shrink-0 items-center justify-center gap-1 rounded-[8px] bg-control/72 px-2.5 font-mono text-[11px] font-semibold leading-none text-muted-strong transition duration-150 ease-out hover:bg-control-hover hover:text-fg-strong focus-visible:bg-control-hover focus-visible:text-fg-strong focus-visible:outline-none active:bg-control-hover disabled:cursor-not-allowed disabled:opacity-40",
+							isArrow ? "min-w-8 px-2" : null,
+							isModifier && controlArmed ? tone.selected.strong : null,
+						)}
+						title={quickKey.ariaLabel}
+						aria-label={quickKey.ariaLabel}
+						aria-pressed={isModifier ? controlArmed : undefined}
+						disabled={disabled}
+						onPointerDown={(event) => {
+							if (event.pointerType !== "touch") {
+								event.preventDefault();
+							}
+							onTerminalFocus();
+						}}
+						onClick={() => onKey(quickKey)}
+					>
+						<TerminalQuickKeyContent quickKey={quickKey} />
+					</button>
+				);
+			})}
+		</div>
+	);
+}
+
 export function TerminalDock({
 	themeMode,
 	visible,
@@ -271,6 +374,7 @@ export function TerminalDock({
 	const fitAddonRef = useRef<FitAddon | null>(null);
 	const startThreadRef = useRef<(() => Promise<void>) | null>(null);
 	const inputFlushRef = useRef<(() => void) | null>(null);
+	const queueInputRef = useRef<((data: string) => void) | null>(null);
 	const [snapshot, setSnapshot] = useState<TerminalSnapshot | null>(null);
 	const [connection, setConnection] = useState<ConnectionStatus>("idle");
 	const [error, setError] = useState<string | null>(null);
@@ -280,13 +384,21 @@ export function TerminalDock({
 	const [desktopFrame, setDesktopFrame] = useState<DesktopFrame>(() =>
 		defaultDesktopFrame(),
 	);
+	const [controlArmed, setControlArmed] = useState(false);
 	const themeOptions = useMemo(() => terminalTheme(themeMode), [themeMode]);
 	const isMobileSheet = useMediaQuery("(max-width: 767px)");
 	const canStop =
 		snapshot?.status === "running" || snapshot?.status === "starting";
+	const canInput = snapshot?.status === "running";
 	const label = statusLabel(snapshot, connection);
 	const metricsTitle = terminalMetricsTitle(metrics, snapshot);
 	const startActionLabel = canStop ? "Reconnect terminal" : "Start terminal";
+
+	useEffect(() => {
+		if (!visible) {
+			setControlArmed(false);
+		}
+	}, [visible]);
 
 	useEffect(() => {
 		if (isMobileSheet) {
@@ -454,6 +566,8 @@ export function TerminalDock({
 			queueHttpInput(data);
 		}
 
+		queueInputRef.current = queueInput;
+
 		function terminalSize() {
 			fitAddon.fit();
 			return {
@@ -601,6 +715,7 @@ export function TerminalDock({
 			disposed = true;
 			startThreadRef.current = null;
 			inputFlushRef.current = null;
+			queueInputRef.current = null;
 			flushHttpInput();
 			if (reconnectTimer) {
 				clearTimeout(reconnectTimer);
@@ -640,6 +755,7 @@ export function TerminalDock({
 
 	const stopTerminal = useCallback(() => {
 		inputFlushRef.current?.();
+		setControlArmed(false);
 		void terminateTerminal()
 			.then((nextSnapshot) => {
 				setSnapshot(nextSnapshot);
@@ -653,6 +769,33 @@ export function TerminalDock({
 				);
 			});
 	}, []);
+
+	const focusTerminal = useCallback(() => {
+		terminalRef.current?.focus();
+	}, []);
+
+	const sendQuickKey = useCallback(
+		(quickKey: TerminalQuickKey) => {
+			focusTerminal();
+			if (quickKey.kind === "modifier") {
+				setControlArmed((current) => !current);
+				return;
+			}
+			const data = terminalQuickKeyInput(quickKey, { control: controlArmed });
+			if (!data) {
+				return;
+			}
+			if (!queueInputRef.current) {
+				setError("Terminal is not ready");
+				return;
+			}
+			queueInputRef.current(data);
+			if (controlArmed) {
+				setControlArmed(false);
+			}
+		},
+		[controlArmed, focusTerminal],
+	);
 
 	const finishDesktopInteraction = useCallback(
 		(event: ReactPointerEvent<HTMLElement>) => {
@@ -804,6 +947,15 @@ export function TerminalDock({
 		</div>
 	);
 
+	const shortcutBar = (
+		<TerminalShortcutBar
+			controlArmed={controlArmed}
+			disabled={!canInput}
+			onKey={sendQuickKey}
+			onTerminalFocus={focusTerminal}
+		/>
+	);
+
 	const resizeHandle = (
 		<button
 			type="button"
@@ -881,6 +1033,7 @@ export function TerminalDock({
 						aria-label="Terminal"
 					>
 						{header}
+						{shortcutBar}
 						{terminalCanvas}
 						{resizeHandle}
 					</motion.section>

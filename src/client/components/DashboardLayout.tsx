@@ -12,7 +12,7 @@ import {
 	WrapText,
 	ZoomIn,
 } from "lucide-react";
-import type { KeyboardEvent, SubmitEvent } from "react";
+import type { KeyboardEvent, ReactNode, SubmitEvent } from "react";
 import {
 	memo,
 	useCallback,
@@ -37,21 +37,23 @@ import {
 	ui,
 } from "../designSystem.js";
 import { isPromptFocusShortcut } from "../promptShortcut.js";
+import { useShellPanelShortcuts } from "../shellShortcuts.js";
 import { nextThemeMode, type ThemeMode, themeModeLabels } from "../theme.js";
 import type { DateTimeFormatMode } from "../uiFormat.js";
 import { useFullscreen } from "../useFullscreen.js";
 import { useMobileLongPressSelectionGuard } from "../useMobileLongPressSelectionGuard.js";
+import { useMobileTouchScrollBoundary } from "../useMobileTouchScrollBoundary.js";
 import { useMobileViewportGeometry } from "../useMobileViewportGeometry.js";
-import { MobileFloatingScroller } from "./MobileFloatingScroller.js";
 import { ParamPanel } from "./ParamPanel.js";
+import { ScrollArea } from "./ScrollArea.js";
 import { Sidebar } from "./Sidebar.js";
+import { FieldShell, MenuItemButton, ScrollableText } from "./uiPrimitives.js";
 import {
-	FieldShell,
-	MenuItemButton,
-	ScrollableText,
-	SurfaceAction,
-} from "./uiPrimitives.js";
-import { Workspace, type WorkspaceHandle } from "./Workspace.js";
+	type TranscriptExpansionState,
+	Workspace,
+	type WorkspaceHandle,
+	type WorkspaceProps,
+} from "./Workspace.js";
 import type {
 	ComposerMode,
 	SubmittedPromptFocusTarget,
@@ -71,6 +73,7 @@ export type DashboardLayoutProps = {
 	inspectorVisible: boolean;
 	terminalVisible: boolean;
 	wrapThreadContent: boolean;
+	loadingEarlierTranscript: boolean;
 	themeMode: ThemeMode;
 	threadQuery: string;
 	defaultCwd: string;
@@ -99,6 +102,8 @@ export type DashboardLayoutProps = {
 	onSelectThread: (threadSummary: WorkbenchThread) => void;
 	onCreateThread: () => void;
 	onThreadQueryChange: (value: string) => void;
+	onRefreshThreads: () => void;
+	refreshingThreads: boolean;
 	onTerminalVisibleChange: (visible: boolean) => void;
 	onPromptChange: (value: string) => void;
 	onPromptKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
@@ -111,8 +116,14 @@ export type DashboardLayoutProps = {
 	onFork: () => void;
 	onCompact: () => void;
 	onArchive: () => void;
+	onUnarchive: () => void;
+	onPauseGoal: () => void;
+	onResumeGoal: () => void;
+	onCompleteGoal: () => void;
+	onClearGoal: () => void;
 	onListBackgroundTerminals: () => void;
 	onCleanBackgroundTerminals: () => void;
+	onLoadEarlierTranscript: () => Promise<unknown>;
 	onRestartCodexAppServer: () => void;
 	dateTimeFormatMode?: DateTimeFormatMode;
 };
@@ -148,6 +159,14 @@ type CommandAction =
 	  });
 
 type MobileSheet = "navigator" | "inspector";
+type ShellSurfaceViewport = "desktop" | "mobile";
+type ShellSurfaceDefinition = {
+	id: MobileSheet;
+	label: string;
+	desktopVisible: boolean;
+	mobileContained?: boolean;
+	render: (viewport: ShellSurfaceViewport) => ReactNode;
+};
 
 const overlayMotion = motionStates.overlay;
 const mobileSheetMotion = motionStates.mobileSheet;
@@ -645,65 +664,60 @@ const CommandPalette = memo(function CommandPalette({
 								</FieldShell>
 							</div>
 						</div>
-						<div className="relative min-h-0 flex-1">
-							<div
-								id={listId}
-								ref={listRef}
-								className="mobile-custom-scroll mobile-keyboard-scroll h-full min-h-0 touch-pan-y overflow-x-hidden overflow-y-auto px-1.5 py-1 md:max-h-[min(39rem,calc(100dvh_-_5rem))]"
-							>
-								{filteredActions.length === 0 ? (
-									<div className="px-3 py-8 text-center text-[13px] text-muted">
-										No commands found
-									</div>
-								) : null}
-								{filteredActions.map((action, index) => (
-									<MenuItemButton
-										key={action.id}
-										data-command-index={index}
-										className={cn(
-											"h-10 w-full gap-2.5 px-2.5",
-											action.kind === "settingsItem" ? "pl-8" : null,
-											action.disabled ? "opacity-45" : null,
-										)}
-										title={action.detail}
-										selected={index === activeIndex}
-										disabled={action.disabled}
-										onMouseEnter={() => setActiveIndex(index)}
-										onClick={() => {
-											if (action.disabled) {
-												return;
-											}
-											action.run();
-											onClose({ restoreFocus: false });
-										}}
-									>
-										<CommandActionGlyph action={action} />
-										<span className="min-w-0 flex-1">
-											<ScrollableText
-												className="block text-[13px] font-medium"
-												mobileStatic
-											>
-												{action.name}
-											</ScrollableText>
-											<ScrollableText
-												className="block text-[11px] text-muted"
-												mobileStatic
-											>
-												{action.disabled
-													? (action.disabledDetail ?? action.detail)
-													: action.detail}
-											</ScrollableText>
-										</span>
-									</MenuItemButton>
-								))}
-							</div>
-							<div className="chrome-edge-fade chrome-edge-fade-short chrome-edge-fade-panel chrome-edge-fade-top" />
-							<div className="chrome-edge-fade chrome-edge-fade-short chrome-edge-fade-panel chrome-edge-fade-bottom" />
-							<MobileFloatingScroller
-								scrollRef={listRef}
-								scrollElementId={listId}
-							/>
-						</div>
+						<ScrollArea
+							id={listId}
+							scrollRef={listRef}
+							outerClassName="flex-1"
+							className="mobile-keyboard-scroll touch-pan-y px-1.5 py-1 md:max-h-[min(39rem,calc(100dvh_-_5rem))]"
+							edgeFades={{ tone: "panel", top: "short", bottom: "short" }}
+							floatingScroller={{ contentRightInset: "0.375rem" }}
+						>
+							{filteredActions.length === 0 ? (
+								<div className="px-3 py-8 text-center text-[13px] text-muted">
+									No commands found
+								</div>
+							) : null}
+							{filteredActions.map((action, index) => (
+								<MenuItemButton
+									key={action.id}
+									data-command-index={index}
+									className={cn(
+										"h-10 w-full gap-2.5 px-2.5",
+										action.kind === "settingsItem" ? "pl-8" : null,
+										action.disabled ? "opacity-45" : null,
+									)}
+									title={action.detail}
+									selected={index === activeIndex}
+									disabled={action.disabled}
+									onMouseEnter={() => setActiveIndex(index)}
+									onClick={() => {
+										if (action.disabled) {
+											return;
+										}
+										action.run();
+										onClose({ restoreFocus: false });
+									}}
+								>
+									<CommandActionGlyph action={action} />
+									<span className="min-w-0 flex-1">
+										<ScrollableText
+											className="block text-[13px] font-medium"
+											mobileStatic
+										>
+											{action.name}
+										</ScrollableText>
+										<ScrollableText
+											className="block text-[11px] text-muted"
+											mobileStatic
+										>
+											{action.disabled
+												? (action.disabledDetail ?? action.detail)
+												: action.detail}
+										</ScrollableText>
+									</span>
+								</MenuItemButton>
+							))}
+						</ScrollArea>
 					</motion.div>
 				</motion.div>
 			) : null}
@@ -723,6 +737,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 	inspectorVisible,
 	terminalVisible,
 	wrapThreadContent,
+	loadingEarlierTranscript,
 	themeMode,
 	threadQuery,
 	defaultCwd,
@@ -751,6 +766,8 @@ export const DashboardLayout = memo(function DashboardLayout({
 	onSelectThread,
 	onCreateThread,
 	onThreadQueryChange,
+	onRefreshThreads,
+	refreshingThreads,
 	onTerminalVisibleChange,
 	onPromptChange,
 	onPromptKeyDown,
@@ -763,14 +780,22 @@ export const DashboardLayout = memo(function DashboardLayout({
 	onFork,
 	onCompact,
 	onArchive,
+	onUnarchive,
+	onPauseGoal,
+	onResumeGoal,
+	onCompleteGoal,
+	onClearGoal,
 	onListBackgroundTerminals,
 	onCleanBackgroundTerminals,
+	onLoadEarlierTranscript,
 	onRestartCodexAppServer,
 	dateTimeFormatMode = "utc",
 }: DashboardLayoutProps) {
 	const [mobileSheet, setMobileSheet] = useState<MobileSheet | null>(null);
 	const [commandOpen, setCommandOpen] = useState(false);
 	const [commandAutoFocusInput, setCommandAutoFocusInput] = useState(true);
+	const [transcriptExpansionState, setTranscriptExpansionState] =
+		useState<TranscriptExpansionState>({});
 	const desktopWorkspaceRef = useRef<WorkspaceHandle | null>(null);
 	const mobileWorkspaceRef = useRef<WorkspaceHandle | null>(null);
 	const commandReturnFocusRef = useRef<HTMLElement | null>(null);
@@ -793,6 +818,19 @@ export const DashboardLayout = memo(function DashboardLayout({
 
 	useMobileViewportGeometry();
 	useMobileLongPressSelectionGuard();
+	useMobileTouchScrollBoundary(mobileSheetPanelRef, mobileSheet !== null);
+
+	const handleTranscriptEntryExpandedChange = useCallback(
+		(entryId: string, expanded: boolean) => {
+			setTranscriptExpansionState((current) => {
+				if (current[entryId] === expanded) {
+					return current;
+				}
+				return { ...current, [entryId]: expanded };
+			});
+		},
+		[],
+	);
 
 	const focusVisiblePrompt = useCallback(() => {
 		const useDesktopWorkspace =
@@ -915,6 +953,27 @@ export const DashboardLayout = memo(function DashboardLayout({
 		terminalVisible,
 	]);
 
+	const toggleNavigator = useCallback(() => {
+		if (isMobileViewport()) {
+			openMobileSheet("navigator");
+			return;
+		}
+		onNavigatorVisibleChange(!navigatorVisible);
+	}, [navigatorVisible, onNavigatorVisibleChange, openMobileSheet]);
+
+	const toggleInspector = useCallback(() => {
+		if (isMobileViewport()) {
+			openMobileSheet("inspector");
+			return;
+		}
+		onInspectorVisibleChange(!inspectorVisible);
+	}, [inspectorVisible, onInspectorVisibleChange, openMobileSheet]);
+
+	useShellPanelShortcuts({
+		onToggleNavigator: toggleNavigator,
+		onToggleInspector: toggleInspector,
+	});
+
 	useEffect(() => {
 		const handleKeyDown = (event: globalThis.KeyboardEvent) => {
 			if (event.key === "Escape") {
@@ -1030,20 +1089,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 	}, [commandOpen, mobileSheet, onTerminalVisibleChange, terminalVisible]);
 
 	const commandActions = useMemo<CommandAction[]>(() => {
-		const setNavigatorVisible = () => {
-			if (isMobileViewport()) {
-				openMobileSheet("navigator");
-				return;
-			}
-			onNavigatorVisibleChange(!navigatorVisible);
-		};
-		const setInspectorVisible = () => {
-			if (isMobileViewport()) {
-				openMobileSheet("inspector");
-				return;
-			}
-			onInspectorVisibleChange(!inspectorVisible);
-		};
 		const focusPrompt = () => {
 			closeMobileSheet({ restoreFocus: false });
 			window.requestAnimationFrame(focusVisiblePrompt);
@@ -1061,7 +1106,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 				name: "Threads",
 				detail: "Open the project and thread list",
 				kind: "navigator",
-				run: setNavigatorVisible,
+				run: toggleNavigator,
 			},
 			{
 				id: "open-terminal",
@@ -1078,7 +1123,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 					: "Toggle settings and transcript controls",
 				kind: "settingsGroup",
 				settingsGroupId: "panel",
-				run: setInspectorVisible,
+				run: toggleInspector,
 			},
 			{
 				id: "settings:toggle-theme",
@@ -1141,109 +1186,174 @@ export const DashboardLayout = memo(function DashboardLayout({
 		displayScale,
 		focusVisiblePrompt,
 		fullscreenSupported,
-		inspectorVisible,
-		navigatorVisible,
 		themeMode,
+		toggleInspector,
 		toggleFullscreen,
+		toggleNavigator,
 		wrapThreadContent,
 		onDisplayScaleChange,
-		onInspectorVisibleChange,
-		onNavigatorVisibleChange,
 		onThemeModeChange,
 		onWrapThreadContentChange,
 		closeMobileSheet,
-		openMobileSheet,
 		onRestartCodexAppServer,
 		toggleTerminal,
 	]);
 
-	const toggleNavigator = useCallback(() => {
-		if (isMobileViewport()) {
-			openMobileSheet("navigator");
-			return;
-		}
-		onNavigatorVisibleChange(!navigatorVisible);
-	}, [navigatorVisible, onNavigatorVisibleChange, openMobileSheet]);
-
-	const toggleInspector = useCallback(() => {
-		if (isMobileViewport()) {
-			openMobileSheet("inspector");
-			return;
-		}
-		onInspectorVisibleChange(!inspectorVisible);
-	}, [inspectorVisible, onInspectorVisibleChange, openMobileSheet]);
-
-	const sidebarFooter = (
-		<div className={cn("shrink-0 px-2 pb-1.5 pt-0.5", ui.panelBand)}>
-			<div className="grid grid-cols-2 gap-1.5">
-				<SurfaceAction
-					className={cn(
-						"h-9 justify-center gap-2 px-2 text-[12px] font-medium",
-						terminalVisible ? null : "text-muted-strong",
-					)}
-					title="Toggle terminal"
-					aria-label="Toggle terminal"
-					selected={terminalVisible}
-					onClick={toggleTerminal}
-				>
-					<Terminal size={14} />
-					<span className="truncate">Terminal</span>
-				</SurfaceAction>
-				<SurfaceAction
-					className={cn(
-						"h-9 justify-center gap-2 px-2 text-[12px] font-medium",
-						inspectorVisible ? null : "text-muted-strong",
-					)}
-					title={inspectorVisible ? "Hide settings" : "Open settings"}
-					aria-label={inspectorVisible ? "Hide settings" : "Open settings"}
-					selected={inspectorVisible}
-					onClick={toggleInspector}
-				>
-					<Settings size={14} />
-					<span className="truncate">Settings</span>
-				</SurfaceAction>
-			</div>
-		</div>
+	const shellSurfaces = useMemo<Record<MobileSheet, ShellSurfaceDefinition>>(
+		() => ({
+			navigator: {
+				id: "navigator",
+				label: "Thread navigator",
+				desktopVisible: navigatorVisible,
+				render: (viewport) => (
+					<Sidebar
+						className={viewport === "mobile" ? "shadow-none" : undefined}
+						projects={projects}
+						selectedProjectId={selectedProjectId}
+						selectedThreadKey={selectedThreadKey}
+						threadQuery={threadQuery}
+						onProjectChange={onProjectChange}
+						onThreadQueryChange={onThreadQueryChange}
+						onRefreshThreads={onRefreshThreads}
+						refreshingThreads={refreshingThreads}
+						onSelectThread={(nextThread) => {
+							onSelectThread(nextThread);
+							if (viewport === "mobile") {
+								closeMobileSheet({ restoreFocus: false });
+							}
+						}}
+						onCreateThread={() => {
+							createThreadAndFocusPrompt();
+							if (viewport === "mobile") {
+								closeMobileSheet({ restoreFocus: false });
+							}
+						}}
+						dateTimeFormatMode={dateTimeFormatMode}
+					/>
+				),
+			},
+			inspector: {
+				id: "inspector",
+				label: "Settings",
+				desktopVisible: inspectorVisible,
+				mobileContained: true,
+				render: (viewport) => (
+					<ParamPanel
+						className={viewport === "mobile" ? "shadow-none" : undefined}
+						threadSummary={threadSummary}
+						detail={detail}
+						selectedThread={selectedThread}
+						wrapThreadContent={wrapThreadContent}
+						themeMode={themeMode}
+						displayScale={displayScale}
+						onDisplayScaleChange={onDisplayScaleChange}
+						defaultCwd={defaultCwd}
+						defaultModel={defaultModel}
+						workdir={workdir}
+						promptTarget={promptTarget}
+						onWrapThreadContentChange={onWrapThreadContentChange}
+						onThemeModeChange={onThemeModeChange}
+						fullscreenSupported={fullscreenSupported}
+						isFullscreen={isFullscreen}
+						onToggleFullscreen={toggleFullscreen}
+						onThreadTagScoreChange={onThreadTagScoreChange}
+						restartCodexAppServerDisabled={busy}
+						onRestartCodexAppServer={onRestartCodexAppServer}
+					/>
+				),
+			},
+		}),
+		[
+			busy,
+			closeMobileSheet,
+			createThreadAndFocusPrompt,
+			dateTimeFormatMode,
+			defaultCwd,
+			defaultModel,
+			detail,
+			displayScale,
+			fullscreenSupported,
+			inspectorVisible,
+			isFullscreen,
+			navigatorVisible,
+			onDisplayScaleChange,
+			onProjectChange,
+			onRestartCodexAppServer,
+			onSelectThread,
+			onThemeModeChange,
+			onThreadQueryChange,
+			onRefreshThreads,
+			refreshingThreads,
+			onThreadTagScoreChange,
+			onWrapThreadContentChange,
+			projects,
+			promptTarget,
+			selectedProjectId,
+			selectedThread,
+			selectedThreadKey,
+			themeMode,
+			threadQuery,
+			threadSummary,
+			toggleFullscreen,
+			workdir,
+			wrapThreadContent,
+		],
 	);
-
-	const sidebar = (
-		<Sidebar
-			projects={projects}
-			selectedProjectId={selectedProjectId}
-			selectedThreadKey={selectedThreadKey}
-			threadQuery={threadQuery}
-			onProjectChange={onProjectChange}
-			onThreadQueryChange={onThreadQueryChange}
-			onSelectThread={onSelectThread}
-			onCreateThread={createThreadAndFocusPrompt}
-			footer={sidebarFooter}
-			dateTimeFormatMode={dateTimeFormatMode}
-		/>
-	);
-
-	const inspector = (
-		<ParamPanel
-			threadSummary={threadSummary}
-			detail={detail}
-			selectedThread={selectedThread}
-			wrapThreadContent={wrapThreadContent}
-			themeMode={themeMode}
-			displayScale={displayScale}
-			onDisplayScaleChange={onDisplayScaleChange}
-			defaultCwd={defaultCwd}
-			defaultModel={defaultModel}
-			workdir={workdir}
-			promptTarget={promptTarget}
-			onWrapThreadContentChange={onWrapThreadContentChange}
-			onThemeModeChange={onThemeModeChange}
-			fullscreenSupported={fullscreenSupported}
-			isFullscreen={isFullscreen}
-			onToggleFullscreen={toggleFullscreen}
-			onThreadTagScoreChange={onThreadTagScoreChange}
-			restartCodexAppServerDisabled={busy}
-			onRestartCodexAppServer={onRestartCodexAppServer}
-		/>
-	);
+	const mobileSurface = mobileSheet ? shellSurfaces[mobileSheet] : null;
+	const workspaceSharedProps = {
+		project: selectedProject,
+		threadSummary,
+		detail,
+		selectedThread,
+		selectedThreadId,
+		workdir,
+		busy,
+		busyAction,
+		notice,
+		onDismissNotice,
+		error,
+		onDismissError,
+		prompt,
+		promptTarget,
+		goalMode,
+		canUseGoalMode,
+		canSubmitPrompt,
+		submittedPromptFocusTarget,
+		wrapThreadContent,
+		transcriptExpansionState,
+		loadingEarlierTranscript,
+		displayScale,
+		commandVisible: commandOpen,
+		onPromptChange,
+		onPromptKeyDown,
+		onPromptSubmit,
+		onModeChange,
+		onWorkdirChange,
+		onGoalModeChange,
+		onTranscriptEntryExpandedChange: handleTranscriptEntryExpandedChange,
+		onInterrupt,
+		onResume,
+		onFork,
+		onCompact,
+		onArchive,
+		onUnarchive,
+		onPauseGoal,
+		onResumeGoal,
+		onCompleteGoal,
+		onClearGoal,
+		onListBackgroundTerminals,
+		onCleanBackgroundTerminals,
+		onLoadEarlierTranscript,
+		onOpenCommands: toggleCommandPalette,
+		dateTimeFormatMode,
+	} satisfies Omit<
+		WorkspaceProps,
+		| "presentationMode"
+		| "navigatorVisible"
+		| "inspectorVisible"
+		| "onToggleNavigator"
+		| "onToggleInspector"
+	>;
 
 	return (
 		<main
@@ -1251,82 +1361,53 @@ export const DashboardLayout = memo(function DashboardLayout({
 				"h-[var(--app-visual-height)] min-h-0 w-full overflow-hidden md:h-dvh",
 				ui.appShell,
 			)}
+			data-print-root
 		>
 			{renderDesktopShell ? (
-				<div className="hidden h-full min-h-0 md:flex">
+				<div
+					className="hidden h-full min-h-0 md:flex"
+					data-print-desktop-layout
+				>
 					<AnimatePresence initial={false}>
-						{navigatorVisible ? (
+						{shellSurfaces.navigator.desktopVisible ? (
 							<motion.div
 								key="desktop-sidebar"
 								className="h-full min-h-0 shrink-0 overflow-hidden"
+								data-print-exclude
 								initial={{ width: 0, opacity: 0 }}
 								animate={{ width: 316, opacity: 1 }}
 								exit={{ width: 0, opacity: 0 }}
 								transition={motionPresets.panel}
 							>
-								{sidebar}
+								{shellSurfaces.navigator.render("desktop")}
 							</motion.div>
 						) : null}
 					</AnimatePresence>
 
-					<div className="min-h-0 min-w-0 flex-1">
+					<div className="min-h-0 min-w-0 flex-1" data-print-workspace-shell>
 						<Workspace
 							ref={desktopWorkspaceRef}
 							presentationMode="desktop"
-							project={selectedProject}
-							threadSummary={threadSummary}
-							detail={detail}
-							selectedThread={selectedThread}
-							selectedThreadId={selectedThreadId}
-							workdir={workdir}
-							busy={busy}
-							busyAction={busyAction}
-							notice={notice}
-							onDismissNotice={onDismissNotice}
-							error={error}
-							onDismissError={onDismissError}
-							prompt={prompt}
-							promptTarget={promptTarget}
-							goalMode={goalMode}
-							canUseGoalMode={canUseGoalMode}
-							canSubmitPrompt={canSubmitPrompt}
-							submittedPromptFocusTarget={submittedPromptFocusTarget}
-							wrapThreadContent={wrapThreadContent}
-							displayScale={displayScale}
-							commandVisible={commandOpen}
+							{...workspaceSharedProps}
 							navigatorVisible={navigatorVisible}
 							inspectorVisible={inspectorVisible}
-							onPromptChange={onPromptChange}
-							onPromptKeyDown={onPromptKeyDown}
-							onPromptSubmit={onPromptSubmit}
-							onModeChange={onModeChange}
-							onWorkdirChange={onWorkdirChange}
-							onGoalModeChange={onGoalModeChange}
-							onInterrupt={onInterrupt}
-							onResume={onResume}
-							onFork={onFork}
-							onCompact={onCompact}
-							onArchive={onArchive}
-							onListBackgroundTerminals={onListBackgroundTerminals}
-							onCleanBackgroundTerminals={onCleanBackgroundTerminals}
 							onToggleNavigator={toggleNavigator}
 							onToggleInspector={toggleInspector}
-							onOpenCommands={toggleCommandPalette}
-							dateTimeFormatMode={dateTimeFormatMode}
 						/>
 					</div>
 
 					<AnimatePresence initial={false}>
-						{inspectorVisible ? (
+						{shellSurfaces.inspector.desktopVisible ? (
 							<motion.div
 								key="desktop-inspector"
 								className="h-full min-h-0 shrink-0 overflow-hidden"
+								data-print-exclude
 								initial={{ width: 0, opacity: 0 }}
 								animate={{ width: 316, opacity: 1 }}
 								exit={{ width: 0, opacity: 0 }}
 								transition={motionPresets.panel}
 							>
-								{inspector}
+								{shellSurfaces.inspector.render("desktop")}
 							</motion.div>
 						) : null}
 					</AnimatePresence>
@@ -1334,62 +1415,28 @@ export const DashboardLayout = memo(function DashboardLayout({
 			) : null}
 
 			{renderMobileShell ? (
-				<div className="h-full min-h-0 md:hidden">
+				<div className="h-full min-h-0 md:hidden" data-print-mobile-layout>
 					<Workspace
 						ref={mobileWorkspaceRef}
 						presentationMode="mobile"
-						project={selectedProject}
-						threadSummary={threadSummary}
-						detail={detail}
-						selectedThread={selectedThread}
-						selectedThreadId={selectedThreadId}
-						workdir={workdir}
-						busy={busy}
-						busyAction={busyAction}
-						notice={notice}
-						onDismissNotice={onDismissNotice}
-						error={error}
-						onDismissError={onDismissError}
-						prompt={prompt}
-						promptTarget={promptTarget}
-						goalMode={goalMode}
-						canUseGoalMode={canUseGoalMode}
-						canSubmitPrompt={canSubmitPrompt}
-						submittedPromptFocusTarget={submittedPromptFocusTarget}
-						wrapThreadContent={wrapThreadContent}
-						displayScale={displayScale}
-						commandVisible={commandOpen}
+						{...workspaceSharedProps}
 						navigatorVisible={mobileSheet === "navigator"}
 						inspectorVisible={mobileSheet === "inspector"}
-						onPromptChange={onPromptChange}
-						onPromptKeyDown={onPromptKeyDown}
-						onPromptSubmit={onPromptSubmit}
-						onModeChange={onModeChange}
-						onWorkdirChange={onWorkdirChange}
-						onGoalModeChange={onGoalModeChange}
-						onInterrupt={onInterrupt}
-						onResume={onResume}
-						onFork={onFork}
-						onCompact={onCompact}
-						onArchive={onArchive}
-						onListBackgroundTerminals={onListBackgroundTerminals}
-						onCleanBackgroundTerminals={onCleanBackgroundTerminals}
 						onToggleNavigator={() => openMobileSheet("navigator")}
 						onToggleInspector={() => openMobileSheet("inspector")}
-						onOpenCommands={toggleCommandPalette}
-						dateTimeFormatMode={dateTimeFormatMode}
 					/>
 				</div>
 			) : null}
 
 			<AnimatePresence>
-				{renderMobileShell && mobileSheet ? (
+				{renderMobileShell && mobileSurface ? (
 					<motion.div
 						className={cn(
 							"mobile-sheet-overlay fixed inset-x-0 bottom-0 top-[var(--mobile-sheet-top)] md:hidden",
 							layer.overlayZ,
 							ui.overlay,
 						)}
+						data-print-exclude
 						initial={overlayMotion.initial}
 						animate={overlayMotion.animate}
 						exit={overlayMotion.exit}
@@ -1400,17 +1447,15 @@ export const DashboardLayout = memo(function DashboardLayout({
 							ref={mobileSheetPanelRef}
 							className={cn(
 								layer.mobileSheet,
-								mobileSheet === "inspector"
-									? "mobile-stable-settings-sheet"
+								mobileSurface.mobileContained
+									? "mobile-contained-settings-sheet"
 									: null,
 								ui.backdropPanel,
 							)}
 							tabIndex={-1}
 							role="dialog"
 							aria-modal="true"
-							aria-label={
-								mobileSheet === "navigator" ? "Thread navigator" : "Settings"
-							}
+							aria-label={mobileSurface.label}
 							initial={mobileSheetMotion.initial}
 							animate={mobileSheetMotion.animate}
 							exit={mobileSheetMotion.exit}
@@ -1425,60 +1470,20 @@ export const DashboardLayout = memo(function DashboardLayout({
 							}}
 							onMouseDown={(event) => event.stopPropagation()}
 						>
-							{mobileSheet === "navigator" ? (
-								<Sidebar
-									className="shadow-none"
-									projects={projects}
-									selectedProjectId={selectedProjectId}
-									selectedThreadKey={selectedThreadKey}
-									threadQuery={threadQuery}
-									onProjectChange={onProjectChange}
-									onThreadQueryChange={onThreadQueryChange}
-									onSelectThread={(nextThread) => {
-										onSelectThread(nextThread);
-										closeMobileSheet({ restoreFocus: false });
-									}}
-									onCreateThread={() => {
-										createThreadAndFocusPrompt();
-										closeMobileSheet({ restoreFocus: false });
-									}}
-									dateTimeFormatMode={dateTimeFormatMode}
-								/>
-							) : (
-								<ParamPanel
-									className="shadow-none"
-									threadSummary={threadSummary}
-									detail={detail}
-									selectedThread={selectedThread}
-									wrapThreadContent={wrapThreadContent}
-									themeMode={themeMode}
-									displayScale={displayScale}
-									onDisplayScaleChange={onDisplayScaleChange}
-									defaultCwd={defaultCwd}
-									defaultModel={defaultModel}
-									workdir={workdir}
-									promptTarget={promptTarget}
-									onWrapThreadContentChange={onWrapThreadContentChange}
-									onThemeModeChange={onThemeModeChange}
-									fullscreenSupported={fullscreenSupported}
-									isFullscreen={isFullscreen}
-									onToggleFullscreen={toggleFullscreen}
-									onThreadTagScoreChange={onThreadTagScoreChange}
-									restartCodexAppServerDisabled={busy}
-									onRestartCodexAppServer={onRestartCodexAppServer}
-								/>
-							)}
+							{mobileSurface.render("mobile")}
 						</motion.div>
 					</motion.div>
 				) : null}
 			</AnimatePresence>
 
-			<CommandPalette
-				open={commandOpen}
-				actions={commandActions}
-				autoFocusInput={commandAutoFocusInput}
-				onClose={closeCommandPalette}
-			/>
+			<div data-print-exclude>
+				<CommandPalette
+					open={commandOpen}
+					actions={commandActions}
+					autoFocusInput={commandAutoFocusInput}
+					onClose={closeCommandPalette}
+				/>
+			</div>
 		</main>
 	);
 });

@@ -1,12 +1,11 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, ChevronDown, Plus, Search } from "lucide-react";
-import type { ReactNode } from "react";
-import { memo, useId, useMemo, useRef, useState } from "react";
+import { Check, ChevronDown, Plus, RefreshCw, Search } from "lucide-react";
+import { memo, useMemo, useState } from "react";
 import { codexThreadCommandLabels } from "../codexCommandLabels.js";
 import { cn, layer, motionPresets, motionStates, ui } from "../designSystem.js";
 import type { DateTimeFormatMode } from "../uiFormat.js";
-import { MobileFloatingScroller } from "./MobileFloatingScroller.js";
 import { ProjectResultRow, projectResultTitle } from "./ProjectResultRow.js";
+import { ScrollArea } from "./ScrollArea.js";
 import {
 	ThreadResultRow,
 	threadResultSearchText,
@@ -36,9 +35,10 @@ export type SidebarProps = {
 	threadQuery: string;
 	onProjectChange: (projectId: string) => void;
 	onThreadQueryChange: (value: string) => void;
+	onRefreshThreads: () => void;
+	refreshingThreads: boolean;
 	onSelectThread: (thread: WorkbenchThread) => void;
 	onCreateThread: () => void;
-	footer?: ReactNode;
 	dateTimeFormatMode?: DateTimeFormatMode;
 };
 
@@ -87,23 +87,23 @@ export const Sidebar = memo(function Sidebar({
 	threadQuery,
 	onProjectChange,
 	onThreadQueryChange,
+	onRefreshThreads,
+	refreshingThreads,
 	onSelectThread,
 	onCreateThread,
-	footer,
 	dateTimeFormatMode = "utc",
 }: SidebarProps) {
-	const threadListRef = useRef<HTMLDivElement | null>(null);
-	const threadListId = useId();
 	const [projectMenuOpen, setProjectMenuOpen] = useState(false);
 	const selectedProject =
 		projects.find((project) => project.id === selectedProjectId) ?? projects[0];
-	const visibleThreads = useMemo(
-		() =>
-			selectedProject
-				? filterThreads(selectedProject, threadQuery, dateTimeFormatMode)
-				: [],
-		[selectedProject, threadQuery, dateTimeFormatMode],
-	);
+	const visibleThreads = useMemo(() => {
+		if (!threadQuery.trim()) {
+			return selectedProject?.threads ?? [];
+		}
+		return projects.flatMap((project) =>
+			filterThreads(project, threadQuery, dateTimeFormatMode),
+		);
+	}, [projects, selectedProject, threadQuery, dateTimeFormatMode]);
 	const threadGroups = useMemo(
 		() => groupThreads(visibleThreads),
 		[visibleThreads],
@@ -153,7 +153,11 @@ export const Sidebar = memo(function Sidebar({
 							transition={motionPresets.quick}
 							role="menu"
 						>
-							<div className="mobile-custom-scroll max-h-[216px] touch-pan-y overflow-x-hidden overflow-y-auto">
+							<ScrollArea
+								outerClassName="relative"
+								className="max-h-[216px] touch-pan-y"
+								floatingScroller={{ contentRightInset: "0.375rem" }}
+							>
 								{projects.map((project) => (
 									<MenuItemButton
 										key={project.id}
@@ -172,7 +176,7 @@ export const Sidebar = memo(function Sidebar({
 										) : null}
 									</MenuItemButton>
 								))}
-							</div>
+							</ScrollArea>
 						</motion.div>
 					) : null}
 				</AnimatePresence>
@@ -201,6 +205,18 @@ export const Sidebar = memo(function Sidebar({
 				</div>
 				<ControlButton
 					className="h-8 w-8 shrink-0 bg-transparent"
+					onClick={onRefreshThreads}
+					disabled={refreshingThreads}
+					name="Refresh Codex history"
+					aria-label="Refresh Codex history"
+				>
+					<RefreshCw
+						size={15}
+						className={refreshingThreads ? "animate-spin" : undefined}
+					/>
+				</ControlButton>
+				<ControlButton
+					className="h-8 w-8 shrink-0 bg-transparent"
 					onClick={onCreateThread}
 					name={codexThreadCommandLabels.new}
 					aria-label={codexThreadCommandLabels.new}
@@ -209,73 +225,65 @@ export const Sidebar = memo(function Sidebar({
 				</ControlButton>
 			</div>
 
-			<div className="relative min-h-0 flex-1">
-				<div
-					id={threadListId}
-					ref={threadListRef}
-					className="mobile-custom-scroll mobile-keyboard-scroll h-full min-h-0 touch-pan-y overflow-x-hidden overflow-y-auto px-2 py-1 scroll-mask-y"
-				>
-					<AnimatePresence mode="popLayout">
-						<motion.div
-							key={selectedProject?.id ?? "empty"}
-							initial={motionStates.listItem.initial}
-							animate={motionStates.listItem.animate}
-							exit={motionStates.listItem.exit}
-							transition={motionPresets.item}
-							className="grid gap-1.5"
-						>
-							{threadGroups.length === 0 ? (
-								<ControlCard className="px-3 py-7 text-center text-[12px] text-muted">
-									{threadQuery.trim()
-										? "No matching threads"
-										: "No Codex threads yet"}
-								</ControlCard>
-							) : null}
-							{threadGroups.map((group) => (
-								<section key={group.bucket} className="grid gap-0.5">
-									<div className="px-2 pb-0.5 text-[11px] font-medium text-muted">
-										{group.bucket}
-									</div>
-									{group.threads.map((thread) => {
-										const selected =
-											selectedThreadKey === thread.id ||
-											selectedThreadKey === thread.threadId;
-										return (
-											<NavAction
-												key={thread.id}
-												className={cn(
-													"group w-full items-start gap-2 px-2.5 py-1",
-												)}
-												selected={selected}
-												name={threadResultTitle(
-													thread,
-													undefined,
-													dateTimeFormatMode,
-												)}
-												onClick={() => onSelectThread(thread)}
-											>
-												<ThreadResultRow
-													thread={thread}
-													mobileStaticText
-													dateTimeFormatMode={dateTimeFormatMode}
-												/>
-											</NavAction>
-										);
-									})}
-								</section>
-							))}
-						</motion.div>
-					</AnimatePresence>
-				</div>
-				<div className="chrome-edge-fade chrome-edge-fade-short chrome-edge-fade-panel chrome-edge-fade-top" />
-				<div className="chrome-edge-fade chrome-edge-fade-short chrome-edge-fade-panel chrome-edge-fade-bottom" />
-				<MobileFloatingScroller
-					scrollRef={threadListRef}
-					scrollElementId={threadListId}
-				/>
-			</div>
-
-			{footer}
+			<ScrollArea
+				outerClassName="flex-1"
+				className="mobile-keyboard-scroll px-2 py-1 scroll-mask-y"
+				edgeFades={{ tone: "panel", top: "short", bottom: "short" }}
+				floatingScroller={{
+					contentRightInset: "0.5rem",
+				}}
+			>
+				<AnimatePresence mode="popLayout">
+					<motion.div
+						key={selectedProject?.id ?? "empty"}
+						initial={motionStates.listItem.initial}
+						animate={motionStates.listItem.animate}
+						exit={motionStates.listItem.exit}
+						transition={motionPresets.item}
+						className="grid gap-1.5"
+					>
+						{threadGroups.length === 0 ? (
+							<ControlCard className="px-3 py-7 text-center text-[12px] text-muted">
+								{threadQuery.trim()
+									? "No matching threads"
+									: "No Codex threads yet"}
+							</ControlCard>
+						) : null}
+						{threadGroups.map((group) => (
+							<section key={group.bucket} className="grid gap-0.5">
+								<div className="px-2 pb-0.5 text-[11px] font-medium text-muted">
+									{group.bucket}
+								</div>
+								{group.threads.map((thread) => {
+									const selected =
+										selectedThreadKey === thread.id ||
+										selectedThreadKey === thread.threadId;
+									return (
+										<NavAction
+											key={thread.id}
+											className={cn(
+												"group w-full items-start gap-2 px-2.5 py-1",
+											)}
+											selected={selected}
+											name={threadResultTitle(
+												thread,
+												undefined,
+												dateTimeFormatMode,
+											)}
+											onClick={() => onSelectThread(thread)}
+										>
+											<ThreadResultRow
+												thread={thread}
+												dateTimeFormatMode={dateTimeFormatMode}
+											/>
+										</NavAction>
+									);
+								})}
+							</section>
+						))}
+					</motion.div>
+				</AnimatePresence>
+			</ScrollArea>
 		</aside>
 	);
 });

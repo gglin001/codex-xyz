@@ -14,9 +14,9 @@ import {
 } from "lucide-react";
 import type {
 	CSSProperties,
+	HTMLAttributes,
 	KeyboardEvent,
 	MouseEvent,
-	ReactNode,
 	SubmitEvent,
 } from "react";
 import {
@@ -41,6 +41,10 @@ import { threadDisplayStatus } from "../../server/domain.js";
 import { copyToClipboard } from "../clipboard.js";
 import { codexThreadCommandLabels } from "../codexCommandLabels.js";
 import {
+	getComposerThreadActionState,
+	showsUnarchiveAction,
+} from "../composerThreadActions.js";
+import {
 	cn,
 	layer,
 	motionPresets,
@@ -52,6 +56,7 @@ import {
 	isOptimisticThreadId,
 	isOptimisticTurnId,
 } from "../optimisticThreads.js";
+import { threadStatusTooltip } from "../statusPresentation.js";
 import { getFirstLineTextPreview } from "../textPreview.js";
 import {
 	getTranscriptEntries,
@@ -63,9 +68,11 @@ import {
 	formatTime,
 	formatTokens,
 	itemTitle,
-	statusLabel,
 } from "../uiFormat.js";
-import { MobileFloatingScroller } from "./MobileFloatingScroller.js";
+import type { FloatingScrollAnchor } from "./MobileFloatingScroller.js";
+import { ScrollArea } from "./ScrollArea.js";
+import { StatusIndicator } from "./statusIndicator.js";
+import { TranscriptText } from "./TranscriptText.js";
 import {
 	CollapsibleCard,
 	ComposerIconButton,
@@ -102,6 +109,8 @@ export type WorkspaceProps = {
 	canUseGoalMode: boolean;
 	canSubmitPrompt: boolean;
 	wrapThreadContent: boolean;
+	transcriptExpansionState: TranscriptExpansionState;
+	loadingEarlierTranscript: boolean;
 	displayScale: number;
 	commandVisible: boolean;
 	navigatorVisible: boolean;
@@ -113,13 +122,20 @@ export type WorkspaceProps = {
 	onModeChange: (mode: ComposerMode) => void;
 	onWorkdirChange: (value: string) => void;
 	onGoalModeChange: (value: boolean) => void;
+	onTranscriptEntryExpandedChange: (entryId: string, expanded: boolean) => void;
 	onInterrupt: () => void;
 	onResume: () => void;
 	onFork: () => void;
 	onCompact: () => void;
 	onArchive: () => void;
+	onUnarchive: () => void;
+	onPauseGoal: () => void;
+	onResumeGoal: () => void;
+	onCompleteGoal: () => void;
+	onClearGoal: () => void;
 	onListBackgroundTerminals: () => void;
 	onCleanBackgroundTerminals: () => void;
+	onLoadEarlierTranscript: () => Promise<unknown>;
 	onToggleNavigator: () => void;
 	onToggleInspector: () => void;
 	onOpenCommands?: () => void;
@@ -153,6 +169,8 @@ type ChatMessage = {
 	time: string;
 };
 
+export type TranscriptExpansionState = Record<string, boolean>;
+
 const overlayMotion = motionStates.overlay;
 const localMenuMotion = motionStates.localMenu;
 const revealMotion = motionStates.reveal;
@@ -173,12 +191,12 @@ const mobileTranscriptWindowStep = 80;
 function ThreadContentFrame({
 	children,
 	className,
-}: {
-	children: ReactNode;
-	className?: string;
-}) {
+	...props
+}: HTMLAttributes<HTMLDivElement>) {
 	return (
-		<div className={cn(threadContentFrameClass, className)}>{children}</div>
+		<div className={cn(threadContentFrameClass, className)} {...props}>
+			{children}
+		</div>
 	);
 }
 
@@ -216,6 +234,27 @@ function transcriptItemDataAttributes(entry: TranscriptEntry) {
 				tabIndex: -1,
 			}
 		: {};
+}
+
+function transcriptPromptAnchors(
+	entries: TranscriptEntry[],
+): FloatingScrollAnchor[] {
+	let promptIndex = 0;
+	return entries.flatMap((entry) => {
+		if (entry.kind !== "item" || entry.item.type !== "user") {
+			return [];
+		}
+
+		promptIndex += 1;
+		const preview = getFirstLineTextPreview(entry.item.text.trim() || "Prompt");
+		return [
+			{
+				id: `prompt:${entry.item.id}`,
+				itemId: entry.item.id,
+				label: `Jump to prompt ${promptIndex}: ${preview}`,
+			},
+		];
+	});
 }
 
 function processPreview(entry: TranscriptProcessEntry) {
@@ -259,33 +298,15 @@ function headerMeta(value: string) {
 	);
 }
 
-function statusDotClass(status: ThreadDisplayStatus) {
-	if (status === "active") {
-		return tone.running.dot;
-	}
-	if (status === "not_loaded" || status === "archived") {
-		return tone.stale.dot;
-	}
-	if (
-		status === "system_error" ||
-		status === "turn_failed" ||
-		status === "turn_interrupted"
-	) {
-		return tone.error.dot;
-	}
-	if (status === "turn_completed") {
-		return tone.completed.dot;
-	}
-	return tone.neutral.dot;
-}
-
 function HeaderDetailRail({
 	tokens,
 	status,
+	statusTitle,
 	projectName,
 }: {
 	tokens: number;
 	status: ThreadDisplayStatus;
+	statusTitle: string;
 	projectName: string | null;
 }) {
 	return (
@@ -293,13 +314,11 @@ function HeaderDetailRail({
 			<span className="shrink-0 rounded-full bg-control/70 px-1.5 py-0.5 leading-none">
 				{formatTokens(tokens)} tk
 			</span>
-			<span className="inline-flex shrink-0 items-center gap-1.5 text-muted-strong">
-				<span
-					className={cn("h-1.5 w-1.5 rounded-full", statusDotClass(status))}
-					aria-hidden="true"
-				/>
-				<span>{statusLabel(status)}</span>
-			</span>
+			<StatusIndicator
+				status={status}
+				title={statusTitle}
+				className="text-muted-strong"
+			/>
 			{projectName ? <span className="shrink-0">{projectName}</span> : null}
 		</div>
 	);
@@ -310,6 +329,7 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 	name,
 	tokens,
 	status,
+	statusTitle,
 	projectName,
 	commandVisible,
 	navigatorVisible,
@@ -322,6 +342,7 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 	name: string;
 	tokens: number;
 	status: ThreadDisplayStatus;
+	statusTitle: string;
 	projectName: string | null;
 	commandVisible: boolean;
 	navigatorVisible: boolean;
@@ -333,6 +354,7 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 	const mobile = mode === "mobile";
 	return (
 		<header
+			data-print-session-header
 			data-mobile-workspace-header={mobile ? "" : undefined}
 			className={cn(
 				"relative flex shrink-0 items-center justify-between",
@@ -348,11 +370,13 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 				aria-label={navigatorVisible ? "Hide threads" : "Open threads"}
 				pressed={navigatorVisible}
 				onClick={onToggleNavigator}
+				data-print-exclude
 			>
 				<Menu size={15} />
 			</LargeIconButton>
 			<div className="grid min-w-0 flex-1 gap-0.5">
 				<ScrollableText
+					wheelScrollable={!mobile}
 					className={cn(
 						"font-semibold leading-5 text-fg-strong",
 						mobile ? "text-[14px]" : "text-[15px]",
@@ -363,6 +387,7 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 				<HeaderDetailRail
 					tokens={tokens}
 					status={status}
+					statusTitle={statusTitle}
 					projectName={projectName}
 				/>
 			</div>
@@ -379,6 +404,7 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 						aria-label="Toggle commands"
 						pressed={commandVisible}
 						onClick={onOpenCommands}
+						data-print-exclude
 					>
 						<Search size={15} />
 					</LargeIconButton>
@@ -389,6 +415,7 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 					aria-label={inspectorVisible ? "Hide settings" : "Open settings"}
 					pressed={inspectorVisible}
 					onClick={onToggleInspector}
+					data-print-exclude
 				>
 					<Settings size={15} />
 				</LargeIconButton>
@@ -472,20 +499,23 @@ const DismissibleAlert = memo(function DismissibleAlert({
 const MessageBlock = memo(function MessageBlock({
 	message,
 	wrapContent,
+	expanded,
+	onExpandedChange,
 	dateTimeFormatMode,
 }: {
 	message: ChatMessage;
 	wrapContent: boolean;
+	expanded: boolean;
+	onExpandedChange: (expanded: boolean) => void;
 	dateTimeFormatMode: DateTimeFormatMode;
 }) {
-	const [expanded, setExpanded] = useState(true);
 	const preview = getFirstLineTextPreview(message.text || "Pending...");
 
 	return (
 		<CollapsibleCard
 			title={messageCardTitle(message)}
 			expanded={expanded}
-			onToggle={() => setExpanded((current) => !current)}
+			onToggle={() => onExpandedChange(!expanded)}
 			meta={headerMeta(messageMeta(message, dateTimeFormatMode))}
 			actions={<CopyTextButton value={message.copyText} />}
 			preview={
@@ -500,16 +530,11 @@ const MessageBlock = memo(function MessageBlock({
 			previewPaddingClassName={transcriptCardPreviewPaddingClass}
 		>
 			{message.text ? (
-				<div
-					className={cn(
-						"text-[length:var(--transcript-font-size)] leading-[var(--transcript-line-height)] text-fg-strong",
-						wrapContent
-							? "whitespace-pre-wrap break-words"
-							: "overflow-x-auto whitespace-pre",
-					)}
-				>
-					{message.text}
-				</div>
+				<TranscriptText
+					text={message.text}
+					wrapContent={wrapContent}
+					className="text-[length:var(--transcript-font-size)] leading-[var(--transcript-line-height)] text-fg-strong"
+				/>
 			) : null}
 		</CollapsibleCard>
 	);
@@ -518,22 +543,38 @@ const MessageBlock = memo(function MessageBlock({
 const TranscriptEntryBlock = memo(function TranscriptEntryBlock({
 	entry,
 	wrapContent,
+	expanded,
+	transcriptExpansionState,
+	onTranscriptEntryExpandedChange,
 	dateTimeFormatMode,
 }: {
 	entry: TranscriptEntry;
 	wrapContent: boolean;
+	expanded: boolean;
+	transcriptExpansionState: TranscriptExpansionState;
+	onTranscriptEntryExpandedChange: (entryId: string, expanded: boolean) => void;
 	dateTimeFormatMode: DateTimeFormatMode;
 }) {
 	return entry.kind === "process" ? (
 		<ProcessOutputBlock
 			entry={entry}
 			wrapContent={wrapContent}
+			expanded={expanded}
+			transcriptExpansionState={transcriptExpansionState}
+			onTranscriptEntryExpandedChange={onTranscriptEntryExpandedChange}
+			onExpandedChange={(nextExpanded) =>
+				onTranscriptEntryExpandedChange(entry.id, nextExpanded)
+			}
 			dateTimeFormatMode={dateTimeFormatMode}
 		/>
 	) : (
 		<MessageBlock
 			message={messageFromItem(entry.item)}
 			wrapContent={wrapContent}
+			expanded={expanded}
+			onExpandedChange={(nextExpanded) =>
+				onTranscriptEntryExpandedChange(entry.id, nextExpanded)
+			}
 			dateTimeFormatMode={dateTimeFormatMode}
 		/>
 	);
@@ -542,20 +583,23 @@ const TranscriptEntryBlock = memo(function TranscriptEntryBlock({
 const ProcessItemBlock = memo(function ProcessItemBlock({
 	message,
 	wrapContent,
+	expanded,
+	onExpandedChange,
 	dateTimeFormatMode,
 }: {
 	message: ChatMessage;
 	wrapContent: boolean;
+	expanded: boolean;
+	onExpandedChange: (expanded: boolean) => void;
 	dateTimeFormatMode: DateTimeFormatMode;
 }) {
-	const [expanded, setExpanded] = useState(false);
 	const preview = getFirstLineTextPreview(message.text || "Pending...");
 
 	return (
 		<CollapsibleCard
 			title={message.name}
 			expanded={expanded}
-			onToggle={() => setExpanded((current) => !current)}
+			onToggle={() => onExpandedChange(!expanded)}
 			meta={headerMeta(messageMeta(message, dateTimeFormatMode))}
 			actions={<CopyTextButton value={message.copyText} />}
 			preview={
@@ -571,16 +615,11 @@ const ProcessItemBlock = memo(function ProcessItemBlock({
 			previewPaddingClassName="px-0 pb-2"
 		>
 			{message.text ? (
-				<div
-					className={cn(
-						"text-[length:var(--process-font-size)] leading-[var(--process-line-height)] text-fg",
-						wrapContent
-							? "whitespace-pre-wrap break-words"
-							: "overflow-x-auto whitespace-pre",
-					)}
-				>
-					{message.text}
-				</div>
+				<TranscriptText
+					text={message.text}
+					wrapContent={wrapContent}
+					className="text-[length:var(--process-font-size)] leading-[var(--process-line-height)] text-fg"
+				/>
 			) : null}
 		</CollapsibleCard>
 	);
@@ -589,13 +628,20 @@ const ProcessItemBlock = memo(function ProcessItemBlock({
 const ProcessOutputBlock = memo(function ProcessOutputBlock({
 	entry,
 	wrapContent,
+	expanded,
+	transcriptExpansionState,
+	onTranscriptEntryExpandedChange,
+	onExpandedChange,
 	dateTimeFormatMode,
 }: {
 	entry: TranscriptProcessEntry;
 	wrapContent: boolean;
+	expanded: boolean;
+	transcriptExpansionState: TranscriptExpansionState;
+	onTranscriptEntryExpandedChange: (entryId: string, expanded: boolean) => void;
+	onExpandedChange: (expanded: boolean) => void;
 	dateTimeFormatMode: DateTimeFormatMode;
 }) {
-	const [expanded, setExpanded] = useState(false);
 	const messages = useMemo(
 		() => (expanded ? entry.items.map(messageFromItem) : []),
 		[entry.items, expanded],
@@ -621,7 +667,7 @@ const ProcessOutputBlock = memo(function ProcessOutputBlock({
 		<CollapsibleCard
 			title="Thoughts"
 			expanded={expanded}
-			onToggle={() => setExpanded((current) => !current)}
+			onToggle={() => onExpandedChange(!expanded)}
 			meta={headerMeta(metaLabel)}
 			actions={<CopyTextButton value={copyText || preview} />}
 			size="prominent"
@@ -636,14 +682,22 @@ const ProcessOutputBlock = memo(function ProcessOutputBlock({
 			surface="plain"
 			className="bg-transparent"
 		>
-			{messages.map((message) => (
-				<ProcessItemBlock
-					key={message.id}
-					message={message}
-					wrapContent={wrapContent}
-					dateTimeFormatMode={dateTimeFormatMode}
-				/>
-			))}
+			{messages.map((message) => {
+				const expansionKey = `process-item:${message.id}`;
+				const itemExpanded = transcriptExpansionState[expansionKey] ?? false;
+				return (
+					<ProcessItemBlock
+						key={message.id}
+						message={message}
+						wrapContent={wrapContent}
+						expanded={itemExpanded}
+						onExpandedChange={(nextExpanded) =>
+							onTranscriptEntryExpandedChange(expansionKey, nextExpanded)
+						}
+						dateTimeFormatMode={dateTimeFormatMode}
+					/>
+				);
+			})}
 		</CollapsibleCard>
 	);
 });
@@ -697,7 +751,7 @@ const ComposerMenuItem = memo(function ComposerMenuItem({
 			}
 			onClick={() => onSelect(action)}
 		>
-			<span className="truncate leading-5 text-fg">{action.label}</span>
+			<span className="truncate leading-5 text-current">{action.label}</span>
 		</MenuItemButton>
 	);
 });
@@ -729,6 +783,11 @@ type ComposerProps = Pick<
 	| "onFork"
 	| "onCompact"
 	| "onArchive"
+	| "onUnarchive"
+	| "onPauseGoal"
+	| "onResumeGoal"
+	| "onCompleteGoal"
+	| "onClearGoal"
 	| "onListBackgroundTerminals"
 	| "onCleanBackgroundTerminals"
 > & {
@@ -764,6 +823,11 @@ const Composer = memo(
 			onFork,
 			onCompact,
 			onArchive,
+			onUnarchive,
+			onPauseGoal,
+			onResumeGoal,
+			onCompleteGoal,
+			onClearGoal,
 			onListBackgroundTerminals,
 			onCleanBackgroundTerminals,
 			onPromptFocusIntent,
@@ -772,7 +836,6 @@ const Composer = memo(
 		ref,
 	) {
 		const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-		const selectedThreadArchived = Boolean(selectedThread?.archivedAt);
 		const selectedThreadPendingSubmission =
 			isOptimisticThreadId(selectedThreadId) ||
 			isOptimisticTurnId(selectedThread?.activeTurnId);
@@ -787,105 +850,126 @@ const Composer = memo(
 			: promptTarget === "thread"
 				? "/prompt"
 				: "/new";
-		const threadActionDisabledReason = () => {
-			if (!selectedThreadId) {
-				return "Select a thread first";
-			}
-			if (selectedThreadArchived) {
-				return "Archived threads are view-only";
-			}
-			if (selectedThreadPendingSubmission) {
-				return "Wait for the submission to finish";
-			}
-			if (busy) {
-				return "Another action is running";
-			}
-			return null;
-		};
-		const idleThreadActionDisabledReason = () => {
-			const baseReason = threadActionDisabledReason();
-			if (baseReason) {
-				return baseReason;
-			}
-			if (selectedThread?.status === "active") {
-				return "Wait for the active turn to finish";
-			}
-			return null;
-		};
-		const interruptDisabledReason = () => {
-			if (!selectedThreadId) {
-				return "Select a running thread first";
-			}
-			if (selectedThreadArchived) {
-				return "Archived threads are view-only";
-			}
-			if (busy) {
-				return "Another action is running";
-			}
-			if (selectedThread?.status !== "active") {
-				return "No active turn is running";
-			}
-			return null;
-		};
-		const resumeDisabledReason = () => {
-			const baseReason = threadActionDisabledReason();
-			if (baseReason) {
-				return baseReason;
-			}
-			if (selectedThread?.status === "active") {
-				return "Thread is already running";
-			}
-			return null;
-		};
+		const actionState = getComposerThreadActionState({
+			thread: selectedThread,
+			threadId: selectedThreadId,
+			pendingSubmission: selectedThreadPendingSubmission,
+			busy,
+		});
+		const goalModeDisabledReason =
+			promptTarget === "new"
+				? canUseGoalMode
+					? null
+					: "Choose a working directory first"
+				: actionState.goal;
 		const composerMenuActions: ComposerMenuAction[] = [
-			{
-				id: "archive",
-				label: codexThreadCommandLabels.archive,
-				detail: "Move this thread out of the active list",
-				disabledReason: idleThreadActionDisabledReason(),
-				run: onArchive,
-			},
+			!showsUnarchiveAction(selectedThread)
+				? {
+						id: "archive",
+						label:
+							selectedThread?.lifecycleState === "archive_failed"
+								? "Retry archive"
+								: codexThreadCommandLabels.archive,
+						detail: "Move this thread out of the active list",
+						disabledReason: actionState.archive,
+						run: onArchive,
+					}
+				: {
+						id: "unarchive",
+						label:
+							selectedThread?.lifecycleState === "unarchive_failed"
+								? "Retry unarchive"
+								: codexThreadCommandLabels.unarchive,
+						detail: "Restore this thread to the active list",
+						disabledReason: actionState.unarchive,
+						run: onUnarchive,
+					},
 			{
 				id: "compact",
 				label: codexThreadCommandLabels.compact,
 				detail: "Summarize the transcript for more context",
-				disabledReason: idleThreadActionDisabledReason(),
+				disabledReason: actionState.compact,
 				run: onCompact,
 			},
 			{
 				id: "interrupt",
 				label: codexThreadCommandLabels.interrupt,
 				detail: "Stop the currently running turn",
-				disabledReason: interruptDisabledReason(),
+				disabledReason: actionState.interrupt,
 				run: onInterrupt,
 			},
 			{
 				id: "fork",
 				label: codexThreadCommandLabels.fork,
 				detail: "Continue from this thread in a new branch",
-				disabledReason: threadActionDisabledReason(),
+				disabledReason: actionState.fork,
 				run: onFork,
 			},
 			{
 				id: "ps",
 				label: codexThreadCommandLabels.ps,
 				detail: "List app-server background terminals",
-				disabledReason: threadActionDisabledReason(),
+				disabledReason: actionState.backgroundTerminals,
 				run: onListBackgroundTerminals,
 			},
 			{
 				id: "stop",
 				label: codexThreadCommandLabels.stop,
 				detail: "Stop app-server background terminals",
-				disabledReason: threadActionDisabledReason(),
+				disabledReason: actionState.backgroundTerminals,
 				run: onCleanBackgroundTerminals,
 			},
 			{
 				id: "resume",
 				label: codexThreadCommandLabels.resume,
 				detail: "Resume this saved thread",
-				disabledReason: resumeDisabledReason(),
+				disabledReason: actionState.resume,
 				run: onResume,
+			},
+			...(selectedThread?.goalObjective &&
+			selectedThread.goalStatus !== "cleared"
+				? [
+						selectedThread.goalStatus === "in_progress"
+							? {
+									id: "goal-pause",
+									label: "Pause /goal",
+									detail: "Pause automatic goal continuation",
+									disabledReason: actionState.goalStatus,
+									run: onPauseGoal,
+								}
+							: {
+									id: "goal-resume",
+									label: "Resume /goal",
+									detail: "Continue the current goal",
+									disabledReason: actionState.goalStatus,
+									run: onResumeGoal,
+								},
+						{
+							id: "goal-complete",
+							label: "Complete /goal",
+							detail: "Mark the current goal complete",
+							disabledReason: actionState.goalStatus,
+							run: onCompleteGoal,
+						},
+						{
+							id: "goal-clear",
+							label: "Clear /goal",
+							detail: "Remove the current goal from this thread",
+							disabledReason: actionState.clearGoal,
+							run: onClearGoal,
+						},
+					]
+				: []),
+			{
+				id: "copy-thread-id",
+				label: "copy tid",
+				detail: "Copy thread id",
+				disabledReason: selectedThreadId ? null : "Select a thread first",
+				run: () => {
+					if (selectedThreadId) {
+						void copyToClipboard(selectedThreadId);
+					}
+				},
 			},
 		];
 		const selectComposerMenuAction = (action: ComposerMenuAction) => {
@@ -943,7 +1027,10 @@ const Composer = memo(
 		return (
 			<div>
 				<AnimatePresence initial={false}>
-					{busyAction || notice || error ? (
+					{busyAction ||
+					notice ||
+					error ||
+					selectedThread?.lastOperationError ? (
 						<motion.div
 							key="composer-alerts"
 							className="mb-3 grid gap-2 overflow-hidden text-[12px]"
@@ -975,6 +1062,12 @@ const Composer = memo(
 									dismissLabel="Dismiss error"
 									role="alert"
 								/>
+							) : null}
+							{selectedThread?.lastOperationError &&
+							selectedThread.lastOperationError !== error ? (
+								<div className={cn(ui.alert, tone.error.alert)} role="alert">
+									{selectedThread.lastOperationError}. Retry from More actions.
+								</div>
 							) : null}
 						</motion.div>
 					) : null}
@@ -1058,10 +1151,12 @@ const Composer = memo(
 									<Plus size={14} />
 								</ComposerIconButton>
 								<ComposerIconButton
-									title={codexThreadCommandLabels.goal}
+									title={
+										goalModeDisabledReason ?? codexThreadCommandLabels.goal
+									}
 									aria-label={codexThreadCommandLabels.goal}
 									pressed={goalMode}
-									disabled={!canUseGoalMode || busy}
+									disabled={Boolean(goalModeDisabledReason) || busy}
 									onClick={() => onGoalModeChange(!goalMode)}
 								>
 									<Goal size={14} />
@@ -1095,7 +1190,7 @@ const Composer = memo(
 												/>
 												<motion.div
 													className={cn(
-														"absolute bottom-full left-0 mb-2 w-36 max-w-[calc(100vw-2rem)] p-1",
+														"absolute bottom-full left-0 mb-2 max-h-[min(28rem,calc(100vh-6rem))] w-32 max-w-[calc(100vw-2rem)] overflow-y-auto p-1",
 														layer.localMenuZ,
 														ui.popover,
 													)}
@@ -1120,7 +1215,7 @@ const Composer = memo(
 							</div>
 							<button
 								type="submit"
-								className={cn(ui.submitButton, "h-8 min-w-8 px-0")}
+								className={ui.submitButton}
 								disabled={!canSubmitPrompt}
 								suppressHydrationWarning
 								title={submitTitle}
@@ -1156,6 +1251,7 @@ export const Workspace = memo(
 			promptTarget,
 			goalMode,
 			wrapThreadContent,
+			transcriptExpansionState,
 			displayScale,
 			commandVisible,
 			navigatorVisible,
@@ -1163,19 +1259,27 @@ export const Workspace = memo(
 			submittedPromptFocusTarget,
 			canUseGoalMode,
 			canSubmitPrompt,
+			loadingEarlierTranscript,
 			onPromptChange,
 			onPromptKeyDown,
 			onPromptSubmit,
 			onModeChange,
 			onWorkdirChange,
 			onGoalModeChange,
+			onTranscriptEntryExpandedChange,
 			onInterrupt,
 			onResume,
 			onFork,
 			onCompact,
 			onArchive,
+			onUnarchive,
+			onPauseGoal,
+			onResumeGoal,
+			onCompleteGoal,
+			onClearGoal,
 			onListBackgroundTerminals,
 			onCleanBackgroundTerminals,
+			onLoadEarlierTranscript,
 			onToggleNavigator,
 			onToggleInspector,
 			onOpenCommands,
@@ -1213,12 +1317,34 @@ export const Workspace = memo(
 			[hiddenEntries],
 		);
 		const canLoadEarlierEntries = hiddenEntries.length > 0;
+		const canLoadEarlierTranscriptItems = Boolean(
+			detail?.itemPageDirection === "before" &&
+				detail.itemHasMore &&
+				detail.itemNextCursor,
+		);
+		const canShowEarlierTranscriptControl =
+			canLoadEarlierEntries || canLoadEarlierTranscriptItems;
+		const earlierTranscriptLabel = canLoadEarlierEntries
+			? `Show ${hiddenItemCount} earlier transcript ${
+					hiddenItemCount === 1 ? "item" : "items"
+				}`
+			: loadingEarlierTranscript
+				? "Loading earlier transcript..."
+				: "Load earlier transcript";
+		const promptAnchors = useMemo(
+			() => transcriptPromptAnchors(visibleEntries),
+			[visibleEntries],
+		);
 		const name =
 			selectedThread?.name ?? threadSummary?.name ?? "New Codex thread";
 		const tokens = detail?.tokensUsed ?? threadSummary?.tokensUsed ?? 0;
 		const status = selectedThread
 			? threadDisplayStatus(selectedThread)
 			: (threadSummary?.status ?? "idle");
+		const statusTitle = threadStatusTooltip(
+			status,
+			selectedThread?.lastTurnStatus ?? threadSummary?.lastTurnStatus ?? null,
+		);
 		const projectName = project?.name ?? null;
 		const contentScaleStyle = useMemo(
 			() =>
@@ -1343,6 +1469,45 @@ export const Workspace = memo(
 			window.setTimeout(restorePosition, 300);
 		}, []);
 
+		const loadEarlierTranscript = useCallback(() => {
+			if (canLoadEarlierEntries) {
+				setMobileVisibleEntryCount((current) =>
+					Math.min(entries.length, current + mobileTranscriptWindowStep),
+				);
+				return;
+			}
+			if (!canLoadEarlierTranscriptItems || loadingEarlierTranscript) {
+				return;
+			}
+			const scrollElement = transcriptScrollRef.current;
+			const previousScrollHeight = scrollElement?.scrollHeight ?? null;
+			const previousScrollTop = scrollElement?.scrollTop ?? null;
+			void onLoadEarlierTranscript().finally(() => {
+				if (
+					!scrollElement ||
+					previousScrollHeight === null ||
+					previousScrollTop === null
+				) {
+					return;
+				}
+				const restorePosition = () => {
+					scrollElement.scrollTop =
+						scrollElement.scrollHeight -
+						previousScrollHeight +
+						previousScrollTop;
+				};
+				window.requestAnimationFrame(restorePosition);
+				window.setTimeout(restorePosition, 80);
+				window.setTimeout(restorePosition, 220);
+			});
+		}, [
+			canLoadEarlierEntries,
+			canLoadEarlierTranscriptItems,
+			entries.length,
+			loadingEarlierTranscript,
+			onLoadEarlierTranscript,
+		]);
+
 		useEffect(() => {
 			const target = submittedPromptFocusTarget;
 			if (
@@ -1401,6 +1566,7 @@ export const Workspace = memo(
 				ref={rootRef}
 				className={cn("flex h-full min-h-0 min-w-0 flex-col bg-app-bg text-fg")}
 				style={contentScaleStyle}
+				data-print-session
 			>
 				{isMobilePresentation ? (
 					<WorkspaceHeader
@@ -1408,6 +1574,7 @@ export const Workspace = memo(
 						name={name}
 						tokens={tokens}
 						status={status}
+						statusTitle={statusTitle}
 						projectName={projectName}
 						commandVisible={commandVisible}
 						navigatorVisible={navigatorVisible}
@@ -1423,6 +1590,7 @@ export const Workspace = memo(
 						name={name}
 						tokens={tokens}
 						status={status}
+						statusTitle={statusTitle}
 						projectName={projectName}
 						commandVisible={commandVisible}
 						navigatorVisible={navigatorVisible}
@@ -1433,79 +1601,84 @@ export const Workspace = memo(
 					/>
 				) : null}
 
-				<div className="flex min-h-0 flex-1">
+				<div className="flex min-h-0 flex-1" data-print-session-body>
 					<motion.div
 						className="flex min-h-0 min-w-0 flex-1 flex-col"
 						animate={{ width: "100%" }}
 						transition={motionPresets.panel}
+						data-print-session-main
 					>
-						<div className="relative min-h-0 flex-1">
-							<div
-								id={transcriptScrollId}
-								ref={transcriptScrollRef}
-								className="mobile-custom-scroll mobile-transcript-scroll h-full min-h-0 overflow-x-hidden overflow-y-auto px-3 py-0 md:px-5 md:[scrollbar-gutter:stable]"
+						<ScrollArea
+							id={transcriptScrollId}
+							scrollRef={transcriptScrollRef}
+							outerClassName="flex-1 [--transcript-navigator-right-inset:0.75rem] md:[--transcript-navigator-right-inset:1.25rem]"
+							outerProps={{ "data-print-session-scroll": true }}
+							className="transcript-custom-scroll mobile-transcript-scroll px-3 py-0 md:px-5"
+							edgeFades={{ tone: "app", top: true, bottom: "tall" }}
+							floatingScroller={{
+								anchors: promptAnchors,
+								contentRightInset: "var(--transcript-navigator-right-inset)",
+								visibility: "always",
+							}}
+						>
+							<ThreadContentFrame
+								className="grid gap-[var(--transcript-gap)]"
+								data-print-session-content
 							>
-								<ThreadContentFrame className="grid gap-[var(--transcript-gap)]">
-									{entries.length === 0 ? (
-										<div className="min-w-0">
-											<EmptyTranscript
-												hasThread={Boolean(selectedThreadId)}
-												projectPath={project?.path ?? workdir}
-											/>
-										</div>
-									) : null}
-									{canLoadEarlierEntries ? (
-										<div className="flex justify-center">
-											<button
-												type="button"
-												className={cn(
-													"min-h-10 rounded-[8px] bg-control px-3.5 text-[12px] font-medium text-muted-strong active:bg-control-hover",
-													ui.row,
-												)}
-												onClick={() =>
-													setMobileVisibleEntryCount((current) =>
-														Math.min(
-															entries.length,
-															current + mobileTranscriptWindowStep,
-														),
-													)
+								{entries.length === 0 ? (
+									<div className="min-w-0">
+										<EmptyTranscript
+											hasThread={Boolean(selectedThreadId)}
+											projectPath={project?.path ?? workdir}
+										/>
+									</div>
+								) : null}
+								{canShowEarlierTranscriptControl ? (
+									<div className="flex justify-center">
+										<button
+											type="button"
+											disabled={loadingEarlierTranscript}
+											className={cn(
+												"min-h-10 gap-2 rounded-[8px] bg-control px-3.5 text-[12px] font-medium text-muted-strong active:bg-control-hover disabled:cursor-wait disabled:opacity-60",
+												ui.row,
+											)}
+											onClick={loadEarlierTranscript}
+										>
+											<Plus size={14} aria-hidden="true" />
+											<span>{earlierTranscriptLabel}</span>
+										</button>
+									</div>
+								) : null}
+								<AnimatePresence initial={false}>
+									{visibleEntries.map((entry) => (
+										<motion.div
+											key={entry.id}
+											className="min-w-0 scroll-mt-3 focus:outline-none"
+											{...transcriptItemDataAttributes(entry)}
+											data-print-session-entry
+											initial={transcriptItemMotion.initial}
+											animate={transcriptItemMotion.animate}
+											exit={transcriptItemMotion.exit}
+											transition={motionPresets.fade}
+										>
+											<TranscriptEntryBlock
+												entry={entry}
+												wrapContent={wrapThreadContent}
+												expanded={
+													transcriptExpansionState[entry.id] ??
+													entry.kind === "item"
 												}
-											>
-												Show {hiddenItemCount} earlier transcript{" "}
-												{hiddenItemCount === 1 ? "item" : "items"}
-											</button>
-										</div>
-									) : null}
-									<AnimatePresence initial={false}>
-										{visibleEntries.map((entry) => (
-											<motion.div
-												key={entry.id}
-												className="min-w-0 scroll-mt-3 focus:outline-none"
-												{...transcriptItemDataAttributes(entry)}
-												initial={transcriptItemMotion.initial}
-												animate={transcriptItemMotion.animate}
-												exit={transcriptItemMotion.exit}
-												transition={motionPresets.fade}
-											>
-												<TranscriptEntryBlock
-													entry={entry}
-													wrapContent={wrapThreadContent}
-													dateTimeFormatMode={dateTimeFormatMode}
-												/>
-											</motion.div>
-										))}
-									</AnimatePresence>
-								</ThreadContentFrame>
-							</div>
-							<div className="chrome-edge-fade chrome-edge-fade-app chrome-edge-fade-top" />
-							<div className="chrome-edge-fade chrome-edge-fade-app chrome-edge-fade-bottom chrome-edge-fade-tall" />
-							{isMobilePresentation ? (
-								<MobileFloatingScroller
-									scrollRef={transcriptScrollRef}
-									scrollElementId={transcriptScrollId}
-								/>
-							) : null}
-						</div>
+												transcriptExpansionState={transcriptExpansionState}
+												onTranscriptEntryExpandedChange={
+													onTranscriptEntryExpandedChange
+												}
+												dateTimeFormatMode={dateTimeFormatMode}
+											/>
+										</motion.div>
+									))}
+								</AnimatePresence>
+							</ThreadContentFrame>
+						</ScrollArea>
 
 						<div
 							ref={composerShellRef}
@@ -1513,6 +1686,7 @@ export const Workspace = memo(
 								"mobile-composer-bar relative shrink-0 overflow-visible pb-[var(--workspace-composer-bottom-gap)] pl-3 pr-[calc(0.75rem+var(--transcript-scrollbar-width,0px))] md:pl-5 md:pr-[calc(1.25rem+var(--transcript-scrollbar-width,0px))]",
 								layer.composerZ,
 							)}
+							data-print-exclude
 						>
 							<ThreadContentFrame>
 								<Composer
@@ -1542,6 +1716,11 @@ export const Workspace = memo(
 									onFork={onFork}
 									onCompact={onCompact}
 									onArchive={onArchive}
+									onUnarchive={onUnarchive}
+									onPauseGoal={onPauseGoal}
+									onResumeGoal={onResumeGoal}
+									onCompleteGoal={onCompleteGoal}
+									onClearGoal={onClearGoal}
 									onListBackgroundTerminals={onListBackgroundTerminals}
 									onCleanBackgroundTerminals={onCleanBackgroundTerminals}
 									onPromptFocusIntent={captureMobileTranscriptPosition}

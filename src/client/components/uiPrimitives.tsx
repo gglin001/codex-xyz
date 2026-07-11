@@ -6,7 +6,7 @@ import type {
 	MouseEvent,
 	ReactNode,
 } from "react";
-import { memo, useMemo } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
 	cn,
 	displayScale,
@@ -77,7 +77,9 @@ export function ComposerIconButton({
 			type="button"
 			className={cn(
 				ui.composerIconButton,
-				pressed ? ui.selectedStrong : null,
+				pressed
+					? "bg-control text-fg-strong"
+					: "bg-transparent text-muted-strong",
 				className,
 			)}
 			aria-pressed={pressed}
@@ -171,15 +173,56 @@ export function MenuItemButton({
 	className,
 	children,
 	selected,
+	disabled,
+	onBlur,
+	onPointerCancel,
+	onPointerDown,
+	onPointerLeave,
+	onPointerUp,
 	...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
 	selected?: boolean;
 }) {
+	const [pressed, setPressed] = useState(false);
+	const transientPressed = pressed && !disabled && !selected;
+	const clearPressed = () => setPressed(false);
+
 	return (
 		<button
 			type="button"
-			className={cn(ui.menuItem, selected ? ui.selected : "text-fg", className)}
+			className={cn(
+				ui.menuItem,
+				selected
+					? ui.selected
+					: transientPressed
+						? "bg-control-hover text-fg-strong"
+						: "text-fg",
+				className,
+			)}
 			aria-pressed={selected ?? undefined}
+			disabled={disabled}
+			onBlur={(event) => {
+				clearPressed();
+				onBlur?.(event);
+			}}
+			onPointerCancel={(event) => {
+				clearPressed();
+				onPointerCancel?.(event);
+			}}
+			onPointerDown={(event) => {
+				if (!disabled) {
+					setPressed(true);
+				}
+				onPointerDown?.(event);
+			}}
+			onPointerLeave={(event) => {
+				clearPressed();
+				onPointerLeave?.(event);
+			}}
+			onPointerUp={(event) => {
+				clearPressed();
+				onPointerUp?.(event);
+			}}
 			{...props}
 		>
 			{children}
@@ -247,11 +290,54 @@ export function ScrollableText({
 	children,
 	title,
 	mobileStatic = false,
+	wheelScrollable = false,
 	...props
-}: HTMLAttributes<HTMLSpanElement> & { mobileStatic?: boolean }) {
+}: HTMLAttributes<HTMLSpanElement> & {
+	mobileStatic?: boolean;
+	wheelScrollable?: boolean;
+}) {
 	const fallbackTitle = typeof children === "string" ? children : undefined;
+	const textRef = useRef<HTMLSpanElement | null>(null);
+
+	useEffect(() => {
+		const element = textRef.current;
+		if (!wheelScrollable || !element) {
+			return;
+		}
+
+		const handleWheel = (event: WheelEvent) => {
+			const maximumScrollLeft = element.scrollWidth - element.clientWidth;
+			if (maximumScrollLeft <= 0) {
+				return;
+			}
+
+			const scrollDelta =
+				Math.abs(event.deltaX) > Math.abs(event.deltaY)
+					? event.deltaX
+					: event.deltaY;
+			if (scrollDelta === 0) {
+				return;
+			}
+
+			const nextScrollLeft = Math.min(
+				maximumScrollLeft,
+				Math.max(0, element.scrollLeft + scrollDelta),
+			);
+			if (nextScrollLeft === element.scrollLeft) {
+				return;
+			}
+
+			element.scrollLeft = nextScrollLeft;
+			event.preventDefault();
+		};
+
+		element.addEventListener("wheel", handleWheel, { passive: false });
+		return () => element.removeEventListener("wheel", handleWheel);
+	}, [wheelScrollable]);
+
 	return (
 		<span
+			ref={textRef}
 			className={cn(
 				"scrollable-truncate block min-w-0 max-w-full",
 				mobileStatic ? "mobile-static-scroll" : null,
@@ -494,10 +580,11 @@ export const CollapsibleCard = memo(function CollapsibleCard({
 				{meta || actions ? (
 					<div
 						className={cn(
-							"flex shrink-0 items-center gap-1.5",
+							"flex shrink-0 items-center gap-0.5",
 							size === "compact" ? "pr-1.5" : "pr-2",
 						)}
 					>
+						{actions}
 						<button
 							type="button"
 							className={ui.compactIconButton}
@@ -514,7 +601,6 @@ export const CollapsibleCard = memo(function CollapsibleCard({
 								)}
 							/>
 						</button>
-						{actions}
 					</div>
 				) : (
 					<button
@@ -633,6 +719,7 @@ export const InfoTile = memo(function InfoTile({
 	icon,
 	label,
 	value,
+	title,
 	mono = false,
 	layout = "stacked",
 	hideLabel = false,
@@ -641,6 +728,7 @@ export const InfoTile = memo(function InfoTile({
 	icon: ReactNode;
 	label: string;
 	value: string;
+	title?: string;
 	mono?: boolean;
 	layout?: "stacked" | "inline";
 	hideLabel?: boolean;
@@ -660,7 +748,7 @@ export const InfoTile = memo(function InfoTile({
 				radius.control,
 				className,
 			)}
-			title={hideLabel ? value : `${label}: ${value}`}
+			title={title ?? (hideLabel ? value : `${label}: ${value}`)}
 		>
 			<span
 				className={cn(

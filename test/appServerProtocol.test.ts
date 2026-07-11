@@ -10,7 +10,7 @@ import {
 import { RuntimeThreadNotFoundError } from "../src/server/codex/runtimePort.js";
 
 describe("app-server protocol projection", () => {
-	it("normalizes app-server thread ids, status, timestamps, and model fallback", () => {
+	it("preserves app-server thread ids, status, timestamps, and model fallback", () => {
 		expect(
 			normalizeThread(
 				{
@@ -25,9 +25,9 @@ describe("app-server protocol projection", () => {
 				"gpt-test",
 			),
 		).toMatchObject({
-			id: "00000000-0000-4000-8000-000000000001",
-			sessionId: "00000000-0000-4000-8000-000000000002",
-			forkedFromId: "00000000-0000-4000-8000-000000000003",
+			id: "thread_00000000-0000-4000-8000-000000000001",
+			sessionId: "urn:uuid:00000000-0000-4000-8000-000000000002",
+			forkedFromId: "thread_00000000-0000-4000-8000-000000000003",
 			preview: "Runtime preview",
 			cwd: "/work/coz",
 			model: "gpt-test",
@@ -101,7 +101,7 @@ describe("app-server protocol projection", () => {
 			}),
 		).toEqual({
 			type: "item.delta",
-			threadId: "00000000-0000-4000-8000-000000000001",
+			threadId: "thread_00000000-0000-4000-8000-000000000001",
 			turnId: "turn-1",
 			itemId: "item-agent",
 			delta: "partial",

@@ -28,6 +28,7 @@ import {
 	normalizeGoal,
 	normalizeThread,
 	normalizeThreadId,
+	normalizeThreadItem,
 	normalizeTurn,
 	projectAppServerNotification,
 	projectTurnStartedNotification,
@@ -49,6 +50,11 @@ import type {
 	RuntimeConfigSnapshot,
 	RuntimeEvent,
 	RuntimeEventHandler,
+	RuntimeThreadHistorySnapshot,
+	RuntimeThreadListInput,
+	RuntimeThreadPage,
+	RuntimeThreadSearchInput,
+	RuntimeThreadSearchPage,
 	RuntimeThreadSnapshot,
 	RuntimeTurnSnapshot,
 	StartRuntimeTurnInput,
@@ -74,6 +80,13 @@ type PendingTurnStartHandle = {
 	promise: Promise<RuntimeTurnSnapshot>;
 	cancel: (error: Error) => void;
 };
+
+function runtimeTimestamp(value: unknown) {
+	const timestamp = typeof value === "number" ? value : 0;
+	return new Date(
+		timestamp > 10_000_000_000 ? timestamp : timestamp * 1000,
+	).toISOString();
+}
 
 export type AppServerRuntimeOptions = {
 	dataDir: string;
@@ -155,6 +168,7 @@ export class AppServerRuntime implements CodexRuntime {
 	private readonly debugLogger: AppServerDebugLogger | null;
 	private readonly persistent: AppServerPersistentTransportOptions;
 	private readonly localWebSearch: LocalWebSearch | null;
+	private lifecycleLock = Promise.resolve();
 
 	constructor(
 		private readonly command = process.env.COZ_CODEX_BIN ?? "codex",
@@ -217,6 +231,111 @@ export class AppServerRuntime implements CodexRuntime {
 		);
 		const thread = normalizeThread(result.thread, result.model);
 		return this.applyInitialThreadName(thread, input.name);
+	}
+
+	async listThreads(
+		input: RuntimeThreadListInput = {},
+	): Promise<RuntimeThreadPage> {
+		const result = asRecord(
+			await this.request("thread/list", {
+				cursor: input.cursor ?? null,
+				limit: input.limit ?? null,
+				sortKey: "updated_at",
+				sortDirection: "desc",
+				archived: input.archived ?? false,
+				cwd: input.cwd ?? null,
+			}),
+		);
+		return {
+			threads: Array.isArray(result.data)
+				? result.data.map((thread) => normalizeThread(thread))
+				: [],
+			nextCursor:
+				typeof result.nextCursor === "string" ? result.nextCursor : null,
+		};
+	}
+
+	async searchThreads(
+		input: RuntimeThreadSearchInput,
+	): Promise<RuntimeThreadSearchPage> {
+		const result = asRecord(
+			await this.request("thread/search", {
+				searchTerm: input.query,
+				cursor: input.cursor ?? null,
+				limit: input.limit ?? null,
+				sortKey: "updated_at",
+				sortDirection: "desc",
+				archived: input.archived ?? false,
+			}),
+		);
+		return {
+			results: Array.isArray(result.data)
+				? result.data.map((value) => {
+						const entry = asRecord(value);
+						return {
+							thread: normalizeThread(entry.thread),
+							snippet: typeof entry.snippet === "string" ? entry.snippet : "",
+						};
+					})
+				: [],
+			nextCursor:
+				typeof result.nextCursor === "string" ? result.nextCursor : null,
+		};
+	}
+
+	async readThread(threadId: string): Promise<RuntimeThreadSnapshot> {
+		const result = asRecord(
+			await this.request("thread/read", { threadId, includeTurns: false }),
+		);
+		return normalizeThread(result.thread);
+	}
+
+	async readThreadHistory(
+		threadId: string,
+	): Promise<RuntimeThreadHistorySnapshot> {
+		const result = asRecord(
+			await this.request("thread/turns/list", {
+				threadId,
+				limit: 50,
+				sortDirection: "desc",
+				itemsView: "full",
+			}),
+		);
+		const turns = Array.isArray(result.data) ? result.data : [];
+		return {
+			turns: turns.map((value) => {
+				const turn = asRecord(value);
+				const rawItems = Array.isArray(turn.items) ? turn.items : [];
+				const turnStartedAt = runtimeTimestamp(turn.startedAt);
+				const items = rawItems.map((item, index) => {
+					const normalized = normalizeThreadItem(item);
+					return {
+						id: normalized.itemId,
+						type: normalized.itemType,
+						text: normalized.text,
+						data: normalized.data,
+						createdAt: new Date(
+							Date.parse(turnStartedAt) + index,
+						).toISOString(),
+					};
+				});
+				return {
+					id: String(turn.id),
+					status: normalizeTurn(turn).status,
+					prompt: items.find((item) => item.type === "user")?.text ?? "",
+					startedAt: turnStartedAt,
+					completedAt:
+						typeof turn.completedAt === "number"
+							? runtimeTimestamp(turn.completedAt)
+							: null,
+					durationMs:
+						typeof turn.durationMs === "number" ? turn.durationMs : null,
+					items,
+				};
+			}),
+			nextCursor:
+				typeof result.nextCursor === "string" ? result.nextCursor : null,
+		};
 	}
 
 	async resumeThread(input: ResumeThreadInput): Promise<RuntimeThreadSnapshot> {
@@ -332,6 +451,10 @@ export class AppServerRuntime implements CodexRuntime {
 
 	async archiveThread(threadId: string) {
 		await this.request("thread/archive", { threadId });
+	}
+
+	async unarchiveThread(threadId: string) {
+		await this.request("thread/unarchive", { threadId });
 	}
 
 	async setThreadName(input: { threadId: string; name: string }) {
@@ -480,19 +603,37 @@ export class AppServerRuntime implements CodexRuntime {
 	}
 
 	async restartAppServer(): Promise<CodexAppServerRestartResult> {
-		await this.disconnectConnection("app-server runtime restarting");
-		await this.stopPersistentAppServer();
-		const listener = await this.ensurePersistentAppServer();
-		await this.ensureStarted();
-		return {
-			status: "restarted",
-			pid: listener.pid,
-			socketPath: listener.socketPath,
-		};
+		return this.withLifecycleLock(async () => {
+			await this.disconnectConnection("app-server runtime restarting");
+			await this.stopPersistentAppServer();
+			const listener = await this.ensurePersistentAppServer();
+			await this.ensureStartedUnlocked();
+			return {
+				status: "restarted",
+				pid: listener.pid,
+				socketPath: listener.socketPath,
+			};
+		});
 	}
 
 	async close() {
-		await this.disconnectConnection("app-server runtime closed");
+		await this.withLifecycleLock(() =>
+			this.disconnectConnection("app-server runtime closed"),
+		);
+	}
+
+	private async withLifecycleLock<T>(operation: () => Promise<T>): Promise<T> {
+		const previous = this.lifecycleLock;
+		let release = () => {};
+		this.lifecycleLock = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		await previous;
+		try {
+			return await operation();
+		} finally {
+			release();
+		}
 	}
 
 	private async disconnectConnection(reason: string) {
@@ -606,6 +747,10 @@ export class AppServerRuntime implements CodexRuntime {
 	}
 
 	private async ensureStarted() {
+		await this.withLifecycleLock(() => this.ensureStartedUnlocked());
+	}
+
+	private async ensureStartedUnlocked() {
 		if (this.initialized && this.connection?.readyState === WebSocket.OPEN) {
 			return;
 		}
@@ -730,30 +875,43 @@ export class AppServerRuntime implements CodexRuntime {
 		const socketWasAccepting = await appServerAcceptsConnections(
 			this.persistent.socketPath,
 		);
-		if (!socketWasAccepting) {
+		const pid = this.readPersistentAppServerPid();
+		if (pid === null || !processExists(pid)) {
+			if (socketWasAccepting) {
+				this.writeDebug({
+					event: "process.stop.stalePid",
+					pid,
+					socketPath: this.persistent.socketPath,
+				});
+			}
 			this.removeStalePersistentFiles();
 			return;
 		}
 
-		const pid = this.readPersistentAppServerPid();
-		if (pid === null) {
-			throw new Error(
-				`Cannot restart app-server on ${this.persistent.socketPath}: missing pid file`,
-			);
-		}
-
 		try {
-			process.kill(pid, "SIGTERM");
+			signalAppServerProcess(pid, "SIGTERM");
 		} catch (error) {
 			if (!isMissingProcessError(error)) {
 				throw error;
 			}
 		}
-		await waitForProcessExit(pid, appServerExitTimeoutMs);
-		await waitForSocketClose(
-			this.persistent.socketPath,
-			appServerExitTimeoutMs,
-		);
+		try {
+			await waitForProcessExit(pid, appServerExitTimeoutMs);
+			await waitForSocketClose(
+				this.persistent.socketPath,
+				appServerExitTimeoutMs,
+			);
+		} catch (error) {
+			try {
+				signalAppServerProcess(pid, "SIGKILL");
+			} catch {}
+			this.writeDebug({
+				event: "process.stop.forceReplace",
+				pid,
+				socketPath: this.persistent.socketPath,
+				text: error instanceof Error ? error.message : String(error),
+			});
+		}
 		this.removeStalePersistentFiles();
 	}
 
@@ -1133,7 +1291,7 @@ async function waitForProcessExit(pid: number, timeoutMs: number) {
 		await delay(appServerPollIntervalMs);
 	}
 	try {
-		process.kill(pid, "SIGKILL");
+		signalAppServerProcess(pid, "SIGKILL");
 	} catch (error) {
 		if (!isMissingProcessError(error)) {
 			throw error;
@@ -1148,6 +1306,22 @@ async function waitForProcessExit(pid: number, timeoutMs: number) {
 		await delay(appServerPollIntervalMs);
 	}
 	throw new Error(`app-server process ${pid} did not exit`);
+}
+
+function signalAppServerProcess(pid: number, signal: NodeJS.Signals) {
+	if (process.platform === "win32") {
+		process.kill(pid, signal);
+		return;
+	}
+
+	try {
+		process.kill(-pid, signal);
+	} catch (error) {
+		if (!isMissingProcessError(error)) {
+			throw error;
+		}
+		process.kill(pid, signal);
+	}
 }
 
 function processExists(pid: number) {

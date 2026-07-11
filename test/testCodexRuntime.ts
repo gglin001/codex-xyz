@@ -44,8 +44,10 @@ export class TestCodexRuntime implements CodexRuntime {
 	backgroundTerminalsCleanCount = 0;
 	private handler: RuntimeEventHandler = () => {};
 	private readonly threads = new Map<string, TestThread>();
+	private readonly archivedThreads = new Map<string, TestThread>();
 	private readonly running = new Map<string, RunningTurn>();
 	private closed = false;
+	private nextThread = 1;
 
 	onEvent(handler: RuntimeEventHandler) {
 		this.handler = handler;
@@ -62,7 +64,7 @@ export class TestCodexRuntime implements CodexRuntime {
 
 	async startThread(input: StartThreadInput): Promise<RuntimeThreadSnapshot> {
 		this.closed = false;
-		const id = randomUUID();
+		const id = `runtime_thread_${this.nextThread++}`;
 		const thread: TestThread = {
 			id,
 			sessionId: id,
@@ -81,6 +83,37 @@ export class TestCodexRuntime implements CodexRuntime {
 
 	async resumeThread(input: ResumeThreadInput): Promise<RuntimeThreadSnapshot> {
 		return this.requireThread(input.threadId);
+	}
+
+	async listThreads(input: { archived?: boolean | null } = {}) {
+		return {
+			threads: [
+				...(input.archived ? this.archivedThreads : this.threads).values(),
+			],
+			nextCursor: null,
+		};
+	}
+
+	async searchThreads(input: { query: string }) {
+		const query = input.query.toLowerCase();
+		return {
+			results: [...this.threads.values()]
+				.filter((thread) =>
+					`${thread.name ?? ""} ${thread.preview}`
+						.toLowerCase()
+						.includes(query),
+				)
+				.map((thread) => ({ thread, snippet: thread.preview })),
+			nextCursor: null,
+		};
+	}
+
+	async readThread(threadId: string) {
+		return this.requireThread(threadId);
+	}
+
+	async readThreadHistory() {
+		return { turns: [], nextCursor: null };
 	}
 
 	async startTurn(input: StartRuntimeTurnInput): Promise<RuntimeTurnSnapshot> {
@@ -186,7 +219,7 @@ export class TestCodexRuntime implements CodexRuntime {
 
 	async forkThread(input: ForkThreadInput): Promise<RuntimeThreadSnapshot> {
 		const source = this.requireThread(input.sourceThreadId);
-		const id = randomUUID();
+		const id = `runtime_thread_${this.nextThread++}`;
 		const thread: TestThread = {
 			id,
 			sessionId: source.sessionId,
@@ -204,12 +237,21 @@ export class TestCodexRuntime implements CodexRuntime {
 	}
 
 	async archiveThread(threadId: string) {
-		this.requireThread(threadId);
+		const thread = this.requireThread(threadId);
 		this.threads.delete(threadId);
+		this.archivedThreads.set(threadId, thread);
 		this.emit({
 			type: "thread.archived",
 			threadId,
 		});
+	}
+
+	async unarchiveThread(threadId: string) {
+		const thread = this.archivedThreads.get(threadId);
+		if (!thread) throw new RuntimeThreadNotFoundError(threadId);
+		this.archivedThreads.delete(threadId);
+		this.threads.set(threadId, thread);
+		this.emit({ type: "thread.unarchived", threadId });
 	}
 
 	async setThreadName(input: { threadId: string; name: string }) {

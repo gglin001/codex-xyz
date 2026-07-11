@@ -8,19 +8,20 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { projectAppServerNotification } from "../src/server/codex/appServerProtocol.js";
 import { AppServerRuntime } from "../src/server/codex/appServerRuntime.js";
 import type { LocalWebSearch } from "../src/server/codex/localWebSearch.js";
 import type { RuntimeEvent } from "../src/server/codex/runtimePort.js";
 
 let tempDir: string | null = null;
 let runtime: AppServerRuntime | null = null;
-const sourceThreadId = "00000000-0000-4000-8000-000000000001";
-const debugThreadId = "00000000-0000-4000-8000-000000000002";
-const forkThreadId = "00000000-0000-4000-8000-000000000003";
+const sourceThreadId = "thread_00000000-0000-4000-8000-000000000001";
+const debugThreadId = "thread_00000000-0000-4000-8000-000000000002";
+const forkThreadId = "thread_00000000-0000-4000-8000-000000000003";
 const turnId = "turn_00000000-0000-4000-8000-000000000004";
 const goalTurnId = "turn_goal_00000000-0000-4000-8000-000000000005";
 const compactTurnId = "turn_compact_00000000-0000-4000-8000-000000000006";
-const startThreadId = "00000000-0000-4000-8000-000000000007";
+const startThreadId = "thread_00000000-0000-4000-8000-000000000007";
 
 function createFakeCodexCommand() {
 	tempDir = mkdtempSync(join(tmpdir(), "coz-app-server-"));
@@ -41,8 +42,10 @@ function logRequest(message) {
     return
   }
   fs.appendFileSync(requestLogPath, JSON.stringify({
+    id: message.id ?? null,
     method: message.method,
-    params: message.params ?? null
+    params: message.params ?? null,
+    result: message.result ?? null
   }) + "\\n")
 }
 
@@ -119,7 +122,7 @@ function handle(message, state) {
     const model = message.params.model ?? "fake-config-model"
     respond(message.id, {
       thread: {
-        id: "thread_${startThreadId}",
+        id: "${startThreadId}",
         sessionId: "${startThreadId}",
         forkedFromId: null,
         preview: "started without turns",
@@ -133,18 +136,87 @@ function handle(message, state) {
     return
   }
 
+  if (message.method === "thread/list") {
+    respond(message.id, {
+      data: [{
+        id: "${sourceThreadId}",
+        sessionId: "${sourceThreadId}",
+        forkedFromId: null,
+        name: "Historical thread",
+        preview: "history preview",
+        cwd: "/history",
+        status: { type: "notLoaded" },
+        updatedAt: 1700000300
+      }],
+      nextCursor: "history-next"
+    })
+    return
+  }
+
+  if (message.method === "thread/search") {
+    respond(message.id, {
+      data: [{
+        thread: {
+          id: "${sourceThreadId}",
+          sessionId: "${sourceThreadId}",
+          forkedFromId: null,
+          name: "Historical thread",
+          preview: "history preview",
+          cwd: "/history",
+          status: { type: "notLoaded" },
+          updatedAt: 1700000300
+        },
+        snippet: "matching history"
+      }],
+      nextCursor: null
+    })
+    return
+  }
+
+  if (message.method === "thread/read") {
+    respond(message.id, {
+      thread: {
+        id: message.params.threadId,
+        sessionId: message.params.threadId,
+        forkedFromId: null,
+        name: "Historical thread",
+        preview: "history preview",
+        cwd: "/history",
+        status: { type: "notLoaded" },
+        updatedAt: 1700000300
+      }
+    })
+    return
+  }
+
+  if (message.method === "thread/turns/list") {
+    respond(message.id, {
+      data: [{
+        id: "${turnId}",
+        status: "completed",
+        startedAt: 1700000300,
+        completedAt: 1700000301,
+        durationMs: 1000,
+        itemsView: "full",
+        items: [
+          { type: "userMessage", id: "history-user", clientId: null, content: [{ type: "text", text: "history prompt", text_elements: [] }] },
+          { type: "agentMessage", id: "history-agent", text: "history answer", phase: null, memoryCitation: null }
+        ],
+        error: null
+      }],
+      nextCursor: "turns-next"
+    })
+    return
+  }
+
   if (message.method === "thread/resume") {
     if (message.params?.excludeTurns === true && !state.experimentalApi) {
       reject(message.id, "thread/resume.excludeTurns requires experimentalApi capability")
       return
     }
-    if (!/^[0-9a-f-]{36}$/i.test(message.params?.threadId ?? "")) {
-      reject(message.id, "invalid session id")
-      return
-    }
     respond(message.id, {
       thread: {
-        id: "thread_" + message.params.threadId,
+        id: message.params.threadId,
         sessionId: message.params.threadId,
         forkedFromId: null,
         preview: "resumed without turns",
@@ -159,15 +231,11 @@ function handle(message, state) {
   }
 
   if (message.method === "thread/fork") {
-    if (!/^[0-9a-f-]{36}$/i.test(message.params?.threadId ?? "")) {
-      reject(message.id, "invalid session id")
-      return
-    }
     respond(message.id, {
       thread: {
-        id: "thread_00000000-0000-4000-8000-000000000003",
+        id: "${forkThreadId}",
         sessionId: message.params.threadId,
-        forkedFromId: "thread_" + message.params.threadId,
+        forkedFromId: message.params.threadId,
         preview: "forked without turns",
         cwd: message.params.cwd,
         model: message.params.model,
@@ -180,12 +248,16 @@ function handle(message, state) {
   }
 
   if (message.method === "thread/archive") {
-    if (!/^[0-9a-f-]{36}$/i.test(message.params?.threadId ?? "")) {
-      reject(message.id, "invalid session id")
-      return
-    }
     respond(message.id, {})
     notify("thread/archived", {
+      threadId: message.params.threadId
+    })
+    return
+  }
+
+  if (message.method === "thread/unarchive") {
+    respond(message.id, {})
+    notify("thread/unarchived", {
       threadId: message.params.threadId
     })
     return
@@ -764,11 +836,7 @@ async function waitForProcessExit(pid: number) {
 	}
 }
 
-async function stopFakePersistentAppServer() {
-	const pid = readAppServerPid();
-	if (pid === null) {
-		return;
-	}
+async function stopPid(pid: number) {
 	try {
 		process.kill(pid, "SIGTERM");
 	} catch {
@@ -783,6 +851,14 @@ async function stopFakePersistentAppServer() {
 	} catch {}
 }
 
+async function stopFakePersistentAppServer() {
+	const pid = readAppServerPid();
+	if (pid === null) {
+		return;
+	}
+	await stopPid(pid);
+}
+
 afterEach(async () => {
 	await runtime?.close();
 	runtime = null;
@@ -795,6 +871,64 @@ afterEach(async () => {
 });
 
 describe("AppServerRuntime", () => {
+	it("lists, searches, and reads app-server history without turns", async () => {
+		const command = createFakeCodexCommand();
+		runtime = new AppServerRuntime(command, appServerOptions());
+
+		const listed = await runtime.listThreads({ limit: 25 });
+		const searched = await runtime.searchThreads({ query: "history" });
+		const read = await runtime.readThread(sourceThreadId);
+		const history = await runtime.readThreadHistory(sourceThreadId);
+
+		expect(listed).toMatchObject({
+			threads: [{ id: sourceThreadId, status: "not_loaded" }],
+			nextCursor: "history-next",
+		});
+		expect(searched.results[0]).toMatchObject({
+			thread: { id: sourceThreadId },
+			snippet: "matching history",
+		});
+		expect(read.id).toBe(sourceThreadId);
+		expect(history).toMatchObject({
+			turns: [
+				{
+					id: turnId,
+					status: "completed",
+					prompt: "history prompt",
+					items: [
+						{ id: "history-user", type: "user" },
+						{ id: "history-agent", type: "agent" },
+					],
+				},
+			],
+			nextCursor: "turns-next",
+		});
+		expect(readRequestLog()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					method: "thread/list",
+					params: expect.objectContaining({
+						sortKey: "updated_at",
+						sortDirection: "desc",
+					}),
+				}),
+				expect.objectContaining({
+					method: "thread/read",
+					params: { threadId: sourceThreadId, includeTurns: false },
+				}),
+				expect.objectContaining({
+					method: "thread/turns/list",
+					params: {
+						threadId: sourceThreadId,
+						limit: 50,
+						sortDirection: "desc",
+						itemsView: "full",
+					},
+				}),
+			]),
+		);
+	});
+
 	it("reads the effective Codex config for a cwd", async () => {
 		const command = createFakeCodexCommand();
 		runtime = new AppServerRuntime(command, appServerOptions());
@@ -871,6 +1005,122 @@ describe("AppServerRuntime", () => {
 			socketPath: appServerSocketPath(),
 		});
 		expect(thread.id).toBe(debugThreadId);
+	});
+
+	it("serializes concurrent app-server restarts", async () => {
+		const command = createFakeCodexCommand();
+		runtime = new AppServerRuntime(command, appServerOptions());
+
+		await runtime.resumeThread({
+			threadId: sourceThreadId,
+			cwd: process.cwd(),
+			model: "test-model",
+		});
+
+		const results = await Promise.all([
+			runtime.restartAppServer(),
+			runtime.restartAppServer(),
+			runtime.restartAppServer(),
+			runtime.restartAppServer(),
+		]);
+		const finalPid = readAppServerPid();
+		const thread = await runtime.resumeThread({
+			threadId: debugThreadId,
+			cwd: process.cwd(),
+			model: "test-model",
+		});
+
+		expect(finalPid).toEqual(expect.any(Number));
+		expect(results.at(-1)?.pid).toBe(finalPid);
+		if (finalPid === null) {
+			throw new Error("Expected final app-server pid");
+		}
+		for (const result of results.slice(0, -1)) {
+			if (result.pid === null) {
+				throw new Error("Expected restarted app-server pid");
+			}
+			expect(result.pid).not.toBe(finalPid);
+			expect(processExists(result.pid)).toBe(false);
+		}
+		expect(processExists(finalPid)).toBe(true);
+		expect(thread.id).toBe(debugThreadId);
+	});
+
+	it("recovers restart when the app-server pid file is stale", async () => {
+		const command = createFakeCodexCommand();
+		runtime = new AppServerRuntime(command, appServerOptions());
+
+		await runtime.resumeThread({
+			threadId: sourceThreadId,
+			cwd: process.cwd(),
+			model: "test-model",
+		});
+		const oldPid = readAppServerPid();
+		let stalePid = 999_999;
+		while (processExists(stalePid)) {
+			stalePid -= 1;
+		}
+		writeFileSync(appServerPidPath(), String(stalePid), "utf8");
+
+		try {
+			const result = await runtime.restartAppServer();
+			const finalPid = readAppServerPid();
+			const thread = await runtime.resumeThread({
+				threadId: debugThreadId,
+				cwd: process.cwd(),
+				model: "test-model",
+			});
+
+			expect(oldPid).toEqual(expect.any(Number));
+			expect(result.pid).toBe(finalPid);
+			expect(finalPid).not.toBe(oldPid);
+			if (finalPid === null) {
+				throw new Error("Expected final app-server pid");
+			}
+			expect(processExists(finalPid)).toBe(true);
+			expect(thread.id).toBe(debugThreadId);
+		} finally {
+			if (oldPid !== null) {
+				await stopPid(oldPid);
+			}
+		}
+	});
+
+	it("stops the persisted app-server process when the socket probe fails", async () => {
+		const command = createFakeCodexCommand();
+		runtime = new AppServerRuntime(command, appServerOptions());
+
+		await runtime.resumeThread({
+			threadId: sourceThreadId,
+			cwd: process.cwd(),
+			model: "test-model",
+		});
+		const oldPid = readAppServerPid();
+		rmSync(appServerSocketPath(), { force: true });
+
+		try {
+			const result = await runtime.restartAppServer();
+			const finalPid = readAppServerPid();
+			const thread = await runtime.resumeThread({
+				threadId: debugThreadId,
+				cwd: process.cwd(),
+				model: "test-model",
+			});
+
+			expect(oldPid).toEqual(expect.any(Number));
+			expect(result.pid).toBe(finalPid);
+			expect(finalPid).not.toBe(oldPid);
+			if (oldPid === null || finalPid === null) {
+				throw new Error("Expected app-server pids");
+			}
+			expect(processExists(oldPid)).toBe(false);
+			expect(processExists(finalPid)).toBe(true);
+			expect(thread.id).toBe(debugThreadId);
+		} finally {
+			if (oldPid !== null) {
+				await stopPid(oldPid);
+			}
+		}
 	});
 
 	it("opts into experimental fields before resuming without turns", async () => {
@@ -1000,7 +1250,7 @@ describe("AppServerRuntime", () => {
 		);
 	});
 
-	it("normalizes app-server thread ids before callers reuse them", async () => {
+	it("preserves app-server thread ids before callers reuse them", async () => {
 		const command = createFakeCodexCommand();
 		runtime = new AppServerRuntime(command, appServerOptions());
 
@@ -1039,6 +1289,34 @@ describe("AppServerRuntime", () => {
 				threadId: sourceThreadId,
 			},
 		]);
+	});
+
+	it("unarchives threads through app-server and projects lifecycle notifications", async () => {
+		const command = createFakeCodexCommand();
+		runtime = new AppServerRuntime(command, appServerOptions());
+		const events: RuntimeEvent[] = [];
+		runtime.onEvent((event) => events.push(event));
+
+		await runtime.unarchiveThread(sourceThreadId);
+		await new Promise((resolve) => setTimeout(resolve, 20));
+
+		expect(events).toEqual([
+			{
+				type: "thread.unarchived",
+				threadId: sourceThreadId,
+			},
+		]);
+	});
+
+	it("projects deleted thread notifications", () => {
+		expect(
+			projectAppServerNotification("thread/deleted", {
+				threadId: sourceThreadId,
+			}),
+		).toEqual({
+			type: "thread.deleted",
+			threadId: sourceThreadId,
+		});
 	});
 
 	it("writes app-server protocol debug records as JSON lines", async () => {
@@ -1084,7 +1362,7 @@ describe("AppServerRuntime", () => {
 					message: expect.objectContaining({
 						result: expect.objectContaining({
 							thread: expect.objectContaining({
-								id: `thread_${debugThreadId}`,
+								id: debugThreadId,
 							}),
 						}),
 					}),

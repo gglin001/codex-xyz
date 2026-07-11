@@ -51,11 +51,15 @@ export function getThreadItemsPage(input: {
 	threadId: string;
 	limit: number;
 	cursor?: ThreadItemPageCursor | null;
+	beforeCursor?: ThreadItemPageCursor | null;
 }) {
 	const params = new URLSearchParams({
 		limit: String(input.limit),
 	});
-	if (input.cursor) {
+	if (input.beforeCursor) {
+		params.set("beforeCreatedAt", input.beforeCursor.createdAt);
+		params.set("beforeId", input.beforeCursor.id);
+	} else if (input.cursor) {
 		params.set("cursorCreatedAt", input.cursor.createdAt);
 		params.set("cursorId", input.cursor.id);
 	}
@@ -80,6 +84,40 @@ export function getThreadsPage(input: {
 		params.set("archived", input.archived ? "true" : "false");
 	}
 	return request<ThreadPage>(`/api/threads?${params.toString()}`);
+}
+
+export function syncThreadHistory(
+	input: {
+		limit?: number | null;
+		cursor?: string | null;
+		archived?: boolean | null;
+	} = {},
+) {
+	return request<{ threads: ControlThread[]; nextCursor: string | null }>(
+		"/api/threads/sync",
+		{
+			method: "POST",
+			body: JSON.stringify(input),
+		},
+	);
+}
+
+export function searchThreadHistory(input: {
+	query: string;
+	limit?: number | null;
+	cursor?: string | null;
+	archived?: boolean | null;
+}) {
+	const params = new URLSearchParams({ q: input.query });
+	if (input.limit) params.set("limit", String(input.limit));
+	if (input.cursor) params.set("cursor", input.cursor);
+	if (input.archived !== undefined && input.archived !== null) {
+		params.set("archived", input.archived ? "true" : "false");
+	}
+	return request<{
+		results: Array<{ thread: ControlThread; snippet: string }>;
+		nextCursor: string | null;
+	}>(`/api/threads/search?${params.toString()}`);
 }
 
 export function createThread(input: {
@@ -157,6 +195,13 @@ export function cleanBackgroundTerminals(threadId: string) {
 
 export function archiveThread(threadId: string) {
 	return request<ControlThread>(`/api/threads/${threadId}/archive`, {
+		method: "POST",
+		body: JSON.stringify({}),
+	});
+}
+
+export function unarchiveThread(threadId: string) {
+	return request<ControlThread>(`/api/threads/${threadId}/unarchive`, {
 		method: "POST",
 		body: JSON.stringify({}),
 	});

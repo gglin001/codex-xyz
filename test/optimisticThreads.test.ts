@@ -43,6 +43,17 @@ function thread(overrides: Partial<ControlThread> = {}): ControlThread {
 		goalTokenBudget: null,
 		tokensUsed: 0,
 		tagScore: null,
+		lifecycleState: "active",
+		desiredArchived: false,
+		remoteArchived: false,
+		remoteObservedAt: createdAt,
+		remoteUpdatedAt: createdAt,
+		localUpdatedAt: createdAt,
+		runtimeSeenAt: createdAt,
+		runtimeEpoch: 1,
+		syncGeneration: 1,
+		stateRevision: 1,
+		lastOperationError: null,
 		archivedAt: null,
 		createdAt,
 		updatedAt: createdAt,
@@ -312,6 +323,7 @@ describe("optimistic thread projection helpers", () => {
 				items: [],
 				itemTotalCount: 0,
 				itemPageSize: 0,
+				itemPageDirection: "after",
 				itemNextCursor: null,
 				itemHasMore: false,
 				latestEventId: 10,
@@ -354,6 +366,33 @@ describe("optimistic thread projection helpers", () => {
 		]);
 	});
 
+	it("projects goal mode on an existing thread without replacing its preview", () => {
+		const baseThread = thread({
+			preview: "Existing thread preview",
+			status: "idle",
+			activeTurnId: null,
+			lastTurnStatus: "completed",
+		});
+		const draft = createOptimisticTurnDraft({
+			thread: baseThread,
+			prompt: "Finish the existing workflow",
+			goalMode: true,
+			now: updatedAt,
+		});
+
+		expect(draft.thread).toMatchObject({
+			status: "active",
+			preview: "Existing thread preview",
+			goalObjective: "Finish the existing workflow",
+			goalStatus: "in_progress",
+		});
+		expect(draft.turn).toMatchObject({ prompt: "" });
+		expect(draft.item).toMatchObject({
+			text: "Finish the existing workflow",
+			data: { goalMode: true },
+		});
+	});
+
 	it("rolls back an optimistic steer without removing the active turn", () => {
 		const activeThread = thread({
 			status: "active",
@@ -368,6 +407,7 @@ describe("optimistic thread projection helpers", () => {
 				items: [],
 				itemTotalCount: 0,
 				itemPageSize: 0,
+				itemPageDirection: "after",
 				itemNextCursor: null,
 				itemHasMore: false,
 				latestEventId: 10,
@@ -412,6 +452,7 @@ describe("optimistic thread projection helpers", () => {
 				items: [],
 				itemTotalCount: 0,
 				itemPageSize: 0,
+				itemPageDirection: "after",
 				itemNextCursor: null,
 				itemHasMore: false,
 				latestEventId: 10,

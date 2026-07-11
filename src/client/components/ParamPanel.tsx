@@ -17,23 +17,29 @@ import {
 	WrapText,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { memo, useId, useRef } from "react";
+import { memo } from "react";
 import type {
 	ControlThread,
 	ThreadDetail,
 	ThreadTagScore,
 } from "../../server/domain.js";
+import { threadDisplayStatus } from "../../server/domain.js";
 import {
 	clampDisplayScale,
 	cn,
 	displayScale as displayScaleConfig,
 	formatDisplayScale,
-	tone,
 	ui,
 } from "../designSystem.js";
+import {
+	statusPresentation,
+	threadStatusTooltip,
+} from "../statusPresentation.js";
 import { nextThemeMode, type ThemeMode } from "../theme.js";
-import { shortId, statusLabel } from "../uiFormat.js";
-import { MobileFloatingScroller } from "./MobileFloatingScroller.js";
+import { threadLifecycleLabel } from "../threadLifecycle.js";
+import { shortId } from "../uiFormat.js";
+import { ScrollArea } from "./ScrollArea.js";
+import { StatusIcon } from "./statusIndicator.js";
 import { ControlCard, InfoTile, SurfaceAction } from "./uiPrimitives.js";
 import type { ComposerMode, WorkbenchThread } from "./workbenchTypes.js";
 
@@ -64,19 +70,6 @@ function formatCompact(value: number) {
 	return new Intl.NumberFormat(undefined, { notation: "compact" }).format(
 		value,
 	);
-}
-
-function runtimeStatusTone(status: string | null | undefined) {
-	if (status === "active") {
-		return tone.running.dot;
-	}
-	if (status === "system_error") {
-		return tone.error.dot;
-	}
-	if (status === "not_loaded") {
-		return tone.stale.dot;
-	}
-	return tone.neutral.dot;
 }
 
 function SettingsIconToggle({
@@ -293,14 +286,17 @@ export const ParamPanel = memo(function ParamPanel({
 	restartCodexAppServerDisabled,
 	onRestartCodexAppServer,
 }: ParamPanelProps) {
-	const settingsScrollRef = useRef<HTMLDivElement | null>(null);
-	const settingsScrollId = useId();
-	const composingNewThread = promptTarget === "new";
+	const composingNewThread =
+		promptTarget === "new" && !selectedThread && !threadSummary;
 	const thread = composingNewThread
 		? null
 		: (selectedThread ?? threadSummary?.thread ?? null);
 	const displayDetail = composingNewThread ? null : detail;
-	const status = thread?.status ?? "idle";
+	const status = thread ? threadDisplayStatus(thread) : "idle";
+	const statusTitle = threadStatusTooltip(
+		status,
+		thread?.lastTurnStatus ?? null,
+	);
 	const model = thread?.model ?? defaultModel ?? "default Codex model";
 	const cwd = composingNewThread
 		? workdir || defaultCwd
@@ -311,7 +307,7 @@ export const ParamPanel = memo(function ParamPanel({
 		threadSummary?.tokensUsed ??
 		0;
 	const turnCount = displayDetail?.turns.length ?? 0;
-	const itemCount = displayDetail?.items.length ?? 0;
+	const itemCount = displayDetail?.itemTotalCount ?? 0;
 
 	return (
 		<aside
@@ -320,177 +316,151 @@ export const ParamPanel = memo(function ParamPanel({
 				className,
 			)}
 		>
-			<div className="relative min-h-0 min-w-0 max-w-full flex-1 overflow-x-hidden">
-				<div
-					id={settingsScrollId}
-					ref={settingsScrollRef}
-					className="mobile-custom-scroll mobile-keyboard-scroll h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden scroll-mask-y"
-				>
-					<div className="grid min-w-0 gap-1.5 px-2.5 py-2">
+			<ScrollArea
+				outerClassName="min-w-0 max-w-full flex-1 overflow-x-hidden"
+				className="mobile-keyboard-scroll min-w-0 scroll-mask-y"
+				edgeFades={{ tone: "panel", top: "short", bottom: "short" }}
+				floatingScroller={{ contentRightInset: "0.625rem" }}
+			>
+				<div className="grid min-w-0 gap-1.5 px-2.5 py-2">
+					<InfoTile
+						icon={<Hash size={13} />}
+						label="Name"
+						value={thread?.name || threadSummary?.name || "Untitled thread"}
+						hideLabel
+					/>
+					<div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-1.5">
 						<InfoTile
-							icon={<Hash size={13} />}
-							label="Name"
-							value={thread?.name || threadSummary?.name || "Untitled thread"}
-							hideLabel
+							icon={<StatusIcon status={status} size={13} />}
+							label="Status"
+							value={statusPresentation(status).label}
+							title={statusTitle}
+							layout="inline"
 						/>
-						<div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-1.5">
+						<InfoTile
+							icon={<Archive size={13} />}
+							label="Mode"
+							value={thread ? threadLifecycleLabel(thread) : "None"}
+							layout="inline"
+						/>
+					</div>
+					<InfoTile
+						icon={<Hash size={13} />}
+						label="ID"
+						value={thread?.id ?? "None"}
+						mono
+						layout="inline"
+					/>
+					<InfoTile
+						icon={<FolderGit2 size={13} />}
+						label="CWD"
+						value={cwd}
+						mono
+						hideLabel
+					/>
+					<InfoTile
+						icon={<Bot size={13} />}
+						label="Model"
+						value={model}
+						mono
+						hideLabel
+					/>
+					{thread?.goalObjective ? (
+						<InfoTile
+							icon={<TimerReset size={13} />}
+							label="Goal"
+							value={thread.goalObjective}
+						/>
+					) : null}
+					<div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-1.5">
+						<InfoTile
+							icon={<TimerReset size={13} />}
+							label="token"
+							value={formatCompact(contextTokens)}
+							mono
+							layout="inline"
+						/>
+						<InfoTile
+							icon={<Play size={13} />}
+							label="Turns"
+							value={String(turnCount)}
+							layout="inline"
+						/>
+					</div>
+					<div
+						className={cn(
+							"grid min-w-0 gap-1.5",
+							thread?.forkedFromId
+								? "grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
+								: "grid-cols-1",
+						)}
+					>
+						<InfoTile
+							icon={<Activity size={13} />}
+							label="Items"
+							value={String(itemCount)}
+							layout="inline"
+						/>
+						{thread?.forkedFromId ? (
 							<InfoTile
-								icon={
-									<span
-										className={cn(
-											"h-2 w-2 rounded-full",
-											runtimeStatusTone(status),
-										)}
-									/>
-								}
-								label="Status"
-								value={statusLabel(status)}
-								layout="inline"
-							/>
-							<InfoTile
-								icon={<Archive size={13} />}
-								label="Mode"
-								value={
-									thread?.archivedAt ? "Archived" : thread ? "Active" : "None"
-								}
-								layout="inline"
-							/>
-						</div>
-						<div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-1.5">
-							<InfoTile
-								icon={<Hash size={13} />}
-								label="ID"
-								value={thread ? shortId(thread.id) : "None"}
+								icon={<GitFork size={13} />}
+								label="Continued"
+								value={shortId(thread.forkedFromId)}
 								mono
 								layout="inline"
-							/>
-							<InfoTile
-								icon={<Activity size={13} />}
-								label="Turn"
-								value={
-									thread?.activeTurnId ? shortId(thread.activeTurnId) : "None"
-								}
-								mono
-								layout="inline"
-							/>
-						</div>
-						<InfoTile
-							icon={<FolderGit2 size={13} />}
-							label="CWD"
-							value={cwd}
-							mono
-							hideLabel
-						/>
-						<InfoTile
-							icon={<Bot size={13} />}
-							label="Model"
-							value={model}
-							mono
-							hideLabel
-						/>
-						{thread?.goalObjective ? (
-							<InfoTile
-								icon={<TimerReset size={13} />}
-								label="Goal"
-								value={thread.goalObjective}
 							/>
 						) : null}
-						<div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-1.5">
-							<InfoTile
-								icon={<TimerReset size={13} />}
-								label="token"
-								value={formatCompact(contextTokens)}
-								mono
-								layout="inline"
-							/>
-							<InfoTile
-								icon={<Play size={13} />}
-								label="Turns"
-								value={String(turnCount)}
-								layout="inline"
-							/>
-						</div>
-						<div
-							className={cn(
-								"grid min-w-0 gap-1.5",
-								thread?.forkedFromId
-									? "grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
-									: "grid-cols-1",
-							)}
-						>
-							<InfoTile
-								icon={<Activity size={13} />}
-								label="Items"
-								value={String(itemCount)}
-								layout="inline"
-							/>
-							{thread?.forkedFromId ? (
-								<InfoTile
-									icon={<GitFork size={13} />}
-									label="Continued"
-									value={shortId(thread.forkedFromId)}
-									mono
-									layout="inline"
-								/>
-							) : null}
-						</div>
-					</div>
-
-					<div className="mx-2.5 h-px bg-border-soft" />
-
-					<div className="grid min-w-0 gap-1.5 px-2.5 py-2">
-						<div className="flex min-w-0 flex-wrap gap-1.5">
-							<SettingsIconAction
-								disabled={restartCodexAppServerDisabled}
-								icon={<RefreshCw size={15} />}
-								label="Restart Codex app-server"
-								title={
-									restartCodexAppServerDisabled
-										? "Another action is running"
-										: "Restart Codex app-server"
-								}
-								onClick={onRestartCodexAppServer}
-							/>
-							<SettingsIconToggle
-								checked={themeMode === "day"}
-								icon={<Sun size={15} />}
-								label="Day mode"
-								title={themeMode === "day" ? "Use dark mode" : "Use day mode"}
-								onClick={() => onThemeModeChange(nextThemeMode(themeMode))}
-							/>
-							<SettingsIconToggle
-								checked={wrapThreadContent}
-								icon={<WrapText size={15} />}
-								label="Wrap thread content"
-								title={
-									wrapThreadContent
-										? "Disable transcript wrap"
-										: "Enable transcript wrap"
-								}
-								onClick={() => onWrapThreadContentChange(!wrapThreadContent)}
-							/>
-						</div>
-						<TagScoreControl
-							disabled={!thread}
-							score={thread?.tagScore ?? null}
-							onChange={onThreadTagScoreChange}
-						/>
-						<SettingsZoomControl
-							value={displayScale}
-							fullscreenSupported={fullscreenSupported}
-							isFullscreen={isFullscreen}
-							onChange={onDisplayScaleChange}
-							onToggleFullscreen={onToggleFullscreen}
-						/>
 					</div>
 				</div>
-				<div className="chrome-edge-fade chrome-edge-fade-short chrome-edge-fade-panel chrome-edge-fade-top" />
-				<div className="chrome-edge-fade chrome-edge-fade-short chrome-edge-fade-panel chrome-edge-fade-bottom" />
-				<MobileFloatingScroller
-					scrollRef={settingsScrollRef}
-					scrollElementId={settingsScrollId}
-				/>
-			</div>
+
+				<div className="mx-2.5 h-px bg-border-soft" />
+
+				<div className="grid min-w-0 gap-1.5 px-2.5 py-2">
+					<div className="flex min-w-0 flex-wrap gap-1.5">
+						<SettingsIconAction
+							disabled={restartCodexAppServerDisabled}
+							icon={<RefreshCw size={15} />}
+							label="Restart Codex app-server"
+							title={
+								restartCodexAppServerDisabled
+									? "Another action is running"
+									: "Restart Codex app-server"
+							}
+							onClick={onRestartCodexAppServer}
+						/>
+						<SettingsIconToggle
+							checked={themeMode === "day"}
+							icon={<Sun size={15} />}
+							label="Day mode"
+							title={themeMode === "day" ? "Use dark mode" : "Use day mode"}
+							onClick={() => onThemeModeChange(nextThemeMode(themeMode))}
+						/>
+						<SettingsIconToggle
+							checked={wrapThreadContent}
+							icon={<WrapText size={15} />}
+							label="Wrap thread content"
+							title={
+								wrapThreadContent
+									? "Disable transcript wrap"
+									: "Enable transcript wrap"
+							}
+							onClick={() => onWrapThreadContentChange(!wrapThreadContent)}
+						/>
+					</div>
+					<TagScoreControl
+						disabled={!thread}
+						score={thread?.tagScore ?? null}
+						onChange={onThreadTagScoreChange}
+					/>
+					<SettingsZoomControl
+						value={displayScale}
+						fullscreenSupported={fullscreenSupported}
+						isFullscreen={isFullscreen}
+						onChange={onDisplayScaleChange}
+						onToggleFullscreen={onToggleFullscreen}
+					/>
+				</div>
+			</ScrollArea>
 		</aside>
 	);
 });

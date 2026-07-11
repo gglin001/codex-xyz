@@ -13,7 +13,10 @@ import {
 	type StartTurnInput,
 	type ThreadDetail,
 	type ThreadItemPageCursor,
+	type ThreadItemPageDirection,
 	type ThreadItemsPage,
+	type ThreadOperation,
+	type ThreadOperationKind,
 	type ThreadPage,
 	type ThreadPageCursor,
 	type ThreadTagScore,
@@ -27,6 +30,11 @@ import {
 } from "./runtimeThread.js";
 import type { Store } from "./store.js";
 import { TerminalController } from "./terminal.js";
+import {
+	reconcileRuntimeThreadHistory,
+	reconcileRuntimeThreadSnapshot,
+	reconcileRuntimeThreads,
+} from "./threadHistoryReconciliation.js";
 import { ThreadProjection } from "./threadProjection.js";
 
 function isNoActiveTurnError(error: unknown) {
@@ -92,9 +100,17 @@ function pageCursorFromThreads(
 }
 
 export class ControlService {
+	private readonly hydratedHistoryThreads = new Set<string>();
 	private defaultCwd = process.cwd();
+	private defaultModel: string | null = null;
 	private readonly runtimeThreads: RuntimeThreadCoordinator;
 	private readonly projection: ThreadProjection;
+	private syncPromise: Promise<
+		ReturnType<typeof reconcileRuntimeThreadSnapshot>
+	> | null = null;
+	private startPromise: Promise<void> | null = null;
+	private syncTimer: ReturnType<typeof setInterval> | null = null;
+	private runtimeEpoch = 0;
 
 	constructor(
 		readonly store: Store,
@@ -137,7 +153,6 @@ export class ControlService {
 		const totalCount = this.store.countThreads();
 		const limit = defaultThreadPageSize;
 		const defaultCwd = this.store.getDefaultCwd() ?? this.defaultCwd;
-		const defaultModel = await this.readDefaultModel(defaultCwd);
 		const pageThreads =
 			totalCount <= defaultThreadPageSize
 				? this.store.listThreads()
@@ -151,9 +166,138 @@ export class ControlService {
 			threadNextCursor: threadHasMore ? pageCursorFromThreads(threads) : null,
 			threadHasMore,
 			defaultCwd,
-			defaultModel,
+			defaultModel: this.defaultModel,
 			latestEventId,
 		};
+	}
+
+	start() {
+		if (this.startPromise) return this.startPromise;
+		this.startPromise = (async () => {
+			this.runtimeEpoch = this.store.beginRuntimeEpoch();
+			this.syncTimer = setInterval(() => {
+				void this.syncThreads().catch(() => {});
+			}, 60_000);
+			this.syncTimer.unref?.();
+			await this.syncThreads().catch(() => {});
+			await this.recoverThreadOperations();
+			this.defaultModel = await this.readDefaultModel(this.defaultCwd);
+		})();
+		return this.startPromise;
+	}
+
+	ready() {
+		return this.start();
+	}
+
+	async syncThreadHistory(
+		input: {
+			limit?: number | null;
+			cursor?: string | null;
+			archived?: boolean | null;
+		} = {},
+	) {
+		await this.syncThreads();
+		return {
+			threads: this.store.listThreads({ archived: input.archived }),
+			nextCursor: null,
+		};
+	}
+
+	private async collectRuntimeThreads(archived: boolean) {
+		const threads = [];
+		let cursor: string | null = null;
+		const visitedCursors = new Set<string>();
+		do {
+			const page = await this.runtime.listThreads({
+				archived,
+				cursor,
+				limit: maxThreadPageSize,
+			});
+			threads.push(...page.threads);
+			cursor = page.nextCursor;
+			if (cursor && visitedCursors.has(cursor)) {
+				throw new Error(`Codex returned a repeated thread cursor: ${cursor}`);
+			}
+			if (cursor) {
+				visitedCursors.add(cursor);
+			}
+		} while (cursor);
+		return threads;
+	}
+
+	syncThreads() {
+		if (this.syncPromise) return this.syncPromise;
+		const context = this.store.beginRemoteSync();
+		this.syncPromise = Promise.all([
+			this.collectRuntimeThreads(false),
+			this.collectRuntimeThreads(true),
+		])
+			.then(([active, archived]) => {
+				const result = reconcileRuntimeThreadSnapshot(this.store, {
+					active,
+					archived,
+					...context,
+					runtimeEpoch: this.runtimeEpoch,
+				});
+				if (result.changed) {
+					this.projection.publish("threads.synced", null, null, {
+						generation: context.generation,
+					});
+				}
+				return result;
+			})
+			.finally(() => {
+				this.syncPromise = null;
+			});
+		return this.syncPromise;
+	}
+
+	async searchThreadHistory(input: {
+		query: string;
+		limit?: number | null;
+		cursor?: string | null;
+		archived?: boolean | null;
+	}) {
+		const page = await this.runtime.searchThreads(input);
+		const threads = reconcileRuntimeThreads(
+			this.store,
+			page.results.map((result) => result.thread),
+			{ archived: input.archived },
+		);
+		const byId = new Map(threads.map((thread) => [thread.id, thread]));
+		return {
+			results: page.results.map((result) => ({
+				thread: byId.get(result.thread.id) ?? result.thread,
+				snippet: result.snippet,
+			})),
+			nextCursor: page.nextCursor,
+		};
+	}
+
+	async discoverThread(threadId: string) {
+		const runtimeThread = await this.runtime.readThread(threadId);
+		return reconcileRuntimeThreads(this.store, [runtimeThread])[0];
+	}
+
+	async getHydratedThreadDetail(threadId: string): Promise<ThreadDetail> {
+		let thread = this.store.getThread(threadId);
+		if (!thread) {
+			thread = (await this.discoverThread(threadId)) ?? null;
+		}
+		if (!thread) {
+			throw new Error(`Thread ${threadId} does not exist`);
+		}
+		if (!this.hydratedHistoryThreads.has(threadId)) {
+			try {
+				const history = await this.runtime.readThreadHistory(threadId);
+				reconcileRuntimeThreadHistory(this.store, threadId, history);
+				this.hydratedHistoryThreads.add(threadId);
+			} catch (error) {
+				if (this.store.listTurns(threadId).length === 0) throw error;
+			}
+		}
+		return this.getThreadDetail(threadId);
 	}
 
 	private async readDefaultModel(cwd: string) {
@@ -323,13 +467,12 @@ export class ControlService {
 		if (source.activeTurnId || source.status === "active") {
 			throw new Error("Archive requires an idle thread");
 		}
-		if (source.status === "not_loaded") {
-			return this.projection.archiveThread(threadId);
-		}
-		await this.withRuntimeThread(source, (runtimeThread) =>
-			this.runtime.archiveThread(runtimeThread.id),
-		);
-		return this.projection.archiveThread(threadId);
+		return this.beginLifecycleOperation(threadId, "archive");
+	}
+
+	async unarchiveThread(threadId: string) {
+		this.requireThread(threadId);
+		return this.beginLifecycleOperation(threadId, "unarchive");
 	}
 
 	setThreadTagScore(input: {
@@ -370,7 +513,7 @@ export class ControlService {
 
 	async startGoal(input: SetGoalInput) {
 		const source = this.requireThread(input.threadId);
-		if (source.activeTurnId || source.status !== "idle") {
+		if (source.activeTurnId || source.status === "active") {
 			throw new Error("Goal mode requires an idle thread");
 		}
 		const { goal, turn: runtimeTurn } = await this.withRuntimeThread(
@@ -431,6 +574,10 @@ export class ControlService {
 
 	async restartCodexAppServer() {
 		const result = await this.runtime.restartAppServer();
+		this.runtimeEpoch = this.store.beginRuntimeEpoch();
+		await this.recoverThreadOperations();
+		await this.syncThreads();
+		this.defaultModel = await this.readDefaultModel(this.defaultCwd);
 		return {
 			...result,
 			message: "Codex app-server restarted",
@@ -481,6 +628,7 @@ export class ControlService {
 		threadId: string,
 		input: {
 			limit?: number | null;
+			direction?: ThreadItemPageDirection;
 			cursor?: ThreadItemPageCursor | null;
 		} = {},
 	): ThreadItemsPage {
@@ -507,9 +655,78 @@ export class ControlService {
 	}
 
 	async close() {
+		if (this.syncTimer) {
+			clearInterval(this.syncTimer);
+			this.syncTimer = null;
+		}
 		await this.terminal.close();
 		await this.runtime.close();
+		await this.startPromise?.catch(() => {});
+		await this.syncPromise?.catch(() => {});
 		this.store.close();
+	}
+	private async beginLifecycleOperation(
+		threadId: string,
+		kind: ThreadOperationKind,
+	) {
+		const operation = this.store.beginThreadOperation(threadId, kind);
+		this.projection.publish("thread.lifecycle.updated", threadId, null, {
+			thread: this.store.getThread(threadId),
+			operation,
+		});
+		return this.runLifecycleOperation(operation);
+	}
+
+	private async runLifecycleOperation(operation: ThreadOperation) {
+		this.store.markThreadOperationRunning(operation.id);
+		try {
+			if (operation.kind === "archive") {
+				await this.runtime.archiveThread(operation.threadId);
+			} else {
+				await this.runtime.unarchiveThread(operation.threadId);
+			}
+			return this.projection.confirmThreadLifecycle(
+				operation.threadId,
+				operation.kind,
+			);
+		} catch (error) {
+			const current = this.store.getThread(operation.threadId);
+			if (
+				current?.remoteArchived === (operation.kind === "archive") &&
+				current.lifecycleState ===
+					(operation.kind === "archive" ? "archived" : "active")
+			) {
+				return this.projection.confirmThreadLifecycle(
+					operation.threadId,
+					operation.kind,
+				);
+			}
+			const message = error instanceof Error ? error.message : String(error);
+			if (isTransientRuntimeError(message)) {
+				return this.store.getThread(operation.threadId);
+			}
+			const thread = this.store.failThreadOperation(
+				operation.threadId,
+				operation.kind,
+				message,
+			);
+			this.projection.publish(
+				"thread.lifecycle.updated",
+				operation.threadId,
+				null,
+				{
+					thread,
+					operation: this.store.getThreadOperation(operation.id),
+				},
+			);
+			return thread;
+		}
+	}
+
+	private async recoverThreadOperations() {
+		for (const operation of this.store.listPendingThreadOperations()) {
+			await this.runLifecycleOperation(operation);
+		}
 	}
 
 	private async startShellCommand(
@@ -700,4 +917,10 @@ export class ControlService {
 		}
 		return thread;
 	}
+}
+
+function isTransientRuntimeError(message: string) {
+	return /websocket|not connected|closed|connect|ECONN|timeout|timed out/i.test(
+		message,
+	);
 }

@@ -9,6 +9,7 @@ import type {
 	ControlThread,
 	DashboardState,
 	TerminalSnapshot,
+	ThreadDetail,
 	ThreadPage,
 } from "../src/server/domain.js";
 import { EventBus } from "../src/server/eventBus.js";
@@ -193,13 +194,24 @@ function threadFixture(index: number): ControlThread {
 		goalTokenBudget: null,
 		tokensUsed: 0,
 		tagScore: null,
+		lifecycleState: "active",
+		desiredArchived: false,
+		remoteArchived: false,
+		remoteObservedAt: timestamp,
+		remoteUpdatedAt: timestamp,
+		localUpdatedAt: timestamp,
+		runtimeSeenAt: timestamp,
+		runtimeEpoch: 0,
+		syncGeneration: 0,
+		stateRevision: 0,
+		lastOperationError: null,
 		archivedAt: null,
 		createdAt: timestamp,
 		updatedAt: timestamp,
 	};
 }
 
-beforeEach(() => {
+beforeEach(async () => {
 	tempDir = mkdtempSync(join(tmpdir(), "coz-api-"));
 	terminalPtys = [];
 	const ptyFactory: PtyFactory = (_file, _args, options) => {
@@ -224,6 +236,7 @@ beforeEach(() => {
 		runtimeName: "test",
 		cliVersion: "test",
 	});
+	await service.ready();
 });
 
 afterEach(async () => {
@@ -266,7 +279,10 @@ describe("Next API routes", () => {
 				}),
 			},
 		);
-		expect(created.thread.id).toMatch(/^[0-9a-f-]{36}$/);
+		expect(created.thread.id).toBe("runtime_thread_1");
+		expect(testRuntime.getThreadSnapshot(created.thread.id)?.id).toBe(
+			created.thread.id,
+		);
 		expect(created.thread.cwd).toBe(tempDir);
 
 		await waitFor(async () => {
@@ -415,6 +431,7 @@ describe("Next API routes", () => {
 
 		const firstPage = await json<{
 			items: Array<{ id: string }>;
+			direction: string;
 			nextCursor: { createdAt: string; id: string } | null;
 			hasMore: boolean;
 			totalCount: number;
@@ -423,6 +440,7 @@ describe("Next API routes", () => {
 			"item-1",
 			"item-2",
 		]);
+		expect(firstPage.direction).toBe("after");
 		expect(firstPage.hasMore).toBe(true);
 		expect(firstPage.totalCount).toBe(3);
 
@@ -432,6 +450,53 @@ describe("Next API routes", () => {
 			)}&cursorId=${encodeURIComponent(firstPage.nextCursor?.id ?? "")}`,
 		);
 		expect(secondPage.items.map((item) => item.id)).toEqual(["item-3"]);
+
+		const beforePage = await json<{
+			items: Array<{ id: string }>;
+			direction: string;
+			hasMore: boolean;
+		}>(
+			`/api/threads/${thread.id}/items?limit=2&beforeCreatedAt=${encodeURIComponent(
+				"2026-06-13T00:00:03.000Z",
+			)}&beforeId=item-3`,
+		);
+		expect(beforePage.direction).toBe("before");
+		expect(beforePage.items.map((item) => item.id)).toEqual([
+			"item-1",
+			"item-2",
+		]);
+		expect(beforePage.hasMore).toBe(false);
+	});
+
+	it("serves thread detail with a bounded latest transcript window", async () => {
+		const thread = threadFixture(1);
+		service.store.createThread(thread);
+		for (let index = 1; index <= 205; index += 1) {
+			const minute = Math.floor(index / 60);
+			const second = index % 60;
+			service.store.createItem({
+				id: `item-${String(index).padStart(3, "0")}`,
+				threadId: thread.id,
+				turnId: null,
+				type: "agent",
+				text: `Item ${index}`,
+				data: {},
+				createdAt: `2026-06-13T00:${String(minute).padStart(2, "0")}:${String(second).padStart(2, "0")}.000Z`,
+			});
+		}
+
+		const detail = await json<ThreadDetail>(`/api/threads/${thread.id}`);
+		expect(detail.items).toHaveLength(200);
+		expect(detail.items[0]?.id).toBe("item-006");
+		expect(detail.items.at(-1)?.id).toBe("item-205");
+		expect(detail.itemTotalCount).toBe(205);
+		expect(detail.itemPageSize).toBe(200);
+		expect(detail.itemPageDirection).toBe("before");
+		expect(detail.itemHasMore).toBe(true);
+		expect(detail.itemNextCursor).toEqual({
+			createdAt: "2026-06-13T00:00:06.000Z",
+			id: "item-006",
+		});
 	});
 
 	it("signals SSE clients to refresh when replay exceeds the bounded window", async () => {
@@ -666,6 +731,15 @@ describe("Next API routes", () => {
 				archivedAt: archived.archivedAt,
 			},
 		]);
+		const unarchived = await json<ControlThread>(
+			`/api/threads/${created.thread.id}/unarchive`,
+			{ method: "POST", body: JSON.stringify({}) },
+		);
+		expect(unarchived).toMatchObject({
+			id: created.thread.id,
+			lifecycleState: "active",
+			archivedAt: null,
+		});
 	});
 
 	it("streams terminal output over SSE and controls input over POST routes", async () => {
