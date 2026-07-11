@@ -342,26 +342,6 @@ function handle(message, state) {
         durationMs: null
       }
     })
-    if (message.params.input?.[0]?.text === "Request user input") {
-      writeJson({
-        id: 9001,
-        method: "item/tool/requestUserInput",
-        params: {
-          threadId,
-          turnId: "${turnId}",
-          itemId: "interaction_1",
-          questions: [{
-            id: "environment",
-            header: "Environment",
-            question: "Where should this run?",
-            isOther: true,
-            isSecret: false,
-            options: [{ label: "Local", description: "Run locally" }]
-          }],
-          autoResolutionMs: 60000
-        }
-      })
-    }
     notify("item/started", {
       threadId,
       turnId: "${turnId}",
@@ -1130,89 +1110,6 @@ describe("AppServerRuntime", () => {
 				threadId: sourceThreadId,
 			},
 		]);
-	});
-
-	it("projects and answers request_user_input server requests", async () => {
-		const command = createFakeCodexCommand();
-		runtime = new AppServerRuntime(command, appServerOptions());
-		const events: RuntimeEvent[] = [];
-		runtime.onEvent((event) => events.push(event));
-
-		await runtime.startTurn({
-			threadId: debugThreadId,
-			prompt: "Request user input",
-		});
-		await new Promise((resolve) => setTimeout(resolve, 20));
-
-		expect(events).toEqual(
-			expect.arrayContaining([
-				{
-					type: "interaction.requested",
-					interactionId: "interaction_1",
-					threadId: debugThreadId,
-					turnId,
-					questions: [
-						{
-							id: "environment",
-							header: "Environment",
-							question: "Where should this run?",
-							isOther: true,
-							isSecret: false,
-							options: [{ label: "Local", description: "Run locally" }],
-						},
-					],
-					autoResolutionMs: 60_000,
-				},
-			]),
-		);
-
-		await runtime.answerUserInput({
-			interactionId: "interaction_1",
-			answers: { environment: ["Local"] },
-		});
-		await new Promise((resolve) => setTimeout(resolve, 20));
-
-		expect(readRequestLog()).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({
-					id: 9001,
-					result: {
-						answers: { environment: { answers: ["Local"] } },
-					},
-				}),
-			]),
-		);
-		await expect(
-			runtime.answerUserInput({
-				interactionId: "interaction_1",
-				answers: { environment: ["Local"] },
-			}),
-		).rejects.toThrow("no longer pending");
-	});
-
-	it("expires pending user input when the runtime disconnects", async () => {
-		const command = createFakeCodexCommand();
-		runtime = new AppServerRuntime(command, appServerOptions());
-		const events: RuntimeEvent[] = [];
-		runtime.onEvent((event) => events.push(event));
-
-		await runtime.startTurn({
-			threadId: debugThreadId,
-			prompt: "Request user input",
-		});
-		await new Promise((resolve) => setTimeout(resolve, 20));
-		await runtime.close();
-
-		expect(events).toEqual(
-			expect.arrayContaining([
-				{
-					type: "interaction.expired",
-					interactionId: "interaction_1",
-					threadId: debugThreadId,
-					turnId,
-				},
-			]),
-		);
 	});
 
 	it("writes app-server protocol debug records as JSON lines", async () => {

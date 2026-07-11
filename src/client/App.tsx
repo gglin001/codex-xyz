@@ -20,10 +20,8 @@ import type {
 	ThreadItemsPage,
 	ThreadTagScore,
 	Turn,
-	UserInputInteractionAnswers,
 } from "../server/domain.js";
 import {
-	answerUserInput,
 	archiveThread,
 	cleanBackgroundTerminals,
 	compactThread,
@@ -381,10 +379,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		useState<DetailSubscription | null>(null);
 	const [loadingEarlierTranscript, setLoadingEarlierTranscript] =
 		useState(false);
-	const [submittingInteractionId, setSubmittingInteractionId] = useState<
-		string | null
-	>(null);
-	const [interactionError, setInteractionError] = useState<string | null>(null);
 	const selectedThreadIdRef = useRef<string | null>(
 		appInitialSelection.selectedThreadId,
 	);
@@ -583,38 +577,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		}
 	}, []);
 
-	const answerSelectedInteraction = useCallback(
-		async (interactionId: string, answers: UserInputInteractionAnswers) => {
-			const threadId = selectedThreadIdRef.current;
-			if (!threadId || submittingInteractionId) {
-				return false;
-			}
-			setSubmittingInteractionId(interactionId);
-			setInteractionError(null);
-			try {
-				await answerUserInput(threadId, interactionId, answers);
-				if (selectedThreadIdRef.current === threadId) {
-					await loadThreadDetail(threadId);
-				}
-				return true;
-			} catch (answerError) {
-				if (selectedThreadIdRef.current === threadId) {
-					setInteractionError(
-						answerError instanceof Error
-							? answerError.message
-							: "Failed to send response",
-					);
-				}
-				return false;
-			} finally {
-				setSubmittingInteractionId((current) =>
-					current === interactionId ? null : current,
-				);
-			}
-		},
-		[loadThreadDetail, submittingInteractionId],
-	);
-
 	const refresh = useCallback(
 		async (nextThreadId?: string | null, options: RefreshOptions = {}) => {
 			const refreshSeq = beginRefresh();
@@ -687,7 +649,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	const selectThread = useCallback(
 		async (threadId: string) => {
 			beginManualSelection();
-			setInteractionError(null);
 			const shouldLoadDetail = shouldLoadThreadSelection(threadId, {
 				currentThreadId: selectedThreadIdRef.current,
 				currentDetailThreadId: projectionRef.current.detail?.id ?? null,
@@ -2140,9 +2101,6 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				onListBackgroundTerminals={listSelectedBackgroundTerminals}
 				onCleanBackgroundTerminals={cleanSelectedBackgroundTerminals}
 				onLoadEarlierTranscript={loadEarlierTranscriptItems}
-				submittingInteractionId={submittingInteractionId}
-				interactionError={interactionError}
-				onAnswerInteraction={answerSelectedInteraction}
 				onRestartCodexAppServer={restartCodexAppServerFromSettings}
 				dateTimeFormatMode={dateTimeFormatMode}
 			/>

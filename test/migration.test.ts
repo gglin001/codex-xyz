@@ -214,6 +214,9 @@ describe("database migrations", () => {
 		execFileSync(process.execPath, ["scripts/upgrade-v6-to-v7.mjs", filePath], {
 			stdio: "pipe",
 		});
+		execFileSync(process.execPath, ["scripts/upgrade-v7-to-v8.mjs", filePath], {
+			stdio: "pipe",
+		});
 
 		const db = new DatabaseSync(filePath);
 		try {
@@ -257,7 +260,7 @@ describe("database migrations", () => {
 			expect(thread?.name).toBe("Thread 1");
 			expect(thread?.tag_score).toBeNull();
 			expect(host?.runtime).toBe("test");
-			expect(interactionsTable?.name).toBe("interactions");
+			expect(interactionsTable).toBeUndefined();
 			expect(events.map((event) => event.type)).toEqual([
 				"thread.started",
 				"thread.name.updated",

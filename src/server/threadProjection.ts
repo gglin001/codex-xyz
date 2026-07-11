@@ -70,32 +70,6 @@ export class ThreadProjection {
 
 	applyRuntimeEvent(event: RuntimeEvent) {
 		return this.runInTransaction(() => {
-			if (event.type === "interaction.requested") {
-				if (!this.ensureTurnForEvent(event.threadId, event.turnId)) {
-					return;
-				}
-				const interaction = this.store.upsertInteraction({
-					id: event.interactionId,
-					threadId: event.threadId,
-					turnId: event.turnId,
-					questions: event.questions,
-					autoResolutionMs: event.autoResolutionMs,
-					status: "pending",
-					requestedAt: nowIso(),
-					resolvedAt: null,
-				});
-				if (interaction) {
-					this.publish("interaction.requested", event.threadId, event.turnId, {
-						interaction,
-					});
-				}
-				return;
-			}
-
-			if (event.type === "interaction.expired") {
-				this.resolveInteraction(event.interactionId, "expired");
-				return;
-			}
 			if (event.type === "item.created" || event.type === "item.updated") {
 				if (!this.ensureTurnForEvent(event.threadId, event.turnId)) {
 					return;
@@ -242,22 +216,6 @@ export class ThreadProjection {
 			if (event.type === "raw") {
 				return;
 			}
-		});
-	}
-
-	resolveInteraction(interactionId: string, status: "answered" | "expired") {
-		return this.runInTransaction(() => {
-			const interaction = this.store.resolveInteraction(interactionId, status);
-			if (!interaction) {
-				return null;
-			}
-			this.publish(
-				`interaction.${status}`,
-				interaction.threadId,
-				interaction.turnId,
-				{ interaction },
-			);
-			return interaction;
 		});
 	}
 

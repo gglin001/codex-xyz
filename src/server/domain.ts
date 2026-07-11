@@ -118,35 +118,6 @@ export type ThreadItem = {
 	createdAt: string;
 };
 
-export type UserInputInteractionOption = {
-	label: string;
-	description: string;
-};
-
-export type UserInputInteractionQuestion = {
-	id: string;
-	header: string;
-	question: string;
-	isOther: boolean;
-	isSecret: boolean;
-	options: UserInputInteractionOption[] | null;
-};
-
-export type UserInputInteractionStatus = "pending" | "answered" | "expired";
-
-export type UserInputInteraction = {
-	id: string;
-	threadId: string;
-	turnId: string;
-	questions: UserInputInteractionQuestion[];
-	autoResolutionMs: number | null;
-	status: UserInputInteractionStatus;
-	requestedAt: string;
-	resolvedAt: string | null;
-};
-
-export type UserInputInteractionAnswers = Record<string, string[]>;
-
 export type ThreadItemPageCursor = {
 	createdAt: string;
 	id: string;
@@ -199,7 +170,6 @@ export function isSummaryEventType(type: string) {
 export type ThreadDetail = ControlThread & {
 	turns: Turn[];
 	items: ThreadItem[];
-	interactions: UserInputInteraction[];
 	itemTotalCount: number;
 	itemPageSize: number;
 	itemPageDirection: ThreadItemPageDirection;

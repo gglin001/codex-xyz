@@ -6,6 +6,24 @@ import type { ControlThread } from "./domain.js";
 import { nowIso } from "./domain.js";
 import type { Store } from "./store.js";
 
+const rolloutLocalItemIdPattern = /^item-\d+$/;
+
+function persistedHistoryItemId(
+	threadId: string,
+	turnId: string,
+	itemId: string,
+) {
+	return rolloutLocalItemIdPattern.test(itemId)
+		? `history:${threadId}:${turnId}:${itemId}`
+		: itemId;
+}
+
+function isRolloutLocalHistoryItemId(itemId: string) {
+	return (
+		rolloutLocalItemIdPattern.test(itemId) || itemId.startsWith("history:")
+	);
+}
+
 function discoveredThread(
 	store: Store,
 	runtimeThread: RuntimeThreadSnapshot,
@@ -96,9 +114,45 @@ export function reconcileRuntimeThreadHistory(
 					durationMs: runtimeTurn.durationMs,
 				});
 			}
+			const existingItems = store.listTurnItems(runtimeTurn.id);
+			const promptItem = runtimeTurn.items.find(
+				(item) => item.type === "user" && item.text === runtimeTurn.prompt,
+			);
 			for (const item of runtimeTurn.items) {
+				const persistedId = persistedHistoryItemId(
+					threadId,
+					runtimeTurn.id,
+					item.id,
+				);
+				if (rolloutLocalItemIdPattern.test(item.id)) {
+					const legacyItem = store.getItem(item.id);
+					if (legacyItem?.turnId === runtimeTurn.id) {
+						store.deleteItem(item.id);
+					}
+				}
+				if (item === promptItem) {
+					const matchingLivePrompt = existingItems.find(
+						(existingItem) =>
+							existingItem.type === "user" &&
+							existingItem.text === item.text &&
+							!isRolloutLocalHistoryItemId(existingItem.id),
+					);
+					if (matchingLivePrompt) {
+						for (const existingItem of existingItems) {
+							if (
+								existingItem.type === "user" &&
+								existingItem.text === item.text &&
+								isRolloutLocalHistoryItemId(existingItem.id)
+							) {
+								store.deleteItem(existingItem.id);
+							}
+						}
+						continue;
+					}
+				}
 				store.upsertItem({
 					...item,
+					id: persistedId,
 					threadId,
 					turnId: runtimeTurn.id,
 				});

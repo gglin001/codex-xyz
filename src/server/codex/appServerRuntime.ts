@@ -14,10 +14,6 @@ import {
 import { createConnection } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import WebSocket from "ws";
-import type {
-	UserInputInteractionAnswers,
-	UserInputInteractionQuestion,
-} from "../domain.js";
 import {
 	type AppServerDebugLogLevel,
 	appServerInitializeParams,
@@ -91,12 +87,6 @@ function runtimeTimestamp(value: unknown) {
 	).toISOString();
 }
 
-type PendingUserInputInteraction = {
-	requestId: number | string;
-	threadId: string;
-	turnId: string;
-};
-
 export type AppServerRuntimeOptions = {
 	dataDir: string;
 	debugLogPath?: string | null;
@@ -127,40 +117,6 @@ const appServerPollIntervalMs = 50;
 const appServerExitTimeoutMs = 2_000;
 const appServerWebSocketPath = "/rpc";
 const appServerMaxWebSocketPayloadBytes = 128 << 20;
-
-function normalizeUserInputQuestions(
-	value: unknown,
-): UserInputInteractionQuestion[] {
-	if (!Array.isArray(value)) {
-		return [];
-	}
-	return value.flatMap((entry) => {
-		const question = asRecord(entry);
-		const id = typeof question.id === "string" ? question.id : "";
-		if (!id) {
-			return [];
-		}
-		const options = Array.isArray(question.options)
-			? question.options.map((entry) => {
-					const option = asRecord(entry);
-					return {
-						label: String(option.label ?? ""),
-						description: String(option.description ?? ""),
-					};
-				})
-			: null;
-		return [
-			{
-				id,
-				header: String(question.header ?? ""),
-				question: String(question.question ?? ""),
-				isOther: question.isOther === true,
-				isSecret: question.isSecret === true,
-				options,
-			},
-		];
-	});
-}
 
 class AppServerDebugLogger {
 	private disabled = false;
@@ -205,10 +161,6 @@ export class AppServerRuntime implements CodexRuntime {
 	private nextId = 1;
 	private readonly pending = new Map<number | string, PendingRequest>();
 	private readonly pendingTurnStarts = new Map<string, PendingTurnStart[]>();
-	private readonly pendingUserInputInteractions = new Map<
-		string,
-		PendingUserInputInteraction
-	>();
 	private eventHandler: RuntimeEventHandler = () => {};
 	private initialized = false;
 	private readonly debugLogger: AppServerDebugLogger | null;
@@ -640,33 +592,6 @@ export class AppServerRuntime implements CodexRuntime {
 		await this.request("thread/backgroundTerminals/clean", { threadId });
 	}
 
-	async answerUserInput(input: {
-		interactionId: string;
-		answers: UserInputInteractionAnswers;
-	}) {
-		const pending = this.pendingUserInputInteractions.get(input.interactionId);
-		if (!pending) {
-			throw new Error(
-				`User input interaction is no longer pending: ${input.interactionId}`,
-			);
-		}
-		this.send(
-			{
-				id: pending.requestId,
-				result: {
-					answers: Object.fromEntries(
-						Object.entries(input.answers).map(([questionId, answers]) => [
-							questionId,
-							{ answers },
-						]),
-					),
-				},
-			},
-			{ id: pending.requestId, result: "[redacted user input response]" },
-		);
-		this.pendingUserInputInteractions.delete(input.interactionId);
-	}
-
 	async restartAppServer(): Promise<CodexAppServerRestartResult> {
 		return this.withLifecycleLock(async () => {
 			await this.disconnectConnection("app-server runtime restarting");
@@ -715,7 +640,6 @@ export class AppServerRuntime implements CodexRuntime {
 			}
 		}
 		this.pendingTurnStarts.clear();
-		this.expirePendingUserInputInteractions();
 		const connection = this.connection;
 		this.connection = null;
 		this.initialized = false;
@@ -1042,7 +966,6 @@ export class AppServerRuntime implements CodexRuntime {
 			}
 		}
 		this.pendingTurnStarts.clear();
-		this.expirePendingUserInputInteractions();
 		this.connection = null;
 		this.initialized = false;
 	}
@@ -1129,39 +1052,6 @@ export class AppServerRuntime implements CodexRuntime {
 		const params = asRecord(message.params);
 		const threadId = extractThreadId(params);
 		const turnId = extractTurnId(params);
-		if (message.method === "item/tool/requestUserInput" && threadId && turnId) {
-			const interactionId = String(params.itemId ?? "");
-			if (!interactionId) {
-				this.emitRaw(message.method, params, threadId, turnId);
-				return;
-			}
-			const previous = this.pendingUserInputInteractions.get(interactionId);
-			if (previous) {
-				this.eventHandler({
-					type: "interaction.expired",
-					interactionId,
-					threadId: previous.threadId,
-					turnId: previous.turnId,
-				});
-			}
-			this.pendingUserInputInteractions.set(interactionId, {
-				requestId: message.id as number | string,
-				threadId,
-				turnId,
-			});
-			this.eventHandler({
-				type: "interaction.requested",
-				interactionId,
-				threadId,
-				turnId,
-				questions: normalizeUserInputQuestions(params.questions),
-				autoResolutionMs:
-					typeof params.autoResolutionMs === "number"
-						? params.autoResolutionMs
-						: null,
-			});
-			return;
-		}
 		if (isYoloApprovalRequest(message.method)) {
 			this.acceptYoloRequest(message, params);
 			return;
@@ -1194,26 +1084,11 @@ export class AppServerRuntime implements CodexRuntime {
 		} satisfies RuntimeEvent);
 	}
 
-	private expirePendingUserInputInteractions() {
-		for (const [interactionId, pending] of this.pendingUserInputInteractions) {
-			this.eventHandler({
-				type: "interaction.expired",
-				interactionId,
-				threadId: pending.threadId,
-				turnId: pending.turnId,
-			});
-		}
-		this.pendingUserInputInteractions.clear();
-	}
-
 	private writeDebug(record: Record<string, unknown>) {
 		this.debugLogger?.write(record);
 	}
 
-	private send(
-		message: JsonRpcMessage,
-		debugMessage: JsonRpcMessage = message,
-	) {
+	private send(message: JsonRpcMessage) {
 		const connection = this.connection;
 		if (!connection || connection.readyState !== WebSocket.OPEN) {
 			throw new Error("app-server websocket is not connected");
@@ -1222,7 +1097,7 @@ export class AppServerRuntime implements CodexRuntime {
 			event: "message",
 			direction: "out",
 			parsed: true,
-			message: debugMessage,
+			message,
 		});
 		connection.send(JSON.stringify(message), (error) => {
 			if (!error) {

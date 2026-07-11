@@ -12,7 +12,6 @@ import type {
 	ThreadPageCursor,
 	ThreadTagScore,
 	Turn,
-	UserInputInteractionAnswers,
 } from "../server/domain.js";
 
 export function apiUrl(path: string) {
@@ -46,20 +45,6 @@ export function getState() {
 
 export function getThread(threadId: string) {
 	return request<ThreadDetail>(`/api/threads/${threadId}`);
-}
-
-export function answerUserInput(
-	threadId: string,
-	interactionId: string,
-	answers: UserInputInteractionAnswers,
-) {
-	return request<void>(
-		`/api/threads/${encodeURIComponent(threadId)}/interactions/${encodeURIComponent(interactionId)}/answer`,
-		{
-			method: "POST",
-			body: JSON.stringify({ answers }),
-		},
-	);
 }
 
 export function getThreadItemsPage(input: {

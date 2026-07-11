@@ -46,6 +46,7 @@ class VolatileCodexRuntime implements CodexRuntime {
 	private handler: RuntimeEventHandler = () => {};
 	private readonly loadedThreads = new Map<string, RuntimeThreadSnapshot>();
 	private readonly persistedThreads = new Map<string, RuntimeThreadSnapshot>();
+	private readonly archivedThreads = new Map<string, RuntimeThreadSnapshot>();
 	private readonly missingGoalThreads = new Set<string>();
 	private readonly timers = new Set<NodeJS.Timeout>();
 	private nextThread = 1;
@@ -63,8 +64,15 @@ class VolatileCodexRuntime implements CodexRuntime {
 		};
 	}
 
-	async listThreads() {
-		return { threads: [...this.persistedThreads.values()], nextCursor: null };
+	async listThreads(input: { archived?: boolean | null } = {}) {
+		return {
+			threads: [
+				...(input.archived
+					? this.archivedThreads.values()
+					: this.persistedThreads.values()),
+			],
+			nextCursor: null,
+		};
 	}
 
 	async searchThreads(input: { query: string }) {
@@ -179,13 +187,21 @@ class VolatileCodexRuntime implements CodexRuntime {
 	}
 
 	async archiveThread(threadId: string) {
-		this.requireThread(threadId);
+		const thread = this.requireThread(threadId);
 		this.loadedThreads.delete(threadId);
 		this.persistedThreads.delete(threadId);
+		this.archivedThreads.set(threadId, thread);
 		this.handler({
 			type: "thread.archived",
 			threadId,
 		});
+	}
+
+	archiveSilently(threadId: string) {
+		const thread = this.requirePersistedThread(threadId);
+		this.loadedThreads.delete(threadId);
+		this.persistedThreads.delete(threadId);
+		this.archivedThreads.set(threadId, thread);
 	}
 
 	async setThreadName(input: { threadId: string; name: string }) {
@@ -265,8 +281,6 @@ class VolatileCodexRuntime implements CodexRuntime {
 
 	async cleanBackgroundTerminals() {}
 
-	async answerUserInput() {}
-
 	async restartAppServer() {
 		return {
 			status: "restarted" as const,
@@ -325,8 +339,11 @@ class EagerEventCodexRuntime implements CodexRuntime {
 		};
 	}
 
-	async listThreads() {
-		return { threads: [...this.threads.values()], nextCursor: null };
+	async listThreads(input: { archived?: boolean | null } = {}) {
+		return {
+			threads: input.archived ? [] : [...this.threads.values()],
+			nextCursor: null,
+		};
 	}
 
 	async searchThreads() {
@@ -518,8 +535,6 @@ class EagerEventCodexRuntime implements CodexRuntime {
 
 	async cleanBackgroundTerminals() {}
 
-	async answerUserInput() {}
-
 	async restartAppServer() {
 		return {
 			status: "restarted" as const,
@@ -563,8 +578,11 @@ class InterruptDriftCodexRuntime implements CodexRuntime {
 		};
 	}
 
-	async listThreads() {
-		return { threads: this.thread ? [this.thread] : [], nextCursor: null };
+	async listThreads(input: { archived?: boolean | null } = {}) {
+		return {
+			threads: input.archived || !this.thread ? [] : [this.thread],
+			nextCursor: null,
+		};
 	}
 
 	async searchThreads() {
@@ -738,8 +756,6 @@ class InterruptDriftCodexRuntime implements CodexRuntime {
 	}
 
 	async cleanBackgroundTerminals() {}
-
-	async answerUserInput() {}
 
 	async restartAppServer() {
 		return {
@@ -1220,6 +1236,46 @@ describe("ControlService", () => {
 		).toBe(true);
 	});
 
+	it("reconciles app-server archive state before listing dashboard threads", async () => {
+		await service.close();
+		const runtime = new VolatileCodexRuntime();
+		service = new ControlService(
+			Store.open(join(tempDir, "archive-reconciliation.sqlite")),
+			runtime,
+		);
+		service.seedLocalState({
+			cwd: tempDir,
+			runtimeName: runtime.name,
+			cliVersion: runtime.version,
+		});
+
+		const result = await service.createThread({
+			cwd: tempDir,
+			prompt: "Archive outside the control service",
+		});
+		await waitForEvents();
+		const threadId = result.thread?.id;
+		if (!threadId) {
+			throw new Error("Expected created thread id");
+		}
+
+		runtime.archiveSilently(threadId);
+		expect(service.listThreads().map((thread) => thread.id)).toContain(
+			threadId,
+		);
+
+		const dashboard = await service.dashboard();
+
+		expect(dashboard.threads).toEqual([]);
+		expect(service.listThreads()).toEqual([]);
+		expect(service.listThreads({ archived: true })).toMatchObject([
+			{
+				id: threadId,
+				archivedAt: expect.any(String),
+			},
+		]);
+	});
+
 	it("archives not-loaded app-server threads without resuming them", async () => {
 		await service.close();
 		const runtime = new VolatileCodexRuntime();
@@ -1342,53 +1398,5 @@ describe("ControlService", () => {
 			service.setGoal({ threadId, objective: "Goal after runtime drift" }),
 		).rejects.toThrow(/thread not found/);
 		expect(service.getThreadDetail(threadId).status).toBe("not_loaded");
-	});
-
-	it("persists and answers request_user_input interactions", async () => {
-		const result = await service.createThread({
-			cwd: tempDir,
-			prompt: "Need environment input",
-		});
-		const threadId = result.thread?.id;
-		const turnId = result.turn?.id;
-		if (!threadId || !turnId) {
-			throw new Error("Expected created thread and turn");
-		}
-
-		testRuntime.requestUserInput({
-			interactionId: "interaction-1",
-			threadId,
-			turnId,
-		});
-		expect(service.getThreadDetail(threadId).interactions).toEqual([
-			expect.objectContaining({
-				id: "interaction-1",
-				status: "pending",
-				autoResolutionMs: 60_000,
-			}),
-		]);
-
-		const answered = await service.answerUserInput({
-			threadId,
-			interactionId: "interaction-1",
-			answers: { environment: ["Local"] },
-		});
-
-		expect(answered.status).toBe("answered");
-		expect(testRuntime.lastUserInputAnswer).toEqual({
-			interactionId: "interaction-1",
-			answers: { environment: ["Local"] },
-		});
-		expect(service.getThreadDetail(threadId).interactions[0]).toMatchObject({
-			status: "answered",
-			resolvedAt: expect.any(String),
-		});
-		await expect(
-			service.answerUserInput({
-				threadId,
-				interactionId: "interaction-1",
-				answers: { environment: ["Local"] },
-			}),
-		).rejects.toThrow("not pending");
 	});
 });

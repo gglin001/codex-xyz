@@ -116,7 +116,6 @@ export function createOptimisticThreadDraft(input: {
 		...thread,
 		turns: [turn],
 		items: [promptItem],
-		interactions: [],
 		itemTotalCount: 1,
 		itemPageSize: 1,
 		itemPageDirection: "after",

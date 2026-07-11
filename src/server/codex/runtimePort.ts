@@ -4,8 +4,6 @@ import type {
 	ItemType,
 	ThreadRuntimeStatus,
 	TurnStatus,
-	UserInputInteractionAnswers,
-	UserInputInteractionQuestion,
 } from "../domain.js";
 
 export type RuntimeThreadSnapshot = {
@@ -123,20 +121,6 @@ export type RuntimeEvent =
 	| {
 			type: "thread.archived";
 			threadId: string;
-	  }
-	| {
-			type: "interaction.requested";
-			interactionId: string;
-			threadId: string;
-			turnId: string;
-			questions: UserInputInteractionQuestion[];
-			autoResolutionMs: number | null;
-	  }
-	| {
-			type: "interaction.expired";
-			interactionId: string;
-			threadId: string;
-			turnId: string;
 	  }
 	| {
 			type: "raw";
@@ -318,10 +302,6 @@ export interface CodexRuntime {
 		nextCursor: string | null;
 	}>;
 	cleanBackgroundTerminals(threadId: string): Promise<void>;
-	answerUserInput(input: {
-		interactionId: string;
-		answers: UserInputInteractionAnswers;
-	}): Promise<void>;
 	restartAppServer(): Promise<CodexAppServerRestartResult>;
 	close(): Promise<void>;
 }

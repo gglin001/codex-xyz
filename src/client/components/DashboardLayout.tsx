@@ -119,9 +119,6 @@ export type DashboardLayoutProps = {
 	onListBackgroundTerminals: () => void;
 	onCleanBackgroundTerminals: () => void;
 	onLoadEarlierTranscript: () => Promise<unknown>;
-	submittingInteractionId: string | null;
-	interactionError: string | null;
-	onAnswerInteraction: WorkspaceProps["onAnswerInteraction"];
 	onRestartCodexAppServer: () => void;
 	dateTimeFormatMode?: DateTimeFormatMode;
 };
@@ -781,9 +778,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 	onListBackgroundTerminals,
 	onCleanBackgroundTerminals,
 	onLoadEarlierTranscript,
-	submittingInteractionId,
-	interactionError,
-	onAnswerInteraction,
 	onRestartCodexAppServer,
 	dateTimeFormatMode = "utc",
 }: DashboardLayoutProps) {
@@ -1335,9 +1329,6 @@ export const DashboardLayout = memo(function DashboardLayout({
 		onListBackgroundTerminals,
 		onCleanBackgroundTerminals,
 		onLoadEarlierTranscript,
-		submittingInteractionId,
-		interactionError,
-		onAnswerInteraction,
 		onOpenCommands: toggleCommandPalette,
 		dateTimeFormatMode,
 	} satisfies Omit<

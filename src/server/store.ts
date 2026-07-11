@@ -17,12 +17,11 @@ import {
 	type ThreadTagScore,
 	type Turn,
 	type TurnStatus,
-	type UserInputInteraction,
 } from "./domain.js";
 
 type Row = Record<string, unknown>;
 
-export const currentDatabaseVersion = "v7";
+export const currentDatabaseVersion = "v8";
 
 const metadataTable = "metadata";
 const versionKey = "version";
@@ -216,22 +215,6 @@ function eventFromRow(row: Row): CozEvent {
 	};
 }
 
-function interactionFromRow(row: Row): UserInputInteraction {
-	return {
-		id: scalarString(row.id),
-		threadId: scalarString(row.thread_id),
-		turnId: scalarString(row.turn_id),
-		questions: readJson(row.questions_json, []),
-		autoResolutionMs:
-			typeof row.auto_resolution_ms === "number"
-				? row.auto_resolution_ms
-				: null,
-		status: scalarString(row.status) as UserInputInteraction["status"],
-		requestedAt: scalarString(row.requested_at),
-		resolvedAt: nullableString(row.resolved_at),
-	};
-}
-
 export class Store {
 	private transactionDepth = 0;
 
@@ -373,17 +356,6 @@ export class Store {
         created_at TEXT NOT NULL
       );
 
-		CREATE TABLE interactions (
-		  id TEXT PRIMARY KEY,
-		  thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
-		  turn_id TEXT NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
-		  questions_json TEXT NOT NULL CHECK (json_valid(questions_json)),
-		  auto_resolution_ms INTEGER,
-		  status TEXT NOT NULL CHECK (status IN ('pending', 'answered', 'expired')),
-		  requested_at TEXT NOT NULL,
-		  resolved_at TEXT
-		);
-
       CREATE TABLE events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         type TEXT NOT NULL,
@@ -402,7 +374,6 @@ export class Store {
       CREATE INDEX IF NOT EXISTS idx_threads_forked_from_id ON threads(forked_from_id) WHERE forked_from_id IS NOT NULL;
       CREATE INDEX IF NOT EXISTS idx_turns_thread_started_id ON turns(thread_id, started_at, id);
       CREATE INDEX IF NOT EXISTS idx_items_thread_created_id ON items(thread_id, created_at, id);
-		CREATE INDEX IF NOT EXISTS idx_interactions_thread_requested_id ON interactions(thread_id, requested_at, id);
       CREATE INDEX IF NOT EXISTS idx_events_thread_id ON events(thread_id, id);
       CREATE INDEX IF NOT EXISTS idx_events_summary_id ON events(is_summary, id);
     `);
@@ -732,7 +703,6 @@ export class Store {
 			...thread,
 			turns: this.listTurns(id),
 			items: itemsPage.items,
-			interactions: this.listInteractions(id),
 			itemTotalCount: itemsPage.totalCount,
 			itemPageSize: itemsPage.items.length,
 			itemPageDirection: itemsPage.direction,
@@ -740,63 +710,6 @@ export class Store {
 			itemHasMore: itemsPage.hasMore,
 			latestEventId,
 		};
-	}
-
-	upsertInteraction(interaction: UserInputInteraction) {
-		this.db
-			.prepare(
-				`INSERT INTO interactions
-				 (id, thread_id, turn_id, questions_json, auto_resolution_ms, status, requested_at, resolved_at)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-				 ON CONFLICT(id) DO UPDATE SET
-				 thread_id = excluded.thread_id,
-				 turn_id = excluded.turn_id,
-				 questions_json = excluded.questions_json,
-				 auto_resolution_ms = excluded.auto_resolution_ms,
-				 status = excluded.status,
-				 requested_at = excluded.requested_at,
-				 resolved_at = excluded.resolved_at`,
-			)
-			.run(
-				interaction.id,
-				interaction.threadId,
-				interaction.turnId,
-				jsonText(interaction.questions),
-				interaction.autoResolutionMs,
-				interaction.status,
-				interaction.requestedAt,
-				interaction.resolvedAt,
-			);
-		return this.getInteraction(interaction.id);
-	}
-
-	getInteraction(id: string) {
-		const row = this.db
-			.prepare("SELECT * FROM interactions WHERE id = ?")
-			.get(id);
-		return row ? interactionFromRow(row as Row) : null;
-	}
-
-	listInteractions(threadId: string) {
-		return this.db
-			.prepare(
-				"SELECT * FROM interactions WHERE thread_id = ? ORDER BY requested_at ASC, id ASC",
-			)
-			.all(threadId)
-			.map((row) => interactionFromRow(row as Row));
-	}
-
-	resolveInteraction(
-		id: string,
-		status: Extract<UserInputInteraction["status"], "answered" | "expired">,
-		resolvedAt = nowIso(),
-	) {
-		const result = this.db
-			.prepare(
-				"UPDATE interactions SET status = ?, resolved_at = ? WHERE id = ? AND status = 'pending'",
-			)
-			.run(status, resolvedAt, id);
-		return result.changes > 0 ? this.getInteraction(id) : null;
 	}
 
 	createTurn(turn: Turn) {
@@ -898,6 +811,21 @@ export class Store {
 	getItem(id: string) {
 		const row = this.db.prepare("SELECT * FROM items WHERE id = ?").get(id);
 		return row ? itemFromRow(row as Row) : null;
+	}
+
+	listTurnItems(turnId: string) {
+		return this.db
+			.prepare(
+				"SELECT * FROM items WHERE turn_id = ? ORDER BY created_at ASC, id ASC",
+			)
+			.all(turnId)
+			.map((row) => itemFromRow(row as Row));
+	}
+
+	deleteItem(id: string) {
+		return (
+			this.db.prepare("DELETE FROM items WHERE id = ?").run(id).changes > 0
+		);
 	}
 
 	appendItemText(id: string, delta: string) {

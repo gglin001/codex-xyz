@@ -11,6 +11,7 @@
 		"upgrade:v5": "node scripts/upgrade-v4-to-v5.mjs",
 		"upgrade:v6": "node scripts/upgrade-v5-to-v6.mjs",
 		"upgrade:v7": "node scripts/upgrade-v6-to-v7.mjs",
+		"upgrade:v8": "node scripts/upgrade-v7-to-v8.mjs",
 		"dev": "node scripts/run-dev.mjs",
 		"prebuild": "pnpm run generate:codex",
 		"build": "next build",

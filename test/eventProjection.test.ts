@@ -96,7 +96,6 @@ function detail(overrides: Partial<ThreadDetail> = {}): ThreadDetail {
 		...baseThread,
 		turns: [turn()],
 		items: [item()],
-		interactions: [],
 		itemTotalCount: 1,
 		itemPageSize: 1,
 		itemPageDirection: "after",

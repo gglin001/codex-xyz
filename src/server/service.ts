@@ -19,7 +19,6 @@ import {
 	type ThreadPageCursor,
 	type ThreadTagScore,
 	threadNameFromPrompt,
-	type UserInputInteractionAnswers,
 } from "./domain.js";
 import { EventBus } from "./eventBus.js";
 import {
@@ -140,9 +139,10 @@ export class ControlService {
 	}
 
 	async dashboard(): Promise<DashboardState> {
-		try {
-			await this.syncThreadHistory({ limit: defaultThreadPageSize + 1 });
-		} catch {}
+		await Promise.allSettled([
+			this.syncThreadHistory({ limit: defaultThreadPageSize + 1 }),
+			this.syncArchivedThreadHistory(),
+		]);
 		const latestEventId = this.store.getLatestEventId();
 		const totalCount = this.store.countThreads();
 		const limit = defaultThreadPageSize;
@@ -178,6 +178,27 @@ export class ControlService {
 			archived: input.archived,
 		});
 		return { threads, nextCursor: page.nextCursor };
+	}
+
+	private async syncArchivedThreadHistory() {
+		let cursor: string | null = null;
+		const visitedCursors = new Set<string>();
+		do {
+			const page = await this.syncThreadHistory({
+				archived: true,
+				cursor,
+				limit: maxThreadPageSize,
+			});
+			cursor = page.nextCursor;
+			if (cursor && visitedCursors.has(cursor)) {
+				throw new Error(
+					`Codex returned a repeated archived thread cursor: ${cursor}`,
+				);
+			}
+			if (cursor) {
+				visitedCursors.add(cursor);
+			}
+		} while (cursor);
 	}
 
 	async searchThreadHistory(input: {
@@ -546,57 +567,6 @@ export class ControlService {
 			throw new Error(`Thread ${threadId} does not exist`);
 		}
 		return detail;
-	}
-
-	async answerUserInput(input: {
-		threadId: string;
-		interactionId: string;
-		answers: UserInputInteractionAnswers;
-	}) {
-		this.requireThread(input.threadId);
-		const interaction = this.store.getInteraction(input.interactionId);
-		if (!interaction || interaction.threadId !== input.threadId) {
-			throw new Error(`Interaction ${input.interactionId} does not exist`);
-		}
-		if (interaction.status !== "pending") {
-			throw new Error(`Interaction ${input.interactionId} is not pending`);
-		}
-		const questionIds = new Set(
-			interaction.questions.map((question) => question.id),
-		);
-		for (const question of interaction.questions) {
-			const answers = input.answers[question.id];
-			if (!answers || answers.length === 0) {
-				throw new Error(`Missing answer for question ${question.id}`);
-			}
-			const optionLabels = new Set(
-				(question.options ?? []).map((option) => option.label),
-			);
-			if (
-				question.options &&
-				!question.isOther &&
-				answers.some((answer) => !optionLabels.has(answer))
-			) {
-				throw new Error(`Invalid answer for question ${question.id}`);
-			}
-		}
-		for (const questionId of Object.keys(input.answers)) {
-			if (!questionIds.has(questionId)) {
-				throw new Error(`Unknown question ${questionId}`);
-			}
-		}
-		await this.runtime.answerUserInput({
-			interactionId: input.interactionId,
-			answers: input.answers,
-		});
-		const answered = this.projection.resolveInteraction(
-			input.interactionId,
-			"answered",
-		);
-		if (!answered) {
-			throw new Error(`Interaction ${input.interactionId} is not pending`);
-		}
-		return answered;
 	}
 
 	listThreadItemsPage(
