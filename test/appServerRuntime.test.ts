@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { projectAppServerNotification } from "../src/server/codex/appServerProtocol.js";
 import { AppServerRuntime } from "../src/server/codex/appServerRuntime.js";
 import type { RuntimeEvent } from "../src/server/codex/runtimePort.js";
+import type { WebSearchService } from "../src/server/search/types.js";
 
 let tempDir: string | null = null;
 let runtime: AppServerRuntime | null = null;
@@ -110,6 +111,20 @@ function handle(message, state) {
       },
       model
     })
+    if (message.params.dynamicTools) {
+      writeJson({
+        id: "dynamic-search-1",
+        method: "item/tool/call",
+        params: {
+          threadId: "${startThreadId}",
+          turnId: "${turnId}",
+          callId: "call-search-1",
+          namespace: null,
+          tool: "web_search",
+          arguments: { query: "Node.js latest", max_results: 1 }
+        }
+      })
+    }
     return
   }
 
@@ -455,6 +470,11 @@ function handle(message, state) {
     return
   }
 
+  if (message.method === "turn/interrupt") {
+    respond(message.id, {})
+    return
+  }
+
   if (message.method === "thread/backgroundTerminals/list") {
     respond(message.id, {
       data: [
@@ -646,6 +666,7 @@ function appServerOptions(
 	options: Partial<{
 		debugLogPath: string | null;
 		debugLogLevel: number | null;
+		webSearchService: WebSearchService | null;
 	}> = {},
 ) {
 	if (!tempDir) {
@@ -1078,6 +1099,96 @@ describe("AppServerRuntime", () => {
 				}),
 			]),
 		);
+	});
+
+	it("injects and executes the web search dynamic tool", async () => {
+		const command = createFakeCodexCommand();
+		const webSearchService: WebSearchService = {
+			async search(request) {
+				return {
+					query: request.query,
+					results: [
+						{
+							ref: "S1",
+							title: "Node.js releases",
+							url: "https://nodejs.org/releases",
+							snippet: "Current releases",
+							publishedAt: null,
+							provider: "test",
+							providerRank: 1,
+						},
+					],
+				};
+			},
+		};
+		runtime = new AppServerRuntime(
+			command,
+			appServerOptions({ webSearchService }),
+		);
+
+		await runtime.startThread({
+			cwd: process.cwd(),
+			name: "Search thread",
+			preview: "Search",
+			model: "test-model",
+		});
+		await new Promise((resolve) => setTimeout(resolve, 20));
+
+		const requests = readRequestLog();
+		const start = requests.find((request) => request.method === "thread/start");
+		const response = requests.find(
+			(request) => request.id === "dynamic-search-1",
+		);
+		expect(start?.params).toMatchObject({
+			config: { web_search: "disabled" },
+			dynamicTools: [{ type: "function", name: "web_search" }],
+		});
+		expect(response?.result).toMatchObject({
+			success: true,
+			contentItems: [{ type: "inputText" }],
+		});
+	});
+
+	it("aborts an active web search when the turn is interrupted", async () => {
+		const command = createFakeCodexCommand();
+		let wasAborted = false;
+		const webSearchService: WebSearchService = {
+			search(_request, context) {
+				return new Promise((_resolve, reject) => {
+					context.signal.addEventListener(
+						"abort",
+						() => {
+							wasAborted = true;
+							reject(context.signal.reason);
+						},
+						{ once: true },
+					);
+				});
+			},
+		};
+		runtime = new AppServerRuntime(
+			command,
+			appServerOptions({ webSearchService }),
+		);
+
+		await runtime.startThread({
+			cwd: process.cwd(),
+			name: "Search thread",
+			preview: "Search",
+			model: "test-model",
+		});
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		await runtime.interruptTurn({
+			threadId: startThreadId,
+			turnId,
+		});
+		await new Promise((resolve) => setTimeout(resolve, 20));
+
+		expect(wasAborted).toBe(true);
+		const response = readRequestLog().find(
+			(request) => request.id === "dynamic-search-1",
+		);
+		expect(response?.result).toMatchObject({ success: false });
 	});
 
 	it("preserves app-server thread ids before callers reuse them", async () => {

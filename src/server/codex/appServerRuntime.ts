@@ -15,6 +15,12 @@ import { createConnection } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import WebSocket from "ws";
 import {
+	type DynamicToolCallParams,
+	WebSearchDynamicToolBridge,
+	webSearchToolSpecs,
+} from "../search/dynamicToolBridge.js";
+import type { WebSearchService } from "../search/types.js";
+import {
 	type AppServerDebugLogLevel,
 	appServerInitializeParams,
 	asRecord,
@@ -93,6 +99,13 @@ export type AppServerRuntimeOptions = {
 	debugLogLevel?: number | null;
 	socketPath?: string | null;
 	pidPath?: string | null;
+	webSearchService?: WebSearchService | null;
+};
+
+type PendingDynamicToolCall = {
+	controller: AbortController;
+	threadId: string;
+	turnId: string;
 };
 
 type AppServerPersistentTransportOptions = {
@@ -165,6 +178,11 @@ export class AppServerRuntime implements CodexRuntime {
 	private initialized = false;
 	private readonly debugLogger: AppServerDebugLogger | null;
 	private readonly persistent: AppServerPersistentTransportOptions;
+	private readonly webSearchBridge: WebSearchDynamicToolBridge | null;
+	private readonly pendingDynamicToolCalls = new Map<
+		string,
+		PendingDynamicToolCall
+	>();
 	private lifecycleLock = Promise.resolve();
 
 	constructor(
@@ -181,6 +199,9 @@ export class AppServerRuntime implements CodexRuntime {
 				? resolve(options.pidPath)
 				: join(dataDir, appServerPidName),
 		};
+		this.webSearchBridge = options.webSearchService
+			? new WebSearchDynamicToolBridge(options.webSearchService)
+			: null;
 		const debugLogLevel = clampDebugLogLevel(options.debugLogLevel ?? 1);
 		this.debugLogger =
 			options.debugLogPath && debugLogLevel > 0
@@ -214,12 +235,19 @@ export class AppServerRuntime implements CodexRuntime {
 	}
 
 	async startThread(input: StartThreadInput): Promise<RuntimeThreadSnapshot> {
+		const searchOptions = this.webSearchBridge
+			? {
+					dynamicTools: webSearchToolSpecs,
+					config: { web_search: "disabled" },
+				}
+			: {};
 		const result = asRecord(
 			await this.request("thread/start", {
 				cwd: input.cwd,
 				model: input.model ?? undefined,
 				serviceName: "coz",
 				threadSource: "user",
+				...searchOptions,
 				...yoloThreadOptions,
 			}),
 		);
@@ -423,6 +451,7 @@ export class AppServerRuntime implements CodexRuntime {
 	}
 
 	async interruptTurn(input: { threadId: string; turnId: string }) {
+		this.abortDynamicToolCalls(input.threadId, input.turnId);
 		await this.request("turn/interrupt", {
 			threadId: input.threadId,
 			turnId: input.turnId,
@@ -632,6 +661,7 @@ export class AppServerRuntime implements CodexRuntime {
 
 	private async disconnectConnection(reason: string) {
 		const error = new Error(reason);
+		this.abortDynamicToolCalls();
 		for (const pending of this.pending.values()) {
 			clearTimeout(pending.timeout);
 			pending.reject(error);
@@ -958,6 +988,7 @@ export class AppServerRuntime implements CodexRuntime {
 		if (this.connection !== connection) {
 			return;
 		}
+		this.abortDynamicToolCalls();
 		for (const pending of this.pending.values()) {
 			clearTimeout(pending.timeout);
 			pending.reject(error);
@@ -1060,7 +1091,73 @@ export class AppServerRuntime implements CodexRuntime {
 			this.acceptYoloRequest(message, params);
 			return;
 		}
+		if (message.method === "item/tool/call") {
+			if (!this.webSearchBridge) {
+				const tool = typeof params.tool === "string" ? params.tool : "unknown";
+				this.send({
+					id: message.id,
+					result: {
+						contentItems: [
+							{
+								type: "inputText",
+								text:
+									tool === "web_search"
+										? "Web search failed: search is not configured"
+										: `Dynamic tool failed: unknown tool ${tool}`,
+							},
+						],
+						success: false,
+					},
+				});
+				return;
+			}
+			this.handleDynamicToolCall(message, params as DynamicToolCallParams);
+			return;
+		}
 		this.emitRaw(message.method ?? "serverRequest", params, threadId, turnId);
+	}
+
+	private handleDynamicToolCall(
+		message: JsonRpcMessage,
+		params: DynamicToolCallParams,
+	) {
+		const controller = new AbortController();
+		this.pendingDynamicToolCalls.set(params.callId, {
+			controller,
+			threadId: params.threadId,
+			turnId: params.turnId,
+		});
+		void this.webSearchBridge
+			?.execute(params, controller.signal)
+			.then((result) => {
+				this.send({ id: message.id, result });
+			})
+			.catch((error) => {
+				this.writeDebug({
+					event: "dynamicToolCall.response.error",
+					callId: params.callId,
+					text: error instanceof Error ? error.message : String(error),
+				});
+			})
+			.finally(() => {
+				this.pendingDynamicToolCalls.delete(params.callId);
+			});
+	}
+
+	private abortDynamicToolCalls(
+		threadId: string | null = null,
+		turnId: string | null = null,
+	) {
+		for (const [callId, pending] of this.pendingDynamicToolCalls) {
+			if (threadId && pending.threadId !== threadId) {
+				continue;
+			}
+			if (turnId && pending.turnId !== turnId) {
+				continue;
+			}
+			pending.controller.abort();
+			this.pendingDynamicToolCalls.delete(callId);
+		}
 	}
 
 	private acceptYoloRequest(
