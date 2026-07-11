@@ -20,12 +20,7 @@ export type ThreadOperationStatus =
 	| "running"
 	| "succeeded"
 	| "failed";
-export type ThreadDisplayStatus =
-	| ThreadRuntimeStatus
-	| "archived"
-	| "turn_completed"
-	| "turn_interrupted"
-	| "turn_failed";
+export type ThreadDisplayStatus = ThreadRuntimeStatus | "archived";
 
 export type GoalStatus =
 	| "in_progress"
@@ -115,24 +110,12 @@ export function threadRuntimeStatusFromTurnStatus(
 }
 
 export function threadDisplayStatus(
-	thread: Pick<ControlThread, "status" | "lastTurnStatus" | "archivedAt">,
+	thread: Pick<ControlThread, "status" | "archivedAt">,
 ): ThreadDisplayStatus {
 	if (thread.archivedAt) {
 		return "archived";
 	}
-	if (thread.status !== "idle") {
-		return thread.status;
-	}
-	if (thread.lastTurnStatus === "completed") {
-		return "turn_completed";
-	}
-	if (thread.lastTurnStatus === "interrupted") {
-		return "turn_interrupted";
-	}
-	if (thread.lastTurnStatus === "failed") {
-		return "turn_failed";
-	}
-	return "idle";
+	return thread.status;
 }
 
 export type Turn = {

@@ -56,6 +56,7 @@ import {
 	isOptimisticThreadId,
 	isOptimisticTurnId,
 } from "../optimisticThreads.js";
+import { threadStatusTooltip } from "../statusPresentation.js";
 import { getFirstLineTextPreview } from "../textPreview.js";
 import {
 	getTranscriptEntries,
@@ -67,10 +68,10 @@ import {
 	formatTime,
 	formatTokens,
 	itemTitle,
-	statusLabel,
 } from "../uiFormat.js";
 import type { FloatingScrollAnchor } from "./MobileFloatingScroller.js";
 import { ScrollArea } from "./ScrollArea.js";
+import { StatusIndicator } from "./statusIndicator.js";
 import {
 	CollapsibleCard,
 	ComposerIconButton,
@@ -296,33 +297,15 @@ function headerMeta(value: string) {
 	);
 }
 
-function statusDotClass(status: ThreadDisplayStatus) {
-	if (status === "active") {
-		return tone.running.dot;
-	}
-	if (status === "not_loaded" || status === "archived") {
-		return tone.stale.dot;
-	}
-	if (
-		status === "system_error" ||
-		status === "turn_failed" ||
-		status === "turn_interrupted"
-	) {
-		return tone.error.dot;
-	}
-	if (status === "turn_completed") {
-		return tone.completed.dot;
-	}
-	return tone.neutral.dot;
-}
-
 function HeaderDetailRail({
 	tokens,
 	status,
+	statusTitle,
 	projectName,
 }: {
 	tokens: number;
 	status: ThreadDisplayStatus;
+	statusTitle: string;
 	projectName: string | null;
 }) {
 	return (
@@ -330,13 +313,11 @@ function HeaderDetailRail({
 			<span className="shrink-0 rounded-full bg-control/70 px-1.5 py-0.5 leading-none">
 				{formatTokens(tokens)} tk
 			</span>
-			<span className="inline-flex shrink-0 items-center gap-1.5 text-muted-strong">
-				<span
-					className={cn("h-1.5 w-1.5 rounded-full", statusDotClass(status))}
-					aria-hidden="true"
-				/>
-				<span>{statusLabel(status)}</span>
-			</span>
+			<StatusIndicator
+				status={status}
+				title={statusTitle}
+				className="text-muted-strong"
+			/>
 			{projectName ? <span className="shrink-0">{projectName}</span> : null}
 		</div>
 	);
@@ -347,6 +328,7 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 	name,
 	tokens,
 	status,
+	statusTitle,
 	projectName,
 	commandVisible,
 	navigatorVisible,
@@ -359,6 +341,7 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 	name: string;
 	tokens: number;
 	status: ThreadDisplayStatus;
+	statusTitle: string;
 	projectName: string | null;
 	commandVisible: boolean;
 	navigatorVisible: boolean;
@@ -403,6 +386,7 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 				<HeaderDetailRail
 					tokens={tokens}
 					status={status}
+					statusTitle={statusTitle}
 					projectName={projectName}
 				/>
 			</div>
@@ -1366,6 +1350,10 @@ export const Workspace = memo(
 		const status = selectedThread
 			? threadDisplayStatus(selectedThread)
 			: (threadSummary?.status ?? "idle");
+		const statusTitle = threadStatusTooltip(
+			status,
+			selectedThread?.lastTurnStatus ?? threadSummary?.lastTurnStatus ?? null,
+		);
 		const projectName = project?.name ?? null;
 		const contentScaleStyle = useMemo(
 			() =>
@@ -1595,6 +1583,7 @@ export const Workspace = memo(
 						name={name}
 						tokens={tokens}
 						status={status}
+						statusTitle={statusTitle}
 						projectName={projectName}
 						commandVisible={commandVisible}
 						navigatorVisible={navigatorVisible}
@@ -1610,6 +1599,7 @@ export const Workspace = memo(
 						name={name}
 						tokens={tokens}
 						status={status}
+						statusTitle={statusTitle}
 						projectName={projectName}
 						commandVisible={commandVisible}
 						navigatorVisible={navigatorVisible}

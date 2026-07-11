@@ -23,18 +23,23 @@ import type {
 	ThreadDetail,
 	ThreadTagScore,
 } from "../../server/domain.js";
+import { threadDisplayStatus } from "../../server/domain.js";
 import {
 	clampDisplayScale,
 	cn,
 	displayScale as displayScaleConfig,
 	formatDisplayScale,
-	tone,
 	ui,
 } from "../designSystem.js";
+import {
+	statusPresentation,
+	threadStatusTooltip,
+} from "../statusPresentation.js";
 import { nextThemeMode, type ThemeMode } from "../theme.js";
 import { threadLifecycleLabel } from "../threadLifecycle.js";
-import { shortId, statusLabel } from "../uiFormat.js";
+import { shortId } from "../uiFormat.js";
 import { ScrollArea } from "./ScrollArea.js";
+import { StatusIcon } from "./statusIndicator.js";
 import { ControlCard, InfoTile, SurfaceAction } from "./uiPrimitives.js";
 import type { ComposerMode, WorkbenchThread } from "./workbenchTypes.js";
 
@@ -65,19 +70,6 @@ function formatCompact(value: number) {
 	return new Intl.NumberFormat(undefined, { notation: "compact" }).format(
 		value,
 	);
-}
-
-function runtimeStatusTone(status: string | null | undefined) {
-	if (status === "active") {
-		return tone.running.dot;
-	}
-	if (status === "system_error") {
-		return tone.error.dot;
-	}
-	if (status === "not_loaded") {
-		return tone.stale.dot;
-	}
-	return tone.neutral.dot;
 }
 
 function SettingsIconToggle({
@@ -300,7 +292,11 @@ export const ParamPanel = memo(function ParamPanel({
 		? null
 		: (selectedThread ?? threadSummary?.thread ?? null);
 	const displayDetail = composingNewThread ? null : detail;
-	const status = thread?.status ?? "idle";
+	const status = thread ? threadDisplayStatus(thread) : "idle";
+	const statusTitle = threadStatusTooltip(
+		status,
+		thread?.lastTurnStatus ?? null,
+	);
 	const model = thread?.model ?? defaultModel ?? "default Codex model";
 	const cwd = composingNewThread
 		? workdir || defaultCwd
@@ -335,16 +331,10 @@ export const ParamPanel = memo(function ParamPanel({
 					/>
 					<div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-1.5">
 						<InfoTile
-							icon={
-								<span
-									className={cn(
-										"h-2 w-2 rounded-full",
-										runtimeStatusTone(status),
-									)}
-								/>
-							}
+							icon={<StatusIcon status={status} size={13} />}
 							label="Status"
-							value={statusLabel(status)}
+							value={statusPresentation(status).label}
+							title={statusTitle}
 							layout="inline"
 						/>
 						<InfoTile

@@ -78,4 +78,14 @@ describe("ThreadResultRow", () => {
 
 		expect(markup).toContain("mobile-static-scroll");
 	});
+
+	it("keeps thread runtime status primary and exposes turn result on hover", () => {
+		const markup = renderToStaticMarkup(
+			createElement(ThreadResultRow, { thread: workbenchThread() }),
+		);
+
+		expect(markup).toContain("Idle");
+		expect(markup).not.toContain("turn completed");
+		expect(markup).toContain("Last turn: Completed");
+	});
 });

@@ -719,6 +719,7 @@ export const InfoTile = memo(function InfoTile({
 	icon,
 	label,
 	value,
+	title,
 	mono = false,
 	layout = "stacked",
 	hideLabel = false,
@@ -727,6 +728,7 @@ export const InfoTile = memo(function InfoTile({
 	icon: ReactNode;
 	label: string;
 	value: string;
+	title?: string;
 	mono?: boolean;
 	layout?: "stacked" | "inline";
 	hideLabel?: boolean;
@@ -746,7 +748,7 @@ export const InfoTile = memo(function InfoTile({
 				radius.control,
 				className,
 			)}
-			title={hideLabel ? value : `${label}: ${value}`}
+			title={title ?? (hideLabel ? value : `${label}: ${value}`)}
 		>
 			<span
 				className={cn(
