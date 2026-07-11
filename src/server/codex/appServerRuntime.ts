@@ -16,6 +16,7 @@ import { dirname, join, resolve } from "node:path";
 import WebSocket from "ws";
 import {
 	type AppServerDebugLogLevel,
+	allThreadSourceKinds,
 	appServerInitializeParams,
 	asRecord,
 	clampDebugLogLevel,
@@ -238,6 +239,7 @@ export class AppServerRuntime implements CodexRuntime {
 				sortDirection: "desc",
 				archived: input.archived ?? false,
 				cwd: input.cwd ?? null,
+				sourceKinds: allThreadSourceKinds,
 			}),
 		);
 		return {
@@ -260,6 +262,7 @@ export class AppServerRuntime implements CodexRuntime {
 				sortKey: "updated_at",
 				sortDirection: "desc",
 				archived: input.archived ?? false,
+				sourceKinds: allThreadSourceKinds,
 			}),
 		);
 		return {

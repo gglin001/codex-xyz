@@ -56,8 +56,7 @@ export function formatFullDateTime(
 	const month = shortMonthNames[monthIndex];
 	const year =
 		dateTimeFormatMode === "utc" ? date.getUTCFullYear() : date.getFullYear();
-	const day =
-		dateTimeFormatMode === "utc" ? date.getUTCDate() : date.getDate();
+	const day = dateTimeFormatMode === "utc" ? date.getUTCDate() : date.getDate();
 	const hour = String(
 		dateTimeFormatMode === "utc" ? date.getUTCHours() : date.getHours(),
 	).padStart(2, "0");
@@ -78,8 +77,7 @@ export function formatDate(
 	const monthIndex =
 		dateTimeFormatMode === "utc" ? date.getUTCMonth() : date.getMonth();
 	const month = shortMonthNames[monthIndex];
-	const day =
-		dateTimeFormatMode === "utc" ? date.getUTCDate() : date.getDate();
+	const day = dateTimeFormatMode === "utc" ? date.getUTCDate() : date.getDate();
 	const year =
 		dateTimeFormatMode === "utc" ? date.getUTCFullYear() : date.getFullYear();
 	return `${month} ${day}, ${year}`;
@@ -112,6 +110,12 @@ export function itemTitle(item: ThreadItem) {
 	}
 	if (sourceType === "webSearch") {
 		return "Web search";
+	}
+	if (sourceType === "collabAgentToolCall") {
+		return "Agent collaboration";
+	}
+	if (sourceType === "subAgentActivity") {
+		return "Subagent activity";
 	}
 	if (item.type === "agent") {
 		return "Codex";

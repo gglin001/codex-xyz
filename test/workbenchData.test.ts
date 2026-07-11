@@ -16,6 +16,10 @@ function thread(overrides: Partial<ControlThread> = {}): ControlThread {
 		id: "thread-1",
 		sessionId: "session-1",
 		forkedFromId: null,
+		parentThreadId: null,
+		sourceKind: "app_server",
+		agentNickname: null,
+		agentRole: null,
 		name: "Implement search",
 		preview: "Add a thread filter",
 		cwd: "/work/coz",
@@ -27,6 +31,7 @@ function thread(overrides: Partial<ControlThread> = {}): ControlThread {
 		goalStatus: null,
 		goalTokenBudget: null,
 		tokensUsed: 0,
+		contextWindow: null,
 		tagScore: null,
 		lifecycleState: "active",
 		desiredArchived: false,
@@ -138,6 +143,36 @@ describe("workbench project data", () => {
 		expect(emptyWorkbenchProject("")).toMatchObject({
 			id: "No workspace",
 			name: "No workspace",
+		});
+	});
+
+	it("derives subagent hierarchy depth from parents in the same project", () => {
+		const projects = buildWorkbenchProjects(
+			[
+				thread({ id: "root" }),
+				thread({ id: "child", parentThreadId: "root", sourceKind: "subagent" }),
+				thread({
+					id: "grandchild",
+					parentThreadId: "child",
+					sourceKind: "subagent",
+				}),
+				thread({
+					id: "external-child",
+					parentThreadId: "other-project-parent",
+					sourceKind: "subagent",
+				}),
+			],
+			"/work/coz",
+		);
+		const depths = Object.fromEntries(
+			projects[0]?.threads.map((item) => [item.id, item.hierarchyDepth]) ?? [],
+		);
+
+		expect(depths).toEqual({
+			root: 0,
+			child: 1,
+			grandchild: 2,
+			"external-child": 0,
 		});
 	});
 });

@@ -1,4 +1,4 @@
-import { Star } from "lucide-react";
+import { Bot, Star } from "lucide-react";
 import { memo } from "react";
 import { cn } from "../designSystem.js";
 import {
@@ -27,6 +27,19 @@ function threadDetailParts(
 	].filter(Boolean);
 }
 
+export function threadAgentLabel(thread: WorkbenchThread) {
+	if (
+		thread.sourceKind !== "subagent" &&
+		!thread.agentNickname &&
+		!thread.agentRole
+	) {
+		return null;
+	}
+	return ["Agent", thread.agentNickname, thread.agentRole]
+		.filter(Boolean)
+		.join(" / ");
+}
+
 export function threadResultTitle(
 	thread: WorkbenchThread,
 	projectName?: string,
@@ -34,6 +47,7 @@ export function threadResultTitle(
 ) {
 	return [
 		thread.name,
+		threadAgentLabel(thread),
 		threadDetailParts(thread, projectName, dateTimeFormatMode).join(" / "),
 		thread.preview,
 		thread.cwd,
@@ -49,6 +63,8 @@ export function threadResultSearchText(
 ) {
 	return [
 		thread.name,
+		threadAgentLabel(thread),
+		thread.sourceKind === "subagent" ? "subagent sub-agent" : "",
 		thread.preview,
 		thread.cwd,
 		projectName ?? "",
@@ -121,6 +137,7 @@ export const ThreadResultRow = memo(function ThreadResultRow({
 		dateTimeFormatMode,
 	);
 	const statusTitle = threadStatusTooltip(thread.status, thread.lastTurnStatus);
+	const agentLabel = threadAgentLabel(thread);
 	return (
 		<span className={cn("flex min-w-0 flex-1 items-start gap-2", className)}>
 			{showStatusIcon ? (
@@ -138,6 +155,15 @@ export const ThreadResultRow = memo(function ThreadResultRow({
 			) : null}
 			<span className="grid min-w-0 flex-1 gap-0.5">
 				<span className="flex min-w-0 items-center gap-2">
+					{agentLabel ? (
+						<span
+							className="flex shrink-0 items-center gap-1 rounded border border-accent/25 bg-accent/10 px-1.5 text-[10px] font-semibold leading-[18px] text-accent"
+							title={agentLabel}
+						>
+							<Bot size={11} aria-hidden="true" />
+							<span>{thread.agentNickname || "Agent"}</span>
+						</span>
+					) : null}
 					<ScrollableText
 						className="text-[13px] font-medium leading-5"
 						mobileStatic={mobileStaticText}
@@ -145,6 +171,14 @@ export const ThreadResultRow = memo(function ThreadResultRow({
 						{thread.name}
 					</ScrollableText>
 				</span>
+				{thread.agentRole ? (
+					<ScrollableText
+						className="text-[11px] leading-4 text-accent/80"
+						mobileStatic={mobileStaticText}
+					>
+						{thread.agentRole}
+					</ScrollableText>
+				) : null}
 				<span
 					className={cn(
 						"scrollable-row flex min-w-0 items-center gap-1.5 text-[11px] leading-4 text-muted",

@@ -2123,6 +2123,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				onWrapThreadContentChange={setWrapThreadContent}
 				onProjectChange={changeWorkbenchProject}
 				onSelectThread={selectWorkbenchThread}
+				onSelectThreadId={(threadId) => void selectThread(threadId)}
 				onCreateThread={createWorkbenchThread}
 				onThreadQueryChange={setThreadQuery}
 				onRefreshThreads={() => void refreshThreadHistory()}

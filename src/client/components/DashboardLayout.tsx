@@ -100,6 +100,7 @@ export type DashboardLayoutProps = {
 	onThreadTagScoreChange: (value: ThreadTagScore | null) => void;
 	onProjectChange: (projectId: string) => void;
 	onSelectThread: (threadSummary: WorkbenchThread) => void;
+	onSelectThreadId: (threadId: string) => void;
 	onCreateThread: () => void;
 	onThreadQueryChange: (value: string) => void;
 	onRefreshThreads: () => void;
@@ -764,6 +765,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 	onThreadTagScoreChange,
 	onProjectChange,
 	onSelectThread,
+	onSelectThreadId,
 	onCreateThread,
 	onThreadQueryChange,
 	onRefreshThreads,
@@ -1344,6 +1346,7 @@ export const DashboardLayout = memo(function DashboardLayout({
 		onListBackgroundTerminals,
 		onCleanBackgroundTerminals,
 		onLoadEarlierTranscript,
+		onSelectThreadId,
 		onOpenCommands: toggleCommandPalette,
 		dateTimeFormatMode,
 	} satisfies Omit<

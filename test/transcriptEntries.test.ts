@@ -143,4 +143,39 @@ describe("transcript entries", () => {
 			item: { id: "submit-error" },
 		});
 	});
+
+	it("keeps subagent collaboration as first-class timeline entries", () => {
+		const entries = getTranscriptEntries([
+			item({ id: "command", type: "command", text: "$ rg protocol" }),
+			item({
+				id: "collab",
+				type: "system",
+				text: "spawnAgent child-thread",
+				data: {
+					sourceType: "collabAgentToolCall",
+					receiverThreadIds: ["child-thread"],
+				},
+			}),
+			item({
+				id: "activity",
+				type: "system",
+				text: "started root/scout",
+				data: {
+					sourceType: "subAgentActivity",
+					agentThreadId: "child-thread",
+				},
+			}),
+		]);
+
+		expect(entries).toHaveLength(3);
+		expect(entries[0]).toMatchObject({
+			kind: "process",
+			items: [{ id: "command" }],
+		});
+		expect(entries[1]).toMatchObject({ kind: "item", item: { id: "collab" } });
+		expect(entries[2]).toMatchObject({
+			kind: "item",
+			item: { id: "activity" },
+		});
+	});
 });

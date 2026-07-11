@@ -1,7 +1,10 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { ThreadResultRow } from "../src/client/components/ThreadResultRow.js";
+import {
+	ThreadResultRow,
+	threadResultSearchText,
+} from "../src/client/components/ThreadResultRow.js";
 import { buildWorkbenchProjects } from "../src/client/components/workbenchData.js";
 import type { ControlThread } from "../src/server/domain.js";
 
@@ -12,6 +15,10 @@ function thread(overrides: Partial<ControlThread> = {}): ControlThread {
 		id: "thread-1",
 		sessionId: "session-1",
 		forkedFromId: null,
+		parentThreadId: null,
+		sourceKind: "app_server",
+		agentNickname: null,
+		agentRole: null,
 		name: "Long session title that should remain horizontally scrollable",
 		preview: "Long session preview that should remain horizontally scrollable",
 		cwd: "/work/codex-xyz",
@@ -23,6 +30,7 @@ function thread(overrides: Partial<ControlThread> = {}): ControlThread {
 		goalStatus: null,
 		goalTokenBudget: null,
 		tokensUsed: 1234,
+		contextWindow: null,
 		tagScore: null,
 		lifecycleState: "active",
 		desiredArchived: false,
@@ -87,5 +95,22 @@ describe("ThreadResultRow", () => {
 		expect(markup).toContain("Idle");
 		expect(markup).not.toContain("turn completed");
 		expect(markup).toContain("Last turn: Completed");
+	});
+
+	it("presents and searches subagents by nickname and role", () => {
+		const subagent = workbenchThread({
+			sourceKind: "subagent",
+			agentNickname: "sidebar",
+			agentRole: "Implement thread navigation",
+		});
+		const markup = renderToStaticMarkup(
+			createElement(ThreadResultRow, { thread: subagent }),
+		);
+
+		expect(markup).toContain("sidebar");
+		expect(markup).toContain("Implement thread navigation");
+		expect(threadResultSearchText(subagent)).toContain(
+			"Agent / sidebar / Implement thread navigation",
+		);
 	});
 });

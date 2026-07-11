@@ -198,7 +198,7 @@ function createV3Database(filePath: string) {
 }
 
 describe("database migrations", () => {
-	it("upgrades v3 databases through v9", () => {
+	it("upgrades v3 databases through v10", () => {
 		const filePath = join(tempDir, "coz.sqlite");
 		createV3Database(filePath);
 
@@ -225,6 +225,13 @@ describe("database migrations", () => {
 		execFileSync(process.execPath, ["scripts/upgrade-v8-to-v9.mjs", filePath], {
 			stdio: "pipe",
 		});
+		execFileSync(
+			process.execPath,
+			["scripts/upgrade-v9-to-v10.mjs", filePath],
+			{
+				stdio: "pipe",
+			},
+		);
 
 		const db = new DatabaseSync(filePath);
 		try {
@@ -253,7 +260,7 @@ describe("database migrations", () => {
 				| undefined;
 			const thread = db
 				.prepare(
-					"SELECT name, tag_score, lifecycle_state, desired_archived, remote_archived, local_updated_at FROM threads WHERE id = ?",
+					"SELECT name, tag_score, lifecycle_state, desired_archived, remote_archived, local_updated_at, parent_thread_id, source_kind, agent_nickname, agent_role, context_window FROM threads WHERE id = ?",
 				)
 				.get("thread-1") as
 				| {
@@ -263,6 +270,11 @@ describe("database migrations", () => {
 						desired_archived?: unknown;
 						remote_archived?: unknown;
 						local_updated_at?: unknown;
+						parent_thread_id?: unknown;
+						source_kind?: unknown;
+						agent_nickname?: unknown;
+						agent_role?: unknown;
+						context_window?: unknown;
 				  }
 				| undefined;
 			const host = db
@@ -283,6 +295,11 @@ describe("database migrations", () => {
 				desired_archived: 1,
 				remote_archived: null,
 				local_updated_at: "2026-06-13T00:00:01.000Z",
+				parent_thread_id: null,
+				source_kind: "unknown",
+				agent_nickname: null,
+				agent_role: null,
+				context_window: null,
 			});
 			expect(
 				db

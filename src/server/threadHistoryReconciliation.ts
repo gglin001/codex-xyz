@@ -41,6 +41,10 @@ function discoveredThread(
 			runtimeThread.forkedFromId && store.getThread(runtimeThread.forkedFromId)
 				? runtimeThread.forkedFromId
 				: null,
+		parentThreadId: runtimeThread.parentThreadId,
+		sourceKind: runtimeThread.sourceKind,
+		agentNickname: runtimeThread.agentNickname,
+		agentRole: runtimeThread.agentRole,
 		name:
 			runtimeThread.name?.trim() ||
 			existing?.name ||
@@ -62,6 +66,7 @@ function discoveredThread(
 		goalStatus: existing?.goalStatus ?? null,
 		goalTokenBudget: existing?.goalTokenBudget ?? null,
 		tokensUsed: existing?.tokensUsed ?? 0,
+		contextWindow: existing?.contextWindow ?? null,
 		tagScore: existing?.tagScore ?? null,
 		lifecycleState:
 			existing?.lifecycleState ?? (archived ? "archived" : "active"),

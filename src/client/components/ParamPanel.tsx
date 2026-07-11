@@ -351,6 +351,27 @@ export const ParamPanel = memo(function ParamPanel({
 						mono
 						layout="inline"
 					/>
+					{thread?.sourceKind === "subagent" ? (
+						<>
+							<InfoTile
+								icon={<Bot size={13} />}
+								label="Agent"
+								value={
+									[thread.agentNickname, thread.agentRole]
+										.filter(Boolean)
+										.join(" / ") || "Subagent"
+								}
+								layout="inline"
+							/>
+							<InfoTile
+								icon={<GitFork size={13} />}
+								label="Parent"
+								value={thread.parentThreadId ?? "None"}
+								mono
+								layout="inline"
+							/>
+						</>
+					) : null}
 					<InfoTile
 						icon={<FolderGit2 size={13} />}
 						label="CWD"

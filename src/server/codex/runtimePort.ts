@@ -3,6 +3,7 @@ import type {
 	GoalStatusUpdate,
 	ItemType,
 	ThreadRuntimeStatus,
+	ThreadSourceKind,
 	TurnStatus,
 } from "../domain.js";
 
@@ -10,6 +11,10 @@ export type RuntimeThreadSnapshot = {
 	id: string;
 	sessionId: string;
 	forkedFromId: string | null;
+	parentThreadId: string | null;
+	sourceKind: ThreadSourceKind;
+	agentNickname: string | null;
+	agentRole: string | null;
 	name: string | null;
 	preview: string;
 	cwd: string;

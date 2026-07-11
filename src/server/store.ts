@@ -26,7 +26,7 @@ import {
 
 type Row = Record<string, unknown>;
 
-export const currentDatabaseVersion = "v9";
+export const currentDatabaseVersion = "v10";
 
 const metadataTable = "metadata";
 const versionKey = "version";
@@ -199,6 +199,10 @@ function threadFromRow(row: Row): ControlThread {
 		id: scalarString(row.id),
 		sessionId: scalarString(row.session_id),
 		forkedFromId: nullableString(row.forked_from_id),
+		parentThreadId: nullableString(row.parent_thread_id),
+		sourceKind: scalarString(row.source_kind) as ControlThread["sourceKind"],
+		agentNickname: nullableString(row.agent_nickname),
+		agentRole: nullableString(row.agent_role),
 		name: scalarString(row.name),
 		preview: scalarString(row.preview),
 		cwd: scalarString(row.cwd),
@@ -213,6 +217,8 @@ function threadFromRow(row: Row): ControlThread {
 		goalTokenBudget:
 			typeof row.goal_token_budget === "number" ? row.goal_token_budget : null,
 		tokensUsed: scalarNumber(row.tokens_used),
+		contextWindow:
+			typeof row.context_window === "number" ? row.context_window : null,
 		tagScore: storedThreadTagScore(row.tag_score),
 		lifecycleState: storedThreadLifecycleState(row.lifecycle_state),
 		desiredArchived: storedBoolean(row.desired_archived),
@@ -390,6 +396,10 @@ export class Store {
         -- while user-facing code now treats thread as the primary concept.
         session_id TEXT NOT NULL,
         forked_from_id TEXT REFERENCES threads(id) ON DELETE SET NULL,
+		parent_thread_id TEXT,
+		source_kind TEXT NOT NULL DEFAULT 'unknown' CHECK (source_kind IN ('cli', 'vscode', 'exec', 'app_server', 'subagent', 'unknown')),
+		agent_nickname TEXT,
+		agent_role TEXT,
         name TEXT NOT NULL,
         preview TEXT NOT NULL,
         cwd TEXT NOT NULL,
@@ -401,6 +411,7 @@ export class Store {
         goal_status TEXT CHECK (goal_status IS NULL OR goal_status IN ('in_progress', 'paused', 'blocked', 'usage_limited', 'budget_limited', 'complete', 'cleared')),
         goal_token_budget INTEGER,
         tokens_used INTEGER NOT NULL DEFAULT 0,
+        context_window INTEGER,
         tag_score INTEGER CHECK (tag_score IS NULL OR tag_score IN (1, 2, 3)),
         lifecycle_state TEXT NOT NULL DEFAULT 'active' CHECK (lifecycle_state IN ('active', 'archive_pending', 'archived', 'unarchive_pending', 'archive_failed', 'unarchive_failed', 'missing', 'deleted')),
         desired_archived INTEGER CHECK (desired_archived IS NULL OR desired_archived IN (0, 1)),
@@ -467,6 +478,7 @@ export class Store {
       CREATE INDEX IF NOT EXISTS idx_threads_session_id ON threads(session_id);
       CREATE INDEX IF NOT EXISTS idx_threads_status_updated_id ON threads(status, updated_at DESC, id DESC);
       CREATE INDEX IF NOT EXISTS idx_threads_forked_from_id ON threads(forked_from_id) WHERE forked_from_id IS NOT NULL;
+	  CREATE INDEX IF NOT EXISTS idx_threads_parent_thread_id ON threads(parent_thread_id) WHERE parent_thread_id IS NOT NULL;
       CREATE INDEX IF NOT EXISTS idx_thread_operations_status_created ON thread_operations(status, created_at, id);
       CREATE INDEX IF NOT EXISTS idx_thread_operations_thread_created ON thread_operations(thread_id, created_at DESC, id DESC);
       CREATE INDEX IF NOT EXISTS idx_turns_thread_started_id ON turns(thread_id, started_at, id);
@@ -620,20 +632,24 @@ export class Store {
 			.prepare(
 				`
           INSERT INTO threads (
-            id, session_id, forked_from_id, name, preview, cwd, model,
+            id, session_id, forked_from_id, parent_thread_id, source_kind, agent_nickname, agent_role, name, preview, cwd, model,
             status, active_turn_id, last_turn_status, goal_objective, goal_status, goal_token_budget,
-            tokens_used, tag_score, lifecycle_state, desired_archived, remote_archived,
+            tokens_used, context_window, tag_score, lifecycle_state, desired_archived, remote_archived,
             remote_observed_at, remote_updated_at, local_updated_at, runtime_seen_at,
             runtime_epoch, sync_generation, state_revision, last_operation_error,
             archived_at, created_at, updated_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
 			)
 			.run(
 				thread.id,
 				thread.sessionId,
 				thread.forkedFromId,
+				thread.parentThreadId,
+				thread.sourceKind,
+				thread.agentNickname,
+				thread.agentRole,
 				thread.name,
 				thread.preview,
 				thread.cwd,
@@ -645,6 +661,7 @@ export class Store {
 				thread.goalStatus,
 				thread.goalTokenBudget,
 				thread.tokensUsed,
+				thread.contextWindow ?? null,
 				thread.tagScore,
 				thread.lifecycleState,
 				thread.desiredArchived === null ? null : Number(thread.desiredArchived),
@@ -689,21 +706,26 @@ export class Store {
 			.prepare(
 				`
           INSERT INTO threads (
-            id, session_id, forked_from_id, name, preview, cwd, model,
+            id, session_id, forked_from_id, parent_thread_id, source_kind, agent_nickname, agent_role, name, preview, cwd, model,
             status, active_turn_id, last_turn_status, goal_objective, goal_status, goal_token_budget,
-            tokens_used, tag_score, lifecycle_state, desired_archived, remote_archived,
+            tokens_used, context_window, tag_score, lifecycle_state, desired_archived, remote_archived,
             remote_observed_at, remote_updated_at, local_updated_at, runtime_seen_at,
             runtime_epoch, sync_generation, state_revision, last_operation_error,
             archived_at, created_at, updated_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
             session_id = excluded.session_id,
             forked_from_id = excluded.forked_from_id,
+			parent_thread_id = excluded.parent_thread_id,
+			source_kind = excluded.source_kind,
+			agent_nickname = excluded.agent_nickname,
+			agent_role = excluded.agent_role,
             name = excluded.name,
             preview = excluded.preview,
             cwd = excluded.cwd,
             model = COALESCE(excluded.model, threads.model),
+			context_window = COALESCE(excluded.context_window, threads.context_window),
             status = excluded.status,
             active_turn_id = excluded.active_turn_id,
             updated_at = excluded.updated_at
@@ -713,6 +735,10 @@ export class Store {
 				thread.id,
 				thread.sessionId,
 				thread.forkedFromId,
+				thread.parentThreadId,
+				thread.sourceKind,
+				thread.agentNickname,
+				thread.agentRole,
 				thread.name,
 				thread.preview,
 				thread.cwd,
@@ -724,6 +750,7 @@ export class Store {
 				thread.goalStatus,
 				thread.goalTokenBudget,
 				thread.tokensUsed,
+				thread.contextWindow ?? null,
 				thread.tagScore,
 				thread.lifecycleState,
 				thread.desiredArchived === null ? null : Number(thread.desiredArchived),

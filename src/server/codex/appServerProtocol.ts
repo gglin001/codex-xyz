@@ -28,6 +28,19 @@ export const yoloTurnOptions = {
 	sandboxPolicy: { type: "dangerFullAccess" },
 } as const;
 
+export const allThreadSourceKinds = [
+	"cli",
+	"vscode",
+	"exec",
+	"appServer",
+	"subAgent",
+	"subAgentReview",
+	"subAgentCompact",
+	"subAgentThreadSpawn",
+	"subAgentOther",
+	"unknown",
+] as const;
+
 export const appServerInitializeParams = {
 	clientInfo: {
 		name: "coz",
@@ -176,6 +189,22 @@ function formatCommandExecution(item: Record<string, unknown>) {
 	return text;
 }
 
+function collabAgentText(item: Record<string, unknown>) {
+	const tool = String(item.tool ?? "collaboration");
+	const receivers = Array.isArray(item.receiverThreadIds)
+		? item.receiverThreadIds.map(String).filter(Boolean)
+		: [];
+	const prompt = typeof item.prompt === "string" ? item.prompt.trim() : "";
+	const target = receivers.length > 0 ? ` ${receivers.join(", ")}` : "";
+	return [`${tool}${target}`, prompt].filter(Boolean).join("\n");
+}
+
+function subAgentActivityText(item: Record<string, unknown>) {
+	const kind = String(item.kind ?? "activity");
+	const path = String(item.agentPath ?? item.agentThreadId ?? "subagent");
+	return `${kind} ${path}`;
+}
+
 export function normalizeThreadItem(value: unknown) {
 	const item = asRecord(value);
 	const id = String(item.id ?? "");
@@ -262,6 +291,41 @@ export function normalizeThreadItem(value: unknown) {
 			itemType: "system" as const,
 			text: `${String(item.namespace ?? "tool")}.${String(item.tool ?? "call")} ${String(item.status ?? "")}`.trim(),
 			data: { sourceType: itemType, raw: item },
+		};
+	}
+	if (itemType === "collabAgentToolCall") {
+		return {
+			itemId: id,
+			itemType: "system" as const,
+			text: collabAgentText(item),
+			data: {
+				sourceType: itemType,
+				tool: item.tool ?? null,
+				status: item.status ?? null,
+				senderThreadId: item.senderThreadId ?? null,
+				receiverThreadIds: Array.isArray(item.receiverThreadIds)
+					? item.receiverThreadIds
+					: [],
+				prompt: item.prompt ?? null,
+				model: item.model ?? null,
+				reasoningEffort: item.reasoningEffort ?? null,
+				agentsStates: asRecord(item.agentsStates),
+				raw: item,
+			},
+		};
+	}
+	if (itemType === "subAgentActivity") {
+		return {
+			itemId: id,
+			itemType: "system" as const,
+			text: subAgentActivityText(item),
+			data: {
+				sourceType: itemType,
+				kind: item.kind ?? null,
+				agentThreadId: item.agentThreadId ?? null,
+				agentPath: item.agentPath ?? null,
+				raw: item,
+			},
 		};
 	}
 	if (itemType === "webSearch") {
@@ -355,6 +419,18 @@ function normalizeUnixTimestamp(value: unknown) {
 	return new Date(milliseconds).toISOString();
 }
 
+function normalizeThreadSource(value: unknown) {
+	if (value === "cli") return "cli" as const;
+	if (value === "vscode") return "vscode" as const;
+	if (value === "exec") return "exec" as const;
+	if (value === "appServer" || value === "mcp") return "app_server" as const;
+	const source = asRecord(value);
+	if (source.subAgent !== undefined || source.subagent !== undefined) {
+		return "subagent" as const;
+	}
+	return "unknown" as const;
+}
+
 export function normalizeThread(
 	value: unknown,
 	model?: unknown,
@@ -369,6 +445,14 @@ export function normalizeThread(
 			typeof thread.forkedFromId === "string"
 				? normalizeThreadId(thread.forkedFromId)
 				: null,
+		parentThreadId:
+			typeof thread.parentThreadId === "string"
+				? normalizeThreadId(thread.parentThreadId)
+				: null,
+		sourceKind: normalizeThreadSource(thread.source),
+		agentNickname:
+			typeof thread.agentNickname === "string" ? thread.agentNickname : null,
+		agentRole: typeof thread.agentRole === "string" ? thread.agentRole : null,
 		name: typeof thread.name === "string" ? thread.name : null,
 		preview: String(thread.preview ?? ""),
 		cwd: String(thread.cwd ?? process.cwd()),

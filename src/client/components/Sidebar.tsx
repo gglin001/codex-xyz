@@ -258,25 +258,39 @@ export const Sidebar = memo(function Sidebar({
 									const selected =
 										selectedThreadKey === thread.id ||
 										selectedThreadKey === thread.threadId;
+									const nested = thread.hierarchyDepth > 0;
 									return (
-										<NavAction
+										<div
 											key={thread.id}
-											className={cn(
-												"group w-full items-start gap-2 px-2.5 py-1",
-											)}
-											selected={selected}
-											name={threadResultTitle(
-												thread,
-												undefined,
-												dateTimeFormatMode,
-											)}
-											onClick={() => onSelectThread(thread)}
+											className="relative"
+											style={{
+												marginLeft: `${Math.min(thread.hierarchyDepth, 6) * 12}px`,
+											}}
 										>
-											<ThreadResultRow
-												thread={thread}
-												dateTimeFormatMode={dateTimeFormatMode}
-											/>
-										</NavAction>
+											{nested ? (
+												<span
+													className="pointer-events-none absolute -left-2 top-0 h-1/2 w-2 rounded-bl border-b border-l border-border-subtle"
+													aria-hidden="true"
+												/>
+											) : null}
+											<NavAction
+												className={cn(
+													"group w-full items-start gap-2 px-2.5 py-1",
+												)}
+												selected={selected}
+												name={threadResultTitle(
+													thread,
+													undefined,
+													dateTimeFormatMode,
+												)}
+												onClick={() => onSelectThread(thread)}
+											>
+												<ThreadResultRow
+													thread={thread}
+													dateTimeFormatMode={dateTimeFormatMode}
+												/>
+											</NavAction>
+										</div>
 									);
 								})}
 							</section>

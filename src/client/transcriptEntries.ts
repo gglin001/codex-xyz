@@ -91,6 +91,12 @@ export function isTranscriptProcessItem(
 	}
 
 	const sourceType = itemSourceType(item);
+	if (
+		sourceType === "collabAgentToolCall" ||
+		sourceType === "subAgentActivity"
+	) {
+		return false;
+	}
 	return (
 		item.type === "command" ||
 		item.type === "plan" ||

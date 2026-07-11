@@ -4,6 +4,7 @@ import {
 	Check,
 	Copy,
 	Ellipsis,
+	GitBranch,
 	Goal,
 	Menu,
 	Plus,
@@ -136,6 +137,7 @@ export type WorkspaceProps = {
 	onListBackgroundTerminals: () => void;
 	onCleanBackgroundTerminals: () => void;
 	onLoadEarlierTranscript: () => Promise<unknown>;
+	onSelectThreadId: (threadId: string) => void;
 	onToggleNavigator: () => void;
 	onToggleInspector: () => void;
 	onOpenCommands?: () => void;
@@ -540,12 +542,113 @@ const MessageBlock = memo(function MessageBlock({
 	);
 });
 
+function dataString(data: Record<string, unknown>, key: string) {
+	return typeof data[key] === "string" ? data[key] : null;
+}
+
+function collaborationData(item: ThreadItem) {
+	const raw =
+		item.data.raw && typeof item.data.raw === "object"
+			? (item.data.raw as Record<string, unknown>)
+			: {};
+	return { ...raw, ...item.data };
+}
+
+function collaborationThreadIds(item: ThreadItem) {
+	const data = collaborationData(item);
+	if (item.data.sourceType === "subAgentActivity") {
+		const threadId = dataString(data, "agentThreadId");
+		return threadId ? [threadId] : [];
+	}
+	return Array.isArray(data.receiverThreadIds)
+		? data.receiverThreadIds.filter(
+				(value): value is string => typeof value === "string" && Boolean(value),
+			)
+		: [];
+}
+
+const CollaborationBlock = memo(function CollaborationBlock({
+	item,
+	onSelectThreadId,
+	dateTimeFormatMode,
+}: {
+	item: ThreadItem;
+	onSelectThreadId: (threadId: string) => void;
+	dateTimeFormatMode: DateTimeFormatMode;
+}) {
+	const data = collaborationData(item);
+	const sourceType = dataString(data, "sourceType");
+	const isActivity = sourceType === "subAgentActivity";
+	const action = dataString(data, isActivity ? "kind" : "tool") ?? "agent";
+	const status = isActivity
+		? action
+		: (dataString(data, "status") ?? "inProgress");
+	const path = dataString(data, "agentPath");
+	const prompt = dataString(data, "prompt");
+	const threadIds = collaborationThreadIds(item);
+	const agentsStates =
+		data.agentsStates && typeof data.agentsStates === "object"
+			? (data.agentsStates as Record<string, unknown>)
+			: {};
+	return (
+		<div className="rounded-[10px] border border-border-subtle bg-panel/35 px-3 py-2.5">
+			<div className="flex min-w-0 items-center gap-2">
+				<span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] bg-control text-muted-strong">
+					<GitBranch size={14} aria-hidden="true" />
+				</span>
+				<div className="min-w-0 flex-1">
+					<div className="flex min-w-0 items-center gap-2 text-[12px] font-medium text-fg-strong">
+						<span className="truncate">{path || action}</span>
+						<span className="shrink-0 rounded-full border border-border-subtle px-1.5 py-0.5 text-[10px] font-normal text-muted">
+							{status}
+						</span>
+					</div>
+					<div className="mt-0.5 text-[10px] text-muted">
+						{isActivity ? "Subagent activity" : "Agent collaboration"} /{" "}
+						{formatTime(item.createdAt, dateTimeFormatMode)}
+					</div>
+				</div>
+			</div>
+			{prompt ? (
+				<div className="mt-2 whitespace-pre-wrap break-words text-[12px] leading-5 text-muted-strong">
+					{prompt}
+				</div>
+			) : null}
+			{threadIds.length > 0 ? (
+				<div className="mt-2 flex flex-wrap gap-1.5">
+					{threadIds.map((threadId) => {
+						const state = agentsStates[threadId];
+						const stateRecord =
+							state && typeof state === "object"
+								? (state as Record<string, unknown>)
+								: {};
+						const agentStatus = dataString(stateRecord, "status");
+						return (
+							<button
+								type="button"
+								key={threadId}
+								className="rounded-[7px] border border-border-subtle bg-control px-2 py-1 text-[11px] text-fg hover:bg-control-hover"
+								title={`Open subagent thread ${threadId}`}
+								onClick={() => onSelectThreadId(threadId)}
+							>
+								{threadId.slice(0, 8)}
+								{agentStatus ? ` / ${agentStatus}` : ""}
+							</button>
+						);
+					})}
+				</div>
+			) : null}
+		</div>
+	);
+});
+
 const TranscriptEntryBlock = memo(function TranscriptEntryBlock({
 	entry,
 	wrapContent,
 	expanded,
 	transcriptExpansionState,
 	onTranscriptEntryExpandedChange,
+	onSelectThreadId,
 	dateTimeFormatMode,
 }: {
 	entry: TranscriptEntry;
@@ -553,6 +656,7 @@ const TranscriptEntryBlock = memo(function TranscriptEntryBlock({
 	expanded: boolean;
 	transcriptExpansionState: TranscriptExpansionState;
 	onTranscriptEntryExpandedChange: (entryId: string, expanded: boolean) => void;
+	onSelectThreadId: (threadId: string) => void;
 	dateTimeFormatMode: DateTimeFormatMode;
 }) {
 	return entry.kind === "process" ? (
@@ -565,6 +669,13 @@ const TranscriptEntryBlock = memo(function TranscriptEntryBlock({
 			onExpandedChange={(nextExpanded) =>
 				onTranscriptEntryExpandedChange(entry.id, nextExpanded)
 			}
+			dateTimeFormatMode={dateTimeFormatMode}
+		/>
+	) : entry.item.data.sourceType === "collabAgentToolCall" ||
+		entry.item.data.sourceType === "subAgentActivity" ? (
+		<CollaborationBlock
+			item={entry.item}
+			onSelectThreadId={onSelectThreadId}
 			dateTimeFormatMode={dateTimeFormatMode}
 		/>
 	) : (
@@ -1280,6 +1391,7 @@ export const Workspace = memo(
 			onListBackgroundTerminals,
 			onCleanBackgroundTerminals,
 			onLoadEarlierTranscript,
+			onSelectThreadId,
 			onToggleNavigator,
 			onToggleInspector,
 			onOpenCommands,
@@ -1672,6 +1784,7 @@ export const Workspace = memo(
 												onTranscriptEntryExpandedChange={
 													onTranscriptEntryExpandedChange
 												}
+												onSelectThreadId={onSelectThreadId}
 												dateTimeFormatMode={dateTimeFormatMode}
 											/>
 										</motion.div>

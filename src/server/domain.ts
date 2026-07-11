@@ -21,6 +21,13 @@ export type ThreadOperationStatus =
 	| "succeeded"
 	| "failed";
 export type ThreadDisplayStatus = ThreadRuntimeStatus | "archived";
+export type ThreadSourceKind =
+	| "cli"
+	| "vscode"
+	| "exec"
+	| "app_server"
+	| "subagent"
+	| "unknown";
 
 export type GoalStatus =
 	| "in_progress"
@@ -44,6 +51,10 @@ export type ControlThread = {
 	id: string;
 	sessionId: string;
 	forkedFromId: string | null;
+	parentThreadId: string | null;
+	sourceKind: ThreadSourceKind;
+	agentNickname: string | null;
+	agentRole: string | null;
 	name: string;
 	preview: string;
 	cwd: string;
@@ -55,6 +66,7 @@ export type ControlThread = {
 	goalStatus: GoalStatus | null;
 	goalTokenBudget: number | null;
 	tokensUsed: number;
+	contextWindow: number | null;
 	tagScore: ThreadTagScore | null;
 	lifecycleState: ThreadLifecycleState;
 	desiredArchived: boolean | null;

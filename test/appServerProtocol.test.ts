@@ -17,6 +17,14 @@ describe("app-server protocol projection", () => {
 					id: "thread_00000000-0000-4000-8000-000000000001",
 					sessionId: "urn:uuid:00000000-0000-4000-8000-000000000002",
 					forkedFromId: "thread_00000000-0000-4000-8000-000000000003",
+					parentThreadId: "thread-parent",
+					source: {
+						subAgent: {
+							thread_spawn: { parent_thread_id: "thread-parent" },
+						},
+					},
+					agentNickname: "scout",
+					agentRole: "explorer",
 					preview: "Runtime preview",
 					cwd: "/work/coz",
 					status: { type: "active", turnId: "turn-1" },
@@ -28,6 +36,10 @@ describe("app-server protocol projection", () => {
 			id: "thread_00000000-0000-4000-8000-000000000001",
 			sessionId: "urn:uuid:00000000-0000-4000-8000-000000000002",
 			forkedFromId: "thread_00000000-0000-4000-8000-000000000003",
+			parentThreadId: "thread-parent",
+			sourceKind: "subagent",
+			agentNickname: "scout",
+			agentRole: "explorer",
 			preview: "Runtime preview",
 			cwd: "/work/coz",
 			model: "gpt-test",
@@ -149,6 +161,64 @@ describe("app-server protocol projection", () => {
 			itemId: "item-compact",
 			itemType: "system",
 			text: "Compacted context",
+		});
+	});
+
+	it("preserves first-class subagent collaboration items", () => {
+		const collab = projectAppServerNotification("item/completed", {
+			threadId: "thread-parent",
+			turnId: "turn-1",
+			item: {
+				type: "collabAgentToolCall",
+				id: "collab-1",
+				tool: "spawnAgent",
+				status: "completed",
+				senderThreadId: "thread-parent",
+				receiverThreadIds: ["thread-child"],
+				prompt: "Inspect the protocol",
+				model: "gpt-test",
+				reasoningEffort: "high",
+				agentsStates: {
+					"thread-child": { status: "running", message: null },
+				},
+			},
+		});
+		expect(collab).toMatchObject({
+			type: "item.updated",
+			itemId: "collab-1",
+			itemType: "system",
+			data: {
+				sourceType: "collabAgentToolCall",
+				tool: "spawnAgent",
+				status: "completed",
+				receiverThreadIds: ["thread-child"],
+				agentsStates: {
+					"thread-child": { status: "running", message: null },
+				},
+			},
+		});
+
+		const activity = projectAppServerNotification("item/completed", {
+			threadId: "thread-parent",
+			turnId: "turn-1",
+			item: {
+				type: "subAgentActivity",
+				id: "activity-1",
+				kind: "started",
+				agentThreadId: "thread-child",
+				agentPath: "root/scout",
+			},
+		});
+		expect(activity).toMatchObject({
+			type: "item.updated",
+			itemId: "activity-1",
+			text: "started root/scout",
+			data: {
+				sourceType: "subAgentActivity",
+				kind: "started",
+				agentThreadId: "thread-child",
+				agentPath: "root/scout",
+			},
 		});
 	});
 

@@ -818,6 +818,11 @@ describe("AppServerRuntime", () => {
 					params: expect.objectContaining({
 						sortKey: "updated_at",
 						sortDirection: "desc",
+						sourceKinds: expect.arrayContaining([
+							"appServer",
+							"subAgent",
+							"subAgentThreadSpawn",
+						]),
 					}),
 				}),
 				expect.objectContaining({

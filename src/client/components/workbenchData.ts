@@ -38,11 +38,7 @@ function startOfPreviousDayTime(
 ) {
 	if (dateTimeFormatMode === "utc") {
 		return (
-			Date.UTC(
-				date.getUTCFullYear(),
-				date.getUTCMonth(),
-				date.getUTCDate(),
-			) -
+			Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) -
 			24 * 60 * 60 * 1000
 		);
 	}
@@ -122,6 +118,11 @@ function workbenchThreadFromThread(
 		threadId: thread.id,
 		sessionId: thread.sessionId,
 		forkedFromId: thread.forkedFromId,
+		parentThreadId: thread.parentThreadId,
+		sourceKind: thread.sourceKind,
+		agentNickname: thread.agentNickname,
+		agentRole: thread.agentRole,
+		hierarchyDepth: 0,
 		name: thread.name || "Untitled Codex thread",
 		preview: thread.preview || "No transcript preview yet.",
 		cwd: thread.cwd || "Unknown workdir",
@@ -153,7 +154,43 @@ function projectFromPath(
 ): WorkbenchProject {
 	const name = basename(path);
 	const accent = accentCycle[stableIndex(path, accentCycle.length)] ?? "slate";
-	const sortedThreads = sortThreads(threads);
+	const threadById = new Map(
+		threads.map((thread) => [thread.threadId, thread]),
+	);
+	const depthById = new Map<string, number>();
+	const depthForThread = (
+		thread: WorkbenchThread,
+		ancestors = new Set<string>(),
+	): number | null => {
+		const knownDepth = depthById.get(thread.threadId);
+		if (knownDepth !== undefined) {
+			return knownDepth;
+		}
+		if (ancestors.has(thread.threadId)) {
+			return null;
+		}
+		if (!thread.parentThreadId) {
+			return 0;
+		}
+		const parent = threadById.get(thread.parentThreadId);
+		if (!parent) {
+			return 0;
+		}
+		const nextAncestors = new Set(ancestors).add(thread.threadId);
+		const parentDepth = depthForThread(parent, nextAncestors);
+		if (parentDepth === null) {
+			return null;
+		}
+		const depth = parentDepth + 1;
+		depthById.set(thread.threadId, depth);
+		return depth;
+	};
+	const sortedThreads = sortThreads(
+		threads.map((thread) => ({
+			...thread,
+			hierarchyDepth: depthForThread(thread) ?? 0,
+		})),
+	);
 	return {
 		id: path,
 		name,
