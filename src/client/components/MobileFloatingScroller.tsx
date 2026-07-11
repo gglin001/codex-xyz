@@ -28,8 +28,8 @@ function scrollMetricsEqual(
 	);
 }
 
-const hitAreaHalfWidth = "1.75rem";
-const pillHalfWidth = "0.5rem";
+const hitAreaHalfWidth = "1.375rem";
+const pillHalfWidth = "0.25rem";
 
 export type FloatingScrollAnchor = {
 	id: string;
@@ -46,7 +46,6 @@ type FloatingScrollRailProps = {
 	trackRef: RefObject<HTMLDivElement | null>;
 	thumbRef: RefObject<HTMLDivElement | null>;
 	railRight: string;
-	size: FloatingScrollerSize;
 	markers: FloatingScrollMarker[];
 	metrics: MobileScrollMetrics;
 	dragging: boolean;
@@ -91,7 +90,6 @@ const FloatingScrollRail = memo(function FloatingScrollRail({
 	trackRef,
 	thumbRef,
 	railRight,
-	size,
 	markers,
 	metrics,
 	dragging,
@@ -104,33 +102,24 @@ const FloatingScrollRail = memo(function FloatingScrollRail({
 	onThumbLostPointerCapture,
 	onThumbKeyDown,
 }: FloatingScrollRailProps) {
-	const compact = size === "compact";
-	const trackClassName = compact ? "bg-muted/10" : "bg-muted/16";
-	const thumbClassName = compact
-		? cn(
-				"absolute left-1/2 top-1/2 h-7 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-border bg-muted/38 shadow-none transition-[background-color,border-color,opacity,transform] duration-150 ease-out group-focus-visible:ring-2 group-focus-visible:ring-muted-strong",
-				dragging
-					? "scale-105 bg-muted/64"
-					: "opacity-80 group-hover:scale-[1.03] group-hover:bg-muted/52 group-hover:opacity-100",
-			)
-		: cn(
-				"absolute left-1/2 top-1/2 h-9 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-border-strong bg-muted/72 shadow-none transition-[background-color,border-color,opacity,transform] duration-150 ease-out group-focus-visible:ring-2 group-focus-visible:ring-muted-strong",
-				dragging
-					? "scale-105 bg-muted-strong/88"
-					: "group-hover:scale-[1.04] group-hover:bg-muted/82",
-			);
+	const thumbClassName = cn(
+		"absolute left-1/2 top-1/2 h-6 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-border bg-muted/46 shadow-none transition-[background-color,border-color,opacity,transform] duration-150 ease-out group-focus-visible:ring-2 group-focus-visible:ring-muted-strong",
+		dragging
+			? "scale-105 bg-muted-strong/72"
+			: "opacity-85 group-hover:scale-[1.04] group-hover:bg-muted/64 group-hover:opacity-100",
+	);
 
 	return (
 		<div
 			ref={trackRef}
-			className="pointer-events-none absolute bottom-0 top-0 w-14"
+			className="pointer-events-none absolute bottom-0 top-0 w-11"
 			style={{ right: railRight }}
 		>
 			<div
 				aria-hidden="true"
 				className={cn(
 					"absolute bottom-0 left-1/2 top-0 w-px -translate-x-1/2 rounded-full",
-					trackClassName,
+					"bg-muted/12",
 				)}
 			/>
 			{markers.map((marker) => (
@@ -186,15 +175,12 @@ const FloatingScrollRail = memo(function FloatingScrollRail({
 	);
 });
 
-type FloatingScrollerSize = "default" | "compact";
-
 export const MobileFloatingScroller = memo(function MobileFloatingScroller({
 	scrollRef,
 	scrollElementId,
 	className,
 	contentRightInset = hitAreaHalfWidth,
 	anchors = [],
-	size = "default",
 	visibility = "always",
 }: {
 	scrollRef: RefObject<HTMLElement | null>;
@@ -202,7 +188,6 @@ export const MobileFloatingScroller = memo(function MobileFloatingScroller({
 	className?: string;
 	contentRightInset?: string;
 	anchors?: FloatingScrollAnchor[];
-	size?: FloatingScrollerSize;
 	visibility?: "mobile" | "always";
 }) {
 	const trackRef = useRef<HTMLDivElement | null>(null);
@@ -518,7 +503,7 @@ export const MobileFloatingScroller = memo(function MobileFloatingScroller({
 		<div
 			data-scrollable={metrics.canScroll ? "true" : "false"}
 			className={cn(
-				"mobile-floating-scroller pointer-events-none absolute bottom-4 right-0 top-4 z-[4] w-14 transition-opacity duration-150 ease-out",
+				"mobile-floating-scroller pointer-events-none absolute bottom-4 right-0 top-4 z-[4] w-11 transition-opacity duration-150 ease-out",
 				metrics.canScroll ? "opacity-100" : "opacity-0",
 				className,
 			)}
@@ -529,7 +514,6 @@ export const MobileFloatingScroller = memo(function MobileFloatingScroller({
 				trackRef={trackRef}
 				thumbRef={thumbRef}
 				railRight={railRight}
-				size={size}
 				markers={markers}
 				metrics={metrics}
 				dragging={dragging}

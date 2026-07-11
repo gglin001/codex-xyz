@@ -23,7 +23,6 @@ type FloatingScrollerConfig =
 			anchors?: FloatingScrollAnchor[];
 			className?: string;
 			contentRightInset?: string;
-			size?: "default" | "compact";
 			visibility?: "mobile" | "always";
 	  };
 
@@ -134,7 +133,6 @@ export const ScrollArea = memo(function ScrollArea({
 					anchors={floatingScroller.anchors}
 					className={floatingScroller.className}
 					contentRightInset={floatingScroller.contentRightInset}
-					size={floatingScroller.size}
 					visibility={floatingScroller.visibility}
 				/>
 			) : null}

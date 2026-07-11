@@ -231,7 +231,6 @@ export const Sidebar = memo(function Sidebar({
 				edgeFades={{ tone: "panel", top: "short", bottom: "short" }}
 				floatingScroller={{
 					contentRightInset: "0.5rem",
-					size: "compact",
 				}}
 			>
 				<AnimatePresence mode="popLayout">
