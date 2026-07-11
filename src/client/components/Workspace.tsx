@@ -987,8 +987,8 @@ const Composer = memo(
 				: []),
 			{
 				id: "copy-thread-id",
-				label: "Copy thread ID",
-				detail: "Copy the full Codex thread identifier",
+				label: "copy tid",
+				detail: "Copy thread id",
 				disabledReason: selectedThreadId ? null : "Select a thread first",
 				run: () => {
 					if (selectedThreadId) {
