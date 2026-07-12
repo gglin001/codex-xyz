@@ -77,6 +77,16 @@ describe("Composer thread action state", () => {
 		expect(actions.resume).toBeNull();
 	});
 
+	it("keeps child subagent input controlled by its parent", () => {
+		const actions = state(
+			thread({
+				parentThreadId: "thread-parent",
+				sourceKind: "subagent",
+			}),
+		);
+		expect(actions.goal).toBe("Control this sub-agent from its parent thread");
+	});
+
 	it("exposes goal lifecycle actions only when a goal exists", () => {
 		expect(state(thread()).goalStatus).toBe("This thread has no goal");
 		expect(

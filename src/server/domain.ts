@@ -84,6 +84,12 @@ export type ControlThread = {
 	updatedAt: string;
 };
 
+export function isSubagentDirectInputRestricted(
+	thread: Pick<ControlThread, "sourceKind" | "parentThreadId">,
+) {
+	return thread.sourceKind === "subagent" && thread.parentThreadId !== null;
+}
+
 export type ThreadOperation = {
 	id: string;
 	threadId: string;
@@ -183,6 +189,7 @@ export const summaryEventTypes = [
 	"turn.steered",
 	"turn.interrupt.requested",
 	"thread.started",
+	"thread.discovered",
 	"thread.resumed",
 	"thread.status",
 	"thread.runtime_lost",

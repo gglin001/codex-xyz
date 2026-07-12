@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	type CodexRuntime,
 	type CompactThreadInput,
@@ -9,9 +9,11 @@ import {
 	type ResumeThreadInput,
 	type RunShellCommandInput,
 	type RuntimeBackgroundTerminal,
+	type RuntimeEvent,
 	type RuntimeEventHandler,
 	type RuntimeGoalSnapshot,
 	type RuntimeGoalStart,
+	type RuntimeThreadHistorySnapshot,
 	RuntimeThreadNotFoundError,
 	type RuntimeThreadSnapshot,
 	type RuntimeTurnSnapshot,
@@ -40,6 +42,16 @@ async function waitForEvents() {
 	await new Promise((resolve) => setTimeout(resolve, 20));
 }
 
+async function waitForCondition(condition: () => boolean) {
+	for (let attempt = 0; attempt < 50; attempt += 1) {
+		if (condition()) {
+			return;
+		}
+		await waitForEvents();
+	}
+	throw new Error("Timed out waiting for condition");
+}
+
 class VolatileCodexRuntime implements CodexRuntime {
 	readonly name = "volatile";
 	readonly version = "test";
@@ -47,6 +59,7 @@ class VolatileCodexRuntime implements CodexRuntime {
 	private readonly loadedThreads = new Map<string, RuntimeThreadSnapshot>();
 	private readonly persistedThreads = new Map<string, RuntimeThreadSnapshot>();
 	private readonly archivedThreads = new Map<string, RuntimeThreadSnapshot>();
+	private readonly histories = new Map<string, RuntimeThreadHistorySnapshot>();
 	private readonly missingGoalThreads = new Set<string>();
 	private readonly timers = new Set<NodeJS.Timeout>();
 	private readonly failedArchives = new Set<string>();
@@ -55,6 +68,8 @@ class VolatileCodexRuntime implements CodexRuntime {
 	private nextThread = 1;
 	private nextTurn = 1;
 	listThreadCalls = 0;
+	readThreadCalls = 0;
+	readThreadHistoryCalls = 0;
 
 	onEvent(handler: RuntimeEventHandler) {
 		this.handler = handler;
@@ -94,13 +109,30 @@ class VolatileCodexRuntime implements CodexRuntime {
 	}
 
 	async readThread(threadId: string) {
+		this.readThreadCalls += 1;
 		const thread = this.persistedThreads.get(threadId);
 		if (!thread) throw new RuntimeThreadNotFoundError(threadId);
 		return thread;
 	}
 
-	async readThreadHistory() {
-		return { turns: [], nextCursor: null };
+	async readThreadHistory(threadId: string) {
+		this.readThreadHistoryCalls += 1;
+		return this.histories.get(threadId) ?? { turns: [], nextCursor: null };
+	}
+
+	persistThread(thread: RuntimeThreadSnapshot, loaded = true) {
+		this.persistedThreads.set(thread.id, thread);
+		if (loaded) {
+			this.loadedThreads.set(thread.id, thread);
+		}
+	}
+
+	setThreadHistory(threadId: string, history: RuntimeThreadHistorySnapshot) {
+		this.histories.set(threadId, history);
+	}
+
+	emit(event: RuntimeEvent) {
+		this.handler(event);
 	}
 
 	forgetThread(threadId: string) {
@@ -849,6 +881,231 @@ afterEach(async () => {
 });
 
 describe("ControlService", () => {
+	it("discovers an unknown subagent and replays buffered events", async () => {
+		await service.close();
+		const runtime = new VolatileCodexRuntime();
+		service = new ControlService(
+			Store.open(join(tempDir, "subagent-discovery.sqlite")),
+			runtime,
+		);
+		service.seedLocalState({ cwd: tempDir, runtimeName: runtime.name });
+		runtime.persistThread({
+			id: "thread-child",
+			sessionId: "thread-child",
+			forkedFromId: null,
+			parentThreadId: "thread-parent",
+			sourceKind: "subagent",
+			agentNickname: "scout",
+			agentRole: "Inspect runtime events",
+			name: null,
+			preview: "Inspect runtime events",
+			cwd: tempDir,
+			model: "volatile-model",
+			status: "active",
+			updatedAt: "2026-07-12T00:00:00.000Z",
+		});
+
+		runtime.emit({
+			type: "turn.started",
+			threadId: "thread-child",
+			turnId: "turn-child",
+			prompt: "Inspect runtime events",
+		});
+		runtime.emit({
+			type: "item.created",
+			threadId: "thread-child",
+			turnId: "turn-child",
+			itemId: "item-child",
+			itemType: "agent",
+			text: "Child is working",
+		});
+
+		await waitForCondition(() => service.store.getItem("item-child") !== null);
+
+		expect(runtime.readThreadCalls).toBe(1);
+		expect(service.store.getThread("thread-child")).toMatchObject({
+			parentThreadId: "thread-parent",
+			sourceKind: "subagent",
+			agentNickname: "scout",
+			activeTurnId: "turn-child",
+		});
+		expect(service.store.getTurn("turn-child")).toMatchObject({
+			threadId: "thread-child",
+			status: "in_progress",
+		});
+		expect(service.store.getItem("item-child")).toMatchObject({
+			threadId: "thread-child",
+			turnId: "turn-child",
+			text: "Child is working",
+		});
+		expect(
+			service.replayEvents(0, { summaryOnly: true }).map((event) => event.type),
+		).toEqual(["thread.discovered", "turn.started"]);
+	});
+
+	it("rehydrates history after a runtime event invalidates the cache", async () => {
+		await service.close();
+		const runtime = new VolatileCodexRuntime();
+		service = new ControlService(
+			Store.open(join(tempDir, "subagent-rehydrate.sqlite")),
+			runtime,
+		);
+		service.seedLocalState({ cwd: tempDir, runtimeName: runtime.name });
+		const thread: RuntimeThreadSnapshot = {
+			id: "thread-history",
+			sessionId: "thread-history",
+			forkedFromId: null,
+			parentThreadId: "thread-parent",
+			sourceKind: "subagent",
+			agentNickname: "historian",
+			agentRole: null,
+			name: null,
+			preview: "History",
+			cwd: tempDir,
+			model: "volatile-model",
+			status: "idle",
+			updatedAt: "2026-07-12T00:00:00.000Z",
+		};
+		const runtimeTurn = {
+			id: "turn-history",
+			status: "completed" as const,
+			prompt: "Inspect history",
+			startedAt: "2026-07-12T00:00:00.000Z",
+			completedAt: "2026-07-12T00:00:01.000Z",
+			durationMs: 1000,
+			items: [],
+		};
+		runtime.persistThread(thread, false);
+		runtime.setThreadHistory("thread-history", {
+			turns: [runtimeTurn],
+			nextCursor: null,
+		});
+		await service.syncThreads();
+		await service.getHydratedThreadDetail("thread-history");
+
+		runtime.setThreadHistory("thread-history", {
+			turns: [
+				{
+					...runtimeTurn,
+					items: [
+						{
+							id: "item-history",
+							type: "agent",
+							text: "Recovered history",
+							data: { sourceType: "agentMessage" },
+							createdAt: "2026-07-12T00:00:00.500Z",
+						},
+					],
+				},
+			],
+			nextCursor: null,
+		});
+		runtime.emit({
+			type: "thread.token_usage",
+			threadId: "thread-history",
+			turnId: "turn-history",
+			usage: {
+				totalTokens: 10,
+				inputTokens: 8,
+				cachedInputTokens: 0,
+				outputTokens: 2,
+				reasoningOutputTokens: 0,
+				modelContextWindow: 128_000,
+			},
+		});
+		const detail = await service.getHydratedThreadDetail("thread-history");
+		await service.getHydratedThreadDetail("thread-history");
+
+		expect(runtime.readThreadHistoryCalls).toBe(2);
+		expect(detail.items).toMatchObject([
+			{ id: "item-history", text: "Recovered history" },
+		]);
+	});
+
+	it("isolates projection failures and resynchronizes canonical state", async () => {
+		await service.close();
+		const runtime = new VolatileCodexRuntime();
+		service = new ControlService(
+			Store.open(join(tempDir, "projection-recovery.sqlite")),
+			runtime,
+		);
+		service.seedLocalState({ cwd: tempDir, runtimeName: runtime.name });
+		const created = await service.createThread({
+			cwd: tempDir,
+			prompt: "Initial name",
+		});
+		await waitForEvents();
+		const thread = created.thread;
+		if (!thread) throw new Error("Expected created thread");
+		const renamed = { ...thread, name: "Canonical runtime name" };
+		runtime.persistThread(renamed);
+		const appendEvent = vi.spyOn(service.store, "appendEvent");
+		appendEvent.mockImplementationOnce(() => {
+			throw new Error("injected projection failure");
+		});
+		const consoleError = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => {});
+
+		expect(() =>
+			runtime.emit({
+				type: "thread.name.updated",
+				threadId: thread.id,
+				name: "Canonical runtime name",
+			}),
+		).not.toThrow();
+		await waitForCondition(
+			() =>
+				service.store.getThread(thread.id)?.name === "Canonical runtime name",
+		);
+
+		expect(runtime.listThreadCalls).toBeGreaterThanOrEqual(2);
+		expect(consoleError).toHaveBeenCalled();
+		appendEvent.mockRestore();
+		consoleError.mockRestore();
+	});
+
+	it("rejects direct prompt and goal input for child subagents", async () => {
+		await service.close();
+		const runtime = new VolatileCodexRuntime();
+		service = new ControlService(
+			Store.open(join(tempDir, "subagent-input.sqlite")),
+			runtime,
+		);
+		service.seedLocalState({ cwd: tempDir, runtimeName: runtime.name });
+		runtime.persistThread({
+			id: "thread-child",
+			sessionId: "thread-child",
+			forkedFromId: null,
+			parentThreadId: "thread-parent",
+			sourceKind: "subagent",
+			agentNickname: "worker",
+			agentRole: null,
+			name: null,
+			preview: "Child",
+			cwd: tempDir,
+			model: "volatile-model",
+			status: "idle",
+			updatedAt: "2026-07-12T00:00:00.000Z",
+		});
+		await service.syncThreads();
+
+		await expect(
+			service.startTurn({
+				threadId: "thread-child",
+				prompt: "Direct prompt",
+			}),
+		).rejects.toThrow("Direct input is not supported");
+		await expect(
+			service.startGoal({
+				threadId: "thread-child",
+				objective: "Direct goal",
+				tokenBudget: null,
+			}),
+		).rejects.toThrow("Direct input is not supported");
+		expect(service.store.listTurns("thread-child")).toEqual([]);
+	});
+
 	it("creates a thread, starts a turn, records transcript items, and completes", async () => {
 		const result = await service.createThread({
 			cwd: tempDir,

@@ -1,4 +1,7 @@
-import type { ControlThread } from "../server/domain.js";
+import {
+	type ControlThread,
+	isSubagentDirectInputRestricted,
+} from "../server/domain.js";
 import {
 	canArchiveThread,
 	canUnarchiveThread,
@@ -51,6 +54,11 @@ export function getComposerThreadActionState(
 	const idleReason =
 		baseReason ?? (activeTurn ? "Wait for the active turn to finish" : null);
 	const goalReason = idleReason;
+	const directInputReason =
+		baseReason ??
+		(thread && isSubagentDirectInputRestricted(thread)
+			? "Control this sub-agent from its parent thread"
+			: null);
 	const interruptReason =
 		baseReason ?? (activeTurn ? null : "No active turn is running");
 	const resumeReason =
@@ -92,7 +100,7 @@ export function getComposerThreadActionState(
 			: "This thread has no goal");
 
 	return {
-		goal: goalReason,
+		goal: directInputReason ?? goalReason,
 		compact: idleReason,
 		interrupt: interruptReason,
 		fork: baseReason,

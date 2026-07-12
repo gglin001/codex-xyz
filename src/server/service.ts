@@ -3,11 +3,13 @@ import { resolve } from "node:path";
 import {
 	type CodexRuntime,
 	isRuntimeThreadNotFoundError,
+	type RuntimeEvent,
 } from "./codex/runtimePort.js";
 import {
 	type ControlThread,
 	type CreateThreadInput,
 	type DashboardState,
+	isSubagentDirectInputRestricted,
 	type SetGoalInput,
 	type SetGoalStatusInput,
 	type StartTurnInput,
@@ -101,6 +103,8 @@ function pageCursorFromThreads(
 
 export class ControlService {
 	private readonly hydratedHistoryThreads = new Set<string>();
+	private readonly pendingRuntimeEvents = new Map<string, RuntimeEvent[]>();
+	private readonly runtimeThreadDiscoveries = new Map<string, Promise<void>>();
 	private defaultCwd = process.cwd();
 	private defaultModel: string | null = null;
 	private readonly runtimeThreads: RuntimeThreadCoordinator;
@@ -128,7 +132,93 @@ export class ControlService {
 					`Thread ${thread.id} is not loaded by Codex and could not be resumed`,
 				),
 		});
-		this.runtime.onEvent((event) => this.projection.applyRuntimeEvent(event));
+		this.runtime.onEvent((event) => this.handleRuntimeEvent(event));
+	}
+
+	private handleRuntimeEvent(event: RuntimeEvent) {
+		const threadId = event.threadId ?? null;
+		if (event.type === "raw" || !threadId) {
+			this.applyRuntimeEvent(event);
+			return;
+		}
+		if (
+			this.store.getThread(threadId) &&
+			!this.runtimeThreadDiscoveries.has(threadId)
+		) {
+			this.applyRuntimeEvent(event);
+			return;
+		}
+		const pending = this.pendingRuntimeEvents.get(threadId) ?? [];
+		pending.push(event);
+		this.pendingRuntimeEvents.set(threadId, pending);
+		this.discoverRuntimeEventThread(threadId);
+	}
+
+	private applyRuntimeEvent(event: RuntimeEvent) {
+		if (event.threadId) {
+			this.hydratedHistoryThreads.delete(event.threadId);
+		}
+		try {
+			this.projection.applyRuntimeEvent(event);
+		} catch (error) {
+			console.error("Failed to project Codex runtime event", error);
+			void this.syncThreads().catch((syncError) => {
+				console.error("Failed to resync Codex threads", syncError);
+			});
+		}
+	}
+
+	private discoverRuntimeEventThread(threadId: string) {
+		if (this.runtimeThreadDiscoveries.has(threadId)) {
+			return;
+		}
+		const discovery = (async () => {
+			let runtimeThread: Awaited<
+				ReturnType<CodexRuntime["readThread"]>
+			> | null = null;
+			let discoveryError: unknown = null;
+			for (let attempt = 0; attempt < 3; attempt += 1) {
+				try {
+					runtimeThread = await this.runtime.readThread(threadId);
+					break;
+				} catch (error) {
+					discoveryError = error;
+					if (attempt < 2) {
+						await new Promise((resolve) => setTimeout(resolve, 50));
+					}
+				}
+			}
+			if (!runtimeThread) {
+				throw discoveryError;
+			}
+			const [thread] = reconcileRuntimeThreads(this.store, [runtimeThread]);
+			if (!thread) {
+				return;
+			}
+			this.projection.publish("thread.discovered", threadId, null, { thread });
+			try {
+				const history = await this.runtime.readThreadHistory(threadId);
+				reconcileRuntimeThreadHistory(this.store, threadId, history);
+			} catch (error) {
+				console.error(`Failed to hydrate discovered thread ${threadId}`, error);
+			}
+			const pending = this.pendingRuntimeEvents.get(threadId) ?? [];
+			this.pendingRuntimeEvents.delete(threadId);
+			for (const event of pending) {
+				this.applyRuntimeEvent(event);
+			}
+		})()
+			.catch((error) => {
+				this.pendingRuntimeEvents.delete(threadId);
+				console.error(`Failed to discover runtime thread ${threadId}`, error);
+				void this.syncThreads().catch((syncError) => {
+					console.error("Failed to resync Codex threads", syncError);
+				});
+			})
+			.finally(() => {
+				this.runtimeThreadDiscoveries.delete(threadId);
+			});
+		this.runtimeThreadDiscoveries.set(threadId, discovery);
 	}
 
 	seedLocalState(input: {
@@ -234,6 +324,9 @@ export class ControlService {
 			this.collectRuntimeThreads(true),
 		])
 			.then(([active, archived]) => {
+				for (const thread of [...active, ...archived]) {
+					this.hydratedHistoryThreads.delete(thread.id);
+				}
 				const result = reconcileRuntimeThreadSnapshot(this.store, {
 					active,
 					archived,
@@ -360,6 +453,11 @@ export class ControlService {
 
 	async startTurn(input: StartTurnInput) {
 		const thread = this.requireThread(input.threadId);
+		if (isSubagentDirectInputRestricted(thread)) {
+			throw new Error(
+				"Direct input is not supported for AgentControl sub-agent threads",
+			);
+		}
 		const shellCommand = parseShellCommandPrompt(input.prompt);
 		if (shellCommand) {
 			return this.startShellCommand(thread, input.prompt, shellCommand);
@@ -513,6 +611,11 @@ export class ControlService {
 
 	async startGoal(input: SetGoalInput) {
 		const source = this.requireThread(input.threadId);
+		if (isSubagentDirectInputRestricted(source)) {
+			throw new Error(
+				"Direct input is not supported for AgentControl sub-agent threads",
+			);
+		}
 		if (source.activeTurnId || source.status === "active") {
 			throw new Error("Goal mode requires an idle thread");
 		}
@@ -663,6 +766,8 @@ export class ControlService {
 		await this.runtime.close();
 		await this.startPromise?.catch(() => {});
 		await this.syncPromise?.catch(() => {});
+		await Promise.allSettled(this.runtimeThreadDiscoveries.values());
+		this.pendingRuntimeEvents.clear();
 		this.store.close();
 	}
 	private async beginLifecycleOperation(

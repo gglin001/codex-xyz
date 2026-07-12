@@ -29,6 +29,43 @@ function runtimeThread(
 }
 
 describe("thread history reconciliation", () => {
+	it("recovers a known active turn when a summary omits its id", () => {
+		const store = Store.open(":memory:");
+		try {
+			reconcileRuntimeThreads(store, [runtimeThread("a", { status: "idle" })]);
+			store.createTurn({
+				id: "turn-live",
+				threadId: "a",
+				status: "in_progress",
+				prompt: "Live work",
+				startedAt: "2026-07-12T00:00:00.000Z",
+				completedAt: null,
+				durationMs: null,
+			});
+			store.updateThread("a", {
+				status: "active",
+				activeTurnId: null,
+				lastTurnStatus: "in_progress",
+			});
+			const summary = runtimeThread("a", {
+				status: "active",
+				preview: "Updated summary",
+			});
+			delete summary.activeTurnId;
+
+			reconcileRuntimeThreads(store, [summary]);
+
+			expect(store.getThread("a")).toMatchObject({
+				status: "active",
+				activeTurnId: "turn-live",
+				lastTurnStatus: "in_progress",
+				preview: "Updated summary",
+			});
+		} finally {
+			store.close();
+		}
+	});
+
 	it("discovers threads idempotently and preserves local metadata", () => {
 		const store = Store.open(":memory:");
 		try {

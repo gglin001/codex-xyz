@@ -31,6 +31,14 @@ function discoveredThread(
 	context?: { generation: number; runtimeEpoch: number },
 ): ControlThread {
 	const existing = store.getThread(runtimeThread.id);
+	const preservedActiveTurnId =
+		existing?.activeTurnId &&
+		store.getTurn(existing.activeTurnId)?.status === "in_progress"
+			? existing.activeTurnId
+			: (store
+					.listTurns(runtimeThread.id)
+					.filter((turn) => turn.status === "in_progress")
+					.at(-1)?.id ?? null);
 	const observedAt = nowIso();
 	const updatedAt =
 		runtimeThread.updatedAt ?? existing?.updatedAt ?? observedAt;
@@ -56,7 +64,7 @@ function discoveredThread(
 		status: runtimeThread.status,
 		activeTurnId:
 			runtimeThread.status === "active"
-				? (runtimeThread.activeTurnId ?? null)
+				? (runtimeThread.activeTurnId ?? preservedActiveTurnId)
 				: null,
 		lastTurnStatus:
 			runtimeThread.status === "active"

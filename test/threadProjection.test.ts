@@ -229,6 +229,27 @@ describe("ThreadProjection", () => {
 		expect(events.map((event) => event.type)).toEqual(["thread.status"]);
 	});
 
+	it("keeps turn completion pending when an idle notification arrives first", () => {
+		const thread = createThread({ status: "active", activeTurnId: "turn-1" });
+		projection.recordTurn(thread, "working prompt", {
+			id: "turn-1",
+			status: "in_progress",
+		});
+		events = [];
+
+		projection.applyRuntimeEvent({
+			type: "thread.status",
+			threadId: "thread-1",
+			status: "idle",
+		});
+
+		const detail = store.getThreadDetail("thread-1");
+		expect(detail?.status).toBe("idle");
+		expect(detail?.activeTurnId).toBeNull();
+		expect(detail?.turns[0]?.status).toBe("in_progress");
+		expect(events.map((event) => event.type)).toEqual(["thread.status"]);
+	});
+
 	it("ignores runtime snapshot timestamp churn when thread fields are unchanged", () => {
 		const originalUpdatedAt = "2026-01-01T00:00:00.000Z";
 		const runtimeUpdatedAt = "2026-01-01T00:10:00.000Z";

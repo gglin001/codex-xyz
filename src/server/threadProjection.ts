@@ -158,12 +158,14 @@ export class ThreadProjection {
 					status: event.status,
 				};
 				if (event.status !== "active") {
-					const activeTurnStatus = this.interruptInProgressActiveTurn(
-						event.threadId,
-					);
 					updates.activeTurnId = null;
-					if (activeTurnStatus) {
-						updates.lastTurnStatus = activeTurnStatus;
+					if (event.status !== "idle") {
+						const activeTurnStatus = this.interruptInProgressActiveTurn(
+							event.threadId,
+						);
+						if (activeTurnStatus) {
+							updates.lastTurnStatus = activeTurnStatus;
+						}
 					}
 				}
 				const thread = this.store.updateThread(event.threadId, updates);

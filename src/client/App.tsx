@@ -21,6 +21,7 @@ import type {
 	ThreadTagScore,
 	Turn,
 } from "../server/domain.js";
+import { isSubagentDirectInputRestricted } from "../server/domain.js";
 import {
 	archiveThread,
 	cleanBackgroundTerminals,
@@ -1211,16 +1212,21 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	const trimmedWorkdir = workdir.trim();
 	const activeThreadHasTurn =
 		activeThread?.status === "active" || Boolean(activeThread?.activeTurnId);
+	const activeThreadAcceptsDirectInput =
+		!activeThread || !isSubagentDirectInputRestricted(activeThread);
 	const canUseGoalMode =
 		promptTarget === "new"
 			? Boolean(trimmedWorkdir)
 			: Boolean(activeThreadId) &&
+				activeThreadAcceptsDirectInput &&
 				!activeThreadPendingSubmission &&
 				!activeThreadHasTurn;
 	const canSubmitTurnPrompt = goalMode
 		? canUseGoalMode
 		: promptTarget === "thread"
-			? Boolean(activeThreadId) && !activeThreadPendingSubmission
+			? Boolean(activeThreadId) &&
+				activeThreadAcceptsDirectInput &&
+				!activeThreadPendingSubmission
 			: Boolean(trimmedWorkdir);
 	const canSubmitPrompt =
 		Boolean(prompt.trim()) && !busy && canSubmitTurnPrompt;

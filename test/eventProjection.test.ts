@@ -427,6 +427,35 @@ describe("client event projection", () => {
 		expect(result.state.threadNextCursor).toBeNull();
 	});
 
+	it("inserts runtime-discovered subagent threads", () => {
+		const discovered = thread({
+			id: "thread-child",
+			sessionId: "thread-child",
+			parentThreadId: "thread-1",
+			sourceKind: "subagent",
+			agentNickname: "scout",
+			activeTurnId: null,
+			status: "active",
+		});
+		const result = applyEventProjection(
+			projection(),
+			event(
+				"thread.discovered",
+				{ thread: discovered },
+				{ threadId: "thread-child", turnId: null },
+			),
+		);
+
+		expect(result.changed).toBe(true);
+		expect(result.handled).toBe(true);
+		expect(result.needsRefresh).toBe(true);
+		expect(result.state.threads[0]).toMatchObject({
+			id: "thread-child",
+			parentThreadId: "thread-1",
+			sourceKind: "subagent",
+		});
+	});
+
 	it("projects forked threads as inserted threads that require relationship refresh", () => {
 		const fork = thread({
 			id: "thread-forked",

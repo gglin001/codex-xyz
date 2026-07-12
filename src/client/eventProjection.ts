@@ -39,6 +39,7 @@ export const incrementalEventNames = [
 	"turn.steered",
 	"turn.interrupt.requested",
 	"thread.started",
+	"thread.discovered",
 	"thread.resumed",
 	"thread.status",
 	"thread.runtime_lost",
@@ -56,6 +57,7 @@ export const incrementalEventNames = [
 
 const threadPayloadEventNames = new Set([
 	"thread.started",
+	"thread.discovered",
 	"thread.resumed",
 	"thread.runtime_lost",
 	"thread.forked",
@@ -66,9 +68,14 @@ const threadPayloadEventNames = new Set([
 	"thread.token_usage",
 ]);
 
-const insertedThreadEventNames = new Set(["thread.started", "thread.forked"]);
+const insertedThreadEventNames = new Set([
+	"thread.started",
+	"thread.discovered",
+	"thread.forked",
+]);
 const refreshThreadEventNames = new Set([
 	"thread.started",
+	"thread.discovered",
 	"thread.forked",
 	"thread.archived",
 	"thread.unarchived",
