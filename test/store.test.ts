@@ -181,6 +181,35 @@ describe("store database version", () => {
 		}
 	});
 
+	it("keeps nested subagents persisted but out of navigation queries", () => {
+		const store = Store.open(":memory:");
+		try {
+			store.createThread(threadFixture("thread-root"));
+			store.createThread({
+				...threadFixture("thread-child"),
+				parentThreadId: "thread-root",
+				sourceKind: "subagent",
+			});
+			store.createThread({
+				...threadFixture("thread-parent-linked"),
+				parentThreadId: "thread-root",
+				sourceKind: "unknown",
+			});
+
+			expect(store.countThreads()).toBe(3);
+			expect(store.countThreads({ navigationOnly: true })).toBe(1);
+			expect(
+				store.listThreads({ navigationOnly: true }).map((thread) => thread.id),
+			).toEqual(["thread-root"]);
+			expect(store.getThread("thread-child")).toMatchObject({
+				parentThreadId: "thread-root",
+				sourceKind: "subagent",
+			});
+		} finally {
+			store.close();
+		}
+	});
+
 	it("persists lifecycle operations and effective archive visibility", () => {
 		const store = Store.open(":memory:");
 		try {

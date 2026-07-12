@@ -51,6 +51,7 @@ type ThreadListOptions = {
 	} | null;
 	archived?: boolean | null;
 	includeAll?: boolean;
+	navigationOnly?: boolean;
 };
 
 type ThreadUpdateOptions = {
@@ -1248,13 +1249,20 @@ export class Store {
 		});
 	}
 
-	countThreads(options: Pick<ThreadListOptions, "archived"> = {}) {
+	countThreads(
+		options: Pick<ThreadListOptions, "archived" | "navigationOnly"> = {},
+	) {
 		const archived = options.archived ?? false;
+		const conditions = [
+			"lifecycle_state NOT IN ('missing', 'deleted')",
+			`archived_at IS ${archived ? "NOT NULL" : "NULL"}`,
+		];
+		if (options.navigationOnly) {
+			conditions.push("source_kind != 'subagent' AND parent_thread_id IS NULL");
+		}
 		const row = this.db
 			.prepare(
-				`SELECT COUNT(*) AS count FROM threads WHERE lifecycle_state NOT IN ('missing', 'deleted') AND archived_at IS ${
-					archived ? "NOT NULL" : "NULL"
-				}`,
+				`SELECT COUNT(*) AS count FROM threads WHERE ${conditions.join(" AND ")}`,
 			)
 			.get() as Row | undefined;
 		return row ? scalarNumber(row.count) : 0;
@@ -1270,6 +1278,9 @@ export class Store {
 					"lifecycle_state NOT IN ('missing', 'deleted')",
 					`archived_at IS ${archived ? "NOT NULL" : "NULL"}`,
 				];
+		if (options.navigationOnly) {
+			conditions.push("source_kind != 'subagent' AND parent_thread_id IS NULL");
+		}
 		const params: Array<string | number> = [];
 		if (cursor) {
 			conditions.push("(updated_at < ? OR (updated_at = ? AND id < ?))");

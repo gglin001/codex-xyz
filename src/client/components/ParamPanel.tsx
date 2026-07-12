@@ -23,7 +23,7 @@ import type {
 	ThreadDetail,
 	ThreadTagScore,
 } from "../../server/domain.js";
-import { threadDisplayStatus } from "../../server/domain.js";
+import { isSubagentThread, threadDisplayStatus } from "../../server/domain.js";
 import {
 	clampDisplayScale,
 	cn,
@@ -351,7 +351,7 @@ export const ParamPanel = memo(function ParamPanel({
 						mono
 						layout="inline"
 					/>
-					{thread?.sourceKind === "subagent" ? (
+					{thread && isSubagentThread(thread) ? (
 						<>
 							<InfoTile
 								icon={<Bot size={13} />}

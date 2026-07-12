@@ -49,10 +49,15 @@ function discoveredThread(
 			runtimeThread.forkedFromId && store.getThread(runtimeThread.forkedFromId)
 				? runtimeThread.forkedFromId
 				: null,
-		parentThreadId: runtimeThread.parentThreadId,
-		sourceKind: runtimeThread.sourceKind,
-		agentNickname: runtimeThread.agentNickname,
-		agentRole: runtimeThread.agentRole,
+		parentThreadId:
+			runtimeThread.parentThreadId ?? existing?.parentThreadId ?? null,
+		sourceKind:
+			runtimeThread.sourceKind === "unknown" && existing
+				? existing.sourceKind
+				: runtimeThread.sourceKind,
+		agentNickname:
+			runtimeThread.agentNickname ?? existing?.agentNickname ?? null,
+		agentRole: runtimeThread.agentRole ?? existing?.agentRole ?? null,
 		name:
 			runtimeThread.name?.trim() ||
 			existing?.name ||

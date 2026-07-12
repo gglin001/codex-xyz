@@ -2,7 +2,9 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
 	Bot,
 	Check,
+	ChevronRight,
 	Copy,
+	CornerUpLeft,
 	Ellipsis,
 	GitBranch,
 	Goal,
@@ -38,7 +40,7 @@ import type {
 	ThreadDisplayStatus,
 	ThreadItem,
 } from "../../server/domain.js";
-import { threadDisplayStatus } from "../../server/domain.js";
+import { isSubagentThread, threadDisplayStatus } from "../../server/domain.js";
 import { copyToClipboard } from "../clipboard.js";
 import { codexThreadCommandLabels } from "../codexCommandLabels.js";
 import {
@@ -69,6 +71,7 @@ import {
 	formatTime,
 	formatTokens,
 	itemTitle,
+	shortId,
 } from "../uiFormat.js";
 import type { FloatingScrollAnchor } from "./MobileFloatingScroller.js";
 import { ScrollArea } from "./ScrollArea.js";
@@ -305,11 +308,13 @@ function HeaderDetailRail({
 	status,
 	statusTitle,
 	projectName,
+	agentLabel,
 }: {
 	tokens: number;
 	status: ThreadDisplayStatus;
 	statusTitle: string;
 	projectName: string | null;
+	agentLabel: string | null;
 }) {
 	return (
 		<div className="scrollable-row flex min-w-0 items-center gap-2 text-[11px] leading-4 text-muted">
@@ -321,6 +326,12 @@ function HeaderDetailRail({
 				title={statusTitle}
 				className="text-muted-strong"
 			/>
+			{agentLabel ? (
+				<span className="flex shrink-0 items-center gap-1 text-muted-strong">
+					<Bot size={11} aria-hidden="true" />
+					{agentLabel}
+				</span>
+			) : null}
 			{projectName ? <span className="shrink-0">{projectName}</span> : null}
 		</div>
 	);
@@ -333,11 +344,14 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 	status,
 	statusTitle,
 	projectName,
+	parentThreadId,
+	agentLabel,
 	commandVisible,
 	navigatorVisible,
 	inspectorVisible,
 	onToggleNavigator,
 	onToggleInspector,
+	onSelectThreadId,
 	onOpenCommands,
 }: {
 	mode: "desktop" | "mobile";
@@ -346,11 +360,14 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 	status: ThreadDisplayStatus;
 	statusTitle: string;
 	projectName: string | null;
+	parentThreadId: string | null;
+	agentLabel: string | null;
 	commandVisible: boolean;
 	navigatorVisible: boolean;
 	inspectorVisible: boolean;
 	onToggleNavigator: () => void;
 	onToggleInspector: () => void;
+	onSelectThreadId: (threadId: string) => void;
 	onOpenCommands?: () => void;
 }) {
 	const mobile = mode === "mobile";
@@ -376,6 +393,17 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 			>
 				<Menu size={15} />
 			</LargeIconButton>
+			{parentThreadId ? (
+				<LargeIconButton
+					className={mobile ? "h-9 w-9" : undefined}
+					title="Open parent thread"
+					aria-label="Open parent thread"
+					onClick={() => onSelectThreadId(parentThreadId)}
+					data-print-exclude
+				>
+					<CornerUpLeft size={15} />
+				</LargeIconButton>
+			) : null}
 			<div className="grid min-w-0 flex-1 gap-0.5">
 				<ScrollableText
 					wheelScrollable={!mobile}
@@ -391,6 +419,7 @@ const WorkspaceHeader = memo(function WorkspaceHeader({
 					status={status}
 					statusTitle={statusTitle}
 					projectName={projectName}
+					agentLabel={agentLabel}
 				/>
 			</div>
 			<div
@@ -561,10 +590,35 @@ function collaborationThreadIds(item: ThreadItem) {
 		return threadId ? [threadId] : [];
 	}
 	return Array.isArray(data.receiverThreadIds)
-		? data.receiverThreadIds.filter(
-				(value): value is string => typeof value === "string" && Boolean(value),
-			)
+		? [
+				...new Set(
+					data.receiverThreadIds.filter(
+						(value): value is string =>
+							typeof value === "string" && Boolean(value),
+					),
+				),
+			]
 		: [];
+}
+
+const collaborationActionLabels: Record<string, string> = {
+	assignAgentTask: "Assign task",
+	closeAgent: "Close agent",
+	completed: "Completed",
+	failed: "Failed",
+	inProgress: "In progress",
+	interacted: "Interacted",
+	interrupted: "Interrupted",
+	interruptAgent: "Interrupt agent",
+	running: "Running",
+	sendMessage: "Send message",
+	spawnAgent: "Spawn agent",
+	started: "Started",
+	wait: "Wait for agents",
+};
+
+function collaborationLabel(value: string) {
+	return collaborationActionLabels[value] ?? value;
 }
 
 const CollaborationBlock = memo(function CollaborationBlock({
@@ -580,9 +634,6 @@ const CollaborationBlock = memo(function CollaborationBlock({
 	const sourceType = dataString(data, "sourceType");
 	const isActivity = sourceType === "subAgentActivity";
 	const action = dataString(data, isActivity ? "kind" : "tool") ?? "agent";
-	const status = isActivity
-		? action
-		: (dataString(data, "status") ?? "inProgress");
 	const path = dataString(data, "agentPath");
 	const prompt = dataString(data, "prompt");
 	const threadIds = collaborationThreadIds(item);
@@ -590,32 +641,72 @@ const CollaborationBlock = memo(function CollaborationBlock({
 		data.agentsStates && typeof data.agentsStates === "object"
 			? (data.agentsStates as Record<string, unknown>)
 			: {};
-	return (
-		<div className="rounded-[10px] border border-border-subtle bg-panel/35 px-3 py-2.5">
-			<div className="flex min-w-0 items-center gap-2">
-				<span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] bg-control text-muted-strong">
-					<GitBranch size={14} aria-hidden="true" />
+	const primaryThreadId = threadIds.length === 1 ? threadIds[0] : null;
+	const primaryState = primaryThreadId ? agentsStates[primaryThreadId] : null;
+	const primaryStateRecord =
+		primaryState && typeof primaryState === "object"
+			? (primaryState as Record<string, unknown>)
+			: {};
+	const agentStatus = dataString(primaryStateRecord, "status");
+	const status = isActivity ? null : dataString(data, "status");
+	const title = path || (isActivity ? "Subagent" : collaborationLabel(action));
+	const meta = [
+		isActivity
+			? collaborationLabel(action)
+			: status
+				? collaborationLabel(status)
+				: null,
+		agentStatus ? collaborationLabel(agentStatus) : null,
+		formatTime(item.createdAt, dateTimeFormatMode),
+	]
+		.filter(Boolean)
+		.join(" / ");
+	const content = (
+		<>
+			<span className="mt-0.5 flex h-4 w-4 items-center justify-center text-muted">
+				<GitBranch size={13} aria-hidden="true" />
+			</span>
+			<span className="min-w-0">
+				<span className="block truncate text-[12px] font-medium leading-5 text-muted-strong">
+					{title}
 				</span>
-				<div className="min-w-0 flex-1">
-					<div className="flex min-w-0 items-center gap-2 text-[12px] font-medium text-fg-strong">
-						<span className="truncate">{path || action}</span>
-						<span className="shrink-0 rounded-full border border-border-subtle px-1.5 py-0.5 text-[10px] font-normal text-muted">
-							{status}
-						</span>
-					</div>
-					<div className="mt-0.5 text-[10px] text-muted">
-						{isActivity ? "Subagent activity" : "Agent collaboration"} /{" "}
-						{formatTime(item.createdAt, dateTimeFormatMode)}
-					</div>
-				</div>
-			</div>
-			{prompt ? (
-				<div className="mt-2 whitespace-pre-wrap break-words text-[12px] leading-5 text-muted-strong">
-					{prompt}
-				</div>
-			) : null}
+				<span className="block text-[10px] leading-4 text-muted">{meta}</span>
+				{prompt ? (
+					<span className="mt-0.5 block whitespace-pre-wrap break-words text-[11px] leading-[18px] text-muted">
+						{prompt}
+					</span>
+				) : null}
+			</span>
+		</>
+	);
+
+	if (primaryThreadId) {
+		return (
+			<button
+				type="button"
+				className={cn(
+					ui.agentActivity,
+					ui.agentActivityInteractive,
+					"group w-full",
+				)}
+				title={`Open subagent ${path || primaryThreadId}`}
+				onClick={() => onSelectThreadId(primaryThreadId)}
+			>
+				{content}
+				<ChevronRight
+					size={14}
+					className="mt-0.5 shrink-0 text-muted transition-transform group-hover:translate-x-0.5"
+					aria-hidden="true"
+				/>
+			</button>
+		);
+	}
+
+	return (
+		<div className={ui.agentActivity}>
+			{content}
 			{threadIds.length > 0 ? (
-				<div className="mt-2 flex flex-wrap gap-1.5">
+				<span className="col-span-2 col-start-2 flex flex-wrap gap-1">
 					{threadIds.map((threadId) => {
 						const state = agentsStates[threadId];
 						const stateRecord =
@@ -627,16 +718,17 @@ const CollaborationBlock = memo(function CollaborationBlock({
 							<button
 								type="button"
 								key={threadId}
-								className="rounded-[7px] border border-border-subtle bg-control px-2 py-1 text-[11px] text-fg hover:bg-control-hover"
+								className={ui.agentActivityLink}
 								title={`Open subagent thread ${threadId}`}
 								onClick={() => onSelectThreadId(threadId)}
 							>
-								{threadId.slice(0, 8)}
+								{shortId(threadId)}
 								{agentStatus ? ` / ${agentStatus}` : ""}
+								<ChevronRight size={12} aria-hidden="true" />
 							</button>
 						);
 					})}
-				</div>
+				</span>
 			) : null}
 		</div>
 	);
@@ -1458,6 +1550,11 @@ export const Workspace = memo(
 			selectedThread?.lastTurnStatus ?? threadSummary?.lastTurnStatus ?? null,
 		);
 		const projectName = project?.name ?? null;
+		const currentThread = selectedThread ?? threadSummary?.thread ?? null;
+		const subagent =
+			currentThread && isSubagentThread(currentThread) ? currentThread : null;
+		const parentThreadId = subagent?.parentThreadId ?? null;
+		const agentLabel = subagent?.agentNickname || "Subagent";
 		const contentScaleStyle = useMemo(
 			() =>
 				({
@@ -1688,11 +1785,14 @@ export const Workspace = memo(
 						status={status}
 						statusTitle={statusTitle}
 						projectName={projectName}
+						parentThreadId={parentThreadId}
+						agentLabel={subagent ? agentLabel : null}
 						commandVisible={commandVisible}
 						navigatorVisible={navigatorVisible}
 						inspectorVisible={inspectorVisible}
 						onToggleNavigator={onToggleNavigator}
 						onToggleInspector={onToggleInspector}
+						onSelectThreadId={onSelectThreadId}
 						onOpenCommands={onOpenCommands}
 					/>
 				) : null}
@@ -1704,11 +1804,14 @@ export const Workspace = memo(
 						status={status}
 						statusTitle={statusTitle}
 						projectName={projectName}
+						parentThreadId={parentThreadId}
+						agentLabel={subagent ? agentLabel : null}
 						commandVisible={commandVisible}
 						navigatorVisible={navigatorVisible}
 						inspectorVisible={inspectorVisible}
 						onToggleNavigator={onToggleNavigator}
 						onToggleInspector={onToggleInspector}
+						onSelectThreadId={onSelectThreadId}
 						onOpenCommands={onOpenCommands}
 					/>
 				) : null}

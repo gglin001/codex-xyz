@@ -95,6 +95,33 @@ describe("thread history reconciliation", () => {
 		}
 	});
 
+	it("preserves known subagent identity when a partial search result omits it", () => {
+		const store = Store.open(":memory:");
+		try {
+			reconcileRuntimeThreads(store, [
+				runtimeThread("child", {
+					parentThreadId: "parent",
+					sourceKind: "subagent",
+					agentNickname: "Goodall",
+					agentRole: "Research",
+				}),
+			]);
+
+			reconcileRuntimeThreads(store, [
+				runtimeThread("child", { sourceKind: "unknown" }),
+			]);
+
+			expect(store.getThread("child")).toMatchObject({
+				parentThreadId: "parent",
+				sourceKind: "subagent",
+				agentNickname: "Goodall",
+				agentRole: "Research",
+			});
+		} finally {
+			store.close();
+		}
+	});
+
 	it("restores fork lineage when parent and child arrive together", () => {
 		const store = Store.open(":memory:");
 		try {

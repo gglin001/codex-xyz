@@ -21,7 +21,10 @@ import type {
 	ThreadTagScore,
 	Turn,
 } from "../server/domain.js";
-import { isSubagentDirectInputRestricted } from "../server/domain.js";
+import {
+	isSubagentDirectInputRestricted,
+	isSubagentThread,
+} from "../server/domain.js";
 import {
 	archiveThread,
 	cleanBackgroundTerminals,
@@ -48,6 +51,7 @@ import {
 import { DashboardLayout } from "./components/DashboardLayout.js";
 import {
 	buildWorkbenchProjects,
+	buildWorkbenchThread,
 	findProjectForThread,
 } from "./components/workbenchData.js";
 import type {
@@ -157,6 +161,7 @@ function initialSelection(state: DashboardState) {
 		requestedThreadId: null,
 		preferRequestedThread: false,
 		allowFallbackSelection: true,
+		fallbackFilter: (thread) => !isSubagentThread(thread),
 	});
 	const projects = buildWorkbenchProjects(state.threads, state.defaultCwd);
 	const selectedProject =
@@ -390,6 +395,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	const archivedSearchSeqRef = useRef(0);
 	const historySearchSeqRef = useRef(0);
 	const detailLoadSeqRef = useRef(0);
+	const detailLoadThreadIdRef = useRef<string | null>(null);
 	const summaryEventIdRef = useRef(0);
 	const detailEventIdRef = useRef(0);
 	const pendingEventsRef = useRef<CozEvent[]>([]);
@@ -459,6 +465,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 
 	const beginDetailLoad = useCallback(() => {
 		detailLoadSeqRef.current += 1;
+		detailLoadThreadIdRef.current = null;
 		setDetailSubscription(null);
 		return detailLoadSeqRef.current;
 	}, []);
@@ -518,11 +525,18 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		async (threadId: string, refreshSeq?: number) => {
 			clearDetailForSelection(threadId);
 			const loadSeq = beginDetailLoad();
-			const nextDetail = await getThread(threadId);
-			if (refreshSeq !== undefined && !refreshIsCurrent(refreshSeq)) {
-				return false;
+			detailLoadThreadIdRef.current = threadId;
+			try {
+				const nextDetail = await getThread(threadId);
+				if (refreshSeq !== undefined && !refreshIsCurrent(refreshSeq)) {
+					return false;
+				}
+				return commitDetailLoad(threadId, nextDetail, loadSeq);
+			} finally {
+				if (detailLoadSeqRef.current === loadSeq) {
+					detailLoadThreadIdRef.current = null;
+				}
 			}
-			return commitDetailLoad(threadId, nextDetail, loadSeq);
 		},
 		[
 			beginDetailLoad,
@@ -599,11 +613,21 @@ export function App({ initialState: serverInitialState }: AppProps) {
 				...projectionRef.current,
 				state: next,
 			};
+			const retainedThreadIds = [
+				projectionRef.current.detail?.id === selectedThreadIdRef.current
+					? projectionRef.current.detail.id
+					: null,
+				detailLoadThreadIdRef.current === selectedThreadIdRef.current
+					? detailLoadThreadIdRef.current
+					: null,
+			].filter((threadId): threadId is string => Boolean(threadId));
 			const preferredThreadId = choosePreferredThreadId(next.threads, {
 				currentThreadId: selectedThreadIdRef.current,
 				requestedThreadId,
 				preferRequestedThread: shouldPreferRequestedThread,
 				allowFallbackSelection: true,
+				fallbackFilter: (thread) => !isSubagentThread(thread),
+				retainedThreadIds,
 			});
 			setSelectedThreadId(preferredThreadId);
 			selectedThreadIdRef.current = preferredThreadId;
@@ -691,6 +715,7 @@ export function App({ initialState: serverInitialState }: AppProps) {
 					requestedThreadId: null,
 					preferRequestedThread: false,
 					allowFallbackSelection: true,
+					fallbackFilter: (thread) => !isSubagentThread(thread),
 				},
 			);
 			setSelectedThreadId(preferredThreadId);
@@ -1181,16 +1206,24 @@ export function App({ initialState: serverInitialState }: AppProps) {
 		workbenchProjects[0] ??
 		null;
 	const selectedWorkbenchThread = useMemo(() => {
-		const selectedByThread =
-			selectedProject?.threads.find(
-				(threadSummary) => threadSummary.threadId === selectedThreadId,
-			) ?? null;
-		if (selectedByThread) {
-			return selectedByThread;
+		if (selectedThreadId) {
+			const selectedSource =
+				searchableThreads.find((thread) => thread.id === selectedThreadId) ??
+				(detail?.id === selectedThreadId ? detail : null);
+			return selectedSource
+				? buildWorkbenchThread(selectedSource, { dateTimeFormatMode })
+				: null;
 		}
 		return selectedProject?.threads[0] ?? null;
-	}, [selectedProject, selectedThreadId]);
-	const activeThreadId = selectedWorkbenchThread?.threadId ?? null;
+	}, [
+		dateTimeFormatMode,
+		detail,
+		searchableThreads,
+		selectedProject,
+		selectedThreadId,
+	]);
+	const activeThreadId =
+		selectedThreadId ?? selectedWorkbenchThread?.threadId ?? null;
 	const activeThreadSummary = useMemo(
 		() =>
 			searchableThreads.find((thread) => thread.id === activeThreadId) ?? null,
@@ -1246,10 +1279,10 @@ export function App({ initialState: serverInitialState }: AppProps) {
 	}, [selectedProjectId, workbenchProjects]);
 
 	useEffect(() => {
-		const projectThreadId = selectedWorkbenchThread?.threadId ?? null;
-		if (projectThreadId === selectedThreadId) {
+		if (selectedThreadId !== null) {
 			return;
 		}
+		const projectThreadId = selectedWorkbenchThread?.threadId ?? null;
 		if (projectThreadId) {
 			setComposerMode("thread");
 			void selectThread(projectThreadId);

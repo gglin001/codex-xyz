@@ -22,11 +22,6 @@ export type WorkbenchThread = {
 	threadId: string;
 	sessionId: string;
 	forkedFromId: string | null;
-	parentThreadId: string | null;
-	sourceKind: ControlThread["sourceKind"];
-	agentNickname: string | null;
-	agentRole: string | null;
-	hierarchyDepth: number;
 	name: string;
 	preview: string;
 	cwd: string;

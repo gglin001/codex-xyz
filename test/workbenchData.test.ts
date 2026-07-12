@@ -146,10 +146,10 @@ describe("workbench project data", () => {
 		});
 	});
 
-	it("derives subagent hierarchy depth from parents in the same project", () => {
+	it("keeps subagent threads out of navigation projects and counts", () => {
 		const projects = buildWorkbenchProjects(
 			[
-				thread({ id: "root" }),
+				thread({ id: "root", tokensUsed: 10 }),
 				thread({ id: "child", parentThreadId: "root", sourceKind: "subagent" }),
 				thread({
 					id: "grandchild",
@@ -159,20 +159,22 @@ describe("workbench project data", () => {
 				thread({
 					id: "external-child",
 					parentThreadId: "other-project-parent",
+					sourceKind: "unknown",
+				}),
+				thread({
+					id: "orphan-subagent",
 					sourceKind: "subagent",
+					parentThreadId: null,
 				}),
 			],
 			"/work/coz",
 		);
-		const depths = Object.fromEntries(
-			projects[0]?.threads.map((item) => [item.id, item.hierarchyDepth]) ?? [],
-		);
 
-		expect(depths).toEqual({
-			root: 0,
-			child: 1,
-			grandchild: 2,
-			"external-child": 0,
+		expect(projects[0]?.threads.map((item) => item.id)).toEqual(["root"]);
+		expect(projects[0]).toMatchObject({
+			totalThreads: 1,
+			tokenTotal: 10,
 		});
+		expect(findProjectForThread(projects, "child")).toBeNull();
 	});
 });

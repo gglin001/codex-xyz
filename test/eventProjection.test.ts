@@ -427,7 +427,7 @@ describe("client event projection", () => {
 		expect(result.state.threadNextCursor).toBeNull();
 	});
 
-	it("inserts runtime-discovered subagent threads", () => {
+	it("keeps runtime-discovered subagent threads out of navigation state", () => {
 		const discovered = thread({
 			id: "thread-child",
 			sessionId: "thread-child",
@@ -446,13 +446,49 @@ describe("client event projection", () => {
 			),
 		);
 
-		expect(result.changed).toBe(true);
+		expect(result.changed).toBe(false);
 		expect(result.handled).toBe(true);
 		expect(result.needsRefresh).toBe(true);
-		expect(result.state.threads[0]).toMatchObject({
+		expect(result.state.threads.map((candidate) => candidate.id)).toEqual([
+			"thread-1",
+		]);
+		expect(result.state.threadTotalCount).toBe(1);
+	});
+
+	it("updates an open subagent detail without inserting a navigation row", () => {
+		const discovered = thread({
 			id: "thread-child",
+			sessionId: "thread-child",
 			parentThreadId: "thread-1",
 			sourceKind: "subagent",
+			agentNickname: "scout",
+			status: "active",
+			tokensUsed: 42,
+		});
+		const current = projection();
+		const result = applyEventProjection(
+			{
+				state: current.state,
+				detail: detail({
+					...discovered,
+					tokensUsed: 10,
+				}),
+			},
+			event(
+				"thread.discovered",
+				{ thread: discovered },
+				{ threadId: "thread-child", turnId: null },
+			),
+		);
+
+		expect(result.changed).toBe(true);
+		expect(result.state.threads.map((candidate) => candidate.id)).toEqual([
+			"thread-1",
+		]);
+		expect(result.state.threadTotalCount).toBe(1);
+		expect(result.detail).toMatchObject({
+			id: "thread-child",
+			tokensUsed: 42,
 		});
 	});
 

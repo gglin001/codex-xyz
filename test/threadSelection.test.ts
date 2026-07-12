@@ -66,6 +66,50 @@ describe("thread selection", () => {
 			}),
 		).toBeNull();
 	});
+
+	it("falls back to a main thread without invalidating an explicit child selection", () => {
+		const mixedThreads = [
+			{ id: "thread-child", nested: true },
+			{ id: "thread-root", nested: false },
+		];
+		const fallbackFilter = (thread: (typeof mixedThreads)[number]) =>
+			!thread.nested;
+
+		expect(
+			choosePreferredThreadId(mixedThreads, {
+				currentThreadId: null,
+				requestedThreadId: null,
+				preferRequestedThread: false,
+				fallbackFilter,
+			}),
+		).toBe("thread-root");
+		expect(
+			choosePreferredThreadId(mixedThreads, {
+				currentThreadId: "thread-child",
+				requestedThreadId: null,
+				preferRequestedThread: false,
+				fallbackFilter,
+			}),
+		).toBe("thread-child");
+	});
+
+	it("retains a hidden thread while its detail is loading", () => {
+		expect(
+			choosePreferredThreadId(threads, {
+				currentThreadId: "thread-child",
+				requestedThreadId: "thread-child",
+				preferRequestedThread: false,
+				retainedThreadIds: ["thread-child"],
+			}),
+		).toBe("thread-child");
+		expect(
+			choosePreferredThreadId(threads, {
+				currentThreadId: "thread-child",
+				requestedThreadId: "thread-child",
+				preferRequestedThread: false,
+			}),
+		).toBe("thread-a");
+	});
 });
 
 describe("action result selection", () => {

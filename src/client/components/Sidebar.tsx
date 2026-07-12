@@ -258,21 +258,8 @@ export const Sidebar = memo(function Sidebar({
 									const selected =
 										selectedThreadKey === thread.id ||
 										selectedThreadKey === thread.threadId;
-									const nested = thread.hierarchyDepth > 0;
 									return (
-										<div
-											key={thread.id}
-											className="relative"
-											style={{
-												marginLeft: `${Math.min(thread.hierarchyDepth, 6) * 12}px`,
-											}}
-										>
-											{nested ? (
-												<span
-													className="pointer-events-none absolute -left-2 top-0 h-1/2 w-2 rounded-bl border-b border-l border-border-subtle"
-													aria-hidden="true"
-												/>
-											) : null}
+										<div key={thread.id} className="relative">
 											<NavAction
 												className={cn(
 													"group w-full items-start gap-2 px-2.5 py-1",

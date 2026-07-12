@@ -15,6 +15,8 @@ import {
 	type RuntimeGoalStart,
 	type RuntimeThreadHistorySnapshot,
 	RuntimeThreadNotFoundError,
+	type RuntimeThreadSearchInput,
+	type RuntimeThreadSearchPage,
 	type RuntimeThreadSnapshot,
 	type RuntimeTurnSnapshot,
 	type StartRuntimeTurnInput,
@@ -50,6 +52,24 @@ async function waitForCondition(condition: () => boolean) {
 		await waitForEvents();
 	}
 	throw new Error("Timed out waiting for condition");
+}
+
+class PagedSearchCodexRuntime extends TestCodexRuntime {
+	readonly searchInputs: RuntimeThreadSearchInput[] = [];
+
+	constructor(private readonly pages: Map<string, RuntimeThreadSearchPage>) {
+		super();
+	}
+
+	async searchThreads(input: RuntimeThreadSearchInput) {
+		this.searchInputs.push({ ...input });
+		return (
+			this.pages.get(input.cursor ?? "first") ?? {
+				results: [],
+				nextCursor: null,
+			}
+		);
+	}
 }
 
 class VolatileCodexRuntime implements CodexRuntime {
@@ -881,6 +901,87 @@ afterEach(async () => {
 });
 
 describe("ControlService", () => {
+	it("fills history search pages with main threads after filtering subagents", async () => {
+		await service.close();
+		const thread = (
+			id: string,
+			sourceKind: RuntimeThreadSnapshot["sourceKind"],
+			parentThreadId: string | null,
+		): RuntimeThreadSnapshot => ({
+			id,
+			sessionId: id,
+			forkedFromId: null,
+			parentThreadId,
+			sourceKind,
+			agentNickname: sourceKind === "subagent" ? id : null,
+			agentRole: null,
+			name: id,
+			preview: "shared search result",
+			cwd: tempDir,
+			model: null,
+			status: "idle",
+			updatedAt: "2026-07-12T00:00:00.000Z",
+		});
+		const result = (threadSnapshot: RuntimeThreadSnapshot) => ({
+			thread: threadSnapshot,
+			snippet: threadSnapshot.preview,
+		});
+		const runtime = new PagedSearchCodexRuntime(
+			new Map([
+				[
+					"first",
+					{
+						results: [
+							result(thread("child-source", "subagent", "root")),
+							result(thread("child-parent", "unknown", "root")),
+						],
+						nextCursor: "second",
+					},
+				],
+				[
+					"second",
+					{
+						results: [
+							result(thread("main-one", "vscode", null)),
+							result(thread("child-two", "subagent", "root")),
+						],
+						nextCursor: "third",
+					},
+				],
+				[
+					"third",
+					{
+						results: [result(thread("main-two", "cli", null))],
+						nextCursor: "fourth",
+					},
+				],
+			]),
+		);
+		service = new ControlService(
+			Store.open(join(tempDir, "paged-search.sqlite")),
+			runtime,
+		);
+		service.seedLocalState({ cwd: tempDir, runtimeName: runtime.name });
+
+		const page = await service.searchThreadHistory({
+			query: "shared",
+			limit: 2,
+		});
+
+		expect(page.results.map((entry) => entry.thread.id)).toEqual([
+			"main-one",
+			"main-two",
+		]);
+		expect(page.nextCursor).toBe("fourth");
+		expect(
+			runtime.searchInputs.map(({ cursor, limit }) => ({ cursor, limit })),
+		).toEqual([
+			{ cursor: null, limit: 2 },
+			{ cursor: "second", limit: 2 },
+			{ cursor: "third", limit: 1 },
+		]);
+	});
+
 	it("discovers an unknown subagent and replays buffered events", async () => {
 		await service.close();
 		const runtime = new VolatileCodexRuntime();

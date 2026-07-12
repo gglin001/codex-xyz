@@ -384,6 +384,15 @@ describe("Next API routes", () => {
 		for (let index = 1; index <= 55; index += 1) {
 			service.store.createThread(threadFixture(index));
 		}
+		for (let index = 1; index <= 5; index += 1) {
+			service.store.createThread({
+				...threadFixture(100 + index),
+				id: `thread-child-${index}`,
+				sessionId: `thread-child-${index}`,
+				parentThreadId: "thread-055",
+				sourceKind: "subagent",
+			});
+		}
 
 		const state = await json<DashboardState>("/api/state");
 		expect(state.threads).toHaveLength(50);
@@ -394,6 +403,15 @@ describe("Next API routes", () => {
 		});
 		expect(state.threadHasMore).toBe(true);
 		expect(state.threads[0].id).toBe("thread-055");
+		expect(
+			state.threads.some((thread) => thread.sourceKind === "subagent"),
+		).toBe(false);
+		const childDetail = await json<ThreadDetail>("/api/threads/thread-child-1");
+		expect(childDetail).toMatchObject({
+			id: "thread-child-1",
+			parentThreadId: "thread-055",
+			sourceKind: "subagent",
+		});
 
 		const defaultPage = await json<ThreadPage>("/api/threads");
 		expect(defaultPage.threads).toHaveLength(50);

@@ -8,6 +8,7 @@ import type {
 	Turn,
 } from "../server/domain.js";
 import {
+	isSubagentThread,
 	isThreadRuntimeStatus,
 	isTurnStatus,
 	threadRuntimeStatusFromTurnStatus,
@@ -508,11 +509,12 @@ export function applyEventProjection(
 	const thread = payloadValue<ControlThread>(event, "thread");
 	if (thread && isThreadPayloadEvent(event.type)) {
 		const isNewThreadEvent = isInsertedThreadEvent(event.type);
+		const insertInNavigation = isNewThreadEvent && !isSubagentThread(thread);
 		return result(
 			projection,
 			withThread(projection, thread, {
-				insertIfMissing: isNewThreadEvent,
-				countInsert: isNewThreadEvent,
+				insertIfMissing: insertInNavigation,
+				countInsert: insertInNavigation,
 			}),
 			true,
 			event,
@@ -599,7 +601,10 @@ export function applyEventProjection(
 		const thread = payloadValue<ControlThread>(event, "thread");
 		const next =
 			thread?.lifecycleState && isThreadActive(thread)
-				? withThread(projection, thread, { countInsert: true })
+				? withThread(projection, thread, {
+						insertIfMissing: !isSubagentThread(thread),
+						countInsert: !isSubagentThread(thread),
+					})
 				: withoutThread(projection, event.threadId);
 		return result(projection, next, true, event);
 	}
@@ -616,7 +621,10 @@ export function applyEventProjection(
 			};
 		}
 		const next = isThreadActive(thread)
-			? withThread(projection, thread, { countInsert: true })
+			? withThread(projection, thread, {
+					insertIfMissing: !isSubagentThread(thread),
+					countInsert: !isSubagentThread(thread),
+				})
 			: withoutThread(projection, event.threadId);
 		return result(projection, next, true, event);
 	}
@@ -633,7 +641,10 @@ export function applyEventProjection(
 			};
 		}
 		const next = isThreadActive(thread)
-			? withThread(projection, thread, { countInsert: true })
+			? withThread(projection, thread, {
+					insertIfMissing: !isSubagentThread(thread),
+					countInsert: !isSubagentThread(thread),
+				})
 			: withoutThread(projection, event.threadId);
 		return result(projection, next, true, event);
 	}

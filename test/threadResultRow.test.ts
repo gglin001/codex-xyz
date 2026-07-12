@@ -97,20 +97,10 @@ describe("ThreadResultRow", () => {
 		expect(markup).toContain("Last turn: Completed");
 	});
 
-	it("presents and searches subagents by nickname and role", () => {
-		const subagent = workbenchThread({
-			sourceKind: "subagent",
-			agentNickname: "sidebar",
-			agentRole: "Implement thread navigation",
-		});
-		const markup = renderToStaticMarkup(
-			createElement(ThreadResultRow, { thread: subagent }),
-		);
+	it("keeps main thread content searchable", () => {
+		const result = workbenchThread();
 
-		expect(markup).toContain("sidebar");
-		expect(markup).toContain("Implement thread navigation");
-		expect(threadResultSearchText(subagent)).toContain(
-			"Agent / sidebar / Implement thread navigation",
-		);
+		expect(threadResultSearchText(result)).toContain(result.name);
+		expect(threadResultSearchText(result)).toContain(result.preview);
 	});
 });

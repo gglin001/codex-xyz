@@ -10,6 +10,7 @@ import {
 	type CreateThreadInput,
 	type DashboardState,
 	isSubagentDirectInputRestricted,
+	isSubagentThread,
 	type SetGoalInput,
 	type SetGoalStatusInput,
 	type StartTurnInput,
@@ -240,13 +241,16 @@ export class ControlService {
 
 	async dashboard(): Promise<DashboardState> {
 		const latestEventId = this.store.getLatestEventId();
-		const totalCount = this.store.countThreads();
+		const totalCount = this.store.countThreads({ navigationOnly: true });
 		const limit = defaultThreadPageSize;
 		const defaultCwd = this.store.getDefaultCwd() ?? this.defaultCwd;
 		const pageThreads =
 			totalCount <= defaultThreadPageSize
-				? this.store.listThreads()
-				: this.store.listThreads({ limit: defaultThreadPageSize + 1 });
+				? this.store.listThreads({ navigationOnly: true })
+				: this.store.listThreads({
+						limit: defaultThreadPageSize + 1,
+						navigationOnly: true,
+					});
 		const threadHasMore = pageThreads.length > limit;
 		const threads = threadHasMore ? pageThreads.slice(0, limit) : pageThreads;
 		return {
@@ -289,7 +293,10 @@ export class ControlService {
 	) {
 		await this.syncThreads();
 		return {
-			threads: this.store.listThreads({ archived: input.archived }),
+			threads: this.store.listThreads({
+				archived: input.archived,
+				navigationOnly: true,
+			}),
 			nextCursor: null,
 		};
 	}
@@ -352,19 +359,54 @@ export class ControlService {
 		cursor?: string | null;
 		archived?: boolean | null;
 	}) {
-		const page = await this.runtime.searchThreads(input);
-		const threads = reconcileRuntimeThreads(
-			this.store,
-			page.results.map((result) => result.thread),
-			{ archived: input.archived },
-		);
-		const byId = new Map(threads.map((thread) => [thread.id, thread]));
+		const results = [];
+		const targetSize = input.limit ?? null;
+		let cursor = input.cursor ?? null;
+		let nextCursor: string | null = null;
+		const visitedCursors = new Set(cursor ? [cursor] : []);
+		let hasMoreResults = true;
+
+		while (hasMoreResults) {
+			const page = await this.runtime.searchThreads({
+				...input,
+				cursor,
+				limit:
+					targetSize === null
+						? input.limit
+						: Math.max(1, targetSize - results.length),
+			});
+			const threads = reconcileRuntimeThreads(
+				this.store,
+				page.results.map((result) => result.thread),
+				{ archived: input.archived },
+			);
+			const byId = new Map(threads.map((thread) => [thread.id, thread]));
+			for (const result of page.results) {
+				const thread = byId.get(result.thread.id) ?? result.thread;
+				if (!isSubagentThread(thread)) {
+					results.push({ thread, snippet: result.snippet });
+				}
+			}
+
+			nextCursor = page.nextCursor;
+			hasMoreResults =
+				targetSize !== null &&
+				results.length < targetSize &&
+				nextCursor !== null;
+			if (hasMoreResults && nextCursor) {
+				if (visitedCursors.has(nextCursor)) {
+					throw new Error(
+						`Codex returned a repeated search cursor: ${nextCursor}`,
+					);
+				}
+				visitedCursors.add(nextCursor);
+				cursor = nextCursor;
+			}
+		}
+
 		return {
-			results: page.results.map((result) => ({
-				thread: byId.get(result.thread.id) ?? result.thread,
-				snippet: result.snippet,
-			})),
-			nextCursor: page.nextCursor,
+			results: targetSize === null ? results : results.slice(0, targetSize),
+			nextCursor,
 		};
 	}
 
@@ -699,13 +741,17 @@ export class ControlService {
 		} = {},
 	): ThreadPage {
 		const archived = input.archived ?? false;
-		const totalCount = this.store.countThreads({ archived });
+		const totalCount = this.store.countThreads({
+			archived,
+			navigationOnly: true,
+		});
 		const limit = normalizePageLimit(input.limit);
 		const cursor = input.cursor ?? null;
 		const pageThreads = this.store.listThreads({
 			limit: limit + 1,
 			cursor,
 			archived,
+			navigationOnly: true,
 		});
 		const hasMore = pageThreads.length > limit;
 		const threads = hasMore ? pageThreads.slice(0, limit) : pageThreads;

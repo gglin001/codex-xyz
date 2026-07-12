@@ -11,6 +11,8 @@ import {
 	type RuntimeGoalSnapshot,
 	type RuntimeGoalStart,
 	RuntimeThreadNotFoundError,
+	type RuntimeThreadSearchInput,
+	type RuntimeThreadSearchPage,
 	type RuntimeThreadSnapshot,
 	type RuntimeTurnSnapshot,
 	type StartRuntimeTurnInput,
@@ -98,7 +100,9 @@ export class TestCodexRuntime implements CodexRuntime {
 		};
 	}
 
-	async searchThreads(input: { query: string }) {
+	async searchThreads(
+		input: RuntimeThreadSearchInput,
+	): Promise<RuntimeThreadSearchPage> {
 		const query = input.query.toLowerCase();
 		return {
 			results: [...this.threads.values()]

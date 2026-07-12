@@ -84,6 +84,12 @@ export type ControlThread = {
 	updatedAt: string;
 };
 
+export function isSubagentThread(
+	thread: Pick<ControlThread, "sourceKind" | "parentThreadId">,
+) {
+	return thread.sourceKind === "subagent" || thread.parentThreadId !== null;
+}
+
 export function isSubagentDirectInputRestricted(
 	thread: Pick<ControlThread, "sourceKind" | "parentThreadId">,
 ) {

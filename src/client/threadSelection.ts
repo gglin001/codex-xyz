@@ -1,16 +1,25 @@
 import type { ControlThread } from "../server/domain.js";
 
-export function choosePreferredThreadId(
-	threads: Pick<ControlThread, "id">[],
+export function choosePreferredThreadId<T extends Pick<ControlThread, "id">>(
+	threads: T[],
 	options: {
 		currentThreadId: string | null;
 		requestedThreadId: string | null;
 		preferRequestedThread: boolean;
 		allowFallbackSelection?: boolean;
+		fallbackFilter?: (thread: T) => boolean;
+		retainedThreadIds?: readonly string[];
 	},
 ) {
-	const hasThread = (threadId: string | null) =>
-		Boolean(threadId && threads.some((thread) => thread.id === threadId));
+	const hasThread = (threadId: string | null) => {
+		if (!threadId) {
+			return false;
+		}
+		return (
+			threads.some((thread) => thread.id === threadId) ||
+			options.retainedThreadIds?.includes(threadId) === true
+		);
+	};
 
 	if (options.preferRequestedThread && hasThread(options.requestedThreadId)) {
 		return options.requestedThreadId;
@@ -24,7 +33,10 @@ export function choosePreferredThreadId(
 	if (options.allowFallbackSelection === false) {
 		return null;
 	}
-	return threads[0]?.id ?? null;
+	return (
+		threads.find((thread) => options.fallbackFilter?.(thread) ?? true)?.id ??
+		null
+	);
 }
 
 export function shouldSelectActionResult(

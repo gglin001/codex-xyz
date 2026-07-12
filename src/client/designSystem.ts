@@ -188,4 +188,7 @@ export const ui = {
 	subtleMeta: "text-[12px] text-muted",
 	sectionLabel: "flex items-center gap-2 text-[12px] font-medium text-muted",
 	pill: "inline-flex h-5 shrink-0 items-center justify-center gap-1 rounded-full bg-control px-1.5 text-[11px] font-medium leading-none text-fg",
+	agentActivity: `grid min-w-0 grid-cols-[1rem_minmax(0,1fr)_auto] items-start gap-2 border-l border-border-subtle bg-transparent px-2 py-1.5 text-left ${radius.card}`,
+	agentActivityInteractive: `${interactiveTransition} hover:bg-surface-subtle/46 ${focusRing} ${pressState}`,
+	agentActivityLink: `inline-flex h-6 min-w-0 items-center gap-1 ${radius.control} bg-transparent px-1.5 text-[11px] text-muted-strong ${interactiveTransition} hover:bg-control hover:text-fg-strong ${focusRing} ${pressState}`,
 } as const;
