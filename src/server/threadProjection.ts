@@ -175,7 +175,7 @@ export class ThreadProjection {
 			}
 
 			if (event.type === "thread.goal") {
-				if (!this.store.getThread(event.threadId)) {
+				if (!this.ensureTurnForEvent(event.threadId, event.turnId)) {
 					return;
 				}
 				this.updateGoal(event.threadId, event.goal, event.turnId);
@@ -198,7 +198,7 @@ export class ThreadProjection {
 			}
 
 			if (event.type === "thread.token_usage") {
-				if (!this.store.getThread(event.threadId)) {
+				if (!this.ensureTurnForEvent(event.threadId, event.turnId)) {
 					return;
 				}
 				const thread = this.store.updateThread(event.threadId, {
@@ -585,7 +585,7 @@ export class ThreadProjection {
 		}
 		const existing = this.store.getTurn(turnId);
 		if (existing) {
-			return true;
+			return existing.threadId === threadId;
 		}
 		const now = nowIso();
 		const turn: Turn = {

@@ -100,6 +100,79 @@ describe("ThreadProjection", () => {
 		expect(events.map((event) => event.type)).toEqual(["thread.token_usage"]);
 	});
 
+	it("synthesizes a missing subagent turn before storing token usage", () => {
+		createThread({
+			id: "thread-child",
+			parentThreadId: "thread-parent",
+			sourceKind: "subagent",
+			agentNickname: "scout",
+		});
+
+		projection.applyRuntimeEvent({
+			type: "thread.token_usage",
+			threadId: "thread-child",
+			turnId: "turn-child",
+			usage: {
+				totalTokens: 42,
+				inputTokens: 20,
+				cachedInputTokens: 4,
+				outputTokens: 18,
+				reasoningOutputTokens: 2,
+				modelContextWindow: 128_000,
+			},
+		});
+
+		expect(store.getTurn("turn-child")).toMatchObject({
+			id: "turn-child",
+			threadId: "thread-child",
+			status: "in_progress",
+		});
+		expect(store.getThread("thread-child")).toMatchObject({
+			activeTurnId: "turn-child",
+			status: "active",
+			tokensUsed: 42,
+		});
+		expect(events.map((event) => event.type)).toEqual([
+			"turn.started",
+			"thread.token_usage",
+		]);
+		expect(
+			store
+				.listEvents(0, { threadId: "thread-child" })
+				.map((event) => [event.type, event.turnId]),
+		).toEqual([
+			["turn.started", "turn-child"],
+			["thread.token_usage", "turn-child"],
+		]);
+	});
+
+	it("ignores metadata events whose turn belongs to another thread", () => {
+		const firstThread = createThread({ id: "thread-first" });
+		createThread({ id: "thread-second" });
+		projection.recordTurn(firstThread, "First thread prompt", {
+			id: "turn-first",
+			status: "in_progress",
+		});
+		events = [];
+
+		projection.applyRuntimeEvent({
+			type: "thread.token_usage",
+			threadId: "thread-second",
+			turnId: "turn-first",
+			usage: {
+				totalTokens: 42,
+				inputTokens: 20,
+				cachedInputTokens: 4,
+				outputTokens: 18,
+				reasoningOutputTokens: 2,
+				modelContextWindow: 128_000,
+			},
+		});
+
+		expect(store.getThread("thread-second")?.tokensUsed).toBe(0);
+		expect(events).toEqual([]);
+	});
+
 	it("synthesizes a missing turn and item for early delta events", () => {
 		createThread();
 
