@@ -2,7 +2,7 @@ import type { ControlService } from "./service.js";
 import { createServiceFromEnv } from "./serviceFactory.js";
 
 const serviceKey = Symbol.for("coz.service");
-const serviceSchemaVersion = 6;
+const serviceSchemaVersion = 7;
 
 type ServiceEntry = {
 	schemaVersion: number;

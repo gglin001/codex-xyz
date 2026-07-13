@@ -245,9 +245,19 @@ export function reconcileRuntimeThreadHistory(
 				});
 			}
 			const existingItems = store.listTurnItems(runtimeTurn.id);
-			const promptItem = runtimeTurn.items.find(
-				(item) => item.type === "user" && item.text === runtimeTurn.prompt,
+			const matchingLivePrompt = existingItems.find(
+				(item) =>
+					item.type === "user" &&
+					item.text === runtimeTurn.prompt &&
+					!isRolloutLocalHistoryItemId(item.id),
 			);
+			if (matchingLivePrompt) {
+				for (const existingItem of existingItems) {
+					if (isRolloutLocalHistoryItemId(existingItem.id)) {
+						store.deleteItem(existingItem.id);
+					}
+				}
+			}
 			for (const item of runtimeTurn.items) {
 				const persistedId = persistedHistoryItemId(
 					threadId,
@@ -260,25 +270,8 @@ export function reconcileRuntimeThreadHistory(
 						store.deleteItem(item.id);
 					}
 				}
-				if (item === promptItem) {
-					const matchingLivePrompt = existingItems.find(
-						(existingItem) =>
-							existingItem.type === "user" &&
-							existingItem.text === item.text &&
-							!isRolloutLocalHistoryItemId(existingItem.id),
-					);
-					if (matchingLivePrompt) {
-						for (const existingItem of existingItems) {
-							if (
-								existingItem.type === "user" &&
-								existingItem.text === item.text &&
-								isRolloutLocalHistoryItemId(existingItem.id)
-							) {
-								store.deleteItem(existingItem.id);
-							}
-						}
-						continue;
-					}
+				if (matchingLivePrompt && isRolloutLocalHistoryItemId(item.id)) {
+					continue;
 				}
 				store.upsertItem({
 					...item,

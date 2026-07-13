@@ -251,7 +251,7 @@ describe("thread history reconciliation", () => {
 		}
 	});
 
-	it("keeps the live prompt item when history uses a rollout-local id", () => {
+	it("prefers a complete live turn projection over rollout-local history", () => {
 		const store = Store.open(":memory:");
 		try {
 			reconcileRuntimeThreads(store, [runtimeThread("a")]);
@@ -282,6 +282,42 @@ describe("thread history reconciliation", () => {
 				data: { sourceType: "userMessage" },
 				createdAt: "2026-07-11T00:00:00.006Z",
 			});
+			store.createItem({
+				id: "rs-live",
+				threadId: "a",
+				turnId: "turn-a",
+				type: "plan",
+				text: "live reasoning",
+				data: { sourceType: "reasoning" },
+				createdAt: "2026-07-11T00:00:00.100Z",
+			});
+			store.createItem({
+				id: "msg-live",
+				threadId: "a",
+				turnId: "turn-a",
+				type: "agent",
+				text: "live answer",
+				data: { sourceType: "agentMessage" },
+				createdAt: "2026-07-11T00:00:00.200Z",
+			});
+			store.createItem({
+				id: "history:a:turn-a:item-2",
+				threadId: "a",
+				turnId: "turn-a",
+				type: "plan",
+				text: "stale aggregate reasoning",
+				data: { sourceType: "reasoning" },
+				createdAt: "2026-07-11T00:00:00.001Z",
+			});
+			store.createItem({
+				id: "history:a:turn-a:item-3",
+				threadId: "a",
+				turnId: "turn-a",
+				type: "agent",
+				text: "stale answer",
+				data: { sourceType: "agentMessage" },
+				createdAt: "2026-07-11T00:00:00.002Z",
+			});
 
 			reconcileRuntimeThreadHistory(store, "a", {
 				turns: [
@@ -300,20 +336,35 @@ describe("thread history reconciliation", () => {
 								data: { sourceType: "userMessage" },
 								createdAt: "2026-07-11T00:00:00.000Z",
 							},
+							{
+								id: "item-2",
+								type: "plan",
+								text: "aggregate reasoning",
+								data: { sourceType: "reasoning" },
+								createdAt: "2026-07-11T00:00:00.001Z",
+							},
+							{
+								id: "item-3",
+								type: "agent",
+								text: "history answer",
+								data: { sourceType: "agentMessage" },
+								createdAt: "2026-07-11T00:00:00.002Z",
+							},
 						],
 					},
 				],
 				nextCursor: null,
 			});
 
-			expect(store.listTurnItems("turn-a")).toMatchObject([
-				{
-					id: "019f4fb1-fc79-7401-bcd2-345658ae5173",
-					text: "same prompt",
-				},
+			expect(store.listTurnItems("turn-a").map((item) => item.id)).toEqual([
+				"019f4fb1-fc79-7401-bcd2-345658ae5173",
+				"rs-live",
+				"msg-live",
 			]);
 			expect(store.getItem("item-1")).toBeNull();
 			expect(store.getItem("history:a:turn-a:item-1")).toBeNull();
+			expect(store.getItem("history:a:turn-a:item-2")).toBeNull();
+			expect(store.getItem("history:a:turn-a:item-3")).toBeNull();
 		} finally {
 			store.close();
 		}
