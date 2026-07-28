@@ -2,7 +2,7 @@
 import { spawn } from "node:child_process";
 
 const hostname = process.env.COZ_UI_IP || "127.0.0.1";
-const port = process.env.COZ_UI_PORT || "1123";
+const port = process.env.COZ_UI_PORT || "11235";
 
 console.log(`Starting Next.js dev on ${hostname}:${port}`);
 

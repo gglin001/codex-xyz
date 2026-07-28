@@ -24,12 +24,11 @@ Use `NOTICE.md` for repository-specific operating constraints and supported or d
 ## Build, Test, and Development Commands
 
 - `pnpm install`: install dependencies.
-- `pnpm run dev`: start the local Next.js web console with same-origin API routes.
+- `pnpm run dev`: auto-detect a suitable host IPv4 and start the local Next.js web console on port `11235`; use `COZ_UI_IP` or `COZ_UI_PORT` to override either value.
 - `pnpm test`: generate Codex types, then run Vitest once.
 - `pnpm run typecheck`: run strict TypeScript checks without emitting files.
 - `pnpm run build`: generate Codex types, typecheck, and build the client.
-- `pnpm run start`: run the built production Next.js server.
-- `scripts/debug.sh`: prefer using this script for debug and testing.
+- `pnpm run start`: run the built production Next.js server on port `11235` by default.
 
 ## Coding Style & Naming Conventions
 
@@ -45,7 +44,7 @@ Use Vitest with the Node environment. Add tests under `test/` using `*.test.ts`,
 
 Prefer test adapters and temporary directories for service or API route behavior. Run `pnpm test` before submitting changes, and run `pnpm run typecheck` when changing shared types, config, adapters, or APIs.
 
-Before starting a dev server for manual validation, use the Next.js app URL (`http://127.0.0.1:1123` by default). If a service already responds there, assume the user has started testing and use that hot-reloading service instead of launching another server.
+Before starting a dev server for manual validation, use the host address printed by `pnpm run dev` with port `11235`. If a service already responds there, assume the user has started testing and use that hot-reloading service instead of launching another server.
 
 ## Commit & Pull Request Guidelines
 

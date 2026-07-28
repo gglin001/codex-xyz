@@ -1,14 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# using COZ_UI_IP 100.64.x.y with tailscale, eg: http://100.64.0.1:1123
-# IPV4=$(ifconfig | sed -E -n 's/^[[:space:]]*inet (100\.64\.[0-9]{1,3}\.[0-9]{1,3}).*/\1/p')
-# IPV4=$(ip -4 a | sed -E -n 's/^[[:space:]]*inet (192\.168\.[0-9]{1,3}\.[0-9]{1,3}).*/\1/p')
-IPV4="127.0.0.1"
+REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
 
-export COZ_UI_IP="${COZ_UI_IP:-$IPV4}"
-export COZ_UI_PORT="${COZ_UI_PORT:-1123}"
+detect_ip() {
+  local addresses=""
 
-export CODEX_HOME="${PWD}/dot.home/.codex"
-COZ_DEBUG_LEVEL=2 pnpm run dev
-# COZ_DEBUG_LEVEL=2 pnpm run dev 2>&1 | tee debug.log
+  if command -v ip >/dev/null 2>&1; then
+    addresses="$(ip -o -4 addr show up scope global 2>/dev/null | awk '{ sub(/\/.*/, "", $4); print $4 }' || true)"
+  fi
+
+  if [[ -z "$addresses" ]] && command -v ifconfig >/dev/null 2>&1; then
+    addresses="$(ifconfig 2>/dev/null | awk '$1 == "inet" { print $2 }' || true)"
+  fi
+
+  awk '
+    /^100\.64\./ && !tailscale { tailscale = $0 }
+    /^192\.168\./ && !lan { lan = $0 }
+    !/^127\./ && !/^169\.254\./ && !fallback { fallback = $0 }
+    END { print tailscale ? tailscale : lan ? lan : fallback ? fallback : "127.0.0.1" }
+  ' <<< "$addresses"
+}
+
+export COZ_UI_IP="${COZ_UI_IP:-$(detect_ip)}"
+export COZ_UI_PORT="${COZ_UI_PORT:-11235}"
+export COZ_DEBUG_LEVEL="${COZ_DEBUG_LEVEL:-2}"
+export CODEX_HOME="${CODEX_HOME:-$REPO_ROOT/dot.home/.codex}"
+
+exec node scripts/run-dev.mjs
